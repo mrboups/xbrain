@@ -1,0 +1,39 @@
+# Secrets / env
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Docker / runtime data
+data/
+volumes/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# GSD ephemeral artifacts
+.planning/sessions/
+.planning/spikes/
+.planning/sketches/
+
+# Build artifacts (none yet, placeholder)
+dist/
+build/
