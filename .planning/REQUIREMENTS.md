@@ -196,89 +196,92 @@ Exclusions explicites — listées pour empêcher leur réintroduction sans déb
 
 ## Traceability
 
-Mapping requirement → phase. Vide à l'init, sera rempli par le roadmapper.
+Mapping requirement → phase. Rempli par le roadmapper — 2026-05-02.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | TBD | Pending |
-| AUTH-02 | TBD | Pending |
-| AUTH-03 | TBD | Pending |
-| AUTH-04 | TBD | Pending |
-| AUTH-05 | TBD | Pending |
-| AUTH-06 | TBD | Pending |
-| TEAM-01 | TBD | Pending |
-| TEAM-02 | TBD | Pending |
-| TEAM-03 | TBD | Pending |
-| TEAM-04 | TBD | Pending |
-| TEAM-05 | TBD | Pending |
-| TEAM-06 | TBD | Pending |
-| MEM-01 | TBD | Pending |
-| MEM-02 | TBD | Pending |
-| MEM-03 | TBD | Pending |
-| MEM-04 | TBD | Pending |
-| MEM-05 | TBD | Pending |
-| MEM-06 | TBD | Pending |
-| MEM-07 | TBD | Pending |
-| MEM-08 | TBD | Pending |
-| MEM-09 | TBD | Pending |
-| MEM-10 | TBD | Pending |
-| CHAT-01 | TBD | Pending |
-| CHAT-02 | TBD | Pending |
-| CHAT-03 | TBD | Pending |
-| CHAT-04 | TBD | Pending |
-| CHAT-05 | TBD | Pending |
-| CHAT-06 | TBD | Pending |
-| CHAT-07 | TBD | Pending |
-| CHAT-08 | TBD | Pending |
-| SRCH-01 | TBD | Pending |
-| SRCH-02 | TBD | Pending |
-| SRCH-03 | TBD | Pending |
-| SRCH-04 | TBD | Pending |
-| SRCH-05 | TBD | Pending |
-| TRUTH-01 | TBD | Pending |
-| TRUTH-02 | TBD | Pending |
-| TRUTH-03 | TBD | Pending |
-| TRUTH-04 | TBD | Pending |
-| TRUTH-05 | TBD | Pending |
-| TRUTH-06 | TBD | Pending |
-| TRUTH-07 | TBD | Pending |
-| TRUTH-08 | TBD | Pending |
-| TRUTH-09 | TBD | Pending |
-| AGENT-01 | TBD | Pending |
-| AGENT-02 | TBD | Pending |
-| AGENT-03 | TBD | Pending |
-| AGENT-04 | TBD | Pending |
-| AGENT-05 | TBD | Pending |
-| AGENT-06 | TBD | Pending |
-| AGENT-07 | TBD | Pending |
-| MCP-01 | TBD | Pending |
-| MCP-02 | TBD | Pending |
-| MCP-03 | TBD | Pending |
-| MCP-04 | TBD | Pending |
-| MCP-05 | TBD | Pending |
-| MCP-06 | TBD | Pending |
-| MCP-07 | TBD | Pending |
-| INT-01 | TBD | Pending |
-| INT-02 | TBD | Pending |
-| INT-03 | TBD | Pending |
-| INT-04 | TBD | Pending |
-| OBS-01 | TBD | Pending |
-| OBS-02 | TBD | Pending |
-| OBS-03 | TBD | Pending |
-| OBS-04 | TBD | Pending |
-| OBS-05 | TBD | Pending |
-| ADMIN-01 | TBD | Pending |
-| ADMIN-02 | TBD | Pending |
-| ADMIN-03 | TBD | Pending |
-| ADMIN-04 | TBD | Pending |
-| ADMIN-05 | TBD | Pending |
-| ADMIN-06 | TBD | Pending |
+| AUTH-01 | Phase 1 | Pending |
+| AUTH-02 | Phase 1 | Pending |
+| AUTH-03 | Phase 1 | Pending |
+| AUTH-04 | Phase 1 | Pending |
+| AUTH-05 | Phase 1 | Pending |
+| AUTH-06 | Phase 1 | Pending |
+| TEAM-01 | Phase 1 | Pending |
+| TEAM-02 | Phase 1 | Pending |
+| TEAM-03 | Phase 1 | Pending |
+| TEAM-04 | Phase 1 | Pending |
+| TEAM-05 | Phase 1 | Pending |
+| TEAM-06 | Phase 1 | Pending |
+| MEM-01 | Phase 1 | Pending |
+| MEM-02 | Phase 1 | Pending |
+| MEM-03 | Phase 1 | Pending |
+| MEM-04 | Phase 1 | Pending |
+| MEM-05 | Phase 1 | Pending |
+| MEM-06 | Phase 2 | Pending |
+| MEM-07 | Phase 2 | Pending |
+| MEM-08 | Phase 2 | Pending |
+| MEM-09 | Phase 2 | Pending |
+| MEM-10 | Phase 2 | Pending |
+| CHAT-01 | Phase 1 | Pending |
+| CHAT-02 | Phase 1 | Pending |
+| CHAT-03 | Phase 1 | Pending |
+| CHAT-04 | Phase 1 | Pending |
+| CHAT-05 | Phase 1 | Pending |
+| CHAT-06 | Phase 2 | Pending |
+| CHAT-07 | Phase 2 | Pending |
+| CHAT-08 | Phase 1 | Pending |
+| SRCH-01 | Phase 1 | Pending |
+| SRCH-02 | Phase 1 | Pending |
+| SRCH-03 | Phase 2 | Pending |
+| SRCH-04 | Phase 2 | Pending |
+| SRCH-05 | Phase 3 | Pending |
+| TRUTH-01 | Phase 2 | Pending |
+| TRUTH-02 | Phase 2 | Pending |
+| TRUTH-03 | Phase 2 | Pending |
+| TRUTH-04 | Phase 2 | Pending |
+| TRUTH-05 | Phase 2 | Pending |
+| TRUTH-06 | Phase 2 | Pending |
+| TRUTH-07 | Phase 2 | Pending |
+| TRUTH-08 | Phase 2 | Pending |
+| TRUTH-09 | Phase 2 | Pending |
+| AGENT-01 | Phase 2 | Pending |
+| AGENT-02 | Phase 2 | Pending |
+| AGENT-03 | Phase 2 | Pending |
+| AGENT-04 | Phase 2 | Pending |
+| AGENT-05 | Phase 2 | Pending |
+| AGENT-06 | Phase 2 | Pending |
+| AGENT-07 | Phase 2 | Pending |
+| MCP-01 | Phase 3 | Pending |
+| MCP-02 | Phase 3 | Pending |
+| MCP-03 | Phase 3 | Pending |
+| MCP-04 | Phase 3 | Pending |
+| MCP-05 | Phase 3 | Pending |
+| MCP-06 | Phase 3 | Pending |
+| MCP-07 | Phase 3 | Pending |
+| INT-01 | Phase 3 | Pending |
+| INT-02 | Phase 3 | Pending |
+| INT-03 | Phase 3 | Pending |
+| INT-04 | Phase 3 | Pending |
+| OBS-01 | Phase 1 | Pending |
+| OBS-02 | Phase 2 | Pending |
+| OBS-03 | Phase 2 | Pending |
+| OBS-04 | Phase 1 | Pending |
+| OBS-05 | Phase 2 | Pending |
+| ADMIN-01 | Phase 1 | Pending |
+| ADMIN-02 | Phase 1 | Pending |
+| ADMIN-03 | Phase 1 | Pending |
+| ADMIN-04 | Phase 1 | Pending |
+| ADMIN-05 | Phase 1 | Pending |
+| ADMIN-06 | Phase 1 | Pending |
 
 **Coverage:**
-- v1 requirements: 65 total
-- Mapped to phases: 0 (will be populated by roadmapper)
-- Unmapped: 65 ⚠️ (expected at this stage)
+- v1 requirements: 73 total (note: REQUIREMENTS.md header stated 65 but 73 REQ-IDs are defined across 11 categories — all 73 mapped)
+- Mapped to phases: 73/73
+- Phase 1: 33 requirements
+- Phase 2: 28 requirements
+- Phase 3: 12 requirements
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-02*
-*Last updated: 2026-05-02 after initial definition (auto mode, derived from FEATURES.md + idea.md, mem0 substitution applied per PROJECT.md Key Decisions)*
+*Last updated: 2026-05-02 — traceability filled by roadmapper (3 phases, 73/73 requirements mapped)*
