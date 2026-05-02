@@ -32,7 +32,7 @@ Ce n'est pas un workspace de chatbot. Le différenciateur est la couche mémoire
 - [ ] PostgreSQL pour event store, audit logs, truth levels, permissions, workflows
 - [ ] Qdrant pour retrieval sémantique, mémoire vectorielle des agents, recherche
 - [ ] Neo4j pour graphe relationnel, lineage, dépendances, validation graph
-- [ ] Couche mémoire structurée : Remembra (long terme + provenance + entity graph), Memstate (versioning + conflits), Memori (extraction structurée auto)
+- [ ] Couche mémoire = **`mem0` (Apache 2.0, 40k★) + `memory-api`**. mem0 fournit storage / embeddings / graph / extraction. memory-api enforce truth-level state machine, team-scoping, promotion workflow, audit. mem0 est encapsulé derrière une interface `MemoryProvider` pour rester remplaçable
 - [ ] LangGraph comme runtime des agents persistants (workflows, approvals, multi-agent)
 - [ ] MinIO comme stockage assets (PDFs, images, decks, fichiers générés, datasets)
 - [ ] Langfuse pour observabilité (traces, prompts, failures, tool calls, lineage agents)
@@ -64,9 +64,12 @@ Ce n'est pas un workspace de chatbot. Le différenciateur est la couche mémoire
 
 ## Constraints
 
-- **Tech stack** : LibreChat + Open WebUI + Remembra + Memstate + Memori + LangGraph + Qdrant + Neo4j + PostgreSQL + MinIO + Langfuse — **Pourquoi :** stack tranchée au kickoff, 100 % open-source, auto-hébergeable, couvre toutes les fonctions attendues. Substitutions à challenger explicitement avant adoption.
-- **Déploiement** : GCP VM Ubuntu 24.04 (e2-medium baseline ~25€/mois) ou Railway, via Docker Compose — **Pourquoi :** budget contraint, ops simple, pas d'expertise Kubernetes requise, portable entre les deux cibles.
-- **Budget infra** : ~25€/mois en baseline (e2-medium) — **Pourquoi :** projet interne, pas de revenu direct, doit rester soutenable. Sizing peut monter (e2-standard-2) si Phase 2/3 le requièrent.
+- **Tech stack** (révisée après research) : LibreChat + Open WebUI + **mem0** + LangGraph + Qdrant + Neo4j + PostgreSQL + MinIO (image Chainguard) + Langfuse — **Pourquoi :** stack 100 % OSS auto-hébergeable. Memstate.ai (SaaS fermé), Remembra (13★ + SQLite, immature) et Memori (Alpha) ont été retirés au profit de mem0 + memory-api natif après vérification : voir Key Decisions ci-dessous.
+- **Déploiement** : GCP VM Ubuntu 24.04, Docker Compose — **Pourquoi :** budget contraint, ops simple, pas d'expertise Kubernetes requise. Stratégie de sizing échelonnée :
+  - **Phase 1** : `e2-medium` (4 GB, ~25€/mo) — LibreChat + Open WebUI + Postgres + Qdrant + memory-api stub. Tolérance fine — surveiller OOM, pas de service ajouté en plus sans couper autre chose.
+  - **Phase 2** : upgrade vers `e2-standard-2` (8 GB, ~38-49€/mo) en début de phase, **avant** d'ajouter mem0 + LangGraph + agent runtime.
+  - **Phase 3** : `e2-standard-4` (16 GB, ~98€/mo) **OU** Langfuse sur VM séparée (~62€/mo total) — décision en début de Phase 3 selon charge observée.
+  - GCP project cible : compte `team@grooveos.app`, projet à créer (`xbrain-prod` proposé) sans toucher aux projets existants.
 - **Open-source uniquement** : aucun service managé propriétaire dans le chemin critique — **Pourquoi :** auto-hébergeable, pas de lock-in, contrôle complet de la donnée (sensibilité multi-team).
 - **Multi-frontend invariant** : LibreChat + Open WebUI + ChatGPT (API) + Claude Code lisent/écrivent la même mémoire — **Pourquoi :** l'équipe utilise déjà ces outils en pratique. Imposer un frontend unique ferait échouer l'adoption.
 - **Contrat de tagging obligatoire** : 7 champs minimum sur chaque donnée — **Pourquoi :** invariant qui rend possibles l'isolation team, la promotion truth-level, l'audit, le retrieval scopé. C'est le différenciateur.
@@ -78,7 +81,12 @@ Ce n'est pas un workspace de chatbot. Le différenciateur est la couche mémoire
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Plateforme open-source self-hosted, pas SaaS managé | Sensibilité multi-team + contrôle données + budget contraint | — Pending |
-| Stack : LibreChat + Open WebUI + Remembra/Memstate/Memori + LangGraph + Qdrant/Neo4j/PostgreSQL + MinIO + Langfuse | Couvre toutes les fonctions attendues, 100 % OSS, déployable en Docker Compose | — Pending |
+| Stack : LibreChat + Open WebUI + mem0 + LangGraph + Qdrant + Neo4j + PostgreSQL + MinIO (Chainguard) + Langfuse | 100 % OSS, déployable en Docker Compose. Remembra/Memstate/Memori retirés (cf. décision suivante). | ✓ Validé après research |
+| Couche mémoire = mem0 + memory-api natif (au lieu de Memstate + Remembra + Memori) | Memstate.ai = SaaS fermé (pas d'OSS officiel). Remembra immature (13★, SQLite). Memori en Alpha. mem0 (40k★, prod-ready) couvre storage + embeddings + graph + extraction. Le state machine truth-level + team-scoping + audit reste dans memory-api (notre vrai différenciateur). | ✓ Validé 2026-05-02 |
+| `MemoryProvider` interface dans `/packages/memory-models` avant intégration mem0 | Garde mem0 remplaçable si besoin futur. Mitigation bus-factor / lock-in. | — Pending |
+| VM échelonnée : e2-medium Phase 1 → e2-standard-2 Phase 2 → e2-standard-4 (ou split) Phase 3 | Aligne sur budget initial ~25€/mo, scaling progressif. Risque OOM Phase 1 à mitiger. | ✓ Validé 2026-05-02 |
+| Open WebUI v0.6.6+ : licence custom non-OSI mais OK pour usage interne ≤50 users avec branding préservé | Acceptable dans notre périmètre interne. À re-évaluer si l'équipe dépasse 50 users. | ✓ Validé 2026-05-02 |
+| MinIO via image Chainguard (`cgr.dev/chainguard/minio:latest`) | Images officielles Docker Hub discontinuées oct 2025. Chainguard est le standard de fait, déjà utilisé par Langfuse. | ✓ Validé 2026-05-02 |
 | `memory-api` comme couche centrale, frontends pluggables | Invariant fondateur — empêche la fragmentation par frontend | — Pending |
 | Contrat de tagging à 7 champs sur chaque donnée | Permet isolation team, promotion truth-level, audit, retrieval scopé | — Pending |
 | Truth-levels : EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC | Permet de marquer une info "super valid" / "public" comparée au reste du brain | — Pending |
@@ -107,4 +115,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-02 after initialization*
+*Last updated: 2026-05-02 after research synthesis (memory layer revised: mem0 + memory-api natif au lieu de Memstate/Remembra/Memori, VM strategy confirmée e2-medium → e2-standard-2 → e2-standard-4, Open WebUI license + MinIO Chainguard documentés)*
