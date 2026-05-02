@@ -4,14 +4,20 @@
 .env.*.local
 *.pem
 *.key
+secrets/
 
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 *.egg-info/
 .venv/
 venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Node
 node_modules/
@@ -22,12 +28,16 @@ yarn-error.log*
 # Docker / runtime data
 data/
 volumes/
+.dockerignore.local
+docker-compose.override.yml
 
 # IDE / OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
 
 # GSD ephemeral artifacts
 .planning/sessions/
@@ -37,3 +47,12 @@ Thumbs.db
 # Build artifacts (none yet, placeholder)
 dist/
 build/
+
+# Logs
+*.log
+
+# Backups (jamais commit — voir GCS bucket xbrain-backups-prod)
+backups/
+*.tar.gz
+*.sql.gz
+*.dump

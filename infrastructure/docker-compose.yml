@@ -1,0 +1,38 @@
+# Phase 1 — squelette docker-compose
+# Étoffé incrémentalement par plans 01-02 → 01-06
+# Points d'entrée : nginx (80/443), tout le reste interne sur xbrain_net.
+
+networks:
+  xbrain_net:
+    name: xbrain_net
+    driver: bridge
+
+volumes:
+  xbrain_pg:        { name: xbrain_pg }
+  xbrain_qdrant:    { name: xbrain_qdrant }
+  librechat_mongo:  { name: librechat_mongo }
+  librechat_meili:  { name: librechat_meili }
+  librechat_uploads:{ name: librechat_uploads }
+  openwebui_data:   { name: openwebui_data }
+  openwebui_pipelines: { name: openwebui_pipelines }
+  xbrain_backups:   { name: xbrain_backups }
+
+services:
+  # === Placeholder ingress (nginx) — détails dans plan 01-05 ===
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: xbrain-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    networks: [xbrain_net]
+    mem_limit: 64m
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/nginx-health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # Les autres services seront ajoutés par les plans suivants.
