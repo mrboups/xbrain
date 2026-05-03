@@ -16,6 +16,9 @@ dependencies = [
   "httpx>=0.28",
   "python-multipart>=0.0.18",
   "structlog>=24.4",
+  "openai>=1.55",  # Phase 2: embeddings for NativeProvider
+  "mem0ai>=1.0.4",  # Phase 2: optional Mem0Provider backend (lazy-imported)
+  "xbrain-memory @ file:///app/packages/memory-models",  # path mounted in compose build
 ]
 
 [project.optional-dependencies]

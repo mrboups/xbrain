@@ -1,10 +1,12 @@
-"""FastAPI dependencies: DB session, current user, team scope guard."""
+"""FastAPI dependencies: DB session, current user, team scope guard, memory provider."""
 
 from collections.abc import AsyncGenerator
 from typing import Any
 
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from xbrain_memory import MemoryProvider
 
 from app.auth import verify_bridge_jwt, verify_google_id_token
 from app.config import settings
@@ -77,3 +79,41 @@ async def get_team_scope(
     if membership is None:
         raise HTTPException(403, f"Not a member of team {x_team_scope}")
     return x_team_scope
+
+
+# === Memory provider singleton (lazy-loaded based on env MEMORY_BACKEND) ===
+
+_memory_provider_singleton: MemoryProvider | None = None
+
+
+def _build_provider() -> MemoryProvider:
+    backend = settings.MEMORY_BACKEND.lower()
+    if backend == "mem0":
+        from xbrain_memory.providers.mem0_provider import Mem0Provider
+        return Mem0Provider(
+            qdrant_url=settings.QDRANT_URL,
+            openai_api_key=settings.OPENAI_API_KEY,
+        )
+    if backend == "native":
+        from xbrain_memory.providers.native_provider import NativeProvider
+        from app.embedders import openai_embedder
+        # asyncpg DSN format (no SQLAlchemy driver prefix)
+        pg_dsn = settings.DATABASE_URL.replace(
+            "postgresql+asyncpg://", "postgresql://"
+        )
+        return NativeProvider(
+            pg_dsn=pg_dsn,
+            qdrant_url=settings.QDRANT_URL,
+            embedder=openai_embedder,
+            qdrant_api_key=settings.QDRANT_API_KEY,
+        )
+    # Default: stub (no external deps, in-process)
+    from xbrain_memory.providers.native_stub import NativeStubProvider
+    return NativeStubProvider()
+
+
+def get_memory_provider() -> MemoryProvider:
+    global _memory_provider_singleton
+    if _memory_provider_singleton is None:
+        _memory_provider_singleton = _build_provider()
+    return _memory_provider_singleton

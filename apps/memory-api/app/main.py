@@ -8,7 +8,7 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.qdrant_setup import ensure_collections
-from app.routes import audit, conversations, health, me, messages, teams
+from app.routes import audit, conversations, health, me, memory, messages, teams
 
 logging.basicConfig(level=settings.LOG_LEVEL)
 structlog.configure(
@@ -40,3 +40,4 @@ app.include_router(teams.router, prefix="/v1", tags=["teams"])
 app.include_router(conversations.router, prefix="/v1", tags=["conversations"])
 app.include_router(messages.router, prefix="/v1", tags=["messages"])
 app.include_router(audit.router, prefix="/v1", tags=["audit"])
+app.include_router(memory.router, prefix="/v1", tags=["memory"])

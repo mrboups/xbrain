@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     # Phase 2 will move to a proper role/permission table).
     ADMIN_USER_SUBS: str = ""
 
+    # Phase 2: memory backend selection
+    MEMORY_BACKEND: str = "stub"  # "mem0" | "native" | "stub"
+    OPENAI_API_KEY: str = ""
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}
