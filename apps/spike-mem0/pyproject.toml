@@ -1,0 +1,12 @@
+[project]
+name = "spike-mem0"
+version = "0.0.1"
+description = "1-day spike to validate mem0 vs native for xbrain Phase 2 — DELETE after Plan 02-03"
+requires-python = ">=3.12"
+dependencies = [
+  "mem0ai>=1.0.4",
+  "qdrant-client>=1.17",
+  "asyncpg>=0.30",
+  "openai>=1.55",
+  "pydantic>=2.10",
+]
