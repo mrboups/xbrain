@@ -264,3 +264,31 @@ services:
       start_period: 30s
 
   # === xbrain-backup (plan 01-06) ===
+  xbrain-backup:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    image: xbrain/backup:phase1
+    container_name: xbrain-backup
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      LIBRECHAT_MONGO_URI: ${LIBRECHAT_MONGO_URI}
+      QDRANT_URL: ${QDRANT_URL}
+      GCS_BACKUP_BUCKET: ${GCS_BACKUP_BUCKET}
+      GCS_SERVICE_ACCOUNT_KEY: /secrets/gcs-backup-sa.json
+      BACKUP_RETENTION_DAILY: ${BACKUP_RETENTION_DAILY:-7}
+    volumes:
+      - openwebui_data:/backup-volumes/openwebui-data:ro
+      - librechat_uploads:/backup-volumes/librechat-uploads:ro
+      - librechat_meili:/backup-volumes/librechat-meili:ro
+      - /home/user/secrets/gcs-backup-sa.json:/secrets/gcs-backup-sa.json:ro
+    networks: [xbrain_net]
+    mem_limit: 256m
+    depends_on:
+      postgres: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+      librechat-mongo: { condition: service_healthy }

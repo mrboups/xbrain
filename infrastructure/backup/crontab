@@ -1,0 +1,4 @@
+# Daily backup at 02:00 UTC
+0 2 * * * root /scripts/backup.sh >> /var/log/cron.log 2>&1
+# heartbeat to keep log file alive
+*/15 * * * * root echo "[$(date -Iseconds)] backup-cron alive" >> /var/log/cron.log
