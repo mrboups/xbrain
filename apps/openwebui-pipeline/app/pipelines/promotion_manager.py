@@ -50,6 +50,17 @@ def _http_error_to_msg(e: httpx.HTTPStatusError) -> str:
     return f"❌ memory-api {e.response.status_code}: {detail}"
 
 
+def _phase2_promotions_message() -> str:
+    return (
+        "⚠️ **Les commandes promotions dépendent des endpoints "
+        "`/v1/promotions/*` du `memory-api` (xbrain Phase 2) qui ne sont "
+        "pas encore déployés.**\n\n"
+        "`/promotions-pending`, `/propose`, `/approve`, `/reject` seront "
+        "actifs une fois la stack Phase 2 ship'd.\n\n"
+        "En attendant, envoie un message normal pour parler à l'LLM."
+    )
+
+
 async def try_handle(
     *,
     mem: MemoryApiClient,
@@ -129,10 +140,13 @@ async def try_handle(
 
     except httpx.HTTPStatusError as e:
         log.warning("promotion_manager_http_error", cmd=cmd, status=e.response.status_code)
+        # 404 = route inexistante = endpoints Phase 2 pas encore déployés sur ce memory-api
+        if e.response.status_code == 404:
+            return _phase2_promotions_message()
         return _http_error_to_msg(e)
     except httpx.HTTPError as e:
         log.warning("promotion_manager_network_error", cmd=cmd, err=str(e))
-        return f"❌ Could not reach memory-api: {e}"
+        return _phase2_promotions_message()
 
     # Unknown / not a promotion command → let the LLM handle it
     return None

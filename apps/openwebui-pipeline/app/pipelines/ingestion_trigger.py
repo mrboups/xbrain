@@ -193,6 +193,12 @@ async def try_handle(
         return f"❌ agent-runtime {e.response.status_code}: {detail}"
     except httpx.HTTPError as e:
         log.warning("ingestion_network_error", cmd=cmd, err=str(e))
-        return f"❌ Could not reach agent-runtime: {e}"
+        return (
+            "⚠️ **Cette commande dépend de `agent-runtime` (xbrain Phase 2) "
+            "qui n'est pas encore déployé.**\n\n"
+            "`/ingest`, `/approve-thread`, `/reject-thread` seront actifs "
+            "une fois la stack Phase 2 ship'd.\n\n"
+            "En attendant, envoie un message normal pour parler à l'LLM."
+        )
 
     return None

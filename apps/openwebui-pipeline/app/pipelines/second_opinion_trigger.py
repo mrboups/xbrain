@@ -70,7 +70,12 @@ async def try_handle(
         return f"❌ agent-runtime {e.response.status_code}: {detail}"
     except httpx.HTTPError as e:
         log.warning("second_opinion_network_error", err=str(e))
-        return f"❌ Could not reach agent-runtime: {e}"
+        return (
+            "⚠️ **`/second-opinion` dépend de `agent-runtime` (xbrain Phase 2) "
+            "qui n'est pas encore déployé.**\n\n"
+            "Cette commande sera active une fois la stack Phase 2 ship'd.\n\n"
+            "En attendant, envoie un message normal pour parler à l'LLM."
+        )
 
     md = (data.get("state") or {}).get("final_markdown")
     if not md:

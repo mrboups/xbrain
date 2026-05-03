@@ -39,9 +39,15 @@ openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY) if settings.OPENAI_
 
 # Mapping "external model id" → (provider, real model name)
 MODEL_MAP: dict[str, tuple[str, str]] = {
+    # Claude 4.x (current generation)
+    "claude-opus-4-7": ("anthropic", "claude-opus-4-7"),
+    "claude-sonnet-4-6": ("anthropic", "claude-sonnet-4-6"),
+    "claude-haiku-4-5": ("anthropic", "claude-haiku-4-5-20251001"),
+    # Claude 3.x (legacy, kept for compat)
     "claude-3-5-sonnet": ("anthropic", "claude-3-5-sonnet-latest"),
     "claude-3-5-haiku": ("anthropic", "claude-3-5-haiku-latest"),
     "claude-3-opus": ("anthropic", "claude-3-opus-latest"),
+    # OpenAI
     "gpt-4o": ("openai", "gpt-4o"),
     "gpt-4o-mini": ("openai", "gpt-4o-mini"),
     "gpt-4-turbo": ("openai", "gpt-4-turbo"),
@@ -139,25 +145,46 @@ async def chat(
 
     # Slash-command intercept — short-circuits the LLM path.
     # Order is "most-likely-first" for cheap regex bail-outs.
+    # Wrapped in try/except so unrecognized commands fall through to LLM AND
+    # commands targeting Phase 2 services that aren't deployed yet (agent-runtime,
+    # promotions API) return a clean message instead of crashing the request.
     if user_message.lstrip().startswith("/"):
-        cmd_response = await ingestion_trigger.try_handle(
-            user_message=user_message, user_sub=sub, team_scope=team_scope,
-        )
-        if cmd_response is None:
-            cmd_response = await second_opinion_trigger.try_handle(
+        try:
+            cmd_response = await ingestion_trigger.try_handle(
                 user_message=user_message, user_sub=sub, team_scope=team_scope,
             )
-        if cmd_response is None:
-            cmd_response = await promotion_manager.try_handle(
-                mem=mem,
-                user_message=user_message,
-                user_sub=sub,
-                user_email=x_openwebui_user_email or sub,
-                user_name=x_openwebui_user_id,
-                team_scope=team_scope,
+            if cmd_response is None:
+                cmd_response = await second_opinion_trigger.try_handle(
+                    user_message=user_message, user_sub=sub, team_scope=team_scope,
+                )
+            if cmd_response is None:
+                cmd_response = await promotion_manager.try_handle(
+                    mem=mem,
+                    user_message=user_message,
+                    user_sub=sub,
+                    user_email=x_openwebui_user_email or sub,
+                    user_name=x_openwebui_user_id,
+                    team_scope=team_scope,
+                )
+            if cmd_response is not None:
+                return _openai_compat_completion(body.model, cmd_response)
+        except Exception as e:  # noqa: BLE001
+            log.warning(
+                "slash_command_failed",
+                err=str(e),
+                cmd=user_message.lstrip().split()[0][:60],
+                sub=sub,
             )
-        if cmd_response is not None:
-            return _openai_compat_completion(body.model, cmd_response)
+            return _openai_compat_completion(
+                body.model,
+                "⚠️ **Cette commande n'est pas encore disponible.**\n\n"
+                "Les commandes `/ingest`, `/second-opinion`, `/approve-thread`, "
+                "`/reject-thread`, `/promotions-pending`, `/propose`, `/approve`, "
+                "`/reject` requièrent les services xbrain Phase 2 "
+                "(`agent-runtime` + endpoints promotions du `memory-api`).\n\n"
+                "Ils seront actifs une fois Phase 2 déployée. En attendant, "
+                "envoie un message normal pour parler à l'LLM."
+            )
 
     log.info(
         "chat_request",
