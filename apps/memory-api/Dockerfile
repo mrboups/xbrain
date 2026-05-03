@@ -19,4 +19,4 @@ USER xbrain
 EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=20s \
   CMD curl -fsS http://localhost:8000/v1/healthz || exit 1
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

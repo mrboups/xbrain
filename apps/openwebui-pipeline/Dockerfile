@@ -16,4 +16,4 @@ USER pipeline
 EXPOSE 9099
 HEALTHCHECK --interval=15s --timeout=5s --retries=4 --start-period=20s \
   CMD curl -fsS http://localhost:9099/health || exit 1
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "9099", "--workers", "1"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "9099", "--workers", "1"]

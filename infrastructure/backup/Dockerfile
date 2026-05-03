@@ -1,4 +1,5 @@
 FROM google/cloud-sdk:slim
+# Step 1: base tools (gpg required before adding mongo repo)
 RUN apt-get update && apt-get install -y --no-install-recommends \
       postgresql-client \
       gnupg \
@@ -9,10 +10,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       jq \
       tzdata \
       ca-certificates \
-    && curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] http://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" > /etc/apt/sources.list.d/mongodb-org-7.0.list \
-    && apt-get update && apt-get install -y --no-install-recommends mongodb-database-tools mongodb-mongosh \
     && rm -rf /var/lib/apt/lists/*
+
+# Step 2: MongoDB Database Tools (static binaries, version-pinned, OS-agnostic)
+# Avoids fragile mongodb apt repo (which depends on Debian codename matching)
+RUN curl -fsSL https://fastdl.mongodb.org/tools/db/mongodb-database-tools-debian12-x86_64-100.10.0.deb -o /tmp/mdbtools.deb \
+    && dpkg -i /tmp/mdbtools.deb \
+    && rm /tmp/mdbtools.deb
 WORKDIR /scripts
 COPY backup.sh restore.sh ./
 COPY crontab /etc/cron.d/xbrain-backup

@@ -30,7 +30,7 @@ services:
     networks: [xbrain_net]
     mem_limit: 64m
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/nginx-health"]
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/nginx-health 2>/dev/null | grep -q ok"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -86,7 +86,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       ADMIN_USER_SUBS: ${ADMIN_USER_SUBS:-}
     networks: [xbrain_net]
-    mem_limit: 256m
+    mem_limit: 384m
     depends_on:
       postgres: { condition: service_healthy }
       qdrant: { condition: service_healthy }
@@ -97,8 +97,8 @@ services:
       retries: 5
       start_period: 30s
     command: >
-      sh -c "alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+      sh -c "python -m alembic upgrade head &&
+             python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
 
   # === librechat-bridge sidecar (plan 01-03) ===
   librechat-bridge:
@@ -166,7 +166,7 @@ services:
       - librechat_mongo:/data/db
       - ./scripts/init-mongo-replset.sh:/docker-entrypoint-initdb.d/init-replset.sh:ro
     networks: [xbrain_net]
-    mem_limit: 256m
+    mem_limit: 512m
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status().ok ? 0 : 1 } catch(e) { 1 }"]
       interval: 10s
@@ -186,7 +186,7 @@ services:
     networks: [xbrain_net]
     mem_limit: 192m
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7700/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:7700/health 2>/dev/null | grep -q available"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -253,15 +253,15 @@ services:
     volumes:
       - openwebui_data:/app/backend/data
     networks: [xbrain_net]
-    mem_limit: 512m
+    mem_limit: 1280m
     depends_on:
       openwebui-pipeline: { condition: service_healthy }
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
-      interval: 15s
-      timeout: 5s
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 600s
 
   # === xbrain-backup (plan 01-06) ===
   xbrain-backup:
