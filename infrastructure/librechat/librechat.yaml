@@ -11,8 +11,8 @@ interface:
 
 registration:
   socialLogins: ["google"]
-  allowedDomains:
-    - "*"
+  # allowedDomains omitted → ALL domains allowed (Phase 1 dev posture).
+  # Phase 2: restrict to your team's domain(s), e.g. ["yourcompany.com"]
 
 # Endpoints LLM (les API keys viennent de .env via variables référencées)
 endpoints:
