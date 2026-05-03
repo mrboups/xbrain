@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     MEMORY_API_URL: str = "http://memory-api:8000"
+    AGENT_RUNTIME_URL: str = "http://agent-runtime:9100"  # 02-07 ingestion + 02-08 second-opinion
     BRIDGE_SHARED_SECRET: str
     JWT_ALGORITHM: str = "HS256"
     PIPELINE_API_KEY: str  # the API key Open WebUI sends to authenticate against this service

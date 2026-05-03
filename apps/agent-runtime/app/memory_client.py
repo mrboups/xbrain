@@ -61,6 +61,46 @@ class MemoryApiClient:
         r.raise_for_status()
         return r.json()
 
+    async def upsert_fact(
+        self,
+        *,
+        agent_sub: str,
+        team_scope: str,
+        content: str,
+        truth_level: str = "WORKING",
+        confidence: float = 0.7,
+        source: str = "agent:ingestion-v1",
+        project_scope: str | None = None,
+        metadata: dict | None = None,
+    ) -> dict:
+        """Convenience wrapper — builds a full MemoryItem from agent-side primitives.
+
+        Agents producing facts call this instead of constructing a MemoryItem
+        themselves. ID is generated server-side; created_at/updated_at default to now.
+        """
+        import uuid
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc).isoformat()
+        item = {
+            "id": str(uuid.uuid4()),
+            "team_scope": team_scope,
+            "project_scope": project_scope,
+            "content": content,
+            "metadata": metadata or {},
+            "embedding": None,
+            "visibility": "team",
+            "truth_level": truth_level,
+            "confidence": confidence,
+            "source": source,
+            "validation_status": "pending",
+            "created_at": now,
+            "updated_at": now,
+        }
+        return await self.upsert_memory(
+            agent_sub=agent_sub, team_scope=team_scope, item=item
+        )
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(min=0.3, max=3),
