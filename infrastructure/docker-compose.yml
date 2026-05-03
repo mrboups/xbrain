@@ -128,4 +128,32 @@ services:
       retries: 4
       start_period: 30s
 
-  # Les autres services seront ajoutés par les plans suivants (01-04..01-06).
+  # === openwebui-pipeline (plan 01-04) ===
+  openwebui-pipeline:
+    build:
+      context: ../apps/openwebui-pipeline
+      dockerfile: Dockerfile
+    image: xbrain/openwebui-pipeline:phase1
+    container_name: xbrain-openwebui-pipeline
+    restart: unless-stopped
+    environment:
+      MEMORY_API_URL: ${MEMORY_API_URL}
+      BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      PIPELINE_API_KEY: ${PIPELINE_API_KEY}
+      PIPELINE_DEFAULT_TEAM_SCOPE: ${PIPELINE_DEFAULT_TEAM_SCOPE:-default}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks: [xbrain_net]
+    mem_limit: 192m
+    depends_on:
+      memory-api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9099/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 20s
+
+  # Les autres services seront ajoutés par les plans suivants (01-05..01-06).
