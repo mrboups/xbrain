@@ -7,6 +7,7 @@ to memory-api in best-effort mode (failure does not block response).
 import asyncio
 import logging
 import time
+import uuid
 from typing import Any
 
 import structlog
@@ -111,14 +112,21 @@ def _openai_compat_completion(model: str, content: str) -> dict:
     }
 
 
-def _make_conversation_id(sub: str, messages: list[ChatMessage]) -> str:
-    """Phase 1: derive a stable conv id from sub + first user message hash.
+# Stable UUID v5 namespace for Open WebUI synthetic conversation IDs.
+# Fixed value — must never change or existing conversation groupings break.
+_CONV_NS = uuid.UUID("00000000-0000-0000-0000-00000000ab12")
 
-    Open WebUI doesn't pass a conv id to the OpenAI provider, so we synthesize one.
-    Phase 2: switch to a real conv id passed via custom header from Open WebUI.
+
+def _make_conversation_id(sub: str, messages: list[ChatMessage]) -> str:
+    """Derive a deterministic UUID v5 conversation ID from (sub, first-user-message).
+
+    Open WebUI doesn't pass a conversation ID to the OpenAI provider, so we
+    synthesize one via uuid5(namespace, "openwebui:<sub>:<seed>"). The same
+    (sub, seed) pair always produces the same UUID, preserving conversation
+    grouping across retries, while satisfying memory-api's UUID validation.
     """
     seed = next((m.content for m in messages if m.role == "user"), "")
-    return f"openwebui-{sub}-{abs(hash(seed)) % 10**10}"
+    return str(uuid.uuid5(_CONV_NS, f"openwebui:{sub}:{seed}"))
 
 
 @app.post("/v1/chat/completions")
