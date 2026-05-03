@@ -76,6 +76,42 @@ class MemoryApiClient:
         retry=retry_if_exception_type(httpx.HTTPError),
         reraise=True,
     )
+    async def get_system_prompt(
+        self,
+        *,
+        sub: str,
+        team_scope: str,
+        query: str,
+        project_scope: str | None = None,
+        top_k: int | None = None,
+    ) -> dict:
+        """Fetch the team's CANONICAL-fact addendum for a given query (RAG)."""
+        token = make_bridge_jwt(sub=sub, team_scope=team_scope)
+        params: dict[str, str | int] = {"query": query[:500]}
+        if project_scope:
+            params["project_scope"] = project_scope
+        if top_k is not None:
+            params["top_k"] = top_k
+        r = await self.client.get(
+            f"{self.base}/v1/system-prompt",
+            headers={"Authorization": f"Bearer {token}", "X-Team-Scope": team_scope},
+            params=params,
+        )
+        if r.status_code >= 400:
+            log.warning(
+                "memory_api_get_system_prompt_failed",
+                status=r.status_code,
+                body=r.text[:200],
+            )
+        r.raise_for_status()
+        return r.json()
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(min=0.5, max=4),
+        retry=retry_if_exception_type(httpx.HTTPError),
+        reraise=True,
+    )
     async def post_conversation(
         self,
         *,
