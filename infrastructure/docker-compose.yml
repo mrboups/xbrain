@@ -18,6 +18,7 @@ volumes:
   xbrain_backups: { name: xbrain_backups }
   langfuse_clickhouse_data: { name: langfuse_clickhouse_data }
   langfuse_redis_data: { name: langfuse_redis_data }
+  langfuse_minio_data: { name: langfuse_minio_data }
 
 services:
   # === Placeholder ingress (nginx) — détails dans plan 01-05 ===
@@ -73,9 +74,9 @@ services:
   # === memory-api (plan 01-02) ===
   memory-api:
     build:
-      context: ../apps/memory-api
-      dockerfile: Dockerfile
-    image: xbrain/memory-api:phase1
+      context: ..   # repo root (so packages/memory-models is in the build context)
+      dockerfile: apps/memory-api/Dockerfile
+    image: xbrain/memory-api:phase2
     container_name: xbrain-memory-api
     restart: unless-stopped
     environment:
@@ -121,7 +122,7 @@ services:
       XAI_API_KEY: ${XAI_API_KEY:-}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
-      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse:3000}
+      LANGFUSE_HOST: http://langfuse:3000   # internal docker DNS — bypass Cloudflare for SDK calls
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     networks: [xbrain_net]
     mem_limit: 384m
@@ -182,7 +183,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
-      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse:3000}
+      LANGFUSE_HOST: http://langfuse:3000   # internal docker DNS — bypass Cloudflare for SDK calls
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     networks: [xbrain_net]
     mem_limit: 192m
@@ -369,6 +370,27 @@ services:
       timeout: 5s
       retries: 5
 
+  # === Langfuse MinIO (S3-compat for event/media uploads, mandatory in Langfuse v3) ===
+  langfuse-minio:
+    image: cgr.dev/chainguard/minio
+    container_name: xbrain-langfuse-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - langfuse_minio_data:/data
+    networks: [xbrain_net]
+    mem_limit: 384m
+    entrypoint: /bin/sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/9000' 2>/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   langfuse-worker:
     image: langfuse/langfuse-worker:3
     container_name: xbrain-langfuse-worker
@@ -379,17 +401,29 @@ services:
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
       CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
       REDIS_HOST: langfuse-redis
       REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD}
       SALT: ${LANGFUSE_SALT}
       ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
       TELEMETRY_ENABLED: "false"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
     networks: [xbrain_net]
     mem_limit: 768m
     depends_on:
       langfuse-clickhouse: { condition: service_healthy }
       langfuse-redis: { condition: service_healthy }
       postgres: { condition: service_healthy }
+      langfuse-minio: { condition: service_healthy }
 
   langfuse:
     image: langfuse/langfuse:3
@@ -405,18 +439,34 @@ services:
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
       CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
       REDIS_HOST: langfuse-redis
       REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD}
+      LANGFUSE_INIT_ORG_ID: xbrain
+      LANGFUSE_INIT_ORG_NAME: xbrain
       LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-team@grooveos.app}
       LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-xbrain admin}
       LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_INIT_PROJECT_NAME:-xbrain}
       TELEMETRY_ENABLED: "false"
+      NODE_OPTIONS: "--max-old-space-size=900"
+      HOSTNAME: "0.0.0.0"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
     networks: [xbrain_net]
-    mem_limit: 768m
+    mem_limit: 1152m
     depends_on:
       langfuse-worker: { condition: service_started }
+      langfuse-minio: { condition: service_healthy }
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO - http://127.0.0.1:3000/api/public/health 2>/dev/null | grep -q ok"]
+      test: ["CMD-SHELL", "wget -qO - http://127.0.0.1:3000/api/public/health 2>/dev/null | grep -qi ok"]
       interval: 30s
       timeout: 5s
       retries: 5
