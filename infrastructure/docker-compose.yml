@@ -8,14 +8,14 @@ networks:
     driver: bridge
 
 volumes:
-  xbrain_pg:        { name: xbrain_pg }
-  xbrain_qdrant:    { name: xbrain_qdrant }
-  librechat_mongo:  { name: librechat_mongo }
-  librechat_meili:  { name: librechat_meili }
-  librechat_uploads:{ name: librechat_uploads }
-  openwebui_data:   { name: openwebui_data }
+  xbrain_pg: { name: xbrain_pg }
+  xbrain_qdrant: { name: xbrain_qdrant }
+  librechat_mongo: { name: librechat_mongo }
+  librechat_meili: { name: librechat_meili }
+  librechat_uploads: { name: librechat_uploads }
+  openwebui_data: { name: openwebui_data }
   openwebui_pipelines: { name: openwebui_pipelines }
-  xbrain_backups:   { name: xbrain_backups }
+  xbrain_backups: { name: xbrain_backups }
 
 services:
   # === Placeholder ingress (nginx) — détails dans plan 01-05 ===
@@ -249,7 +249,7 @@ services:
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
       OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL}
       OPENAI_API_KEY: ${PIPELINE_API_KEY}
-      WEBUI_URL: http://__VM_HOST__/openwebui
+      WEBUI_URL: http://__VM_HOST__.nip.io/openwebui
     volumes:
       - openwebui_data:/app/backend/data
     networks: [xbrain_net]
