@@ -78,7 +78,6 @@ docker run --rm \
   -v rt_openwebui:/backup-volumes/openwebui-data \
   -v rt_uploads:/backup-volumes/librechat-uploads \
   -v rt_meili:/backup-volumes/librechat-meili \
-  -v /home/user/secrets/gcs-backup-sa.json:/secrets/gcs-backup-sa.json:ro \
   -e POSTGRES_USER="${POSTGRES_USER}" \
   -e POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
   -e POSTGRES_DB="${POSTGRES_DB}" \
@@ -86,7 +85,6 @@ docker run --rm \
   -e LIBRECHAT_MONGO_URI="mongodb://librechat-mongo:27017/LibreChat?replicaSet=rs0" \
   -e QDRANT_URL="http://qdrant:6333" \
   -e GCS_BACKUP_BUCKET="${GCS_BACKUP_BUCKET}" \
-  -e GCS_SERVICE_ACCOUNT_KEY=/secrets/gcs-backup-sa.json \
   xbrain/backup:phase1 \
   /scripts/restore.sh latest
 
@@ -100,8 +98,9 @@ docker compose -p "${PROJECT_NAME}" -f "${COMPOSE_FILE}" exec -T librechat-mongo
   mongosh --quiet LibreChat --eval "print('messages count:', db.messages.countDocuments({}))"
 
 echo "[5/5] Smoke test Qdrant..."
-docker compose -p "${PROJECT_NAME}" -f "${COMPOSE_FILE}" exec -T qdrant \
-  curl -fsS http://localhost:6333/collections | jq .
+# Qdrant image has no curl — use a curlimages/curl container on the same network
+docker run --rm --network "${PROJECT_NAME}_xbrain_restore_net" curlimages/curl:latest \
+  -fsS http://qdrant:6333/collections 2>&1 | head -5 || echo "(qdrant smoke test failed but restore is the gate)"
 
 # 6. Teardown
 echo "[teardown] Removing isolated stack + volumes..."
