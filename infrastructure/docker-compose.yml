@@ -249,7 +249,7 @@ services:
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
       OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL}
       OPENAI_API_KEY: ${PIPELINE_API_KEY}
-      WEBUI_URL: http://__VM_HOST__.nip.io/openwebui
+      WEBUI_URL: http://openwebui.__VM_HOST__.nip.io
     volumes:
       - openwebui_data:/app/backend/data
     networks: [xbrain_net]
