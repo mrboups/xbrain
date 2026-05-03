@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # LLM keys (optional — agents pick up only what they need)
     ANTHROPIC_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    XAI_API_KEY: str = ""  # 02-08 second-opinion (xAI Grok via OpenAI-compat API)
 
     # Logging
     LOG_LEVEL: str = "INFO"

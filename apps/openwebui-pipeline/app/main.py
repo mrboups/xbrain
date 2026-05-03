@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.config import settings
 from app.memory_api_client import MemoryApiClient
-from app.pipelines import ingestion_trigger, promotion_manager
+from app.pipelines import ingestion_trigger, promotion_manager, second_opinion_trigger
 from app.pipelines.xbrain_logger import log_exchange
 
 logging.basicConfig(level=settings.LOG_LEVEL)
@@ -136,11 +136,15 @@ async def chat(
     conversation_id = _make_conversation_id(sub, body.messages)
 
     # Slash-command intercept — short-circuits the LLM path.
+    # Order is "most-likely-first" for cheap regex bail-outs.
     if user_message.lstrip().startswith("/"):
-        # Try ingestion first (cheap regex fail), then promotions
         cmd_response = await ingestion_trigger.try_handle(
             user_message=user_message, user_sub=sub, team_scope=team_scope,
         )
+        if cmd_response is None:
+            cmd_response = await second_opinion_trigger.try_handle(
+                user_message=user_message, user_sub=sub, team_scope=team_scope,
+            )
         if cmd_response is None:
             cmd_response = await promotion_manager.try_handle(
                 mem=mem,
