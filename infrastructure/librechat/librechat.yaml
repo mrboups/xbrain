@@ -21,10 +21,10 @@ endpoints:
       apiKey: "${ANTHROPIC_API_KEY}"
       baseURL: "https://api.anthropic.com/v1"
       models:
-        default: ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-latest"]
+        default: ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
         fetch: false
       titleConvo: true
-      titleModel: "claude-3-5-haiku-latest"
+      titleModel: "claude-haiku-4-5-20251001"
       modelDisplayLabel: "Anthropic"
 
     - name: "OpenAI"

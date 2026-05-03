@@ -49,7 +49,7 @@ async def test_models_endpoint_lists_known_models(client, auth_headers):
     data = r.json()
     assert data["object"] == "list"
     ids = {m["id"] for m in data["data"]}
-    assert "claude-3-5-sonnet" in ids
+    assert "claude-sonnet-4-6" in ids
     assert "gpt-4o" in ids
 
 
@@ -68,7 +68,7 @@ async def test_chat_completions_anthropic_non_stream_returns_response(
                 "type": "message",
                 "role": "assistant",
                 "content": [{"type": "text", "text": "Hello back!"}],
-                "model": "claude-3-5-sonnet-latest",
+                "model": "claude-sonnet-4-6",
                 "stop_reason": "end_turn",
                 "usage": {"input_tokens": 5, "output_tokens": 3},
             },
@@ -83,7 +83,7 @@ async def test_chat_completions_anthropic_non_stream_returns_response(
         "/v1/chat/completions",
         headers={**auth_headers, "X-OpenWebUI-User-Id": "alice-sub", "X-Team-Scope": "team-a"},
         json={
-            "model": "claude-3-5-sonnet",
+            "model": "claude-sonnet-4-6",
             "messages": [{"role": "user", "content": "Hello"}],
             "stream": False,
         },
@@ -91,7 +91,7 @@ async def test_chat_completions_anthropic_non_stream_returns_response(
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["choices"][0]["message"]["content"] == "Hello back!"
-    assert body["model"] == "claude-3-5-sonnet"
+    assert body["model"] == "claude-sonnet-4-6"
 
 
 @pytest.mark.asyncio
@@ -109,7 +109,7 @@ async def test_chat_completions_log_failure_does_not_break_response(
                 "type": "message",
                 "role": "assistant",
                 "content": [{"type": "text", "text": "ok"}],
-                "model": "claude-3-5-sonnet-latest",
+                "model": "claude-sonnet-4-6",
                 "stop_reason": "end_turn",
                 "usage": {"input_tokens": 1, "output_tokens": 1},
             },
@@ -122,7 +122,7 @@ async def test_chat_completions_log_failure_does_not_break_response(
         "/v1/chat/completions",
         headers={**auth_headers, "X-OpenWebUI-User-Id": "bob-sub", "X-Team-Scope": "team-b"},
         json={
-            "model": "claude-3-5-sonnet",
+            "model": "claude-sonnet-4-6",
             "messages": [{"role": "user", "content": "ping"}],
             "stream": False,
         },

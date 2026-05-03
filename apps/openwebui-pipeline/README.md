@@ -19,10 +19,11 @@ OPENAI_API_KEY=<même valeur que PIPELINE_API_KEY>
 
 Open WebUI traite ce service comme un endpoint OpenAI custom — il appelle `/v1/models` au boot pour son dropdown puis `/v1/chat/completions` à chaque message.
 
-## Modèles supportés (Phase 1)
+## Modèles supportés (Phase 2)
 
-- `claude-3-5-sonnet` → Anthropic claude-3-5-sonnet-latest
-- `claude-3-5-haiku` → Anthropic claude-3-5-haiku-latest
+- `claude-opus-4-7` → Anthropic claude-opus-4-7
+- `claude-sonnet-4-6` → Anthropic claude-sonnet-4-6
+- `claude-haiku-4-5` → Anthropic claude-haiku-4-5-20251001
 - `gpt-4o` → OpenAI gpt-4o
 - `gpt-4o-mini` → OpenAI gpt-4o-mini
 

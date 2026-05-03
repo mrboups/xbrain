@@ -20,7 +20,7 @@ from openai import AsyncOpenAI  # used for xAI Grok via OpenAI-compat API
 from app.config import settings
 from app.graphs.registry import register
 
-CLAUDE_MODEL = "claude-3-5-sonnet-latest"
+CLAUDE_MODEL = "claude-sonnet-4-6"
 GROK_MODEL = "grok-2-latest"
 XAI_BASE_URL = "https://api.x.ai/v1"
 

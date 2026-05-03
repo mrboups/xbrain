@@ -43,10 +43,6 @@ MODEL_MAP: dict[str, tuple[str, str]] = {
     "claude-opus-4-7": ("anthropic", "claude-opus-4-7"),
     "claude-sonnet-4-6": ("anthropic", "claude-sonnet-4-6"),
     "claude-haiku-4-5": ("anthropic", "claude-haiku-4-5-20251001"),
-    # Claude 3.x (legacy, kept for compat)
-    "claude-3-5-sonnet": ("anthropic", "claude-3-5-sonnet-latest"),
-    "claude-3-5-haiku": ("anthropic", "claude-3-5-haiku-latest"),
-    "claude-3-opus": ("anthropic", "claude-3-opus-latest"),
     # OpenAI
     "gpt-4o": ("openai", "gpt-4o"),
     "gpt-4o-mini": ("openai", "gpt-4o-mini"),
