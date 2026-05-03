@@ -243,13 +243,15 @@ services:
       WEBUI_AUTH: ${WEBUI_AUTH:-true}
       WEBUI_SECRET_KEY: ${OPENWEBUI_SECRET_KEY}
       ENABLE_OAUTH_SIGNUP: ${ENABLE_OAUTH_SIGNUP:-true}
+      ENABLE_LOGIN_FORM: "false"
+      OAUTH_MERGE_ACCOUNTS_BY_EMAIL: "true"
       OAUTH_PROVIDER_NAME: ${OAUTH_PROVIDER_NAME:-Google}
       OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID}
       OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
       OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL}
       OPENAI_API_KEY: ${PIPELINE_API_KEY}
-      WEBUI_URL: http://openwebui.__VM_HOST__.nip.io
+      WEBUI_URL: https://ai.dejavu.cat
     volumes:
       - openwebui_data:/app/backend/data
     networks: [xbrain_net]
