@@ -100,6 +100,35 @@ services:
       sh -c "python -m alembic upgrade head &&
              python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
 
+  # === agent-runtime (plan 02-06) — LangGraph host with PostgresSaver + HITL ===
+  agent-runtime:
+    build:
+      context: ../apps/agent-runtime
+      dockerfile: Dockerfile
+    image: xbrain/agent-runtime:phase2
+    container_name: xbrain-agent-runtime
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      MEMORY_API_URL: ${MEMORY_API_URL:-http://memory-api:8000}
+      BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks: [xbrain_net]
+    mem_limit: 384m
+    depends_on:
+      memory-api: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9100/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   # === librechat-bridge sidecar (plan 01-03) ===
   librechat-bridge:
     build:
