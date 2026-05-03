@@ -1,0 +1,9 @@
+__pycache__
+.venv
+.pytest_cache
+.mypy_cache
+.ruff_cache
+tests
+.env
+*.log
+README.md

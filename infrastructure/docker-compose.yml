@@ -35,4 +35,69 @@ services:
       timeout: 5s
       retries: 5
 
-  # Les autres services seront ajoutés par les plans suivants.
+  # === Data layer (plan 01-02) ===
+  postgres:
+    image: postgres:17
+    container_name: xbrain-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - xbrain_pg:/var/lib/postgresql/data
+    networks: [xbrain_net]
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:v1.17.1
+    container_name: xbrain-qdrant
+    restart: unless-stopped
+    volumes:
+      - xbrain_qdrant:/qdrant/storage
+    networks: [xbrain_net]
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/6333' 2>/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # === memory-api (plan 01-02) ===
+  memory-api:
+    build:
+      context: ../apps/memory-api
+      dockerfile: Dockerfile
+    image: xbrain/memory-api:phase1
+    container_name: xbrain-memory-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      QDRANT_URL: ${QDRANT_URL}
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ADMIN_USER_SUBS: ${ADMIN_USER_SUBS:-}
+    networks: [xbrain_net]
+    mem_limit: 256m
+    depends_on:
+      postgres: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/v1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+
+  # Les autres services seront ajoutés par les plans suivants (01-03..01-06).
