@@ -397,7 +397,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: ${LANGFUSE_POSTGRES_URL}
-      NEXTAUTH_URL: ${LANGFUSE_HOST:-https://langfuse.x.dejavu.cat}
+      NEXTAUTH_URL: ${LANGFUSE_HOST:-https://lang.dejavu.cat}
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET}
       SALT: ${LANGFUSE_SALT}
       ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
