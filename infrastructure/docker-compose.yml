@@ -100,4 +100,32 @@ services:
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
 
-  # Les autres services seront ajoutés par les plans suivants (01-03..01-06).
+  # === librechat-bridge sidecar (plan 01-03) ===
+  librechat-bridge:
+    build:
+      context: ../apps/librechat-bridge
+      dockerfile: Dockerfile
+    image: xbrain/librechat-bridge:phase1
+    container_name: xbrain-librechat-bridge
+    restart: unless-stopped
+    environment:
+      LIBRECHAT_MONGO_URI: ${LIBRECHAT_MONGO_URI}
+      MEMORY_API_URL: ${MEMORY_API_URL}
+      BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      BRIDGE_DEFAULT_TEAM_SCOPE: ${BRIDGE_DEFAULT_TEAM_SCOPE:-default}
+      BRIDGE_BACKFILL_FROM: ${BRIDGE_BACKFILL_FROM:-startup}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks: [xbrain_net]
+    mem_limit: 128m
+    depends_on:
+      memory-api: { condition: service_healthy }
+      librechat-mongo: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/bridge-alive && [ $(($(date +%s) - $(stat -c %Y /tmp/bridge-alive))) -lt 60 ]"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 30s
+
+  # Les autres services seront ajoutés par les plans suivants (01-04..01-06).

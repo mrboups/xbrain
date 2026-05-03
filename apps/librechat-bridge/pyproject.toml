@@ -1,0 +1,32 @@
+[project]
+name = "librechat-bridge"
+version = "0.1.0"
+description = "xbrain sidecar — watches LibreChat MongoDB change streams, forwards messages to memory-api"
+requires-python = ">=3.12"
+dependencies = [
+  "motor>=3.6",
+  "pymongo>=4.10",
+  "httpx>=0.28",
+  "authlib>=1.3",
+  "pydantic>=2.10,<3",
+  "pydantic-settings>=2.6",
+  "structlog>=24.4",
+  "tenacity>=9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.25",
+  "ruff>=0.8",
+  "respx>=0.21",
+  "mongomock-motor>=0.0.31",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
