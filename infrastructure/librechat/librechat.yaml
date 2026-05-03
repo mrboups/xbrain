@@ -1,0 +1,65 @@
+version: 1.2.4
+cache: true
+
+interface:
+  privacyPolicy:
+    externalUrl: ""
+    openNewTab: false
+  termsOfService:
+    externalUrl: ""
+    openNewTab: false
+
+registration:
+  socialLogins: ["google"]
+  allowedDomains:
+    - "*"
+
+# Endpoints LLM (les API keys viennent de .env via variables référencées)
+endpoints:
+  custom:
+    - name: "Anthropic"
+      apiKey: "${ANTHROPIC_API_KEY}"
+      baseURL: "https://api.anthropic.com/v1"
+      models:
+        default: ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-latest"]
+        fetch: false
+      titleConvo: true
+      titleModel: "claude-3-5-haiku-latest"
+      modelDisplayLabel: "Anthropic"
+
+    - name: "OpenAI"
+      apiKey: "${OPENAI_API_KEY}"
+      baseURL: "https://api.openai.com/v1"
+      models:
+        default: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"]
+        fetch: false
+      titleConvo: true
+      titleModel: "gpt-4o-mini"
+      modelDisplayLabel: "OpenAI"
+
+    - name: "xAI"
+      apiKey: "${XAI_API_KEY}"
+      baseURL: "https://api.x.ai/v1"
+      models:
+        default: ["grok-2-latest", "grok-2-mini"]
+        fetch: false
+      titleConvo: false
+      modelDisplayLabel: "Grok"
+
+# File handling (CHAT-04 partiel — upload accepté, RAG vraie en Phase 2)
+fileConfig:
+  endpoints:
+    Anthropic:
+      fileLimit: 5
+      fileSizeLimit: 20
+      totalSizeLimit: 50
+      supportedMimeTypes:
+        - "image/.+"
+        - "application/pdf"
+    OpenAI:
+      fileLimit: 5
+      fileSizeLimit: 20
+      totalSizeLimit: 50
+      supportedMimeTypes:
+        - "image/.+"
+        - "application/pdf"

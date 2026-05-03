@@ -156,4 +156,111 @@ services:
       retries: 4
       start_period: 20s
 
-  # Les autres services seront ajoutés par les plans suivants (01-05..01-06).
+  # === LibreChat + dependencies (plan 01-05) ===
+  librechat-mongo:
+    image: mongo:7
+    container_name: xbrain-librechat-mongo
+    restart: unless-stopped
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - librechat_mongo:/data/db
+      - ./scripts/init-mongo-replset.sh:/docker-entrypoint-initdb.d/init-replset.sh:ro
+    networks: [xbrain_net]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status().ok ? 0 : 1 } catch(e) { 1 }"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  librechat-meili:
+    image: getmeili/meilisearch:v1.10
+    container_name: xbrain-librechat-meili
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - librechat_meili:/meili_data
+    networks: [xbrain_net]
+    mem_limit: 192m
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7700/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  librechat:
+    image: ghcr.io/danny-avila/librechat:v0.8.5
+    container_name: xbrain-librechat
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3080
+      MONGO_URI: ${MONGO_URI}
+      DOMAIN_CLIENT: ${DOMAIN_CLIENT}
+      DOMAIN_SERVER: ${DOMAIN_SERVER}
+      MEILI_HOST: ${MEILI_HOST}
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      ALLOW_SOCIAL_LOGIN: ${ALLOW_SOCIAL_LOGIN:-true}
+      ALLOW_SOCIAL_REGISTRATION: ${ALLOW_SOCIAL_REGISTRATION:-true}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      CREDS_KEY: ${CREDS_KEY}
+      CREDS_IV: ${CREDS_IV}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      APP_TITLE: ${APP_TITLE:-xbrain}
+      SESSION_EXPIRY: ${SESSION_EXPIRY}
+      REFRESH_TOKEN_EXPIRY: ${REFRESH_TOKEN_EXPIRY}
+    volumes:
+      - librechat_uploads:/app/client/public/uploads
+      - ./librechat/librechat.yaml:/app/librechat.yaml:ro
+    networks: [xbrain_net]
+    mem_limit: 384m
+    depends_on:
+      librechat-mongo: { condition: service_healthy }
+      librechat-meili: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3080/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # === Open WebUI (plan 01-05) ===
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:v0.9.0
+    container_name: xbrain-openwebui
+    restart: unless-stopped
+    environment:
+      WEBUI_AUTH: ${WEBUI_AUTH:-true}
+      WEBUI_SECRET_KEY: ${OPENWEBUI_SECRET_KEY}
+      ENABLE_OAUTH_SIGNUP: ${ENABLE_OAUTH_SIGNUP:-true}
+      OAUTH_PROVIDER_NAME: ${OAUTH_PROVIDER_NAME:-Google}
+      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID}
+      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL}
+      OPENAI_API_KEY: ${PIPELINE_API_KEY}
+      WEBUI_URL: http://__VM_HOST__/openwebui
+    volumes:
+      - openwebui_data:/app/backend/data
+    networks: [xbrain_net]
+    mem_limit: 512m
+    depends_on:
+      openwebui-pipeline: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # === xbrain-backup (plan 01-06) ===
