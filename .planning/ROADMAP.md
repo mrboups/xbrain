@@ -12,7 +12,7 @@ xbrain est construit en trois phases qui correspondent aux trois invariants du p
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Socle Infra + Frontends + memory-api** - GCP VM, Docker Compose multi-service, LibreChat + Open WebUI branchés sur une memory-api qui enforce le contrat de tagging dès le premier write
+- [x] **Phase 1: Socle Infra + Frontends + memory-api** - GCP VM, Docker Compose multi-service, LibreChat + Open WebUI branchés sur une memory-api qui enforce le contrat de tagging dès le premier write — **DONE 2026-05-03** (https://x.dejavu.cat + https://ai.dejavu.cat)
 - [ ] **Phase 2: Mémoire Intelligente + Agents** - VM upgrade, mem0 + MemoryProvider, truth-level promotion workflow, LangGraph agents avec HITL, RAG permission-aware
 - [ ] **Phase 3: Graphe + Extraction + Intégrations** - Neo4j, extraction structurée (Memori/fallback), Drive sync, MCP gateway + 3 premiers outils
 
@@ -65,7 +65,7 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Socle Infra + Frontends + memory-api | 0/TBD | Not started | - |
+| 1. Socle Infra + Frontends + memory-api | 6/6 | ✅ Complete | 2026-05-03 |
 | 2. Mémoire Intelligente + Agents | 0/TBD | Not started | - |
 | 3. Graphe + Extraction + Intégrations | 0/TBD | Not started | - |
 
