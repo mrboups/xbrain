@@ -14,8 +14,10 @@ WORK=/tmp/restore-$(date +%s)
 mkdir -p "${WORK}"
 echo "[restore] === START (${DATE_ARG}) ==="
 
-# Auth gcloud
-gcloud auth activate-service-account --key-file="${GCS_SERVICE_ACCOUNT_KEY}" --quiet
+# Auth gcloud — use VM metadata SA by default, fall back to key file if provided
+if [ -n "${GCS_SERVICE_ACCOUNT_KEY:-}" ] && [ -s "${GCS_SERVICE_ACCOUNT_KEY:-}" ]; then
+  gcloud auth activate-service-account --key-file="${GCS_SERVICE_ACCOUNT_KEY}" --quiet
+fi
 
 # Resolve "latest"
 if [ "${DATE_ARG}" = "latest" ]; then

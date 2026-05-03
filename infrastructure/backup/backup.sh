@@ -52,9 +52,12 @@ for vol in openwebui-data librechat-uploads librechat-meili; do
   fi
 done
 
-# --- 5. Auth gcloud + upload GCS ---
-echo "[upload] gcloud auth + gsutil cp..."
-gcloud auth activate-service-account --key-file="${GCS_SERVICE_ACCOUNT_KEY}" --quiet
+# --- 5. Upload GCS (gcloud uses VM-attached SA via metadata server, no key file) ---
+echo "[upload] gsutil cp via VM metadata SA..."
+if [ -n "${GCS_SERVICE_ACCOUNT_KEY:-}" ] && [ -s "${GCS_SERVICE_ACCOUNT_KEY:-}" ]; then
+  # Legacy path: key-file auth (kept for non-GCP deployments)
+  gcloud auth activate-service-account --key-file="${GCS_SERVICE_ACCOUNT_KEY}" --quiet
+fi
 gsutil -m cp -r "${WORK}"/* "gs://${GCS_BACKUP_BUCKET}/${DATE}/"
 
 # --- 6. Cleanup local ---
