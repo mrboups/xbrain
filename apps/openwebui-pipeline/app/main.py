@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.config import settings
 from app.memory_api_client import MemoryApiClient
+from app.pipelines import promotion_manager
 from app.pipelines.xbrain_logger import log_exchange
 
 logging.basicConfig(level=settings.LOG_LEVEL)
@@ -90,6 +91,22 @@ def _resolve_principal(
     return user_id_hdr or user_email_hdr or body_user or "anonymous"
 
 
+def _openai_compat_completion(model: str, content: str) -> dict:
+    """Wrap a plain string in an OpenAI chat.completion response shape."""
+    return {
+        "id": "chatcmpl-cmd",
+        "object": "chat.completion",
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }
+        ],
+    }
+
+
 def _make_conversation_id(sub: str, messages: list[ChatMessage]) -> str:
     """Phase 1: derive a stable conv id from sub + first user message hash.
 
@@ -117,6 +134,19 @@ async def chat(
     sub = _resolve_principal(x_openwebui_user_id, x_openwebui_user_email, body.user)
     team_scope = x_team_scope or settings.PIPELINE_DEFAULT_TEAM_SCOPE
     conversation_id = _make_conversation_id(sub, body.messages)
+
+    # Slash-command intercept (promotions, etc.) — short-circuits the LLM path.
+    if user_message.lstrip().startswith("/"):
+        cmd_response = await promotion_manager.try_handle(
+            mem=mem,
+            user_message=user_message,
+            user_sub=sub,
+            user_email=x_openwebui_user_email or sub,
+            user_name=x_openwebui_user_id,
+            team_scope=team_scope,
+        )
+        if cmd_response is not None:
+            return _openai_compat_completion(body.model, cmd_response)
 
     log.info(
         "chat_request",

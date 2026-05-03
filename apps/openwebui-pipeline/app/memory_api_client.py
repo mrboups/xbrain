@@ -29,6 +29,34 @@ def make_pipeline_jwt(sub: str, team_scope: str, ttl_seconds: int = 300) -> str:
     ).decode("ascii")
 
 
+def make_user_acting_jwt(
+    *,
+    user_sub: str,
+    user_email: str,
+    user_name: str | None,
+    team_scope: str,
+    ttl_seconds: int = 300,
+) -> str:
+    """Service JWT carrying the OWUI user identity — memory-api resolves to a real user.
+
+    Required for /v1/promotions/* which rejects pure bridge principals.
+    """
+    now = int(time.time())
+    payload: dict = {
+        "iss": "openwebui-pipeline",
+        "sub": user_sub,
+        "team_scope": team_scope,
+        "scope": "bridge",
+        "iat": now,
+        "exp": now + ttl_seconds,
+        "acting_user_sub": user_sub,
+        "acting_user_email": user_email,
+    }
+    if user_name:
+        payload["acting_user_name"] = user_name
+    return jwt.encode({"alg": settings.JWT_ALGORITHM}, payload, settings.BRIDGE_SHARED_SECRET).decode("ascii")
+
+
 class MemoryApiClient:
     def __init__(self) -> None:
         self.base = settings.MEMORY_API_URL.rstrip("/")
@@ -86,6 +114,81 @@ class MemoryApiClient:
                 sub=sub,
                 source=source,
             )
+        r.raise_for_status()
+        return r.json()
+
+    async def list_pending_promotions(
+        self, *, user_sub: str, user_email: str, user_name: str | None, team_scope: str
+    ) -> list[dict]:
+        token = make_user_acting_jwt(
+            user_sub=user_sub, user_email=user_email, user_name=user_name, team_scope=team_scope
+        )
+        r = await self.client.get(
+            f"{self.base}/v1/promotions/pending",
+            headers={"Authorization": f"Bearer {token}", "X-Team-Scope": team_scope},
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def propose_promotion(
+        self,
+        *,
+        user_sub: str,
+        user_email: str,
+        user_name: str | None,
+        team_scope: str,
+        item_id: str,
+        target_level: str,
+        rationale: str | None = None,
+    ) -> dict:
+        token = make_user_acting_jwt(
+            user_sub=user_sub, user_email=user_email, user_name=user_name, team_scope=team_scope
+        )
+        r = await self.client.post(
+            f"{self.base}/v1/promotions",
+            headers={"Authorization": f"Bearer {token}", "X-Team-Scope": team_scope},
+            json={"item_id": item_id, "target_level": target_level, "rationale": rationale},
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def approve_promotion(
+        self,
+        *,
+        user_sub: str,
+        user_email: str,
+        user_name: str | None,
+        team_scope: str,
+        promotion_id: str,
+    ) -> dict:
+        token = make_user_acting_jwt(
+            user_sub=user_sub, user_email=user_email, user_name=user_name, team_scope=team_scope
+        )
+        r = await self.client.post(
+            f"{self.base}/v1/promotions/{promotion_id}/approve",
+            headers={"Authorization": f"Bearer {token}", "X-Team-Scope": team_scope},
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def reject_promotion(
+        self,
+        *,
+        user_sub: str,
+        user_email: str,
+        user_name: str | None,
+        team_scope: str,
+        promotion_id: str,
+        reason: str,
+    ) -> dict:
+        token = make_user_acting_jwt(
+            user_sub=user_sub, user_email=user_email, user_name=user_name, team_scope=team_scope
+        )
+        r = await self.client.post(
+            f"{self.base}/v1/promotions/{promotion_id}/reject",
+            headers={"Authorization": f"Bearer {token}", "X-Team-Scope": team_scope},
+            json={"reason": reason},
+        )
         r.raise_for_status()
         return r.json()
 

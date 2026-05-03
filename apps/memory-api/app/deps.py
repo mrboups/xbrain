@@ -53,6 +53,25 @@ async def get_current_principal(
     # Try bridge service JWT.
     try:
         claims = verify_bridge_jwt(token, settings.BRIDGE_SHARED_SECRET)
+        # OpenWebUI Pipeline can act on behalf of an OWUI user via `acting_user_sub`+`acting_user_email`.
+        # The pipeline trust boundary: the JWT signature proves the pipeline issued it;
+        # the pipeline is the auth source for OWUI user identity.
+        acting_sub = claims.get("acting_user_sub")
+        acting_email = claims.get("acting_user_email")
+        if claims.get("iss") == "openwebui-pipeline" and acting_sub and acting_email:
+            user = await get_or_create_user(
+                session,
+                source_user_id=acting_sub,
+                email=acting_email,
+                display_name=claims.get("acting_user_name"),
+            )
+            await session.commit()
+            return {
+                "kind": "user",
+                "user": user,
+                "claims": claims,
+                "sub": acting_sub,
+            }
         return {
             "kind": "bridge",
             "claims": claims,
