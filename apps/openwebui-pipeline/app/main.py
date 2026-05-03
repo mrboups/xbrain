@@ -6,6 +6,7 @@ to memory-api in best-effort mode (failure does not block response).
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 import structlog
@@ -17,6 +18,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.config import settings
 from app.memory_api_client import MemoryApiClient
+from app.observability import trace_chat_completion
 from app.pipelines import ingestion_trigger, promotion_manager, second_opinion_trigger
 from app.pipelines.xbrain_logger import log_exchange
 
@@ -204,12 +206,15 @@ async def _handle_anthropic(
             if system_param:
                 kwargs["system"] = system_param
             assert anthropic_client is not None
+            stream_start = time.time()
             async with anthropic_client.messages.stream(**kwargs) as stream:
                 async for chunk in stream.text_stream:
                     full_response.append(chunk)
                     # OpenAI SSE format
                     yield f'data: {{"choices":[{{"delta":{{"content":{chunk!r}}}}}]}}\n\n'
             yield "data: [DONE]\n\n"
+            stream_latency_ms = int((time.time() - stream_start) * 1000)
+            assistant_content = "".join(full_response)
             asyncio.create_task(
                 log_exchange(
                     mem=mem,
@@ -218,8 +223,13 @@ async def _handle_anthropic(
                     conversation_id=conversation_id,
                     model=body.model,
                     user_content=user_message,
-                    assistant_content="".join(full_response),
+                    assistant_content=assistant_content,
                 )
+            )
+            trace_chat_completion(
+                sub=sub, team_scope=team_scope, model=body.model,
+                prompt_messages=chat_msgs, response_text=assistant_content,
+                latency_ms=stream_latency_ms,
             )
 
         return StreamingResponse(gen(), media_type="text/event-stream")
@@ -228,8 +238,18 @@ async def _handle_anthropic(
     kwargs: dict[str, Any] = {"model": real_model, "max_tokens": max_tokens, "messages": chat_msgs}
     if system_param:
         kwargs["system"] = system_param
+    start = time.time()
     r = await anthropic_client.messages.create(**kwargs)
+    latency_ms = int((time.time() - start) * 1000)
     assistant_content = "".join(b.text for b in r.content if b.type == "text")
+    usage = getattr(r, "usage", None)
+    trace_chat_completion(
+        sub=sub, team_scope=team_scope, model=body.model,
+        prompt_messages=chat_msgs, response_text=assistant_content,
+        latency_ms=latency_ms,
+        tokens_in=getattr(usage, "input_tokens", None) if usage else None,
+        tokens_out=getattr(usage, "output_tokens", None) if usage else None,
+    )
     asyncio.create_task(
         log_exchange(
             mem=mem,
@@ -268,6 +288,7 @@ async def _handle_openai(
     if body.stream:
         async def gen():
             full_response: list[str] = []
+            stream_start = time.time()
             stream = await openai_client.chat.completions.create(
                 model=real_model, messages=msgs, stream=True
             )
@@ -277,6 +298,8 @@ async def _handle_openai(
                     full_response.append(delta)
                     yield f'data: {{"choices":[{{"delta":{{"content":{delta!r}}}}}]}}\n\n'
             yield "data: [DONE]\n\n"
+            stream_latency_ms = int((time.time() - stream_start) * 1000)
+            assistant_content = "".join(full_response)
             asyncio.create_task(
                 log_exchange(
                     mem=mem,
@@ -285,14 +308,29 @@ async def _handle_openai(
                     conversation_id=conversation_id,
                     model=body.model,
                     user_content=user_message,
-                    assistant_content="".join(full_response),
+                    assistant_content=assistant_content,
                 )
+            )
+            trace_chat_completion(
+                sub=sub, team_scope=team_scope, model=body.model,
+                prompt_messages=msgs, response_text=assistant_content,
+                latency_ms=stream_latency_ms,
             )
 
         return StreamingResponse(gen(), media_type="text/event-stream")
 
+    start = time.time()
     r = await openai_client.chat.completions.create(model=real_model, messages=msgs)
+    latency_ms = int((time.time() - start) * 1000)
     assistant_content = r.choices[0].message.content or ""
+    usage = getattr(r, "usage", None)
+    trace_chat_completion(
+        sub=sub, team_scope=team_scope, model=body.model,
+        prompt_messages=msgs, response_text=assistant_content,
+        latency_ms=latency_ms,
+        tokens_in=getattr(usage, "prompt_tokens", None) if usage else None,
+        tokens_out=getattr(usage, "completion_tokens", None) if usage else None,
+    )
     asyncio.create_task(
         log_exchange(
             mem=mem,

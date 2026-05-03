@@ -18,6 +18,7 @@ dependencies = [
   "anthropic>=0.40",
   "openai>=1.55",
   "pypdf>=5.0",  # 02-07 ingestion-agent — PDF text extraction
+  "langfuse>=2.55,<3",  # 02-09 observability — v2 line still ships LangChain CallbackHandler at langfuse.callback
 ]
 
 [project.optional-dependencies]

@@ -16,6 +16,8 @@ volumes:
   openwebui_data: { name: openwebui_data }
   openwebui_pipelines: { name: openwebui_pipelines }
   xbrain_backups: { name: xbrain_backups }
+  langfuse_clickhouse_data: { name: langfuse_clickhouse_data }
+  langfuse_redis_data: { name: langfuse_redis_data }
 
 services:
   # === Placeholder ingress (nginx) — détails dans plan 01-05 ===
@@ -117,6 +119,9 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       XAI_API_KEY: ${XAI_API_KEY:-}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse:3000}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     networks: [xbrain_net]
     mem_limit: 384m
@@ -172,8 +177,12 @@ services:
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       PIPELINE_API_KEY: ${PIPELINE_API_KEY}
       PIPELINE_DEFAULT_TEAM_SCOPE: ${PIPELINE_DEFAULT_TEAM_SCOPE:-default}
+      AGENT_RUNTIME_URL: ${AGENT_RUNTIME_URL:-http://agent-runtime:9100}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse:3000}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     networks: [xbrain_net]
     mem_limit: 192m
@@ -324,3 +333,91 @@ services:
       postgres: { condition: service_healthy }
       qdrant: { condition: service_healthy }
       librechat-mongo: { condition: service_healthy }
+
+  # === Langfuse stack (plan 02-09) — observability for agents + chat completions ===
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: xbrain-langfuse-clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+    networks: [xbrain_net]
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  langfuse-redis:
+    image: redis:7-alpine
+    container_name: xbrain-langfuse-redis
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${LANGFUSE_REDIS_PASSWORD}"]
+    volumes:
+      - langfuse_redis_data:/data
+    networks: [xbrain_net]
+    mem_limit: 96m
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${LANGFUSE_REDIS_PASSWORD}", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    container_name: xbrain-langfuse-worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${LANGFUSE_POSTGRES_URL}
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      REDIS_HOST: langfuse-redis
+      REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD}
+      SALT: ${LANGFUSE_SALT}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
+      TELEMETRY_ENABLED: "false"
+    networks: [xbrain_net]
+    mem_limit: 768m
+    depends_on:
+      langfuse-clickhouse: { condition: service_healthy }
+      langfuse-redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+
+  langfuse:
+    image: langfuse/langfuse:3
+    container_name: xbrain-langfuse
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${LANGFUSE_POSTGRES_URL}
+      NEXTAUTH_URL: ${LANGFUSE_HOST:-https://langfuse.x.dejavu.cat}
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET}
+      SALT: ${LANGFUSE_SALT}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      REDIS_HOST: langfuse-redis
+      REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-team@grooveos.app}
+      LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-xbrain admin}
+      LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_INIT_PROJECT_NAME:-xbrain}
+      TELEMETRY_ENABLED: "false"
+    networks: [xbrain_net]
+    mem_limit: 768m
+    depends_on:
+      langfuse-worker: { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO - http://127.0.0.1:3000/api/public/health 2>/dev/null | grep -q ok"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s

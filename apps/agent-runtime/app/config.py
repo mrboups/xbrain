@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     XAI_API_KEY: str = ""  # 02-08 second-opinion (xAI Grok via OpenAI-compat API)
 
+    # Observability — Langfuse (Plan 02-09). Empty values = instrumentation off.
+    LANGFUSE_PUBLIC_KEY: str = ""
+    LANGFUSE_SECRET_KEY: str = ""
+    LANGFUSE_HOST: str = "http://langfuse:3000"
+
     # Logging
     LOG_LEVEL: str = "INFO"
 

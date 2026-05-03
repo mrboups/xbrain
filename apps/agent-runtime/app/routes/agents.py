@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict
 from app.checkpointer import get_checkpointer
 from app.deps import get_current_principal, get_team_scope
 from app.graphs.registry import GRAPH_REGISTRY
+from app.observability import make_callback_handler
 
 router = APIRouter()
 
@@ -51,7 +52,7 @@ class RunOut(BaseModel):
 async def run_agent(
     agent_name: str,
     body: RunBody,
-    _principal: dict[str, Any] = Depends(get_current_principal),
+    principal: dict[str, Any] = Depends(get_current_principal),
     team_scope: str = Depends(get_team_scope),
 ):
     if agent_name not in GRAPH_REGISTRY:
@@ -59,7 +60,17 @@ async def run_agent(
     cp = await get_checkpointer()
     graph = GRAPH_REGISTRY[agent_name](cp)
     thread_id = body.thread_id or str(uuid4())
-    config = {"configurable": {"thread_id": thread_id, "team_scope": team_scope}}
+    handler = make_callback_handler(
+        thread_id=thread_id,
+        agent_name=agent_name,
+        team_scope=team_scope,
+        sub=str(principal.get("sub") or "anonymous"),
+    )
+    config: dict[str, Any] = {
+        "configurable": {"thread_id": thread_id, "team_scope": team_scope},
+    }
+    if handler is not None:
+        config["callbacks"] = [handler]
 
     events_count = 0
     async for _ in graph.astream(body.initial_state, config):
@@ -124,14 +135,24 @@ class ResumeOut(BaseModel):
 async def resume_agent(
     thread_id: str,
     body: ResumeBody,
-    _principal: dict[str, Any] = Depends(get_current_principal),
+    principal: dict[str, Any] = Depends(get_current_principal),
     team_scope: str = Depends(get_team_scope),
 ):
     if body.agent_name not in GRAPH_REGISTRY:
         raise HTTPException(404, f"unknown agent {body.agent_name}")
     cp = await get_checkpointer()
     graph = GRAPH_REGISTRY[body.agent_name](cp)
-    config = {"configurable": {"thread_id": thread_id, "team_scope": team_scope}}
+    handler = make_callback_handler(
+        thread_id=thread_id,
+        agent_name=body.agent_name,
+        team_scope=team_scope,
+        sub=str(principal.get("sub") or "anonymous"),
+    )
+    config: dict[str, Any] = {
+        "configurable": {"thread_id": thread_id, "team_scope": team_scope},
+    }
+    if handler is not None:
+        config["callbacks"] = [handler]
 
     if body.state_update:
         await graph.aupdate_state(config, body.state_update)

@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     PIPELINE_DEFAULT_TEAM_SCOPE: str = "default"
     ANTHROPIC_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+
+    # Observability — Langfuse (Plan 02-09). Empty values = instrumentation off.
+    LANGFUSE_PUBLIC_KEY: str = ""
+    LANGFUSE_SECRET_KEY: str = ""
+    LANGFUSE_HOST: str = "http://langfuse:3000"
+
     LOG_LEVEL: str = "INFO"
 
 
