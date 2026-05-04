@@ -169,6 +169,9 @@ async def call_tool(
                 content=body,
                 headers={
                     "Content-Type": "application/json",
+                    # MCP streamable-http transport requires BOTH application/json AND
+                    # text/event-stream in Accept (else server returns 406 Not Acceptable).
+                    "Accept": "application/json, text/event-stream",
                     "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
                     "X-Team-Scope": team_scope,
                     "X-User-Sub": user_sub,
