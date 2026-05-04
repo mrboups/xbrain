@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
 
+    # Neo4j (optional — graceful degrade if not set)
+    NEO4J_URI: str = ""          # e.g. bolt://neo4j:7687
+    NEO4J_USER: str = "neo4j"
+    NEO4J_PASSWORD: str = ""
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}
