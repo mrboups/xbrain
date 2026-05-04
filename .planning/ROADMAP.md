@@ -13,8 +13,10 @@ xbrain est construit en trois phases qui correspondent aux trois invariants du p
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Socle Infra + Frontends + memory-api** - GCP VM, Docker Compose multi-service, LibreChat + Open WebUI branchés sur une memory-api qui enforce le contrat de tagging dès le premier write — **DONE 2026-05-03** (https://x.dejavu.cat + https://ai.dejavu.cat)
-- [ ] **Phase 2: Mémoire Intelligente + Agents** - VM upgrade, mem0 + MemoryProvider, truth-level promotion workflow, LangGraph agents avec HITL, RAG permission-aware
-- [ ] **Phase 3: Graphe + Extraction + Intégrations** - Neo4j, extraction structurée (Claude NER), Drive sync, MCP gateway + 3 premiers outils
+- [x] **Phase 2: Mémoire Intelligente + Agents** - VM upgrade, mem0 + MemoryProvider, truth-level promotion workflow, LangGraph agents avec HITL, RAG permission-aware — **DONE 2026-05-04**
+- [x] **Phase 3: Graphe + Extraction + Intégrations** - Neo4j, extraction structurée (Claude NER), Drive sync, MCP gateway + 3 premiers outils — **DONE 2026-05-04**
+- [ ] **Phase 3.5: MCP Gateway Fix + Corrections Phase 3** (INSERTED) - Réécriture mcp-gateway client MCP stateful (Bug 1 critique : tool-call E2E cassé), fix verify-phase3.sh parser (Bug 2 cosmetic)
+- [ ] **Phase 4: Consolidation MCP Frontends + Intégrations Avancées** - LibreChat & agent-runtime branchés sur la gateway MCP (MCP-05/06 réellement câblés), fix logging Open WebUI conversations (MEM-04 résiduel), Drive push webhooks + multi-folder mapping, deck-service MCP tool (MCP-07 déféré)
 
 ## Phase Details
 
@@ -71,16 +73,40 @@ Plans:
 - [ ] 03-11-PLAN.md — drive-sync service (incremental poll, ingestion delegate, soft-archive)
 - [ ] 03-12-PLAN.md — MCP tool registration script + E2E validation
 
+### Phase 4: Consolidation MCP Frontends + Intégrations Avancées
+**Goal**: Fermer la boucle multi-frontend des MCP tools (LibreChat + agent-runtime appellent réellement la gateway), supprimer les frictions résiduelles (Open WebUI logging conversations, latence Drive sync), livrer le dernier MCP tool requirement (deck-service), et ouvrir le mapping Drive multi-dossier par équipe — sans ajouter de service lourd.
+**Depends on**: Phase 3 + Phase 3.5
+**Entry gate**: Phase 3.5 fully shipped (mcp-gateway tool-call E2E PASS) ; verify-phase1/2/3 PASS ; `docker stats` confirme ≥ 2 GB headroom sur la VM e2-standard-2.
+**Requirements**: MEM-04 (résiduel Phase 2), MCP-05, MCP-06, MCP-07, INT-02 (élargi push webhooks), INT-03 (élargi multi-folder)
+**Success Criteria** (what must be TRUE):
+  1. Un user qui chatte dans LibreChat peut écrire "scrape https://example.com" et le LLM appelle réellement `mcp-scraper` via la gateway, retourne le contenu, et l'appel apparaît dans `audit_log` avec `team_scope` + `user_sub` corrects (MCP-05 réel).
+  2. Un user qui chatte dans Open WebUI dans une conversation neuve voit le chat correctement loggé dans memory-api (`POST /v1/messages` retourne 201, conversation row créée silencieusement) — vérifié via SELECT direct sur la table `conversations` (MEM-04 résiduel).
+  3. Un agent LangGraph peut appeler un MCP tool via le wrapper `mcp_gateway_client.py` et l'output atterrit dans memory-api avec le tagging contract complet (MCP-06 réel).
+  4. Un fichier sauvegardé dans Drive devient queryable dans memory-api en moins de 30 secondes en cas nominal (push webhook), avec le polling 5min comme fallback (INT-02 amélioré).
+  5. Un admin peut mapper 2+ dossiers Drive distincts à la même équipe avec project_scope distinct par mapping (INT-03 élargi multi-folder) ; un user peut prompter "génère un deck pour X" et obtenir un `.pptx` dans MinIO indexé en mémoire (MCP-07).
+**Plans**: 8 plans
+Plans:
+- [x] 04-01-PLAN.md — memory-api upsert silencieux conversations sur POST /v1/messages
+- [ ] 04-02-PLAN.md — mcp-gateway endpoint GET /mcp/aggregate (serveur MCP agrégé pour LibreChat)
+- [ ] 04-03-PLAN.md — LibreChat config mcpServers + smoke E2E
+- [ ] 04-04-PLAN.md — agent-runtime mcp_gateway_client.py (LangGraph Tool wrapper)
+- [ ] 04-05-PLAN.md — Drive push webhooks (migration 0005 + endpoint + channel renewal)
+- [ ] 04-06-PLAN.md — Multi-folder Drive mapping (migration 0006 + admin endpoints + scheduler)
+- [ ] 04-07-PLAN.md — mcp-deck sidecar (deck_create/deck_update via python-pptx + MinIO)
+- [ ] 04-08-PLAN.md — register-mcp-tools.sh update + verify-phase4.sh + UAT
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3
+Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Socle Infra + Frontends + memory-api | 6/6 | ✅ Complete | 2026-05-03 |
-| 2. Mémoire Intelligente + Agents | 0/TBD | Not started | - |
-| 3. Graphe + Extraction + Intégrations | 0/12 | Not started | - |
+| 2. Mémoire Intelligente + Agents | 9/9 | ✅ Complete | 2026-05-04 |
+| 3. Graphe + Extraction + Intégrations | 12/12 | ✅ Complete | 2026-05-04 |
+| 3.5. MCP Gateway Fix + Corrections Phase 3 (INSERTED) | 0/2 | In progress | - |
+| 4. Consolidation MCP Frontends + Intégrations Avancées | 1/8 | In progress | - |
 
 ---
 

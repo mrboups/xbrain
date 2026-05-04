@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 
 ## Current Position
 
-Phase: 1 of 3 (Socle Infra + Frontends + memory-api)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-05-02 — Roadmap créé (3 phases, 73 requirements mappés)
+Phase: 4 (Consolidation MCP Frontends + Intégrations Avancées)
+Plan: 1 of 8 in current phase
+Status: In progress
+Last activity: 2026-05-05 — Plan 04-01 terminé : upsert silencieux conversations (MEM-04 fix)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -66,6 +66,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-02
-Stopped at: Roadmap créé et fichiers écrits (.planning/ROADMAP.md, .planning/STATE.md, .planning/REQUIREMENTS.md traceability). Prêt pour `/gsd-plan-phase 1`.
+Last session: 2026-05-05
+Stopped at: Plan 04-01 complet — upsert silencieux conversations sur POST /v1/messages. Commit 22e93c7. VM disque 98%, deploy via docker cp. Prêt pour plan 04-02.
 Resume file: None
