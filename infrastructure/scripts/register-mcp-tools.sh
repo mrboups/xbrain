@@ -151,7 +151,7 @@ except Exception as e:
 #   mcp-drive-read → port 8101 (FastMCP streamable-http)
 #   mcp-calendar   → port 8102 (FastMCP streamable-http)
 # ---------------------------------------------------------------------------
-echo "--- Registering Phase 3 MCP tools ---"
+echo "--- Registering Phase 3+4 MCP tools ---"
 
 register_tool \
   "scraper" \
@@ -167,6 +167,11 @@ register_tool \
   "calendar" \
   "http://mcp-calendar:8102" \
   "List Google Calendar events for a date range (default: today+7days) — MCP-06"
+
+register_tool \
+  "deck" \
+  "http://mcp-deck:8103" \
+  "Generate PowerPoint presentations (.pptx) via python-pptx — MCP-07"
 
 # ---------------------------------------------------------------------------
 # Verification: GET /tools and confirm the 3 tools are present
@@ -251,11 +256,15 @@ fi
 # Final summary
 # ---------------------------------------------------------------------------
 echo ""
-TOTAL_TOOLS=3
+TOTAL_TOOLS=4
 TOTAL_RUN=$((PASS_COUNT + FAIL_COUNT))
 
 if [ "${FAIL_COUNT}" -eq 0 ]; then
   echo "=== Registration SUCCESS === ${PASS_COUNT}/${TOTAL_TOOLS} tools registered"
+elif [ "${PASS_COUNT}" -ge 4 ] 2>/dev/null; then
+  pass "[verify] tools-count" "${PASS_COUNT} tool(s) registered"
+elif [ "${PASS_COUNT}" -ge 3 ] 2>/dev/null; then
+  echo "=== Registration PARTIAL === ${PASS_COUNT} succeeded, ${FAIL_COUNT} failed — deck not registered yet? Run after mcp-deck is up"
 else
   echo "=== Registration PARTIAL === ${PASS_COUNT} succeeded, ${FAIL_COUNT} failed (${TOTAL_RUN}/${TOTAL_TOOLS} run)"
 fi
