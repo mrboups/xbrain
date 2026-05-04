@@ -16,6 +16,7 @@ from app.deps import (
     get_session,
     get_team_scope,
 )
+from app.models.neo4j_outbox import NeoOutboxEntry
 
 router = APIRouter()
 
@@ -45,6 +46,40 @@ async def upsert_item(
     if body.item.team_scope != team_scope:
         raise HTTPException(400, "item.team_scope must match X-Team-Scope header")
     item_id = await provider.upsert(body.item)
+
+    # Neo4j outbox INSERT — enqueue Cypher rows for each entity in metadata.entities.
+    # Runs in the same SQLAlchemy transaction as the audit log (committed together below).
+    # Threat T-03-05-02: entity_name and team_scope are passed as $params — never
+    # interpolated into the Cypher string.
+    entities = (body.item.metadata or {}).get("entities", [])
+    if entities:
+        for entity in entities:
+            entity_name = entity.get("name", "")
+            entity_type = entity.get("type", "concept")
+            if not entity_name:
+                continue
+            # MERGE Entity node
+            session.add(NeoOutboxEntry(
+                cypher=(
+                    "MERGE (e:Entity {name: $name, team_scope: $team_scope}) "
+                    "ON CREATE SET e.type = $type"
+                ),
+                params={"name": entity_name, "type": entity_type, "team_scope": team_scope},
+            ))
+            # MERGE Fact node + MENTIONS edge
+            session.add(NeoOutboxEntry(
+                cypher=(
+                    "MERGE (f:Fact {id: $fact_id, team_scope: $team_scope}) "
+                    "MERGE (e:Entity {name: $entity_name, team_scope: $team_scope}) "
+                    "MERGE (f)-[:MENTIONS]->(e)"
+                ),
+                params={
+                    "fact_id": item_id,
+                    "entity_name": entity_name,
+                    "team_scope": team_scope,
+                },
+            ))
+
     actor_id = principal["user"].id if principal["kind"] == "user" else None
     await write_audit(
         session,
