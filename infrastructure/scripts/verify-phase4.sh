@@ -219,9 +219,12 @@ fi
 LABEL="[6/8] agent-runtime MCP tools import + discovery..."
 printf '%s ' "${LABEL}"
 
-AGENT_TOOLS=$($COMPOSE exec -T agent-runtime \
+AGENT_TOOLS_RAW=$($COMPOSE exec -T agent-runtime \
   python3 -c "
-import sys
+import sys, os
+# Silence structlog / logging before import to avoid stdout pollution
+import logging
+logging.disable(logging.CRITICAL)
 try:
     from app.tools.mcp_gateway_client import get_mcp_tools
     tools = get_mcp_tools(team_scope='default')
@@ -232,17 +235,22 @@ except ImportError as e:
 except Exception as e:
     # Gateway might be unreachable in test — graceful = returns 0 but no exception
     print('0')
-" 2>/dev/null) || AGENT_TOOLS=""
+" 2>/dev/null) || AGENT_TOOLS_RAW=""
 
-if [ -z "${AGENT_TOOLS}" ] || echo "${AGENT_TOOLS}" | grep -q "IMPORT_ERROR"; then
-  fail "${LABEL}" "mcp_gateway_client.py not importable — plan 04-04 not applied (${AGENT_TOOLS:-<empty>})"
+# Extract last non-empty line — structlog may emit log lines on stdout before the number
+AGENT_TOOLS=$(echo "${AGENT_TOOLS_RAW}" | grep -E '^[0-9]+$' | tail -1)
+# Fallback: if no pure-digit line, try last line
+[ -z "${AGENT_TOOLS}" ] && AGENT_TOOLS=$(echo "${AGENT_TOOLS_RAW}" | tail -1 | tr -d '[:space:]')
+
+if echo "${AGENT_TOOLS_RAW}" | grep -q "IMPORT_ERROR" || { [ -z "${AGENT_TOOLS_RAW}" ] && [ -z "${AGENT_TOOLS}" ]; }; then
+  fail "${LABEL}" "mcp_gateway_client.py not importable — plan 04-04 not applied (${AGENT_TOOLS_RAW:-<empty>})"
 elif [ "${AGENT_TOOLS}" -ge 1 ] 2>/dev/null; then
   pass "${LABEL}" "${AGENT_TOOLS} MCP tools discoverable from agent-runtime"
 elif [ "${AGENT_TOOLS}" = "0" ]; then
   # Import works but gateway returned 0 tools — might be timing
   pass "${LABEL}" "module importable — 0 tools (gateway may not have tools yet, run register-mcp-tools.sh)"
 else
-  fail "${LABEL}" "unexpected result: ${AGENT_TOOLS}"
+  fail "${LABEL}" "unexpected result: ${AGENT_TOOLS_RAW:-<empty>}"
 fi
 
 # ---------------------------------------------------------------------------
