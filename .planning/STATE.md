@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 ## Current Position
 
 Phase: 4 (Consolidation MCP Frontends + Intégrations Avancées)
-Plan: 7 of 8 in current phase
+Plan: 8 of 8 in current phase
 Status: In progress
-Last activity: 2026-05-05 — Plan 04-07 terminé : mcp-deck sidecar FastMCP port 8103, deck_create/deck_update, python-pptx, MinIO bucket xbrain-decks, memory-api indexing
+Last activity: 2026-05-05 — Plan 04-03 terminé : LibreChat v0.8.5 mcpServers streamable-http → mcp-gateway:8081, 3 tools (calendar, drive-read, scraper) chargés, healthy
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -48,6 +48,7 @@ Recent decisions affecting current work:
 - 2026-05-02: `MemoryProvider` interface dans `/packages/memory-models` obligatoire avant toute intégration mem0 (Phase 2)
 - 2026-05-02: Langfuse sur e2-medium Phase 1 : déployé en config légère sans ClickHouse complet — surveiller RAM ; si OOM, migrer Langfuse à Phase 2 start post-VM-upgrade
 - 2026-05-05 (D-06): OAuth state param changé de team_scope → mapping_id UUID pour supporter N folders/team (T-04-06-SEC-02 accepted)
+- 2026-05-05 (04-03): mcpSettings.allowedDomains requis pour débloquer les hosts Docker internes (SSRF protection LibreChat v0.8.5 bloque par défaut)
 
 ### Pending Todos
 
@@ -69,5 +70,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-05
-Stopped at: Plan 04-07 complet — mcp-deck sidecar déployé, container healthy, deck_create/deck_update validés, PPTX 2 slides, MinIO bucket créé, memory-api 201 OK. Commits 9eb65de, e41b2b8. Disque VM 21GB libre.
+Stopped at: Plan 04-03 complet — LibreChat MCP config deployed. 3 tools loaded (calendar, drive-read, scraper). Commits e4d5098, 3d8fcbb.
 Resume file: None
