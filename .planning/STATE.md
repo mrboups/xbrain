@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 ## Current Position
 
 Phase: 4 (Consolidation MCP Frontends + Intégrations Avancées)
-Plan: 6 of 8 in current phase
+Plan: 7 of 8 in current phase
 Status: In progress
-Last activity: 2026-05-05 — Plan 04-06 terminé : multi-folder Drive mapping (migration 0005 + admin_drive.py refactor + drive_poller project_scope)
+Last activity: 2026-05-05 — Plan 04-07 terminé : mcp-deck sidecar FastMCP port 8103, deck_create/deck_update, python-pptx, MinIO bucket xbrain-decks, memory-api indexing
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -69,5 +69,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-05
-Stopped at: Plan 04-06 complet — Migration 0005 appliquée (alembic current=0005 head), admin_drive.py multi-folder validé (2 folders/team, GET liste, DELETE 204), drive_poller project_scope propagé. Commits 934f8f7, 8a8ce3e, 16f22a1. VM disque 99% — drive-sync déployé via docker cp (pas de rebuild).
+Stopped at: Plan 04-07 complet — mcp-deck sidecar déployé, container healthy, deck_create/deck_update validés, PPTX 2 slides, MinIO bucket créé, memory-api 201 OK. Commits 9eb65de, e41b2b8. Disque VM 21GB libre.
 Resume file: None
