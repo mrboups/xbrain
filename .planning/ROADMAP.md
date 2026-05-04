@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Socle Infra + Frontends + memory-api** - GCP VM, Docker Compose multi-service, LibreChat + Open WebUI branchés sur une memory-api qui enforce le contrat de tagging dès le premier write — **DONE 2026-05-03** (https://x.dejavu.cat + https://ai.dejavu.cat)
 - [ ] **Phase 2: Mémoire Intelligente + Agents** - VM upgrade, mem0 + MemoryProvider, truth-level promotion workflow, LangGraph agents avec HITL, RAG permission-aware
-- [ ] **Phase 3: Graphe + Extraction + Intégrations** - Neo4j, extraction structurée (Memori/fallback), Drive sync, MCP gateway + 3 premiers outils
+- [ ] **Phase 3: Graphe + Extraction + Intégrations** - Neo4j, extraction structurée (Claude NER), Drive sync, MCP gateway + 3 premiers outils
 
 ## Phase Details
 
@@ -56,7 +56,20 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Un dossier Google Drive mappé à une équipe est synchronisé incrementalement dans memory-api (seuls les fichiers modifiés sont re-traités), chaque document indexé avec le contrat de tagging complet, déposé à `WORKING`
   3. Un développeur peut enregistrer un nouveau service MCP (scraper, calendar, deck-service) via le gateway sans modifier l'infra centrale, et chaque appel outil depuis LibreChat ou un agent inclut le `team_scope` et `user_id` injectés par le gateway
   4. Les résumés produits par un agent peuvent être écrits en retour dans un document Drive avec opt-in utilisateur explicite, et cette action est tracée dans l'audit log memory-api
-**Plans**: TBD
+**Plans**: 12 plans
+Plans:
+- [ ] 03-01-PLAN.md — Neo4j compose service + volume + .env.example
+- [ ] 03-02-PLAN.md — Alembic migration 0004 (neo4j_outbox + team_drive_mappings + UNIQUE source)
+- [ ] 03-03-PLAN.md — Google OAuth scope upgrade runbook (docs/google-oauth-scope-upgrade.md)
+- [ ] 03-04-PLAN.md — Neo4j async driver + outbox background worker in memory-api
+- [ ] 03-05-PLAN.md — /v1/graph/* endpoints + extract_facts NER extension
+- [ ] 03-06-PLAN.md — mcp-gateway service (FastAPI proxy, DB registry, audit)
+- [ ] 03-07-PLAN.md — mcp-scraper sidecar (FastMCP, URL → text, port 8100)
+- [ ] 03-08-PLAN.md — mcp-drive-read sidecar (FastMCP, Drive read/write, port 8101)
+- [ ] 03-09-PLAN.md — mcp-calendar sidecar (FastMCP, Calendar read-only, port 8102)
+- [ ] 03-10-PLAN.md — Drive admin endpoint in memory-api (OAuth flow, Fernet encrypt)
+- [ ] 03-11-PLAN.md — drive-sync service (incremental poll, ingestion delegate, soft-archive)
+- [ ] 03-12-PLAN.md — MCP tool registration script + E2E validation
 
 ## Progress
 
@@ -67,7 +80,7 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Socle Infra + Frontends + memory-api | 6/6 | ✅ Complete | 2026-05-03 |
 | 2. Mémoire Intelligente + Agents | 0/TBD | Not started | - |
-| 3. Graphe + Extraction + Intégrations | 0/TBD | Not started | - |
+| 3. Graphe + Extraction + Intégrations | 0/12 | Not started | - |
 
 ---
 
