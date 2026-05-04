@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 ## Current Position
 
 Phase: 4 (Consolidation MCP Frontends + Intégrations Avancées)
-Plan: 1 of 8 in current phase
+Plan: 6 of 8 in current phase
 Status: In progress
-Last activity: 2026-05-05 — Plan 04-04 terminé : mcp_gateway_client.py — LangGraph StructuredTool wrapper pour MCP gateway (MCP-06)
+Last activity: 2026-05-05 — Plan 04-06 terminé : multi-folder Drive mapping (migration 0005 + admin_drive.py refactor + drive_poller project_scope)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -47,6 +47,7 @@ Recent decisions affecting current work:
 - 2026-05-02: MinIO via Chainguard image (`cgr.dev/chainguard/minio:latest`) — images Docker Hub discontinuées oct 2025
 - 2026-05-02: `MemoryProvider` interface dans `/packages/memory-models` obligatoire avant toute intégration mem0 (Phase 2)
 - 2026-05-02: Langfuse sur e2-medium Phase 1 : déployé en config légère sans ClickHouse complet — surveiller RAM ; si OOM, migrer Langfuse à Phase 2 start post-VM-upgrade
+- 2026-05-05 (D-06): OAuth state param changé de team_scope → mapping_id UUID pour supporter N folders/team (T-04-06-SEC-02 accepted)
 
 ### Pending Todos
 
@@ -57,6 +58,7 @@ None yet.
 - **Phase 2 entry gate** : POC 1-jour mem0 vs native doit être réalisé AVANT le planning Phase 2 — résultat détermine le chemin `MemoryProvider` implémentation
 - **Phase 3 entry gate** : POC Memori BYODB (Alpha) doit être réalisé avant planning Phase 3 — fallback = LangGraph + LLM structured output
 - **OOM Risk Phase 1** : e2-medium (4 GB) est serré avec LibreChat + MongoDB + Qdrant + memory-api. Surveiller `docker stats` total. Ne pas ajouter Langfuse complet (ClickHouse) sans upgrade VM.
+- **VM disk 99%** : La VM est à 99% (28G/29G). Le rebuild de drive-sync a échoué par manque d'espace. Nettoyer avant prochain plan avec rebuild de containers. `docker system prune` n'a pas libéré d'espace — probablement des snapshots containerd à nettoyer manuellement ou agrandir le disque.
 
 ## Deferred Items
 
@@ -67,5 +69,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-05
-Stopped at: Plan 04-04 complet — mcp_gateway_client.py LangGraph wrapper MCP gateway. get_mcp_tools() retourne 3 tools validés en container (calendar, drive-read, scraper). Commit 22e93c7 (concurrent 04-01). VM disque 97% après builder prune.
+Stopped at: Plan 04-06 complet — Migration 0005 appliquée (alembic current=0005 head), admin_drive.py multi-folder validé (2 folders/team, GET liste, DELETE 204), drive_poller project_scope propagé. Commits 934f8f7, 8a8ce3e, 16f22a1. VM disque 99% — drive-sync déployé via docker cp (pas de rebuild).
 Resume file: None
