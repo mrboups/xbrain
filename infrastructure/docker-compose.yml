@@ -19,6 +19,7 @@ volumes:
   langfuse_clickhouse_data: { name: langfuse_clickhouse_data }
   langfuse_redis_data: { name: langfuse_redis_data }
   langfuse_minio_data: { name: langfuse_minio_data }
+  neo4j_data: { name: neo4j_data }
 
 services:
   # === Placeholder ingress (nginx) — détails dans plan 01-05 ===
@@ -475,4 +476,26 @@ services:
       interval: 30s
       timeout: 5s
       retries: 5
+      start_period: 60s
+
+  # === Neo4j Community (plan 03-01) — graph store for entity/fact relationships ===
+  neo4j:
+    image: neo4j:2026.04.0-community
+    container_name: xbrain-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
+      NEO4J_PLUGINS: "[]"
+    volumes:
+      - neo4j_data:/data
+    networks: [xbrain_net]
+    mem_limit: 1024m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7474 2>/dev/null | grep -q neo4j || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
       start_period: 60s
