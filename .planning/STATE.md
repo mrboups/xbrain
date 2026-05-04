@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 Phase: 4 (Consolidation MCP Frontends + Intégrations Avancées)
 Plan: 1 of 8 in current phase
 Status: In progress
-Last activity: 2026-05-05 — Plan 04-01 terminé : upsert silencieux conversations (MEM-04 fix)
+Last activity: 2026-05-05 — Plan 04-04 terminé : mcp_gateway_client.py — LangGraph StructuredTool wrapper pour MCP gateway (MCP-06)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -67,5 +67,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-05
-Stopped at: Plan 04-01 complet — upsert silencieux conversations sur POST /v1/messages. Commit 22e93c7. VM disque 98%, deploy via docker cp. Prêt pour plan 04-02.
+Stopped at: Plan 04-04 complet — mcp_gateway_client.py LangGraph wrapper MCP gateway. get_mcp_tools() retourne 3 tools validés en container (calendar, drive-read, scraper). Commit 22e93c7 (concurrent 04-01). VM disque 97% après builder prune.
 Resume file: None
