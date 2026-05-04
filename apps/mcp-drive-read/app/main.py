@@ -22,6 +22,9 @@ from mcp.server.fastmcp import FastMCP
 from app.drive_client import export_file_as_text, update_file_content
 
 log = structlog.get_logger(__name__)
+
+# Single FastMCP instance — tools are registered as module-level async functions.
+# The gateway discovers tools via GET /mcp (tool list endpoint, MCP protocol).
 mcp = FastMCP("xbrain-drive-read")
 
 
