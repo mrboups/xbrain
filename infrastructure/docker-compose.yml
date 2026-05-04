@@ -504,3 +504,22 @@ services:
       timeout: 10s
       retries: 10
       start_period: 60s
+
+  # === mcp-scraper (plan 03-07) — MCP tool: URL -> text ===
+  mcp-scraper:
+    build:
+      context: ../apps/mcp-scraper
+      dockerfile: Dockerfile
+    image: xbrain/mcp-scraper:phase3
+    container_name: xbrain-mcp-scraper
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks: [xbrain_net]
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8100/healthz 2>/dev/null || exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
