@@ -158,9 +158,10 @@ def _generate_pptx(title: str, sections: list[dict]) -> bytes:
 
 def _mint_bridge_jwt(team_scope: str) -> str:
     import time
-    from authlib.jose import jwt as authlib_jwt
+    from joserfc import jwt as jose_jwt
+    from joserfc.jwk import OctKey
     now = int(time.time())
-    payload = {
+    claims = {
         "iss": "mcp-deck",
         "sub": "mcp-deck",
         "scope": "bridge",
@@ -168,8 +169,11 @@ def _mint_bridge_jwt(team_scope: str) -> str:
         "iat": now,
         "exp": now + 300,
     }
-    token = authlib_jwt.encode({"alg": "HS256"}, payload, BRIDGE_SHARED_SECRET)
-    return token.decode("ascii") if isinstance(token, bytes) else token
+    key = OctKey.import_key(
+        BRIDGE_SHARED_SECRET.encode() if isinstance(BRIDGE_SHARED_SECRET, str) else BRIDGE_SHARED_SECRET
+    )
+    token = jose_jwt.encode({"alg": "HS256"}, claims, key)
+    return token
 
 
 def _index_in_memory_api(
@@ -179,9 +183,12 @@ def _index_in_memory_api(
     if not BRIDGE_SHARED_SECRET:
         log.warning("deck.memory_index_skipped", reason="BRIDGE_SHARED_SECRET not set")
         return None
+    import datetime
     jwt = _mint_bridge_jwt(team_scope)
+    now_iso = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     payload = {
         "item": {
+            "id": deck_id,
             "content": f"Pitch deck: {title}",
             "team_scope": team_scope,
             "project_scope": None,
@@ -190,6 +197,8 @@ def _index_in_memory_api(
             "truth_level": "WORKING",
             "source": f"mcp:deck:{deck_id}",
             "validation_status": "pending",
+            "created_at": now_iso,
+            "updated_at": now_iso,
             "metadata": {
                 "deck_id": deck_id,
                 "minio_url": url,
