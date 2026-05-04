@@ -611,6 +611,37 @@ services:
       retries: 5
       start_period: 20s
 
+  # === mcp-deck (plan 04-07) — MCP tool: PowerPoint generator via python-pptx + MinIO ===
+  mcp-deck:
+    build:
+      context: ../apps/mcp-deck
+      dockerfile: Dockerfile
+    image: xbrain/mcp-deck:phase4
+    container_name: xbrain-mcp-deck
+    restart: unless-stopped
+    environment:
+      MINIO_ENDPOINT: langfuse-minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET_DECKS: ${MINIO_BUCKET_DECKS:-xbrain-decks}
+      MINIO_USE_SSL: "false"
+      MEMORY_API_URL: http://memory-api:8000
+      BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      FASTMCP_HOST: "0.0.0.0"
+      FASTMCP_PORT: "8103"
+    networks: [xbrain_net]
+    mem_limit: 192m
+    depends_on:
+      memory-api: { condition: service_healthy }
+      langfuse-minio: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8103/healthz 2>/dev/null || exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
   # === drive-sync (plan 03-11) — incremental Google Drive sync sidecar ===
   # Polls Google Drive changes.list every DRIVE_SYNC_POLL_INTERVAL seconds.
   # Delegates extraction to agent-runtime ingestion-agent (plan 02-07).

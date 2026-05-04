@@ -1,0 +1,13 @@
+[project]
+name = "mcp-deck"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp>=1.27.0",
+    "python-pptx>=1.0",
+    "boto3>=1.34",
+    "httpx>=0.27",
+    "structlog>=24.0",
+    "authlib>=1.3",
+    "uvicorn>=0.29",
+]
