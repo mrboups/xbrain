@@ -46,6 +46,14 @@ endpoints:
       titleConvo: false
       modelDisplayLabel: "Grok"
 
+# MCP settings — Phase 4 (plan 04-03)
+# allowedDomains is required to permit internal Docker network hosts.
+# LibreChat v0.8.5 has SSRF protection that blocks non-public domains by default.
+# mcp-gateway runs on the xbrain_net bridge — must be explicitly allowed.
+mcpSettings:
+  allowedDomains:
+    - "http://mcp-gateway:8081"
+
 # MCP servers — Phase 4 (plan 04-03)
 # Connects LibreChat to the xbrain MCP aggregate gateway which exposes
 # calendar, drive-read, scraper (and deck after plan 04-08) as a single
