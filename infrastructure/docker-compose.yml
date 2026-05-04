@@ -505,6 +505,35 @@ services:
       retries: 10
       start_period: 60s
 
+  # === mcp-gateway (plan 03-06) — MCP tool call router with team_scope injection ===
+  # Plain FastAPI proxy — NOT a FastMCP host (issue #1367 prevents mounting FastMCP in parent FastAPI).
+  # Tool sidecars (mcp-scraper, mcp-drive-read, mcp-calendar) run as standalone processes.
+  mcp-gateway:
+    build:
+      context: ../apps/mcp-gateway
+      dockerfile: Dockerfile
+    image: xbrain/mcp-gateway:phase3
+    container_name: xbrain-mcp-gateway
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      MEMORY_API_URL: http://memory-api:8000
+      BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks: [xbrain_net]
+    mem_limit: 192m
+    depends_on:
+      postgres: { condition: service_healthy }
+      memory-api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz 2>/dev/null | grep -q ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   # === mcp-scraper (plan 03-07) — MCP tool: URL -> text ===
   mcp-scraper:
     build:
@@ -519,6 +548,29 @@ services:
     mem_limit: 128m
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8100/healthz 2>/dev/null || exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # === mcp-drive-read (plan 03-08) — MCP tool: Drive file read/write ===
+  mcp-drive-read:
+    build:
+      context: ../apps/mcp-drive-read
+      dockerfile: Dockerfile
+    image: xbrain/mcp-drive-read:phase3
+    container_name: xbrain-mcp-drive-read
+    restart: unless-stopped
+    environment:
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_DRIVE_ACCESS_TOKEN: ${GOOGLE_DRIVE_ACCESS_TOKEN:-}
+      GOOGLE_DRIVE_REFRESH_TOKEN: ${GOOGLE_DRIVE_REFRESH_TOKEN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks: [xbrain_net]
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8101/healthz 2>/dev/null || exit 0"]
       interval: 30s
       timeout: 10s
       retries: 5
