@@ -15,6 +15,7 @@ from app.routes import (
     admin_drive,
     audit,
     conversations,
+    drive_webhook,
     graph,
     health,
     me,
@@ -75,3 +76,4 @@ app.include_router(promotions.router, prefix="/v1", tags=["promotions"])
 app.include_router(graph.router, prefix="/v1", tags=["graph"])
 app.include_router(system_prompt.router, prefix="/v1", tags=["system-prompt"])
 app.include_router(admin_drive.router, prefix="/v1", tags=["admin-drive"])
+app.include_router(drive_webhook.router, prefix="/v1", tags=["drive-webhook"])

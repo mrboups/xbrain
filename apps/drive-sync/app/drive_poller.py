@@ -230,6 +230,134 @@ async def poll_team(conn: asyncpg.Connection, row: asyncpg.Record) -> None:
         )
 
 
+async def register_watch_channel(pool: asyncpg.Pool, mapping_row) -> bool:
+    """Register a Google Drive push notification channel for a mapping.
+
+    Calls changes.watch() with address=DRIVE_WEBHOOK_PUBLIC_URL.
+    Stores channel_id, resource_id, channel_token, expires_at in drive_watch_channels.
+    Returns True on success, False on failure (non-fatal).
+
+    Google channel lifetime: we request 24h (86400s) — max is 7 days.
+    Uses ON CONFLICT (mapping_id) DO UPDATE so re-registering is idempotent.
+    """
+    import datetime as _dt
+    import uuid as _uuid
+
+    if not settings.DRIVE_WEBHOOK_PUBLIC_URL:
+        log.warning("watch.no_public_url", mapping_id=str(mapping_row["id"]))
+        return False
+
+    creds_enc = mapping_row.get("oauth_credentials_enc") if hasattr(mapping_row, "get") else mapping_row["oauth_credentials_enc"]
+    if not creds_enc:
+        return False
+
+    creds_dict = _decrypt_credentials(creds_enc)
+    service = _build_drive_service(creds_dict)
+    channel_token = settings.DRIVE_WEBHOOK_SECRET or str(_uuid.uuid4())
+    channel_id = str(_uuid.uuid4())
+
+    try:
+        resp = _with_backoff(
+            lambda: service.changes()
+            .watch(
+                pageToken=mapping_row["change_token"] or "1",
+                body={
+                    "id": channel_id,
+                    "type": "web_hook",
+                    "address": settings.DRIVE_WEBHOOK_PUBLIC_URL,
+                    "token": channel_token,
+                    "expiration": int(
+                        (
+                            _dt.datetime.utcnow() + _dt.timedelta(hours=24)
+                        ).timestamp()
+                        * 1000
+                    ),
+                },
+            )
+            .execute()
+        )
+    except Exception as exc:
+        log.warning(
+            "watch.register_failed",
+            mapping_id=str(mapping_row["id"]),
+            error=str(exc),
+        )
+        return False
+
+    expires_ms = int(resp.get("expiration", 0))
+    expires_at = (
+        _dt.datetime.utcfromtimestamp(expires_ms / 1000)
+        if expires_ms
+        else (_dt.datetime.utcnow() + _dt.timedelta(hours=24))
+    )
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO drive_watch_channels
+                (channel_id, resource_id, mapping_id, channel_token, expires_at)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (mapping_id) DO UPDATE
+            SET channel_id     = EXCLUDED.channel_id,
+                resource_id    = EXCLUDED.resource_id,
+                channel_token  = EXCLUDED.channel_token,
+                expires_at     = EXCLUDED.expires_at
+            """,
+            channel_id,
+            resp.get("resourceId"),
+            mapping_row["id"],
+            channel_token,
+            expires_at,
+        )
+    log.info(
+        "watch.channel_registered",
+        channel_id=channel_id,
+        team=mapping_row["team_scope"],
+    )
+    return True
+
+
+async def run_channel_renewal_loop(pool: asyncpg.Pool) -> None:
+    """Renew Drive watch channels that expire within the next 2 hours.
+
+    Runs every 12h. Channels expire after 24h (our setting), so renewal at T-2h
+    gives a safe margin. On renewal failure: logs warning, polling fallback covers.
+    """
+    import datetime as _dt  # noqa: F811
+
+    while True:
+        await asyncio.sleep(12 * 3600)
+        try:
+            async with pool.acquire() as conn:
+                # Find channels expiring within 2 hours
+                expiring = await conn.fetch(
+                    """
+                    SELECT dwc.id, dwc.mapping_id, tdm.team_scope,
+                           tdm.change_token, tdm.oauth_credentials_enc, tdm.folder_id,
+                           tdm.id AS tdm_id
+                    FROM drive_watch_channels dwc
+                    JOIN team_drive_mappings tdm ON dwc.mapping_id = tdm.id
+                    WHERE dwc.expires_at < (now() + interval '2 hours')
+                    """
+                )
+            for row in expiring:
+                # Build a dict-like object with the fields register_watch_channel needs
+                mapping_like = {
+                    "id": row["mapping_id"],
+                    "team_scope": row["team_scope"],
+                    "change_token": row["change_token"],
+                    "oauth_credentials_enc": row["oauth_credentials_enc"],
+                    "folder_id": row["folder_id"],
+                }
+                ok = await register_watch_channel(pool, mapping_like)
+                if ok:
+                    log.info("watch.channel_renewed", team=row["team_scope"])
+                else:
+                    log.warning("watch.channel_renewal_failed", team=row["team_scope"])
+        except Exception as exc:
+            log.error("watch.renewal_loop_error", error=str(exc))
+
+
 async def run_poll_loop(database_url: str) -> None:
     """Main polling loop -- runs forever, polls all teams every POLL_INTERVAL_SECONDS.
 
@@ -237,11 +365,37 @@ async def run_poll_loop(database_url: str) -> None:
     Loop-level errors are caught and logged; loop continues after sleep.
     Sentinel file /tmp/drive-sync-alive is touched after each successful tick
     for the docker healthcheck.
+
+    At startup:
+    - Registers Drive push webhook channels for all active mappings (non-fatal).
+    - Starts a background task to renew channels expiring within 2h (every 12h).
+    - Listens for immediate poll triggers from the webhook server via asyncio.Queue.
     """
     # asyncpg requires plain postgresql:// scheme (not postgresql+asyncpg://)
     pg_url = database_url.replace("postgresql+asyncpg://", "postgresql://").replace("postgres+asyncpg://", "postgresql://")
     pool = await asyncpg.create_pool(pg_url, min_size=1, max_size=2)
     log.info("poll_loop.started", interval=settings.POLL_INTERVAL_SECONDS)
+
+    # Register watch channels for all active mappings (non-fatal if fails)
+    try:
+        async with pool.acquire() as conn:
+            all_mappings = await conn.fetch(
+                "SELECT id, team_scope, folder_id, project_scope,"
+                " change_token, oauth_credentials_enc"
+                " FROM team_drive_mappings"
+            )
+        for m in all_mappings:
+            await register_watch_channel(pool, m)
+    except Exception as exc:
+        log.warning("poll_loop.watch_registration_failed", error=str(exc))
+
+    # Start channel renewal background task (runs every 12h)
+    asyncio.create_task(run_channel_renewal_loop(pool))
+
+    # Get trigger queue from webhook server for immediate poll dispatch
+    from app.webhook_server import get_trigger_queue
+    trigger_queue = get_trigger_queue()
+
     while True:
         try:
             async with pool.acquire() as conn:
@@ -260,4 +414,34 @@ async def run_poll_loop(database_url: str) -> None:
             log.info("poll_loop.tick_complete", teams=len(mappings))
         except Exception as exc:
             log.error("poll_loop.error", error=str(exc))
+
+        # Drain webhook triggers — poll triggered teams immediately before sleeping
+        triggered_teams: set[str] = set()
+        while not trigger_queue.empty():
+            try:
+                triggered_teams.add(trigger_queue.get_nowait())
+            except Exception:
+                break
+        if triggered_teams:
+            try:
+                async with pool.acquire() as conn:
+                    for team in triggered_teams:
+                        rows = await conn.fetch(
+                            "SELECT id, team_scope, folder_id, project_scope,"
+                            " change_token, oauth_credentials_enc"
+                            " FROM team_drive_mappings WHERE team_scope=$1",
+                            team,
+                        )
+                        for row in rows:
+                            try:
+                                await poll_team(conn, row)
+                            except Exception as exc:
+                                log.error(
+                                    "poll.webhook_trigger_error",
+                                    team=team,
+                                    error=str(exc),
+                                )
+            except Exception as exc:
+                log.error("poll_loop.trigger_drain_error", error=str(exc))
+
         await asyncio.sleep(settings.POLL_INTERVAL_SECONDS)

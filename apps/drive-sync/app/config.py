@@ -12,6 +12,13 @@ class Settings(BaseSettings):
     OAUTH_CREDENTIALS_ENCRYPTION_KEY: str = ""
     POLL_INTERVAL_SECONDS: int = 300  # 5 minutes
     LOG_LEVEL: str = "INFO"
+    # Drive push webhook settings
+    # Public HTTPS URL where Google Drive sends change notifications.
+    # Must be reachable from the internet — typically https://api.dejavu.cat/v1/drive-webhook
+    DRIVE_WEBHOOK_PUBLIC_URL: str = ""
+    # Random token (64+ chars) stored in drive_watch_channels.channel_token.
+    # Google echoes it back in X-Goog-Channel-Token for auth verification.
+    DRIVE_WEBHOOK_SECRET: str = ""
 
     class Config:
         env_file = ".env"
