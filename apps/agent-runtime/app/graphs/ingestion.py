@@ -63,7 +63,16 @@ async def load_node(state: IngestionState) -> IngestionState:
 
 async def extract_node(state: IngestionState) -> IngestionState:
     source_label = state.get("source_url") or "pdf-upload"
-    facts = await extract_facts(state.get("document_text", ""), source_label)
+    extraction = await extract_facts(state.get("document_text", ""), source_label)
+    facts = extraction["facts"]
+    entities = extraction.get("entities", [])
+    # Embed entities into each fact's metadata so memory-api can enqueue neo4j_outbox
+    # rows for the background worker (plan 03-05). The entities list is shared across
+    # all facts from this document — each fact carries the full set for simplicity.
+    for fact in facts:
+        fact.setdefault("metadata", {})
+        if entities:
+            fact["metadata"]["entities"] = entities
     return {**state, "extracted_facts": facts}
 
 
