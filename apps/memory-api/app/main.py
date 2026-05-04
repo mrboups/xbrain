@@ -14,6 +14,7 @@ from app.qdrant_setup import ensure_collections
 from app.routes import (
     audit,
     conversations,
+    graph,
     health,
     me,
     memory,
@@ -70,4 +71,5 @@ app.include_router(messages.router, prefix="/v1", tags=["messages"])
 app.include_router(audit.router, prefix="/v1", tags=["audit"])
 app.include_router(memory.router, prefix="/v1", tags=["memory"])
 app.include_router(promotions.router, prefix="/v1", tags=["promotions"])
+app.include_router(graph.router, prefix="/v1", tags=["graph"])
 app.include_router(system_prompt.router, prefix="/v1", tags=["system-prompt"])
