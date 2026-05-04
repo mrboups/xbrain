@@ -271,6 +271,7 @@ services:
       APP_TITLE: ${APP_TITLE:-xbrain}
       SESSION_EXPIRY: ${SESSION_EXPIRY}
       REFRESH_TOKEN_EXPIRY: ${REFRESH_TOKEN_EXPIRY}
+      LIBRECHAT_DEFAULT_TEAM_SCOPE: ${LIBRECHAT_DEFAULT_TEAM_SCOPE:-default}
     volumes:
       - librechat_uploads:/app/client/public/uploads
       - ./librechat/librechat.yaml:/app/librechat.yaml:ro

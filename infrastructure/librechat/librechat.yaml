@@ -46,6 +46,23 @@ endpoints:
       titleConvo: false
       modelDisplayLabel: "Grok"
 
+# MCP servers — Phase 4 (plan 04-03)
+# Connects LibreChat to the xbrain MCP aggregate gateway which exposes
+# calendar, drive-read, scraper (and deck after plan 04-08) as a single
+# MCP server via streamable-http transport (LibreChat v0.8.5+).
+mcpServers:
+  xbrain:
+    # MCP aggregate endpoint — all registered xbrain tools via mcp-gateway.
+    # Requires mcp-gateway:8081 to be running (Phase 4, plan 04-02).
+    # Transport: streamable-http (LibreChat v0.8.5+, supported since Q4 2025).
+    type: streamable-http
+    url: http://mcp-gateway:8081/mcp
+    headers:
+      X-Team-Scope: "${LIBRECHAT_DEFAULT_TEAM_SCOPE}"
+      # X-LibreChat-User-Email injected by LibreChat from connected user profile.
+      # Consumed by mcp-gateway in Phase 5 for sub resolution via memory-api /v1/me.
+      X-LibreChat-User-Email: "{{LIBRECHAT_USER_EMAIL}}"
+
 # File handling (CHAT-04 partiel — upload accepté, RAG vraie en Phase 2)
 fileConfig:
   endpoints:
