@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str = ""
 
+    # Drive OAuth config (Phase 3 — plan 03-10)
+    GOOGLE_CLIENT_SECRET: str = ""
+    # Fernet key — generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    OAUTH_CREDENTIALS_ENCRYPTION_KEY: str = ""
+    # Used to build OAuth redirect_uri returned to Google
+    MEMORY_API_EXTERNAL_URL: str = "https://x.dejavu.cat"
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}

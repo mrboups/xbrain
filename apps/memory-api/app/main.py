@@ -12,6 +12,7 @@ from app.neo4j_client import close_driver, init_driver
 from app.outbox_worker import drain_outbox
 from app.qdrant_setup import ensure_collections
 from app.routes import (
+    admin_drive,
     audit,
     conversations,
     graph,
@@ -73,3 +74,4 @@ app.include_router(memory.router, prefix="/v1", tags=["memory"])
 app.include_router(promotions.router, prefix="/v1", tags=["promotions"])
 app.include_router(graph.router, prefix="/v1", tags=["graph"])
 app.include_router(system_prompt.router, prefix="/v1", tags=["system-prompt"])
+app.include_router(admin_drive.router, prefix="/v1", tags=["admin-drive"])
