@@ -7,10 +7,14 @@ Gateway is responsible for: auth, team_scope injection, registry lookup, audit l
 Architecture note: FastMCP cannot be mounted inside a parent FastAPI app due to
 RuntimeError: Task group is not initialized (github.com/modelcontextprotocol/python-sdk/issues/1367).
 This gateway is deliberately a plain HTTP client-proxy, not a FastMCP host.
+
+Aggregate server: a separate FastMCP process runs on port 8081 (see app/aggregate.py).
+It exposes all registered tools as a single MCP server for LibreChat.
 """
 from __future__ import annotations
 
 import asyncio
+import multiprocessing
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -21,6 +25,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 from pydantic import BaseModel
 
+from app.aggregate import run_aggregate_server
 from app.audit import log_tool_call
 from app.auth import verify_bridge_jwt, verify_google_id_token
 from app.config import settings
@@ -28,12 +33,37 @@ from app.registry import close_registry, get_tool, init_registry, list_tools, re
 
 log = structlog.get_logger(__name__)
 
+# Module-level handle — kept outside lifespan so it survives across reloads in dev.
+_agg_proc: multiprocessing.Process | None = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _agg_proc
     await init_registry(settings.DATABASE_URL)
     log.info("mcp_gateway.started")
+
+    # Launch MCP aggregate subprocess on port 8081.
+    # Separate process is required — FastMCP cannot be mounted in a parent FastAPI app
+    # (issue #1367: RuntimeError: Task group is not initialized).
+    # daemon=True ensures the subprocess is killed automatically when the parent exits.
+    _agg_proc = multiprocessing.Process(
+        target=run_aggregate_server,
+        name="mcp-aggregate",
+        daemon=True,
+    )
+    _agg_proc.start()
+    log.info("mcp_gateway.aggregate_subprocess_started", pid=_agg_proc.pid)
+
     yield
+
+    # Graceful shutdown — terminate then wait up to 5s
+    if _agg_proc and _agg_proc.is_alive():
+        _agg_proc.terminate()
+        _agg_proc.join(timeout=5)
+        if _agg_proc.is_alive():
+            _agg_proc.kill()
+        log.info("mcp_gateway.aggregate_subprocess_stopped", pid=_agg_proc.pid)
     await close_registry()
 
 
