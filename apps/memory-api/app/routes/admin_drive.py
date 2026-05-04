@@ -1,17 +1,25 @@
 """/v1/admin/drive-mapping — admin endpoints for Drive folder → team mapping.
 
 Flow:
-  1. Admin calls POST /v1/admin/drive-mapping with {team_scope, folder_id}
-  2. Endpoint creates/updates row in team_drive_mappings and returns {authorization_url}
+  1. Admin calls POST /v1/admin/drive-mapping with {team_scope, folder_id, project_scope?}
+  2. Endpoint creates or upserts a row in team_drive_mappings and returns {id, authorization_url}
   3. Admin (or user on behalf of team) visits authorization_url in browser
-  4. Google redirects to /v1/admin/drive-mapping/oauth-callback?code=...&state=team_scope
+  4. Google redirects to /v1/admin/drive-mapping/oauth-callback?code=...&state=<mapping_id>
   5. Callback exchanges code for tokens, encrypts with Fernet, stores in team_drive_mappings
 
+Multi-folder support (migration 0005):
+  - UNIQUE(team_scope) constraint replaced by UNIQUE(team_scope, folder_id).
+  - A team can have N folder mappings, each with an optional project_scope.
+  - GET /admin/drive-mapping?team_scope=... returns a list of mappings.
+  - DELETE /admin/drive-mapping/{mapping_id} removes a specific mapping.
+
 Security:
-  POST/GET admin endpoints require bridge JWT (kind=service) or a sub listed in
+  POST/GET/DELETE admin endpoints require bridge JWT (kind=service) or a sub listed in
   ADMIN_USER_SUBS. The OAuth callback is intentionally unauthenticated — Google
   calls it with a single-use code that expires in 10 min (T-03-10-01 accepted).
   Stored credentials are Fernet-encrypted at rest (T-03-10-02 mitigated).
+  OAuth state parameter now uses mapping_id (UUID) instead of team_scope to support
+  multiple mappings per team (T-04-06-SEC-02 accepted).
 """
 from __future__ import annotations
 
@@ -19,9 +27,10 @@ import json
 from typing import Any
 
 import httpx
+import sqlalchemy as sa
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.deps import get_current_principal, get_session
@@ -61,8 +70,12 @@ def _is_admin(principal: dict[str, Any]) -> bool:
     return sub in admin_subs
 
 
-def _build_authorization_url(team_scope: str) -> str:
-    """Construct the Google OAuth incremental-auth URL for drive.readonly."""
+def _build_authorization_url(mapping_id: str) -> str:
+    """Construct the Google OAuth incremental-auth URL for drive.readonly.
+
+    Uses mapping_id (UUID) as OAuth state parameter so the callback can
+    target the exact row when multiple mappings exist for the same team.
+    """
     redirect_uri = f"{settings.MEMORY_API_EXTERNAL_URL}/v1/admin/drive-mapping/oauth-callback"
     return (
         "https://accounts.google.com/o/oauth2/v2/auth"
@@ -72,7 +85,7 @@ def _build_authorization_url(team_scope: str) -> str:
         "&include_granted_scopes=true"
         "&access_type=offline"
         "&response_type=code"
-        f"&state={team_scope}"
+        f"&state={mapping_id}"
         "&prompt=consent"
     )
 
@@ -85,6 +98,7 @@ def _build_authorization_url(team_scope: str) -> str:
 class DriveMappingBody(BaseModel):
     team_scope: str
     folder_id: str
+    project_scope: str | None = Field(default=None, max_length=64)
 
 
 # ---------------------------------------------------------------------------
@@ -98,32 +112,52 @@ async def create_drive_mapping(
     session=Depends(get_session),
     principal: dict[str, Any] = Depends(get_current_principal),
 ):
-    """Create or update a Drive folder → team mapping.
+    """Create or upsert a Drive folder → team mapping.
 
-    Returns an authorization_url the admin must visit to grant drive.readonly
-    OAuth consent on behalf of the team. The mapping row is created immediately;
-    oauth_credentials_enc is populated later by the oauth-callback endpoint.
+    After migration 0005: UNIQUE(team_scope, folder_id) replaces UNIQUE(team_scope).
+    Sending the same (team_scope, folder_id) pair updates project_scope (upsert).
+    Sending a new folder_id for the same team creates an additional mapping row.
+
+    Returns {id, team_scope, folder_id, project_scope, authorization_url}. The
+    admin must visit authorization_url to grant drive.readonly OAuth consent.
     """
     if not _is_admin(principal):
         raise HTTPException(403, "Admin access required")
     if not settings.GOOGLE_CLIENT_ID:
         raise HTTPException(500, "GOOGLE_CLIENT_ID not configured")
 
-    # Upsert: create or refresh folder_id for existing team mapping
-    await session.execute(
-        """INSERT INTO team_drive_mappings(team_scope, folder_id)
-           VALUES(:team_scope, :folder_id)
-           ON CONFLICT(team_scope) DO UPDATE
-           SET folder_id=EXCLUDED.folder_id, updated_at=now()""",
-        {"team_scope": body.team_scope, "folder_id": body.folder_id},
+    # Upsert: insert or update project_scope for an existing (team_scope, folder_id) pair
+    result = await session.execute(
+        sa.text(
+            """INSERT INTO team_drive_mappings(team_scope, folder_id, project_scope)
+               VALUES(:team_scope, :folder_id, :project_scope)
+               ON CONFLICT(team_scope, folder_id) DO UPDATE
+               SET project_scope=EXCLUDED.project_scope, updated_at=now()
+               RETURNING id"""
+        ),
+        {
+            "team_scope": body.team_scope,
+            "folder_id": body.folder_id,
+            "project_scope": body.project_scope,
+        },
     )
+    row = result.fetchone()
+    mapping_id = str(row.id)
     await session.commit()
 
-    authorization_url = _build_authorization_url(body.team_scope)
-    log.info("drive_mapping.created", team=body.team_scope, folder=body.folder_id)
+    authorization_url = _build_authorization_url(mapping_id)
+    log.info(
+        "drive_mapping.created",
+        team=body.team_scope,
+        folder=body.folder_id,
+        mapping_id=mapping_id,
+        project_scope=body.project_scope,
+    )
     return {
+        "id": mapping_id,
         "team_scope": body.team_scope,
         "folder_id": body.folder_id,
+        "project_scope": body.project_scope,
         "authorization_url": authorization_url,
         "next_step": (
             "Visit authorization_url in a browser to grant Drive read access. "
@@ -133,13 +167,16 @@ async def create_drive_mapping(
     }
 
 
-@router.get("/admin/drive-mapping/{team_scope}")
-async def get_drive_mapping(
-    team_scope: str,
+@router.get("/admin/drive-mapping")
+async def list_drive_mappings(
+    team_scope: str = Query(..., max_length=64),
     session=Depends(get_session),
     principal: dict[str, Any] = Depends(get_current_principal),
 ):
-    """Get the current Drive mapping for a team.
+    """List all Drive mappings for a team.
+
+    After migration 0005, a team can have multiple folder mappings.
+    Returns an array of mapping objects ordered by updated_at ascending.
 
     Intentionally omits oauth_credentials_enc — raw encrypted bytes are not
     useful to the caller and would widen the information-disclosure surface
@@ -148,23 +185,56 @@ async def get_drive_mapping(
     if not _is_admin(principal):
         raise HTTPException(403, "Admin access required")
 
-    row = await session.execute(
-        "SELECT team_scope, folder_id, change_token, oauth_credentials_enc, updated_at"
-        " FROM team_drive_mappings WHERE team_scope=:ts",
+    rows = await session.execute(
+        sa.text(
+            "SELECT id, team_scope, folder_id, project_scope, change_token,"
+            " oauth_credentials_enc, updated_at"
+            " FROM team_drive_mappings WHERE team_scope=:ts ORDER BY updated_at"
+        ),
         {"ts": team_scope},
     )
-    result = row.fetchone()
-    if result is None:
-        raise HTTPException(404, f"No Drive mapping for team '{team_scope}'")
+    results = rows.fetchall()
+    if not results:
+        raise HTTPException(404, f"No Drive mappings for team '{team_scope}'")
+    return [
+        {
+            "id": str(r.id),
+            "team_scope": r.team_scope,
+            "folder_id": r.folder_id,
+            "project_scope": r.project_scope,
+            "change_token": r.change_token,
+            "updated_at": str(r.updated_at),
+            "oauth_configured": r.oauth_credentials_enc is not None,
+        }
+        for r in results
+    ]
 
-    return {
-        "team_scope": result.team_scope,
-        "folder_id": result.folder_id,
-        "change_token": result.change_token,
-        "updated_at": str(result.updated_at),
-        # True only when encrypted credentials are stored (OAuth flow completed)
-        "oauth_configured": result.oauth_credentials_enc is not None,
-    }
+
+@router.delete("/admin/drive-mapping/{mapping_id}", status_code=204)
+async def delete_drive_mapping(
+    mapping_id: str,
+    session=Depends(get_session),
+    principal: dict[str, Any] = Depends(get_current_principal),
+):
+    """Delete a specific Drive mapping by UUID.
+
+    Removes the mapping row and any associated watch channels (FK CASCADE
+    will handle drive_watch_channels rows once migration 0006 is applied).
+    Admin-only. The polling loop will stop syncing this folder on the next tick.
+
+    T-04-06-SEC-01 accepted: admin-only, deletion is intentional stop-sync.
+    """
+    if not _is_admin(principal):
+        raise HTTPException(403, "Admin access required")
+    result = await session.execute(
+        sa.text("DELETE FROM team_drive_mappings WHERE id=:id RETURNING id"),
+        {"id": mapping_id},
+    )
+    if result.fetchone() is None:
+        raise HTTPException(404, f"Mapping '{mapping_id}' not found")
+    await session.commit()
+    log.info("drive_mapping.deleted", mapping_id=mapping_id)
+    # 204 No Content — FastAPI returns empty body automatically
 
 
 @router.get("/admin/drive-mapping/oauth-callback")
@@ -179,7 +249,9 @@ async def drive_oauth_callback(
     It is intentionally unauthenticated (Google cannot send a Bearer token here).
     The `code` param is single-use and expires in ~10 minutes (T-03-10-01 accepted).
 
-    `state` = team_scope (set in the authorization URL by create_drive_mapping).
+    `state` = mapping_id (UUID) — set in the authorization URL by create_drive_mapping.
+    Using mapping_id instead of team_scope supports multiple folders per team
+    (T-04-06-SEC-02 accepted — same risk profile as T-03-10-01).
     """
     if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
         raise HTTPException(500, "Google OAuth client not configured (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)")
@@ -214,19 +286,28 @@ async def drive_oauth_callback(
 
     # Encrypt credentials (Fernet AES-128-CBC + HMAC-SHA256) and persist
     encrypted = fernet.encrypt(json.dumps(tokens).encode()).decode()
-    team_scope = state
+    mapping_id = state  # state param now carries mapping UUID (not team_scope)
 
-    await session.execute(
-        "UPDATE team_drive_mappings"
-        " SET oauth_credentials_enc=:enc, updated_at=now()"
-        " WHERE team_scope=:ts",
-        {"enc": encrypted, "ts": team_scope},
+    result = await session.execute(
+        sa.text(
+            "UPDATE team_drive_mappings"
+            " SET oauth_credentials_enc=:enc, updated_at=now()"
+            " WHERE id=:mapping_id"
+            " RETURNING team_scope"
+        ),
+        {"enc": encrypted, "mapping_id": mapping_id},
     )
+    updated = result.fetchone()
+    if updated is None:
+        log.error("drive_oauth.mapping_not_found", mapping_id=mapping_id)
+        raise HTTPException(404, f"Mapping '{mapping_id}' not found — OAuth callback state is stale or invalid.")
+
     await session.commit()
 
-    log.info("drive_oauth.callback_success", team=team_scope)
+    log.info("drive_oauth.callback_success", mapping_id=mapping_id, team=updated.team_scope)
     return {
         "status": "OAuth credentials stored successfully",
-        "team_scope": team_scope,
+        "mapping_id": mapping_id,
+        "team_scope": updated.team_scope,
         "note": "Drive sync will use these credentials on its next polling cycle.",
     }
