@@ -518,7 +518,7 @@ services:
     build:
       context: ../apps/mcp-gateway
       dockerfile: Dockerfile
-    image: xbrain/mcp-gateway:phase3
+    image: xbrain/mcp-gateway:phase4
     container_name: xbrain-mcp-gateway
     restart: unless-stopped
     environment:
@@ -528,8 +528,15 @@ services:
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # MCP aggregate server (port 8081) — subprocess inside mcp-gateway container
+      GATEWAY_INTERNAL_URL: "http://127.0.0.1:8080"
+      FASTMCP_AGGREGATE_HOST: "0.0.0.0"
+      FASTMCP_AGGREGATE_PORT: "8081"
+      MCP_AGGREGATE_REFRESH_SECS: "60"
+    expose:
+      - "8081"
     networks: [xbrain_net]
-    mem_limit: 192m
+    mem_limit: 256m
     depends_on:
       postgres: { condition: service_healthy }
       memory-api: { condition: service_healthy }
