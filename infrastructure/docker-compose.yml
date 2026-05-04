@@ -523,3 +523,26 @@ services:
       timeout: 10s
       retries: 5
       start_period: 20s
+
+  # === mcp-calendar (plan 03-09) — MCP tool: Google Calendar read-only ===
+  mcp-calendar:
+    build:
+      context: ../apps/mcp-calendar
+      dockerfile: Dockerfile
+    image: xbrain/mcp-calendar:phase3
+    container_name: xbrain-mcp-calendar
+    restart: unless-stopped
+    environment:
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALENDAR_ACCESS_TOKEN: ${GOOGLE_CALENDAR_ACCESS_TOKEN:-}
+      GOOGLE_CALENDAR_REFRESH_TOKEN: ${GOOGLE_CALENDAR_REFRESH_TOKEN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks: [xbrain_net]
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8102/healthz 2>/dev/null || exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
