@@ -134,6 +134,8 @@ services:
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
       LANGFUSE_HOST: http://langfuse:3000   # internal docker DNS — bypass Cloudflare for SDK calls
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      MCP_GATEWAY_URL: ${MCP_GATEWAY_URL:-http://mcp-gateway:8080}
+      MCP_TOOL_CACHE_TTL_SECS: ${MCP_TOOL_CACHE_TTL_SECS:-300}
     networks: [xbrain_net]
     mem_limit: 384m
     depends_on:
@@ -548,6 +550,8 @@ services:
     restart: unless-stopped
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      FASTMCP_HOST: "0.0.0.0"
+      FASTMCP_PORT: "8100"
     networks: [xbrain_net]
     mem_limit: 128m
     healthcheck:
@@ -571,6 +575,8 @@ services:
       GOOGLE_DRIVE_ACCESS_TOKEN: ${GOOGLE_DRIVE_ACCESS_TOKEN:-}
       GOOGLE_DRIVE_REFRESH_TOKEN: ${GOOGLE_DRIVE_REFRESH_TOKEN:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      FASTMCP_HOST: "0.0.0.0"
+      FASTMCP_PORT: "8101"
     networks: [xbrain_net]
     mem_limit: 128m
     healthcheck:
@@ -594,6 +600,8 @@ services:
       GOOGLE_CALENDAR_ACCESS_TOKEN: ${GOOGLE_CALENDAR_ACCESS_TOKEN:-}
       GOOGLE_CALENDAR_REFRESH_TOKEN: ${GOOGLE_CALENDAR_REFRESH_TOKEN:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      FASTMCP_HOST: "0.0.0.0"
+      FASTMCP_PORT: "8102"
     networks: [xbrain_net]
     mem_limit: 128m
     healthcheck:

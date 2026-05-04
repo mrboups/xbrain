@@ -70,7 +70,29 @@ async def create_message(
         raise HTTPException(400, "tagging.team_scope must match X-Team-Scope header")
     conv = await conv_repo.get_conversation(session, conversation_id=body.conversation_id, team_scope=team_scope)
     if conv is None:
-        raise HTTPException(404, "conversation not found in this team")
+        # Upsert silencieux (Décision 4-D-02) — pipeline OWUI ne crée jamais la conversation au préalable.
+        # ON CONFLICT (id) DO NOTHING garantit l'idempotence sur UUID v5 déterministe.
+        # Le bridge LibreChat crée explicitement la conversation avant d'envoyer des messages
+        # — pour lui cet upsert est un no-op (la row existe déjà).
+        if principal["kind"] == "user":
+            owner_id = principal["user"].id
+        else:
+            from app.repos.users import get_or_create_user
+            _user = await get_or_create_user(
+                session,
+                source_user_id=principal["sub"],
+                email=f"{principal['sub']}@bridged.local",
+                display_name=None,
+            )
+            owner_id = _user.id
+        await conv_repo.upsert_conversation_silent(
+            session,
+            conversation_id=body.conversation_id,
+            team_scope=team_scope,
+            owner_user_id=owner_id,
+            source=body.tagging.source,
+            project_scope=body.tagging.project_scope,
+        )
     msg = await messages_repo.create_message(
         session,
         conversation_id=body.conversation_id,

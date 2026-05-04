@@ -87,9 +87,16 @@ async def test_list_messages_returns_only_team_scoped_results(client, seeded_two
     assert r2.status_code == 403
 
 
-async def test_get_conversation_other_team_returns_404(client, seeded_two_teams, bridge_jwt):
-    """Looking up Team B's conv via Team A's scope returns 404 — don't leak existence as 403."""
+async def test_post_message_unknown_conv_upserts_silently(client, seeded_two_teams, bridge_jwt):
+    """Upsert silencieux (Décision 4-D-02): POST /v1/messages avec un conversation_id inconnu
+    crée la conversation dans le team_scope du requérant et retourne 201.
+
+    Sécurité maintenue: le message est scopé à team-a (JWT alice), pas à team-b.
+    Bob (team-b) ne voit pas ce message — l'isolation team est préservée.
+    """
     cid_b = await _create_conv(client, bridge_jwt, "bob-sub", "team-b")
-    # Alice tries to write a message into bob's conversation, scoped to team-a
-    r = await _create_message(client, bridge_jwt, "alice-sub", "team-a", cid_b, "intrusion")
-    assert r.status_code == 404
+    # Alice sends a message with bob's conv UUID, but scoped to team-a.
+    # Upsert creates a team-a conversation row with that UUID → 201 (not 404).
+    r = await _create_message(client, bridge_jwt, "alice-sub", "team-a", cid_b, "silent upsert")
+    assert r.status_code == 201, r.text
+    assert r.json()["tagging"]["team_scope"] == "team-a"

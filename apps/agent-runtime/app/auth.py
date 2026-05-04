@@ -10,6 +10,8 @@ import time
 import httpx
 from authlib.jose import JsonWebKey, jwt
 
+from app.config import settings
+
 GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
 GOOGLE_ISSUERS = ("https://accounts.google.com", "accounts.google.com")
 
@@ -41,6 +43,28 @@ async def verify_google_id_token(token: str, client_id: str) -> dict:
     )
     claims.validate()
     return dict(claims)
+
+
+def make_bridge_jwt(sub: str, team_scope: str, ttl_seconds: int = 300) -> str:
+    """Sign a HS256 JWT the gateway and memory-api will verify with the shared secret.
+
+    Claims:
+      iss = agent-runtime
+      sub = caller subject (e.g. "agent-runtime", a user OIDC sub, ...)
+      team_scope = team scope to embed in token (used by gateway for routing)
+      scope = "bridge" (required by gateway + memory-api auth check)
+    """
+    now = int(time.time())
+    header = {"alg": settings.JWT_ALGORITHM}
+    payload = {
+        "iss": "agent-runtime",
+        "sub": sub,
+        "team_scope": team_scope,
+        "scope": "bridge",
+        "iat": now,
+        "exp": now + ttl_seconds,
+    }
+    return jwt.encode(header, payload, settings.BRIDGE_SHARED_SECRET).decode("ascii")
 
 
 def verify_bridge_jwt(token: str, secret: str) -> dict:
