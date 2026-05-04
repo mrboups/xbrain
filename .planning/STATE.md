@@ -11,10 +11,10 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 
 Phase: 4 (Consolidation MCP Frontends + Intégrations Avancées)
 Plan: 8 of 8 in current phase
-Status: In progress
-Last activity: 2026-05-05 — Plan 04-03 terminé : LibreChat v0.8.5 mcpServers streamable-http → mcp-gateway:8081, 3 tools (calendar, drive-read, scraper) chargés, healthy
+Status: Complete
+Last activity: 2026-05-05 — Plan 04-08 terminé : register-mcp-tools.sh mis à jour (4 tools: scraper, drive-read, calendar, deck), verify-phase4.sh créé — 8/8 tests PASS sur VM
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -70,5 +70,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-05
-Stopped at: Plan 04-03 complet — LibreChat MCP config deployed. 3 tools loaded (calendar, drive-read, scraper). Commits e4d5098, 3d8fcbb.
+Stopped at: Plan 04-08 complet — Phase 4 DONE. register-mcp-tools.sh (4 tools), verify-phase4.sh (8/8 PASS). Commits 4c71401, a84d90e.
 Resume file: None
