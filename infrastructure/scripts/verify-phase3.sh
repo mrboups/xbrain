@@ -81,34 +81,22 @@ echo "[verify-phase3] === START ==="
 LABEL="[1/7] Phase 3 container health..."
 printf '%s' "${LABEL} "
 
-PHASE3_CONTAINERS=(
-  "xbrain-neo4j"
-  "xbrain-mcp-gateway"
-  "xbrain-mcp-scraper"
-  "xbrain-mcp-drive-read"
-  "xbrain-mcp-calendar"
-  "xbrain-drive-sync"
-)
-TOTAL=${#PHASE3_CONTAINERS[@]}
-
-PS_OUTPUT=$($COMPOSE ps 2>/dev/null) || true
+TOTAL=6
 
 HEALTHY_COUNT=0
 UNHEALTHY_NAMES=()
-
-for cname in "${PHASE3_CONTAINERS[@]}"; do
-  ROW=$(echo "${PS_OUTPUT}" | grep -E "^${cname}[[:space:]]" || true)
-  if [ -z "${ROW}" ]; then
-    UNHEALTHY_NAMES+=("${cname}:missing")
+for svc in neo4j mcp-gateway mcp-scraper mcp-drive-read mcp-calendar drive-sync; do
+  CNAME=$($COMPOSE ps -q "$svc" 2>/dev/null | head -1)
+  if [ -z "${CNAME}" ]; then
+    UNHEALTHY_NAMES+=("${svc}:missing")
     continue
   fi
-  STATUS=$(echo "${ROW}" | awk '{for(i=6;i<=NF;i++) printf "%s ", $i; print ""}')
-  if echo "${STATUS}" | grep -q "(unhealthy)"; then
-    UNHEALTHY_NAMES+=("${cname}:unhealthy")
-  elif echo "${STATUS}" | grep -qE "^Up|^up"; then
+  HEALTH=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "${CNAME}" 2>/dev/null || echo "inspect-error")
+  STATE=$(docker inspect --format '{{.State.Status}}' "${CNAME}" 2>/dev/null || echo "unknown")
+  if [ "${HEALTH}" = "healthy" ] || { [ "${HEALTH}" = "no-healthcheck" ] && [ "${STATE}" = "running" ]; }; then
     HEALTHY_COUNT=$((HEALTHY_COUNT + 1))
   else
-    UNHEALTHY_NAMES+=("${cname}:not-up(${STATUS%% *})")
+    UNHEALTHY_NAMES+=("${svc}:health=${HEALTH},state=${STATE}")
   fi
 done
 
