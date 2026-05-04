@@ -125,7 +125,11 @@ def _with_backoff(fn, max_retries: int = 5) -> Any:
 
 
 async def poll_team(conn: asyncpg.Connection, row: asyncpg.Record) -> None:
-    """Poll Drive changes for one team and process them.
+    """Poll Drive changes for one team mapping and process them.
+
+    After migration 0005 a team can have N folder mappings. poll_team is called
+    once per row (i.e. once per folder), passing the specific mapping row so that
+    project_scope is carried through to send_to_ingestion_agent.
 
     Token persist strategy (RISK-04):
       - Persist newStartPageToken BEFORE processing changes.
@@ -141,7 +145,9 @@ async def poll_team(conn: asyncpg.Connection, row: asyncpg.Record) -> None:
       - Token expired (>30 days unused) -> re-baseline via getStartPageToken()
       - Next tick will full re-sync (idempotent via upsert)
     """
+    mapping_id = row["id"]
     team_scope = row["team_scope"]
+    project_scope = row["project_scope"]  # None for legacy mappings without project tag
     change_token = row["change_token"]
     creds_enc = row["oauth_credentials_enc"]
 
@@ -169,13 +175,13 @@ async def poll_team(conn: asyncpg.Connection, row: asyncpg.Record) -> None:
     except HttpError as exc:
         if exc.resp.status == 410:
             # Token expired (>30 days unused) -- re-baseline
-            log.warning("poll.token_expired_410", team=team_scope)
+            log.warning("poll.token_expired_410", team=team_scope, mapping_id=str(mapping_id))
             resp = _with_backoff(lambda: service.changes().getStartPageToken().execute())
             new_token = resp["startPageToken"]
             await conn.execute(
-                "UPDATE team_drive_mappings SET change_token=$1, updated_at=now() WHERE team_scope=$2",
+                "UPDATE team_drive_mappings SET change_token=$1, updated_at=now() WHERE id=$2",
                 new_token,
-                team_scope,
+                mapping_id,
             )
             return  # Will full re-sync on next tick
         raise
@@ -185,11 +191,12 @@ async def poll_team(conn: asyncpg.Connection, row: asyncpg.Record) -> None:
     log.info("poll.changes_fetched", team=team_scope, count=len(changes), new_token=bool(new_token))
 
     # CRITICAL: Persist token BEFORE processing -- idempotent on crash restart (RISK-04)
+    # Use mapping_id (PK) not team_scope — multiple mappings may share the same team_scope.
     if new_token:
         await conn.execute(
-            "UPDATE team_drive_mappings SET change_token=$1, updated_at=now() WHERE team_scope=$2",
+            "UPDATE team_drive_mappings SET change_token=$1, updated_at=now() WHERE id=$2",
             new_token,
-            team_scope,
+            mapping_id,
         )
 
     for change in changes:
@@ -219,6 +226,7 @@ async def poll_team(conn: asyncpg.Connection, row: asyncpg.Record) -> None:
             file_id=file_id,
             file_name=name,
             team_scope=team_scope,
+            project_scope=project_scope,  # from mapping row — None for legacy mappings
         )
 
 
@@ -230,14 +238,17 @@ async def run_poll_loop(database_url: str) -> None:
     Sentinel file /tmp/drive-sync-alive is touched after each successful tick
     for the docker healthcheck.
     """
-    pool = await asyncpg.create_pool(database_url, min_size=1, max_size=2)
+    # asyncpg requires plain postgresql:// scheme (not postgresql+asyncpg://)
+    pg_url = database_url.replace("postgresql+asyncpg://", "postgresql://").replace("postgres+asyncpg://", "postgresql://")
+    pool = await asyncpg.create_pool(pg_url, min_size=1, max_size=2)
     log.info("poll_loop.started", interval=settings.POLL_INTERVAL_SECONDS)
     while True:
         try:
             async with pool.acquire() as conn:
                 mappings = await conn.fetch(
-                    "SELECT team_scope, folder_id, change_token, oauth_credentials_enc "
-                    "FROM team_drive_mappings"
+                    "SELECT id, team_scope, folder_id, project_scope,"
+                    " change_token, oauth_credentials_enc"
+                    " FROM team_drive_mappings"
                 )
                 for row in mappings:
                     try:
