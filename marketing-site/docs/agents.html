@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agents — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+  <!-- NAV -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Get Started
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- DOCS LAYOUT -->
+  <div class="docs-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" role="complementary" aria-label="Documentation navigation">
+      <nav>
+        <ul class="sidebar__links">
+          <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+          <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+          <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+          <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+          <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+          <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+          <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+          <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+          <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+          <li><a href="agents.html" class="sidebar__link active">Agents</a></li>
+          <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+          <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+          <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+          <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="docs-content" role="main">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <span class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__current">Agents</span>
+      </nav>
+
+      <h1>LangGraph Agents</h1>
+
+      <div class="docs-meta">
+        <span class="docs-meta__badge">Phase 2</span>
+        <span>agent-runtime &bull; LangGraph 1.1.0 &bull; HITL workflows</span>
+      </div>
+
+      <!-- ============================================================
+           What is agent-runtime?
+           ============================================================ -->
+      <h2>What is agent-runtime?</h2>
+
+      <p>
+        <strong>agent-runtime</strong> is a LangGraph-powered agent host running as a Docker container on
+        port 9100. It provides stateful, interruptible agent graphs with persistent checkpoints,
+        HITL approval workflows, and native MCP tool integration.
+      </p>
+
+      <p>
+        Unlike simple chatbot pipelines, LangGraph agents are <em>directed graphs</em> — each node is a
+        Python function, each edge defines the flow of state. This means agents can branch, loop,
+        pause for human input, and resume days later from an exact checkpoint.
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Framework</td>
+            <td>LangGraph 1.1.0 (MIT)</td>
+          </tr>
+          <tr>
+            <td>Port</td>
+            <td>9100</td>
+          </tr>
+          <tr>
+            <td>Checkpointing</td>
+            <td>PostgresSaver (same PostgreSQL as xbrain)</td>
+          </tr>
+          <tr>
+            <td>Observability</td>
+            <td>Langfuse 3.x via CallbackHandler</td>
+          </tr>
+          <tr>
+            <td>MCP integration</td>
+            <td>mcp_gateway_client.py (Phase 4)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ============================================================
+           LangGraph Architecture
+           ============================================================ -->
+      <h2>LangGraph Architecture</h2>
+
+      <p>
+        LangGraph builds agent workflows as directed graphs where each node is a function and edges
+        define the flow. xbrain uses LangGraph agents for:
+      </p>
+
+      <ul>
+        <li>Document ingestion agents (PDF → structured facts)</li>
+        <li>Truth-level promotion workflows (proposal → approval)</li>
+        <li>RAG-enriched conversation agents (search → enrich → respond)</li>
+        <li>Multi-step task agents with HITL checkpoints</li>
+      </ul>
+
+      <p>
+        Below is a complete example of a document ingestion agent graph. The graph extracts text,
+        identifies facts, and routes to human review when confidence is low:
+      </p>
+
+      <pre class="code-block"><span class="code-block__label">Python — agent graph construction</span>from langgraph.graph import StateGraph, START, END
+from app.state import AgentState
+from app.nodes import (
+    extract_text_node,
+    identify_facts_node,
+    human_review_node,
+    upsert_node,
+    check_confidence,
+)
+
+# Example: document ingestion agent graph
+workflow = StateGraph(AgentState)
+
+workflow.add_node("extract_text", extract_text_node)
+workflow.add_node("identify_facts", identify_facts_node)
+workflow.add_node("human_review", human_review_node)  # HITL interrupt
+workflow.add_node("upsert_to_memory", upsert_node)
+
+workflow.add_edge(START, "extract_text")
+workflow.add_edge("extract_text", "identify_facts")
+workflow.add_conditional_edges("identify_facts", check_confidence,
+    {"high": "upsert_to_memory", "low": "human_review"})
+workflow.add_edge("human_review", "upsert_to_memory")
+workflow.add_edge("upsert_to_memory", END)
+
+# Compile with PostgresSaver for persistent checkpoints
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+
+async def get_graph(db_pool):
+    checkpointer = AsyncPostgresSaver(db_pool)
+    graph = workflow.compile(checkpointer=checkpointer)
+    return graph</pre>
+
+      <!-- ============================================================
+           Human-In-The-Loop (HITL)
+           ============================================================ -->
+      <h2>Human-In-The-Loop (HITL)</h2>
+
+      <p>
+        HITL is a core capability of xbrain's agent-runtime. When an agent reaches a low-confidence
+        decision point, it <strong>pauses and waits for human approval</strong> before proceeding.
+        The checkpoint is saved to PostgreSQL via PostgresSaver — the agent can resume hours or
+        days later from exactly the same state.
+      </p>
+
+      <p>
+        The HITL flow works as follows:
+      </p>
+      <ol>
+        <li>Agent encounters an <code>interrupt()</code> call inside a node function</li>
+        <li>LangGraph saves the full agent state to PostgreSQL (via PostgresSaver)</li>
+        <li>The agent surfaces a question to an admin in Open WebUI</li>
+        <li>Admin reviews the context and approves or rejects</li>
+        <li>Agent resumes from the exact checkpoint with the admin's decision injected into state</li>
+      </ol>
+
+      <pre class="code-block"><span class="code-block__label">Python — HITL interrupt inside a node</span>from langgraph.types import interrupt
+
+async def human_review_node(state: AgentState) -> AgentState:
+    """This node pauses the agent and waits for human approval."""
+
+    # Agent pauses here — state is saved to PostgreSQL via PostgresSaver
+    decision = await interrupt({
+        "question": "Confidence is 0.4 — should I save this as WORKING or discard?",
+        "extracted_fact": state["extracted_fact"],
+        "source": state["source_document"],
+        "confidence": state["confidence"],
+    })
+
+    # Admin approves in Open WebUI → agent resumes from checkpoint
+    # LangGraph resumes from exactly this point with the admin's decision
+    state["approved_decision"] = decision
+    return state</pre>
+
+      <div class="callout callout--info">
+        <p class="callout__title">How checkpointing works</p>
+        <p>
+          The checkpoint is stored in PostgreSQL via PostgresSaver, which uses the same
+          PostgreSQL instance as the rest of xbrain. The agent can resume days later — the
+          full graph state (all node outputs, intermediate values) is fully preserved.
+          No in-memory state is lost between interrupt and resume.
+        </p>
+      </div>
+
+      <!-- ============================================================
+           Resuming an Agent
+           ============================================================ -->
+      <h2>Resuming an Agent</h2>
+
+      <p>
+        After a human has provided their decision in Open WebUI, the agent-runtime resumes the
+        graph from the saved checkpoint using the <code>thread_id</code>:
+      </p>
+
+      <pre class="code-block"><span class="code-block__label">Python — resume agent from PostgresSaver checkpoint</span># Resume with admin's decision
+# The thread_id identifies the exact agent run in PostgreSQL
+result = await graph.ainvoke(
+    {"decision": "approved", "target_level": "WORKING"},
+    config={"configurable": {"thread_id": "agent_thread_abc123"}}
+)
+
+# The graph resumes from the interrupt() point
+# human_review_node receives the decision and returns updated state
+# Then continues to upsert_to_memory → END</pre>
+
+      <p>
+        The <code>thread_id</code> is generated at graph start and stored alongside the
+        human-review task. Open WebUI displays pending HITL tasks with their <code>thread_id</code>,
+        allowing admins to approve and resume without additional context.
+      </p>
+
+      <!-- ============================================================
+           MCP Tools in Agents
+           ============================================================ -->
+      <h2>MCP Tools in Agents</h2>
+
+      <p>
+        Agents can invoke any registered MCP tool (scraper, calendar, Drive reader, Deck generator)
+        via <code>mcp_gateway_client.py</code>. The client handles authentication, team_scope
+        injection, and error handling transparently:
+      </p>
+
+      <pre class="code-block"><span class="code-block__label">Python — calling MCP tools from an agent node</span>from app.mcp_gateway_client import MCPGatewayClient
+
+async def use_mcp_tool(state: AgentState) -> AgentState:
+    client = MCPGatewayClient(
+        gateway_url="http://mcp-gateway:8080",
+        team_scope=state["team_scope"],
+        jwt=state["user_jwt"]
+    )
+
+    # Call the scraper MCP tool
+    result = await client.call_tool(
+        tool_name="scrape_url",
+        params={"url": state["target_url"]}
+    )
+
+    state["scraped_content"] = result["content"]
+    return state
+
+async def enrich_with_calendar(state: AgentState) -> AgentState:
+    client = MCPGatewayClient(
+        gateway_url="http://mcp-gateway:8080",
+        team_scope=state["team_scope"],
+        jwt=state["user_jwt"]
+    )
+
+    # Fetch upcoming events to provide context
+    events = await client.call_tool(
+        tool_name="list_events",
+        params={"days_ahead": 7}
+    )
+
+    state["calendar_context"] = events["items"]
+    return state</pre>
+
+      <div class="callout callout--info">
+        <p class="callout__title">MCP tool authorization</p>
+        <p>
+          All MCP tool calls are routed through mcp-gateway (port 8080), which validates the JWT,
+          enforces team_scope, and logs the call to the audit trail. Agents never call MCP servers
+          directly — every call is mediated and audited.
+        </p>
+      </div>
+
+      <!-- ============================================================
+           CANONICAL Facts in System Prompts
+           ============================================================ -->
+      <h2>CANONICAL Facts in System Prompts</h2>
+
+      <p>
+        Before making an LLM call, agent-runtime injects team CANONICAL facts into the system
+        prompt. These facts are retrieved from Qdrant, filtered by <code>team_scope</code> and
+        <code>truth_level=CANONICAL</code>, and formatted as a compact knowledge block:
+      </p>
+
+      <pre class="code-block"><span class="code-block__label">Python — injecting CANONICAL facts via GET /v1/system-prompt</span>import httpx
+
+async def build_system_prompt(team_scope: str, jwt: str) -> str:
+    """Fetch CANONICAL facts formatted for LLM system prompt."""
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "http://memory-api:8000/v1/system-prompt",
+            headers={
+                "Authorization": f"Bearer {jwt}",
+                "X-Team-Scope": team_scope,
+            }
+        )
+        facts_block = response.text
+        # Returns: "Team facts:\n- Q2 target: 2M€\n- Tech lead: Alice..."
+
+    base_prompt = (
+        "You are an AI assistant for the {team} team. "
+        "Use the team facts below to ground your answers."
+    ).format(team=team_scope)
+
+    return f"{base_prompt}\n\n{facts_block}"
+
+# Used in an agent node:
+async def llm_node(state: AgentState) -> AgentState:
+    system_prompt = await build_system_prompt(
+        team_scope=state["team_scope"],
+        jwt=state["user_jwt"]
+    )
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": state["user_message"]}
+    ]
+    # ... call LLM with messages
+    return state</pre>
+
+      <!-- ============================================================
+           Observability with Langfuse
+           ============================================================ -->
+      <h2>Observability</h2>
+
+      <p>
+        All agent runs are tracked in Langfuse. Token costs, latency, node-level traces, and
+        HITL interrupts are all visible in the Langfuse dashboard. The integration uses
+        LangGraph's native callback system:
+      </p>
+
+      <pre class="code-block"><span class="code-block__label">Python — Langfuse CallbackHandler for agent observability</span>import os
+from langfuse.callback import CallbackHandler as LangfuseCallbackHandler
+
+def get_langfuse_handler() -> LangfuseCallbackHandler:
+    return LangfuseCallbackHandler(
+        secret_key=os.environ["LANGFUSE_SECRET_KEY"],
+        public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
+        host="http://langfuse:3000",  # Internal Docker DNS
+        release="1.0.0",
+        session_id="agent-runtime",
+    )
+
+# Pass the handler to every graph invocation
+async def run_agent(graph, state: AgentState, thread_id: str):
+    langfuse_handler = get_langfuse_handler()
+
+    result = await graph.ainvoke(
+        state,
+        config={
+            "configurable": {"thread_id": thread_id},
+            "callbacks": [langfuse_handler],
+        }
+    )
+    return result</pre>
+
+      <p>
+        View token costs, latency, and traces per agent run in the Langfuse dashboard at
+        <code>http://langfuse:3000</code> (internal) or via Nginx on your public domain.
+        Each LangGraph node appears as a separate span — HITL interrupts show as a distinctive
+        "paused" span with the interrupt payload visible.
+      </p>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Required environment variables</p>
+        <p>
+          agent-runtime requires <code>LANGFUSE_SECRET_KEY</code>, <code>LANGFUSE_PUBLIC_KEY</code>,
+          <code>DATABASE_URL</code> (for PostgresSaver), and <code>ANTHROPIC_API_KEY</code> or
+          <code>OPENAI_API_KEY</code>. See the
+          <a href="configuration.html">Configuration reference</a> for the full list.
+        </p>
+      </div>
+
+      <!-- ============================================================
+           Available Agents
+           ============================================================ -->
+      <h2>Available Agents</h2>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th>Trigger</th>
+            <th>HITL?</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>doc_ingestion</code></td>
+            <td>POST /agents/ingest</td>
+            <td>Yes (low confidence)</td>
+            <td>PDF/text → extract facts → upsert to memory-api</td>
+          </tr>
+          <tr>
+            <td><code>promotion_workflow</code></td>
+            <td>POST /agents/promote</td>
+            <td>Yes (always)</td>
+            <td>WORKING → VALIDATED → CANONICAL with admin approval</td>
+          </tr>
+          <tr>
+            <td><code>rag_conversation</code></td>
+            <td>POST /agents/chat</td>
+            <td>No</td>
+            <td>User message → search memory → enrich prompt → respond</td>
+          </tr>
+          <tr>
+            <td><code>github_sync</code></td>
+            <td>GitHub webhook</td>
+            <td>No</td>
+            <td>brain.yaml push → ingest repo content at specified truth level</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="xb-footer" role="contentinfo">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+        <div>
+          <p class="xb-footer__col-title">Product</p>
+          <ul class="xb-footer__links">
+            <li><a href="../index.html" class="xb-footer__link">Home</a></li>
+            <li><a href="index.html" class="xb-footer__link">Documentation</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Get Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Documentation</p>
+          <ul class="xb-footer__links">
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+            <li><a href="agents.html" class="xb-footer__link">Agents</a></li>
+            <li><a href="configuration.html" class="xb-footer__link">Configuration</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Project</p>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">GitHub</a>
+            </li>
+            <li><a href="mailto:team@grooveos.app" class="xb-footer__link">Contact</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="xb-footer__bottom">
+        <p class="xb-footer__copyright">&copy; 2026 xbrain. Open source, MIT license.</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
