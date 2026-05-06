@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>xbrain Web Clipper</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      width: 320px;
+      margin: 0;
+      padding: 12px;
+      background: #fff;
+      color: #1e293b;
+      font-size: 13px;
+    }
+
+    h1 {
+      font-size: 15px;
+      font-weight: 600;
+      margin: 0 0 12px 0;
+      color: #3b82f6;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    h1::before {
+      content: "🧠";
+      font-size: 16px;
+    }
+
+    .field {
+      margin-bottom: 10px;
+    }
+
+    label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 4px;
+      color: #374151;
+    }
+
+    select,
+    input[type="text"],
+    textarea {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #1e293b;
+      background: #f9fafb;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    select:focus,
+    input[type="text"]:focus,
+    textarea:focus {
+      border-color: #3b82f6;
+      background: #fff;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 90px;
+    }
+
+    /* Radio group pour truth_level */
+    .radio-group {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .radio-group label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 400;
+      cursor: pointer;
+      padding: 4px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      background: #f9fafb;
+      transition: all 0.15s;
+      margin: 0;
+    }
+
+    .radio-group input[type="radio"] {
+      accent-color: #3b82f6;
+      width: auto;
+    }
+
+    .radio-group label:has(input:checked) {
+      border-color: #3b82f6;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-weight: 500;
+    }
+
+    button#sendBtn {
+      width: 100%;
+      padding: 8px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: background 0.15s;
+    }
+
+    button#sendBtn:hover {
+      background: #2563eb;
+    }
+
+    button#sendBtn:disabled {
+      background: #93c5fd;
+      cursor: not-allowed;
+    }
+
+    #status {
+      margin-top: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      display: none;
+    }
+
+    #status.success {
+      display: block;
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+    }
+
+    #status.error {
+      display: block;
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+
+    #status.loading {
+      display: block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+    }
+
+    .source-hint {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>xbrain Web Clipper</h1>
+
+  <!-- team_scope -->
+  <div class="field">
+    <label for="teamScope">Équipe</label>
+    <select id="teamScope">
+      <option value="acme" selected>acme</option>
+    </select>
+  </div>
+
+  <!-- project_scope (optionnel) -->
+  <div class="field">
+    <label for="projectScope">Projet (optionnel)</label>
+    <input
+      type="text"
+      id="projectScope"
+      placeholder="ex: fundraising"
+      autocomplete="off"
+    />
+  </div>
+
+  <!-- truth_level -->
+  <div class="field">
+    <label>Niveau de vérité</label>
+    <div class="radio-group">
+      <label>
+        <input type="radio" name="truthLevel" value="EPHEMERAL" checked />
+        EPHEMERAL
+      </label>
+      <label>
+        <input type="radio" name="truthLevel" value="WORKING" />
+        WORKING
+      </label>
+      <label>
+        <input type="radio" name="truthLevel" value="VALIDATED" />
+        VALIDATED
+      </label>
+      <label>
+        <input type="radio" name="truthLevel" value="CANONICAL" />
+        CANONICAL
+      </label>
+    </div>
+  </div>
+
+  <!-- Contenu à clipper -->
+  <div class="field">
+    <label for="content">Contenu</label>
+    <textarea
+      id="content"
+      rows="6"
+      placeholder="Sélectionnez du texte sur la page ou saisissez du contenu ici…"
+    ></textarea>
+    <div class="source-hint" id="sourceHint"></div>
+  </div>
+
+  <button id="sendBtn">Envoyer au brain</button>
+
+  <div id="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
