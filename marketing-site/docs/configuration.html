@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuration — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+  <!-- ============================================================
+       NAV
+       ============================================================ -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Deploy
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       DOCS LAYOUT
+       ============================================================ -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" aria-label="Documentation navigation">
+      <nav>
+        <div class="sidebar__section">
+          <p class="sidebar__section-title">Documentation</p>
+          <ul class="sidebar__links">
+            <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+            <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+            <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+            <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+            <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+            <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+            <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+            <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+            <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+            <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+            <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+            <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+            <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+            <li><a href="configuration.html" class="sidebar__link active">Configuration</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="docs-content" id="main-content">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <span class="breadcrumb__item">
+          <a href="../index.html" class="breadcrumb__link">Home</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__current">Configuration</span>
+      </nav>
+
+      <h1>Configuration</h1>
+      <div class="docs-meta">
+        <span>All environment variables</span>
+        <span>&#183;</span>
+        <span>~10 min read</span>
+        <span class="docs-meta__badge">v1.0</span>
+      </div>
+
+      <!-- ======================================================
+           Overview
+           ====================================================== -->
+      <h2>Overview</h2>
+      <p>
+        All xbrain services are configured via environment variables defined in
+        <code>infrastructure/.env</code>. This file is gitignored — it is never committed to the
+        repository. An <code>.env.example</code> is provided with safe defaults and
+        <code>CHANGE_ME</code> placeholders for all secrets.
+      </p>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Never Commit .env</p>
+        <p>The <code>infrastructure/.env</code> file contains real secrets. It is gitignored by
+        design. Only <code>infrastructure/.env.example</code> (with placeholder values) is tracked
+        in git. Never commit your actual <code>.env</code> to the repository.</p>
+      </div>
+
+      <pre class="code-block"><code><span class="code-block__label">bash</span>cp infrastructure/.env.example infrastructure/.env
+# Edit .env and replace all CHANGE_ME values with your actual credentials</code></pre>
+
+      <!-- ======================================================
+           Core Database
+           ====================================================== -->
+      <h2>Core Database</h2>
+      <p>
+        PostgreSQL is the primary relational store for memory-api, events, audit logs,
+        and team/user data. These variables are required on all phases.
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Required</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>POSTGRES_USER</code></td>
+            <td>Yes</td>
+            <td>xbrain</td>
+            <td>PostgreSQL username</td>
+          </tr>
+          <tr>
+            <td><code>POSTGRES_PASSWORD</code></td>
+            <td>Yes</td>
+            <td>—</td>
+            <td>PostgreSQL password. Use a strong random value.</td>
+          </tr>
+          <tr>
+            <td><code>POSTGRES_DB</code></td>
+            <td>Yes</td>
+            <td>xbrain</td>
+            <td>PostgreSQL database name</td>
+          </tr>
+          <tr>
+            <td><code>DATABASE_URL</code></td>
+            <td>Yes</td>
+            <td>—</td>
+            <td>Full async DSN: <code>postgres+asyncpg://user:pass@postgres:5432/db</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ======================================================
+           memory-api
+           ====================================================== -->
+      <h2>memory-api</h2>
+      <p>
+        memory-api is the central memory service — all read/write operations from LibreChat,
+        Open WebUI, and agents go through it. Several variables are phase-gated (Phase 3+,
+        Phase 5).
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Required</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>QDRANT_URL</code></td>
+            <td>Yes</td>
+            <td>http://qdrant:6333</td>
+            <td>Qdrant vector store URL (internal Docker DNS)</td>
+          </tr>
+          <tr>
+            <td><code>QDRANT_API_KEY</code></td>
+            <td>No</td>
+            <td>(empty)</td>
+            <td>Qdrant API key — leave empty unless Qdrant auth is enabled</td>
+          </tr>
+          <tr>
+            <td><code>BRIDGE_SHARED_SECRET</code></td>
+            <td>Yes</td>
+            <td>—</td>
+            <td>32-char hex secret shared between memory-api and all bridges. Must match across services. Generate: <code>openssl rand -hex 32</code></td>
+          </tr>
+          <tr>
+            <td><code>JWT_ALGORITHM</code></td>
+            <td>No</td>
+            <td>HS256</td>
+            <td>JWT signing algorithm used for bridge token verification</td>
+          </tr>
+          <tr>
+            <td><code>LOG_LEVEL</code></td>
+            <td>No</td>
+            <td>INFO</td>
+            <td>Logging verbosity: DEBUG, INFO, WARNING, ERROR</td>
+          </tr>
+          <tr>
+            <td><code>ADMIN_USER_SUBS</code></td>
+            <td>No</td>
+            <td>(empty)</td>
+            <td>Comma-separated Google <code>sub</code> IDs of admin users (grants admin endpoints)</td>
+          </tr>
+          <tr>
+            <td><code>MEMORY_API_EXTERNAL_URL</code></td>
+            <td>No</td>
+            <td>https://api.yourdomain.com</td>
+            <td>Public URL of memory-api — used to construct Drive webhook callback URLs</td>
+          </tr>
+          <tr>
+            <td><code>GOOGLE_CLIENT_ID</code></td>
+            <td>Yes</td>
+            <td>—</td>
+            <td>Google OAuth 2.0 client ID (from Google Cloud Console)</td>
+          </tr>
+          <tr>
+            <td><code>GOOGLE_CLIENT_SECRET</code></td>
+            <td>No</td>
+            <td>—</td>
+            <td>Google OAuth 2.0 client secret. Required if Drive sync is enabled (Phase 3+).</td>
+          </tr>
+          <tr>
+            <td><code>OAUTH_CREDENTIALS_ENCRYPTION_KEY</code></td>
+            <td>No</td>
+            <td>—</td>
+            <td>Fernet key for encrypting stored Drive OAuth tokens at rest. Required for Phase 3+. Generate: <code>python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"</code></td>
+          </tr>
+          <tr>
+            <td><code>NEO4J_URI</code></td>
+            <td>No</td>
+            <td>bolt://neo4j:7687</td>
+            <td>Neo4j Bolt connection URI (Phase 3+)</td>
+          </tr>
+          <tr>
+            <td><code>NEO4J_USER</code></td>
+            <td>No</td>
+            <td>neo4j</td>
+            <td>Neo4j username (Phase 3+)</td>
+          </tr>
+          <tr>
+            <td><code>NEO4J_PASSWORD</code></td>
+            <td>No</td>
+            <td>—</td>
+            <td>Neo4j password. Required when Neo4j is enabled (Phase 3+).</td>
+          </tr>
+          <tr>
+            <td><code>GRAPHITI_SERVICE_URL</code></td>
+            <td>No</td>
+            <td>http://graphiti-service:8300</td>
+            <td>Graphiti temporal extraction service URL. memory-api fails soft if unreachable (Phase 5).</td>
+          </tr>
+          <tr>
+            <td><code>GITHUB_ORG</code></td>
+            <td>No</td>
+            <td>your-github-org</td>
+            <td>GitHub Organization name — used to verify membership during GitHub Auth login (Phase 5)</td>
+          </tr>
+          <tr>
+            <td><code>GITHUB_API_PAT</code></td>
+            <td>No</td>
+            <td>—</td>
+            <td>GitHub Personal Access Token with <code>read:org</code> scope. Required for GitHub Auth (Phase 5).</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ======================================================
+           LibreChat
+           ====================================================== -->
+      <h2>LibreChat</h2>
+      <p>
+        LibreChat connects to AI model providers via API keys. At least one model key is required
+        for the chat interface to function.
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Required</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>ANTHROPIC_API_KEY</code></td>
+            <td>No</td>
+            <td>—</td>
+            <td>Anthropic API key for Claude models (<code>sk-ant-...</code>)</td>
+          </tr>
+          <tr>
+            <td><code>OPENAI_API_KEY</code></td>
+            <td>No</td>
+            <td>—</td>
+            <td>OpenAI API key for GPT models (<code>sk-...</code>)</td>
+          </tr>
+          <tr>
+            <td><code>XAI_API_KEY</code></td>
+            <td>No</td>
+            <td>—</td>
+            <td>xAI API key for Grok models</td>
+          </tr>
+          <tr>
+            <td><code>MEILI_MASTER_KEY</code></td>
+            <td>Yes</td>
+            <td>—</td>
+            <td>MeiliSearch master key (32+ chars). Generate: <code>openssl rand -hex 32</code></td>
+          </tr>
+          <tr>
+            <td><code>LIBRECHAT_MONGO_URI</code></td>
+            <td>Yes</td>
+            <td>—</td>
+            <td>MongoDB URI for LibreChat's conversation and user storage</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ======================================================
+           Bridge & Pipeline
+           ====================================================== -->
+      <h2>Bridge &amp; Pipeline</h2>
+      <p>
+        The LibreChat bridge and Open WebUI pipeline forward conversations to memory-api.
+        <code>BRIDGE_SHARED_SECRET</code> must match the value set in memory-api.
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Required</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>MEMORY_API_URL</code></td>
+            <td>No</td>
+            <td>http://memory-api:8000</td>
+            <td>Internal URL of memory-api (Docker service name)</td>
+          </tr>
+          <tr>
+            <td><code>BRIDGE_DEFAULT_TEAM_SCOPE</code></td>
+            <td>No</td>
+            <td>default</td>
+            <td>Default <code>team_scope</code> tag applied when user has no team assignment</td>
+          </tr>
+          <tr>
+            <td><code>BRIDGE_BACKFILL_FROM</code></td>
+            <td>No</td>
+            <td>startup</td>
+            <td>Backfill strategy for existing conversations: <code>startup</code> (on restart) or <code>never</code></td>
+          </tr>
+          <tr>
+            <td><code>PIPELINE_API_KEY</code></td>
+            <td>Yes</td>
+            <td>—</td>
+            <td>Open WebUI pipeline API key. Must match Open WebUI's pipeline settings. Generate: <code>openssl rand -hex 32</code></td>
+          </tr>
+          <tr>
+            <td><code>PIPELINE_DEFAULT_TEAM_SCOPE</code></td>
+            <td>No</td>
+            <td>default</td>
+            <td>Default <code>team_scope</code> for Open WebUI pipeline writes</td>
+          </tr>
+          <tr>
+            <td><code>AGENT_RUNTIME_URL</code></td>
+            <td>No</td>
+            <td>http://agent-runtime:9100</td>
+            <td>agent-runtime URL used by the Open WebUI pipeline for LangGraph tool calls</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ======================================================
+           agent-runtime
+           ====================================================== -->
+      <h2>agent-runtime</h2>
+      <p>
+        agent-runtime hosts LangGraph agents and connects to the MCP gateway for tool access.
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Required</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>MCP_GATEWAY_URL</code></td>
+            <td>No</td>
+            <td>http://mcp-gateway:8080</td>
+            <td>MCP gateway URL for tool discovery and invocation</td>
+          </tr>
+          <tr>
+            <td><code>MCP_TOOL_CACHE_TTL_SECS</code></td>
+            <td>No</td>
+            <td>300</td>
+            <td>Seconds to cache the MCP tool list before re-fetching from gateway</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ======================================================
+           Langfuse (Phase 2)
+           ====================================================== -->
+      <h2>Langfuse (Phase 2)</h2>
+      <p>
+        Langfuse provides LLM observability — tracing, cost tracking, and prompt management.
+        Keys are generated from the Langfuse UI after first boot.
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Required</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>LANGFUSE_PUBLIC_KEY</code></td>
+            <td>No</td>
+            <td>—</td>
+            <td>Langfuse project public key (from Langfuse UI → Settings → API Keys)</td>
+          </tr>
+          <tr>
+            <td><code>LANGFUSE_SECRET_KEY</code></td>
+            <td>No</td>
+            <td>—</td>
+            <td>Langfuse project secret key</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout--info">
+        <p class="callout__title">LANGFUSE_HOST in docker-compose.yml</p>
+        <p><code>LANGFUSE_HOST</code> is hardcoded to <code>http://langfuse:3000</code>
+        (internal Docker DNS) in docker-compose.yml. This bypasses Cloudflare for SDK
+        calls — the SDK communicates directly with the Langfuse container. Do not change
+        this to the public URL.</p>
+      </div>
+
+      <!-- ======================================================
+           Graphiti (Phase 5)
+           ====================================================== -->
+      <h2>Graphiti (Phase 5)</h2>
+      <p>
+        Graphiti performs temporal fact extraction from conversations and builds an episodic
+        knowledge graph. memory-api calls it asynchronously and fails soft if the service
+        is unavailable.
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Required</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>GRAPHITI_SERVICE_URL</code></td>
+            <td>No</td>
+            <td>http://graphiti-service:8300</td>
+            <td>URL called by memory-api to submit conversation episodes. Fails soft if unreachable.</td>
+          </tr>
+          <tr>
+            <td><code>SEMAPHORE_LIMIT</code></td>
+            <td>No</td>
+            <td>3</td>
+            <td>Max concurrent Graphiti requests. Keep at 3 for Tier 1 API rate limits (OpenAI/Anthropic).</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ======================================================
+           Generating Secrets
+           ====================================================== -->
+      <h2>Generating Secrets</h2>
+      <p>
+        Several variables require cryptographically random values. Use these commands to
+        generate appropriate secrets for each:
+      </p>
+
+      <pre class="code-block"><code><span class="code-block__label">bash — secret generation</span># Generate BRIDGE_SHARED_SECRET (32-byte hex)
+openssl rand -hex 32
+
+# Generate MEILI_MASTER_KEY (32-byte hex)
+openssl rand -hex 32
+
+# Generate PIPELINE_API_KEY (32-byte hex)
+openssl rand -hex 32
+
+# Generate NEO4J_PASSWORD (base64, 16-byte)
+openssl rand -base64 16
+
+# Generate OAUTH_CREDENTIALS_ENCRYPTION_KEY (Fernet key, required for Drive sync)
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"</code></pre>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Rotating BRIDGE_SHARED_SECRET</p>
+        <p>If you rotate <code>BRIDGE_SHARED_SECRET</code>, you must update the value in every
+        bridge and restart all services simultaneously. In-flight bridge JWTs signed with the
+        old secret will be rejected. Coordinate rotation during a maintenance window.
+        Secrets stored in <code>.env</code> must never be committed to git — add
+        <code>infrastructure/.env</code> to <code>.gitignore</code>.</p>
+      </div>
+
+      <!-- ======================================================
+           Complete .env.example
+           ====================================================== -->
+      <h2>Complete .env.example</h2>
+      <p>
+        This is the full <code>infrastructure/.env.example</code> as shipped in the repository.
+        Copy it to <code>infrastructure/.env</code> and replace every <code>CHANGE_ME</code>
+        value before starting any services.
+      </p>
+
+      <pre class="code-block"><code><span class="code-block__label">infrastructure/.env.example</span># ================================================================
+# xbrain — Environment Variable Reference
+# Copy to infrastructure/.env and fill in your values.
+# NEVER commit infrastructure/.env to git.
+# ================================================================
+
+# === Core Database ===
+POSTGRES_USER=xbrain
+POSTGRES_PASSWORD=CHANGE_ME
+POSTGRES_DB=xbrain
+DATABASE_URL=postgres+asyncpg://xbrain:CHANGE_ME@postgres:5432/xbrain
+
+# === Qdrant (Vector Store) ===
+QDRANT_URL=http://qdrant:6333
+QDRANT_API_KEY=
+
+# === Google OAuth (Required for SSO) ===
+GOOGLE_CLIENT_ID=CHANGE_ME.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=CHANGE_ME
+
+# === Security ===
+BRIDGE_SHARED_SECRET=CHANGE_ME_32HEX
+JWT_ALGORITHM=HS256
+ADMIN_USER_SUBS=
+
+# === AI Models ===
+ANTHROPIC_API_KEY=sk-ant-CHANGE_ME
+OPENAI_API_KEY=sk-CHANGE_ME
+XAI_API_KEY=
+
+# === LibreChat ===
+MEILI_MASTER_KEY=CHANGE_ME_32HEX
+LIBRECHAT_MONGO_URI=mongodb://mongo:27017/librechat
+
+# === Bridge & Pipeline ===
+MEMORY_API_URL=http://memory-api:8000
+BRIDGE_DEFAULT_TEAM_SCOPE=default
+BRIDGE_BACKFILL_FROM=startup
+PIPELINE_API_KEY=CHANGE_ME_32HEX
+PIPELINE_DEFAULT_TEAM_SCOPE=default
+AGENT_RUNTIME_URL=http://agent-runtime:9100
+
+# === agent-runtime ===
+MCP_GATEWAY_URL=http://mcp-gateway:8080
+MCP_TOOL_CACHE_TTL_SECS=300
+
+# === Langfuse (Phase 2 — generate from Langfuse UI after first boot) ===
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_SECRET_KEY=
+
+# === Neo4j (Phase 3) ===
+NEO4J_URI=bolt://neo4j:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=CHANGE_ME
+
+# === Drive Sync Encryption (Phase 3) ===
+OAUTH_CREDENTIALS_ENCRYPTION_KEY=
+
+# === External URLs ===
+MEMORY_API_EXTERNAL_URL=https://api.yourdomain.com
+
+# === Logging ===
+LOG_LEVEL=INFO
+
+# === GitHub Auth (Phase 5) ===
+GITHUB_ORG=your-github-org
+GITHUB_API_PAT=
+
+# === Graphiti (Phase 5) ===
+GRAPHITI_SERVICE_URL=http://graphiti-service:8300
+SEMAPHORE_LIMIT=3</code></pre>
+
+      <!-- ======================================================
+           Next Steps
+           ====================================================== -->
+      <h2>Next Steps</h2>
+      <ul>
+        <li>
+          <a href="deployment.html">Deployment guide</a> — Step-by-step instructions for
+          Phase 1 through Phase 5, including VM sizing and Docker setup.
+        </li>
+        <li>
+          <a href="memory.html">Memory System</a> — How the 7-field tagging contract is
+          applied to every data point stored by memory-api.
+        </li>
+        <li>
+          <a href="drive-sync.html">Drive Sync</a> — Configuring OAuth credentials for
+          Google Drive folder synchronisation.
+        </li>
+        <li>
+          <a href="github-auth.html">GitHub Auth</a> — Setting up GitHub Org membership
+          verification for team access control.
+        </li>
+      </ul>
+
+    </main>
+  </div>
+
+  <!-- ============================================================
+       FOOTER
+       ============================================================ -->
+  <footer class="xb-footer">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+        <div>
+          <p class="xb-footer__col-title">Product</p>
+          <ul class="xb-footer__links">
+            <li><a href="../index.html" class="xb-footer__link">Home</a></li>
+            <li><a href="index.html" class="xb-footer__link">Documentation</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Deployment</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Docs</p>
+          <ul class="xb-footer__links">
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="memory.html" class="xb-footer__link">Memory System</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Community</p>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">GitHub</a>
+            </li>
+            <li><a href="https://github.com/mrboups/xbrain/issues" target="_blank" rel="noopener noreferrer" class="xb-footer__link">Issues</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="xb-footer__bottom">
+        <span class="xb-footer__copyright">
+          &copy; 2026 xbrain. Open source under MIT License.
+        </span>
+        <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener noreferrer" class="xb-footer__link">
+          GitHub &rarr;
+        </a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
