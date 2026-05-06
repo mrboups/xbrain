@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 ## Current Position
 
 Phase: 5 (Plateforme Projets Équipe)
-Plan: 2 of 7 in current phase
+Plan: 3 of 7 in current phase
 Status: In progress
-Last activity: 2026-05-06 — Plan 05-02 terminé : GitHub OAuth LibreChat, migration Alembic 0007 (github_username+github_id), check_github_org_membership() cache 5min, branche gho_ dans deps.py, POST /v1/me/link-github
+Last activity: 2026-05-06 — Plan 05-03 terminé : brain.yaml schema (docs/), GCP GitOps runbook, templates GitHub Actions Cloud Run + Firebase, brain-index.sh fail-soft, POST/GET /v1/admin/projects
 
 Progress: [██████████] 100%
 
@@ -55,6 +55,9 @@ Recent decisions affecting current work:
 - 2026-05-06 (05-02): GitHub token détecté par préfixe gho_ dans deps.py — simple, sans appel API supplémentaire
 - 2026-05-06 (05-02): github_is_org_member=None (pas False) pour Google users — permet `if ... is False` sans bloquer Google users (D7)
 - 2026-05-06 (05-02): source_user_id GitHub = github:{login} — robuste car email GitHub peut être null
+- 2026-05-06 (05-03): Stockage projets dans memory_items (source='admin:project') — pas de migration Alembic 0008
+- 2026-05-06 (05-03): brain-index.sh fail-soft (exit 0) — T-05-03-04 accepted, brain indexing optionnel
+- 2026-05-06 (05-03): Workload Identity Federation recommandé (sans JSON key file) pour Cloud Run deploys
 
 ### Pending Todos
 
@@ -76,5 +79,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-06
-Stopped at: Plan 05-02 complet — librechat.yaml + docker-compose GitHub OAuth (eaaa9a8), auth.py + deps.py + config.py GitHub membership (e8cc456), me_github.py + user.py + main.py (1a429dc).
+Stopped at: Plan 05-03 complet — docs/brain-yaml-schema.md + docs/gitops-setup.md (3a21891), workflow templates + brain-index.sh (4a14298), admin_projects.py + main.py (df97988).
 Resume file: None
