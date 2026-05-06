@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Learn how teams, projects, roles, and data isolation work in xbrain.">
+  <title>Teams &amp; Projects — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+<nav class="xb-nav">
+  <div class="xb-nav__inner">
+    <a href="../index.html" class="xb-nav__logo">xbrain</a>
+    <ul class="xb-nav__links">
+      <li><a href="../index.html#features" class="xb-nav__link">Features</a></li>
+      <li><a href="../index.html#pricing" class="xb-nav__link">Pricing</a></li>
+      <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+    </ul>
+    <a href="mailto:team@grooveos.app?subject=xbrain waitlist" class="xb-nav__cta">Join Waitlist</a>
+  </div>
+</nav>
+
+<div class="docs-layout">
+
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <aside class="sidebar">
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Getting Started</div>
+      <a href="index.html" class="sidebar__link">Getting Started</a>
+    </div>
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Features</div>
+      <a href="memory.html" class="sidebar__link">Memory &amp; Knowledge</a>
+      <a href="teams.html" class="sidebar__link active">Teams &amp; Projects</a>
+      <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
+      <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
+      <a href="drive-sync.html" class="sidebar__link">Drive Sync</a>
+      <a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a>
+    </div>
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Reference</div>
+      <a href="api.html" class="sidebar__link">API Reference</a>
+      <a href="billing.html" class="sidebar__link">Plans &amp; Billing</a>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN CONTENT
+       ============================================================ -->
+  <main class="docs-content">
+
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <span class="breadcrumb__item">
+        <a href="index.html" class="breadcrumb__link">Docs</a>
+        <span class="breadcrumb__separator">/</span>
+      </span>
+      <span class="breadcrumb__current">Teams &amp; Projects</span>
+    </nav>
+
+    <h1>Teams &amp; Projects</h1>
+
+    <div class="docs-meta">
+      <span class="docs-meta__badge">Guide</span>
+      <span>6 min read</span>
+      <span>Updated May 2026</span>
+    </div>
+
+    <!-- --------------------------------------------------------
+         Team Isolation
+         -------------------------------------------------------- -->
+    <h2>Team Isolation</h2>
+
+    <p>
+      In xbrain, every piece of data belongs to exactly one team. Team A cannot read,
+      write, or search Team B's data — this isolation is enforced at the infrastructure
+      level, not just the UI. You never need to configure access control lists or worry
+      about data leakage between teams.
+    </p>
+
+    <p>
+      The key identifier for this hard boundary is the <code>team_scope</code> field that
+      every memory item, conversation, and document carries. All queries — from the chat
+      interfaces, the Chrome extension, the Drive sync, and the API — are automatically
+      filtered to your team's scope. You cannot accidentally query another team's data.
+    </p>
+
+    <!-- --------------------------------------------------------
+         Creating a Team
+         -------------------------------------------------------- -->
+    <h2>Creating a Team</h2>
+
+    <p>
+      When you first sign in to xbrain, you are prompted to create a team. Only one
+      team per account is available on the Free plan. The Team plan supports one team
+      with multiple members.
+    </p>
+
+    <div class="callout callout--info">
+      <p class="callout__title">Need multiple teams?</p>
+      <p>Enterprise plan supports multiple isolated teams under one billing account — useful for agencies, consultancies, or large organizations with separate business units. <a href="mailto:team@grooveos.app?subject=xbrain Enterprise">Contact us</a> to discuss.</p>
+    </div>
+
+    <!-- --------------------------------------------------------
+         Inviting Members
+         -------------------------------------------------------- -->
+    <h2>Inviting Members</h2>
+
+    <p>Add members to your team from your team settings page. There are two ways:</p>
+
+    <ul>
+      <li>
+        <strong>By email address</strong> — Enter the member's email. They will receive an
+        invite link. Once they click it and sign in with Google, they join your team
+        automatically.
+      </li>
+      <li>
+        <strong>By GitHub Organization</strong> — Connect your GitHub Org in team settings.
+        Any member of your GitHub Org can then sign in to xbrain without being manually
+        invited. See <a href="#github-org-auth">GitHub Organization Auth</a> below.
+      </li>
+    </ul>
+
+    <h3>Admin privileges</h3>
+
+    <p>
+      When inviting a member (or from the members list), toggle <strong>Admin</strong> to
+      grant elevated permissions. Admins can:
+    </p>
+
+    <ul>
+      <li>Approve truth-level promotions (promoting a fact from VALIDATED to CANONICAL).</li>
+      <li>Manage Drive folder mappings for the team.</li>
+      <li>Invite and remove members.</li>
+    </ul>
+
+    <!-- --------------------------------------------------------
+         Projects
+         -------------------------------------------------------- -->
+    <h2>Projects</h2>
+
+    <p>
+      Within your team, organize data into projects. A project is a sub-scope within your
+      team — it acts as a filter, not a security boundary. All members of your team can
+      see all projects by default, though individual items can be set to
+      <code>visibility: private</code>.
+    </p>
+
+    <table class="docs-table">
+      <thead>
+        <tr>
+          <th>Concept</th>
+          <th>Example</th>
+          <th>What it does</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>team_scope</code></td>
+          <td><code>acme</code></td>
+          <td>Hard wall — other teams cannot cross it. Set once at team creation, cannot be changed.</td>
+        </tr>
+        <tr>
+          <td><code>project_scope</code></td>
+          <td><code>fundraising</code></td>
+          <td>Soft scope — filters memory items and conversations within your team. Multiple projects per team.</td>
+        </tr>
+        <tr>
+          <td><code>visibility</code></td>
+          <td><code>team</code> / <code>project</code> / <code>private</code></td>
+          <td>Controls who within the team can read this item. Does not affect team_scope isolation.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      When you search in xbrain, you can filter by project using the project selector in
+      the search bar. Drive folders are mapped to specific projects when you configure
+      Drive Sync. Chrome clips prompt you to choose a project before saving.
+    </p>
+
+    <!-- --------------------------------------------------------
+         Creating a Project
+         -------------------------------------------------------- -->
+    <h2>Creating a Project</h2>
+
+    <p>From your dashboard, go to <strong>Projects &rarr; New Project</strong>:</p>
+
+    <ul>
+      <li><strong>Name</strong> — The display name shown across the product (e.g., "Series A Fundraising").</li>
+      <li><strong>Slug</strong> — Short identifier used in API calls as <code>project_scope</code> (e.g., <code>fundraising</code>). Lowercase letters and hyphens only.</li>
+      <li><strong>Drive folder</strong> — Optional. Link a Google Drive folder to automatically sync its documents into this project. See <a href="drive-sync.html">Drive Sync</a> for setup.</li>
+    </ul>
+
+    <!-- --------------------------------------------------------
+         Member Roles
+         -------------------------------------------------------- -->
+    <h2>Member Roles</h2>
+
+    <table class="docs-table">
+      <thead>
+        <tr>
+          <th>Role</th>
+          <th>Permissions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Member</strong></td>
+          <td>Read all team data, write memory items, use all AI tools (LibreChat, Open WebUI, Chrome extension, API), search across all projects.</td>
+        </tr>
+        <tr>
+          <td><strong>Admin</strong></td>
+          <td>All Member permissions, plus: approve truth-level promotions (VALIDATED &rarr; CANONICAL), manage Drive folder mappings, invite and remove members, configure GitHub Org auth.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      Role changes take effect immediately. Removing a member revokes their access
+      to all team data — they can no longer query your team's memory or sign in to
+      the team's LibreChat or Open WebUI workspace.
+    </p>
+
+    <!-- --------------------------------------------------------
+         GitHub Organization Auth
+         -------------------------------------------------------- -->
+    <h2 id="github-org-auth">GitHub Organization Auth</h2>
+
+    <p>
+      Connect your GitHub Org so that any member of your org can sign in to xbrain
+      without being manually invited.
+    </p>
+
+    <h3>Setup</h3>
+
+    <ol>
+      <li>Go to team settings &rarr; <strong>Authentication &rarr; GitHub</strong>.</li>
+      <li>Click <strong>Connect GitHub Organization</strong>.</li>
+      <li>Authorize xbrain on GitHub and select the organization to link.</li>
+      <li>Once connected, any member of that GitHub Org who signs in via Google OAuth will automatically join your xbrain team as a Member.</li>
+    </ol>
+
+    <div class="callout callout--info">
+      <p class="callout__title">Note</p>
+      <p>GitHub Org auth requires a GitHub OAuth app. The setup wizard in team settings walks you through creating one — no external configuration is needed outside of GitHub and xbrain.</p>
+    </div>
+
+    <p>
+      Members who leave your GitHub Org lose access to xbrain on their next sign-in.
+      You can also remove members manually from the team members list at any time.
+    </p>
+
+  </main>
+</div>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer class="xb-footer">
+  <div class="xb-footer__inner">
+    <div class="xb-footer__grid">
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Product</p>
+        <ul class="xb-footer__links">
+          <li><a href="../index.html#features" class="xb-footer__link">Features</a></li>
+          <li><a href="../index.html#pricing" class="xb-footer__link">Pricing</a></li>
+          <li><a href="#" class="xb-footer__link">Changelog</a></li>
+          <li><a href="#" class="xb-footer__link">Roadmap</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Docs</p>
+        <ul class="xb-footer__links">
+          <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
+          <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
+          <li><a href="chrome-ext.html" class="xb-footer__link">Chrome Extension</a></li>
+          <li><a href="teams.html" class="xb-footer__link">Teams &amp; Projects</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Developers</p>
+        <ul class="xb-footer__links">
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Self-hosted version</a></li>
+          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Open Source</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Company</p>
+        <ul class="xb-footer__links">
+          <li><a href="mailto:team@grooveos.app" class="xb-footer__link">Contact</a></li>
+          <li><a href="#" class="xb-footer__link">Privacy</a></li>
+          <li><a href="#" class="xb-footer__link">Terms</a></li>
+        </ul>
+      </div>
+
+    </div>
+    <div class="xb-footer__bottom">
+      <p class="xb-footer__copyright">&copy; 2026 xbrain &middot; Built with care for AI-first teams</p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
