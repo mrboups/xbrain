@@ -5,8 +5,11 @@
   "targets": {
     "xbrain-495115": {
       "hosting": {
-        "app": ["xbrain-app"]
+        "app": [
+          "dejavu-app"
+        ]
       }
     }
-  }
+  },
+  "etags": {}
 }

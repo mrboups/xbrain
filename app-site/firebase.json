@@ -2,7 +2,6 @@
   "hosting": [
     {
       "target": "app",
-      "site": "xbrain-app",
       "public": ".",
       "ignore": [
         "firebase.json",
