@@ -14,7 +14,7 @@
 const MEMORY_API_URL = "https://api.dejavu.cat/v1/memory/upsert";
 // Remplacer __GOOGLE_CLIENT_ID__ par le même client_id que LibreChat Google OAuth
 // Format attendu : "XXXXXXXXXX.apps.googleusercontent.com"
-const CLIENT_ID = "__GOOGLE_CLIENT_ID__";
+const CLIENT_ID = "50097563098-rdh24v05dcp0ees8o4kqviuuoi5sup3n.apps.googleusercontent.com";
 const TOKEN_CACHE_KEY = "xbrain_id_token";
 const TOKEN_EXPIRY_KEY = "xbrain_id_token_expiry";
 const TOKEN_TTL_MS = 3600 * 1000; // 1 heure en millisecondes
