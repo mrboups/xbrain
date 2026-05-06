@@ -13,6 +13,7 @@ from app.outbox_worker import drain_outbox
 from app.qdrant_setup import ensure_collections
 from app.routes import (
     admin_drive,
+    admin_projects,
     audit,
     conversations,
     drive_webhook,
@@ -78,4 +79,5 @@ app.include_router(promotions.router, prefix="/v1", tags=["promotions"])
 app.include_router(graph.router, prefix="/v1", tags=["graph"])
 app.include_router(system_prompt.router, prefix="/v1", tags=["system-prompt"])
 app.include_router(admin_drive.router, prefix="/v1", tags=["admin-drive"])
+app.include_router(admin_projects.router, prefix="/v1/admin", tags=["admin"])
 app.include_router(drive_webhook.router, prefix="/v1", tags=["drive-webhook"])
