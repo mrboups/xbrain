@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 
 ## Current Position
 
-Phase: 4 (Consolidation MCP Frontends + Intégrations Avancées)
-Plan: 8 of 8 in current phase
-Status: Complete
-Last activity: 2026-05-05 — Plan 04-08 terminé : register-mcp-tools.sh mis à jour (4 tools: scraper, drive-read, calendar, deck), verify-phase4.sh créé — 8/8 tests PASS sur VM
+Phase: 5 (Plateforme Projets Équipe)
+Plan: 1 of 7 in current phase
+Status: In progress
+Last activity: 2026-05-06 — Plan 05-01 terminé : graphiti-service container (FastAPI + graphiti-core, 3 endpoints, lifespan pattern), ajouté à docker-compose.yml, enrichissement fail-soft depuis memory-api
 
 Progress: [██████████] 100%
 
@@ -49,6 +49,9 @@ Recent decisions affecting current work:
 - 2026-05-02: Langfuse sur e2-medium Phase 1 : déployé en config légère sans ClickHouse complet — surveiller RAM ; si OOM, migrer Langfuse à Phase 2 start post-VM-upgrade
 - 2026-05-05 (D-06): OAuth state param changé de team_scope → mapping_id UUID pour supporter N folders/team (T-04-06-SEC-02 accepted)
 - 2026-05-05 (04-03): mcpSettings.allowedDomains requis pour débloquer les hosts Docker internes (SSRF protection LibreChat v0.8.5 bloque par défaut)
+- 2026-05-06 (05-01): graphiti_client initialisé dans lifespan() uniquement — piège event loop graphiti-core
+- 2026-05-06 (05-01): OPENAI_API_KEY obligatoire pour graphiti-service même avec Anthropic LLM (embeddings text-embedding-3-small ne supportent pas Anthropic)
+- 2026-05-06 (05-01): SEMAPHORE_LIMIT=3 défaut pour respecter rate limit Anthropic Haiku Tier 1
 
 ### Pending Todos
 
@@ -69,6 +72,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-05
-Stopped at: Plan 04-08 complet — Phase 4 DONE. register-mcp-tools.sh (4 tools), verify-phase4.sh (8/8 PASS). Commits 4c71401, a84d90e.
+Last session: 2026-05-06
+Stopped at: Plan 05-01 complet — graphiti-service container créé (d4911e9), ajouté à docker-compose (3747678), enrichissement fail-soft memory-api (d4fb4c7).
 Resume file: None
