@@ -10,9 +10,11 @@ interface:
     openNewTab: false
 
 registration:
-  socialLogins: ["google"]
-  # allowedDomains omitted → ALL domains allowed (Phase 1 dev posture).
-  # Phase 2: restrict to your team's domain(s), e.g. ["yourcompany.com"]
+  socialLogins: ["google", "github"]
+  allowedDomains:
+    - "acme.example.com"
+    - "gmail.com"
+    # Note: no domain filter for GitHub — org membership is enforced in memory-api (plan 05-02)
 
 # Endpoints LLM (les API keys viennent de .env via variables référencées)
 endpoints:
