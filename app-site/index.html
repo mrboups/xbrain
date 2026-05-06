@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="xbrain — AI Memory OS for Teams. Your team's shared knowledge base, powered by AI. Sign up free, no setup required.">
+  <title>xbrain — AI Memory OS for Teams</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<!-- ============================================================
+     NAV
+     ============================================================ -->
+<nav class="xb-nav">
+  <div class="xb-nav__inner">
+    <!-- Logo -->
+    <a href="index.html" class="xb-nav__logo">xbrain</a>
+
+    <!-- Centre links -->
+    <ul class="xb-nav__links">
+      <li><a href="#features" class="xb-nav__link">Features</a></li>
+      <li><a href="#pricing" class="xb-nav__link">Pricing</a></li>
+      <li><a href="docs/index.html" class="xb-nav__link">Docs</a></li>
+      <li><a href="https://xbrain-marketing.web.app" class="xb-nav__link" target="_blank" rel="noopener">For developers</a></li>
+    </ul>
+
+    <!-- Right actions -->
+    <div style="display:flex;align-items:center;gap:12px;">
+      <a href="#" class="xb-nav__link" style="white-space:nowrap;">Sign in</a>
+      <a
+        href="mailto:team@grooveos.app?subject=xbrain waitlist"
+        class="xb-nav__cta"
+      >Join Waitlist</a>
+    </div>
+  </div>
+</nav>
+
+
+<!-- ============================================================
+     SECTION 1 — HERO
+     ============================================================ -->
+<section id="hero" style="padding:120px 0 80px;background:#FFFFFF;">
+  <div class="container-xl">
+    <div style="text-align:center;max-width:800px;margin:0 auto;">
+
+      <!-- Pill badge -->
+      <div style="display:inline-flex;align-items:center;gap:8px;background:#EDE9FE;color:#7C3AED;font-size:0.875rem;font-weight:600;padding:6px 18px;border-radius:999px;margin-bottom:32px;border:1px solid rgba(124,58,237,0.2);">
+        🧠 Currently in private beta &middot; Join the waitlist
+      </div>
+
+      <!-- H1 -->
+      <h1 style="font-size:4rem;font-weight:800;line-height:1.1;letter-spacing:-0.03em;color:#111827;margin:0 0 24px;">
+        Your team's shared AI brain
+      </h1>
+
+      <!-- Subtitle -->
+      <p style="font-size:1.25rem;color:#4B5563;max-width:560px;margin:0 auto 40px;line-height:1.65;">
+        Stop losing knowledge in Slack threads and Notion docs. xbrain gives your team a persistent, searchable memory layer — accessible from every AI tool you already use.
+      </p>
+
+      <!-- CTAs -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:56px;flex-wrap:wrap;">
+        <a
+          href="mailto:team@grooveos.app?subject=xbrain waitlist"
+          class="btn-large"
+        >Join the Waitlist</a>
+        <a href="#how-it-works" class="btn-secondary">See how it works</a>
+      </div>
+
+      <!-- Social proof -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:32px;flex-wrap:wrap;">
+        <span style="font-size:0.85rem;color:#9CA3AF;font-weight:500;">Trusted by forward-thinking teams</span>
+        <div style="display:flex;align-items:center;gap:8px;font-size:0.9rem;color:#4B5563;font-weight:600;">
+          <span style="width:6px;height:6px;background:#7C3AED;border-radius:50%;display:inline-block;"></span>
+          5 truth levels
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:0.9rem;color:#4B5563;font-weight:600;">
+          <span style="width:6px;height:6px;background:#7C3AED;border-radius:50%;display:inline-block;"></span>
+          4 AI frontends
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:0.9rem;color:#4B5563;font-weight:600;">
+          <span style="width:6px;height:6px;background:#7C3AED;border-radius:50%;display:inline-block;"></span>
+          100% private
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SECTION 2 — PROBLEM
+     ============================================================ -->
+<section id="problem" style="padding:80px 0;background:#F9FAFB;">
+  <div class="container-xl">
+
+    <div style="text-align:center;margin-bottom:48px;">
+      <p style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#7C3AED;margin:0 0 12px;">The Problem</p>
+      <h2 style="font-size:2.5rem;font-weight:800;letter-spacing:-0.025em;color:#111827;margin:0 0 0;">
+        Every AI-first team hits the same wall
+      </h2>
+    </div>
+
+    <!-- 3 pain cards -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;">
+
+      <!-- Card 1 -->
+      <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px;">
+        <span style="font-size:2rem;display:block;margin-bottom:16px;">🔄</span>
+        <h3 style="font-size:1.05rem;font-weight:700;color:#111827;margin:0 0 12px;">
+          Knowledge resets every conversation
+        </h3>
+        <p style="font-size:0.95rem;color:#4B5563;line-height:1.65;margin:0;">
+          Your AI tools start from zero each session. Every developer rebuilds their own prompts. Decisions made in Monday's meeting are gone by Friday.
+        </p>
+      </div>
+
+      <!-- Card 2 -->
+      <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px;">
+        <span style="font-size:2rem;display:block;margin-bottom:16px;">🏝️</span>
+        <h3 style="font-size:1.05rem;font-weight:700;color:#111827;margin:0 0 12px;">
+          AI silos everywhere
+        </h3>
+        <p style="font-size:0.95rem;color:#4B5563;line-height:1.65;margin:0;">
+          Claude knows something, GPT-4 knows something else, Cursor knows nothing. There's no shared layer — just scattered context that disappears.
+        </p>
+      </div>
+
+      <!-- Card 3 -->
+      <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:28px;">
+        <span style="font-size:2rem;display:block;margin-bottom:16px;">❓</span>
+        <h3 style="font-size:1.05rem;font-weight:700;color:#111827;margin:0 0 12px;">
+          No truth layer
+        </h3>
+        <p style="font-size:0.95rem;color:#4B5563;line-height:1.65;margin:0;">
+          You can't tell if that doc is current, that decision is final, or that fact is just someone's best guess from 6 months ago.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SECTION 3 — SOLUTION
+     ============================================================ -->
+<section id="solution" style="padding:80px 0;background:#FFFFFF;">
+  <div class="container-xl">
+
+    <div style="text-align:center;margin-bottom:48px;">
+      <p style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#7C3AED;margin:0 0 12px;">The Solution</p>
+      <h2 style="font-size:2.5rem;font-weight:800;letter-spacing:-0.025em;color:#111827;margin:0;">
+        One shared brain for your entire team
+      </h2>
+    </div>
+
+    <!-- Two-column layout -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;">
+
+      <!-- Left: text -->
+      <div>
+        <p style="font-size:1.05rem;color:#4B5563;line-height:1.7;margin:0 0 28px;">
+          xbrain is a cloud-hosted AI memory layer that sits between your team and your AI tools. Every conversation, document, and agent output lands in one place — tagged by team, by project, by truth level. Accessible from LibreChat, Open WebUI, your Chrome browser, and the API.
+        </p>
+
+        <!-- Badges -->
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <span style="display:inline-flex;align-items:center;padding:6px 14px;background:#EDE9FE;color:#7C3AED;border-radius:8px;font-size:0.875rem;font-weight:600;">Team-scoped</span>
+          <span style="display:inline-flex;align-items:center;padding:6px 14px;background:#EDE9FE;color:#7C3AED;border-radius:8px;font-size:0.875rem;font-weight:600;">Truth-leveled</span>
+          <span style="display:inline-flex;align-items:center;padding:6px 14px;background:#EDE9FE;color:#7C3AED;border-radius:8px;font-size:0.875rem;font-weight:600;">Always on</span>
+        </div>
+      </div>
+
+      <!-- Right: code diagram -->
+      <div style="background:#1a1a2e;border-radius:12px;padding:32px;font-family:'SF Mono','Fira Code','Fira Mono',monospace;font-size:0.85rem;line-height:1.9;color:#e2e8f0;border:1px solid rgba(255,255,255,0.08);overflow-x:auto;">
+        <div style="color:#a78bfa;margin-bottom:4px;">Your team uses &rarr;&nbsp;&nbsp;&nbsp; Claude, GPT-4, Grok</div>
+        <div style="color:#64748b;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|</div>
+        <div style="color:#64748b;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#x25BC;</div>
+        <div style="color:#e2e8f0;font-weight:700;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; xbrain memory layer</div>
+        <div style="color:#a78bfa;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (hosted by us)</div>
+        <div style="color:#64748b;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|</div>
+        <div style="color:#64748b;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x253C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;</div>
+        <div style="color:#64748b;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &#x25BC;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#x25BC;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#x25BC;</div>
+        <div>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#a78bfa;">Team memory</span>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#a78bfa;">Knowledge</span>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#a78bfa;">Agents &amp;</span>
+        </div>
+        <div>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#64748b;">searchable</span>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#64748b;">graph</span>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#64748b;">tools</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SECTION 4 — FEATURES
+     ============================================================ -->
+<section id="features" style="padding:80px 0;background:#EDE9FE;">
+  <div class="container-xl">
+
+    <div style="text-align:center;margin-bottom:48px;">
+      <p style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#7C3AED;margin:0 0 12px;">Features</p>
+      <h2 style="font-size:2.5rem;font-weight:800;letter-spacing:-0.025em;color:#111827;margin:0 0 16px;">
+        Everything your team needs, already set up
+      </h2>
+      <p style="font-size:1.1rem;color:#4B5563;margin:0;line-height:1.6;">
+        No Docker. No VM. No maintenance. Just your team's shared brain.
+      </p>
+    </div>
+
+    <!-- 6 feature cards — 3x2 grid -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;">
+
+      <!-- Feature 1 -->
+      <div style="background:#FFFFFF;border-radius:12px;padding:28px;border:1px solid rgba(124,58,237,0.12);">
+        <span style="font-size:1.75rem;display:block;margin-bottom:16px;">🧠</span>
+        <h3 style="font-size:1rem;font-weight:700;color:#111827;margin:0 0 10px;">
+          Persistent Team Memory
+        </h3>
+        <p style="font-size:0.9rem;color:#4B5563;line-height:1.65;margin:0;">
+          Every conversation, web clip, and Drive document becomes a permanent, searchable memory item. Tagged automatically with your team scope and project.
+        </p>
+      </div>
+
+      <!-- Feature 2 -->
+      <div style="background:#FFFFFF;border-radius:12px;padding:28px;border:1px solid rgba(124,58,237,0.12);">
+        <span style="font-size:1.75rem;display:block;margin-bottom:16px;">📊</span>
+        <h3 style="font-size:1rem;font-weight:700;color:#111827;margin:0 0 10px;">
+          5 Truth Levels
+        </h3>
+        <p style="font-size:0.9rem;color:#4B5563;line-height:1.65;margin:0;">
+          Facts climb from EPHEMERAL &rarr; WORKING &rarr; VALIDATED &rarr; CANONICAL &rarr; PUBLIC. CANONICAL facts are automatically injected in every AI conversation for your team.
+        </p>
+      </div>
+
+      <!-- Feature 3 -->
+      <div style="background:#FFFFFF;border-radius:12px;padding:28px;border:1px solid rgba(124,58,237,0.12);">
+        <span style="font-size:1.75rem;display:block;margin-bottom:16px;">🤖</span>
+        <h3 style="font-size:1rem;font-weight:700;color:#111827;margin:0 0 10px;">
+          Multi-Model AI
+        </h3>
+        <p style="font-size:0.9rem;color:#4B5563;line-height:1.65;margin:0;">
+          Connect Claude, GPT-4, and Grok in one interface. Switch models mid-conversation. All outputs feed the same shared memory.
+        </p>
+      </div>
+
+      <!-- Feature 4 -->
+      <div style="background:#FFFFFF;border-radius:12px;padding:28px;border:1px solid rgba(124,58,237,0.12);">
+        <span style="font-size:1.75rem;display:block;margin-bottom:16px;">🔌</span>
+        <h3 style="font-size:1rem;font-weight:700;color:#111827;margin:0 0 10px;">
+          Built-in Integrations
+        </h3>
+        <p style="font-size:0.9rem;color:#4B5563;line-height:1.65;margin:0;">
+          Google Drive sync, Chrome web clipper, Calendar access, deck generator — all connected, all team-scoped, all logged in your audit trail.
+        </p>
+      </div>
+
+      <!-- Feature 5 -->
+      <div style="background:#FFFFFF;border-radius:12px;padding:28px;border:1px solid rgba(124,58,237,0.12);">
+        <span style="font-size:1.75rem;display:block;margin-bottom:16px;">🐙</span>
+        <h3 style="font-size:1rem;font-weight:700;color:#111827;margin:0 0 10px;">
+          GitHub Team Auth
+        </h3>
+        <p style="font-size:0.9rem;color:#4B5563;line-height:1.65;margin:0;">
+          Restrict access to your GitHub Organization members. Zero user management — if they're in your GitHub Org, they're in xbrain.
+        </p>
+      </div>
+
+      <!-- Feature 6 -->
+      <div style="background:#FFFFFF;border-radius:12px;padding:28px;border:1px solid rgba(124,58,237,0.12);">
+        <span style="font-size:1.75rem;display:block;margin-bottom:16px;">🕸️</span>
+        <h3 style="font-size:1rem;font-weight:700;color:#111827;margin:0 0 10px;">
+          Knowledge Graph
+        </h3>
+        <p style="font-size:0.9rem;color:#4B5563;line-height:1.65;margin:0;">
+          Entities, relationships, and temporal facts extracted automatically. Ask "who was responsible for X in Q3?" and get an answer.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SECTION 5 — HOW IT WORKS
+     ============================================================ -->
+<section id="how-it-works" style="padding:80px 0;background:#FFFFFF;">
+  <div class="container-xl">
+
+    <div style="text-align:center;margin-bottom:48px;">
+      <p style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#7C3AED;margin:0 0 12px;">Getting Started</p>
+      <h2 style="font-size:2.5rem;font-weight:800;letter-spacing:-0.025em;color:#111827;margin:0 0 0;">
+        From zero to shared brain in 3 minutes
+      </h2>
+    </div>
+
+    <!-- 3 steps -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:32px;">
+
+      <!-- Step 1 -->
+      <div style="position:relative;padding:32px;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;">
+        <div style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;background:#7C3AED;color:#FFFFFF;border-radius:50%;font-size:1rem;font-weight:800;margin-bottom:20px;">
+          1
+        </div>
+        <h3 style="font-size:1.05rem;font-weight:700;color:#111827;margin:0 0 12px;">
+          Join the waitlist
+        </h3>
+        <p style="font-size:0.95rem;color:#4B5563;line-height:1.65;margin:0;">
+          Enter your email. We'll send your invite within 48 hours. No credit card required to start.
+        </p>
+      </div>
+
+      <!-- Step 2 -->
+      <div style="position:relative;padding:32px;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;">
+        <div style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;background:#7C3AED;color:#FFFFFF;border-radius:50%;font-size:1rem;font-weight:800;margin-bottom:20px;">
+          2
+        </div>
+        <h3 style="font-size:1.05rem;font-weight:700;color:#111827;margin:0 0 12px;">
+          Create your team
+        </h3>
+        <p style="font-size:0.95rem;color:#4B5563;line-height:1.65;margin:0;">
+          Name your team, invite members by email or GitHub Org. Each member signs in with Google — no new passwords.
+        </p>
+      </div>
+
+      <!-- Step 3 -->
+      <div style="position:relative;padding:32px;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;">
+        <div style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;background:#7C3AED;color:#FFFFFF;border-radius:50%;font-size:1rem;font-weight:800;margin-bottom:20px;">
+          3
+        </div>
+        <h3 style="font-size:1.05rem;font-weight:700;color:#111827;margin:0 0 12px;">
+          Start building your brain
+        </h3>
+        <p style="font-size:0.95rem;color:#4B5563;line-height:1.65;margin:0;">
+          Every conversation in LibreChat, every web clip from Chrome, every Drive doc you share — it all flows automatically into your team's shared memory.
+        </p>
+      </div>
+
+    </div>
+
+    <!-- Bottom CTA -->
+    <div style="text-align:center;margin-top:48px;">
+      <a
+        href="mailto:team@grooveos.app?subject=xbrain waitlist"
+        class="btn-large"
+      >Join the Waitlist</a>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SECTION 6 — PRICING
+     ============================================================ -->
+<section id="pricing" style="padding:80px 0;background:#F9FAFB;">
+  <div class="container-xl">
+
+    <div style="text-align:center;margin-bottom:16px;">
+      <p style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#7C3AED;margin:0 0 12px;">Pricing</p>
+      <h2 style="font-size:2.5rem;font-weight:800;letter-spacing:-0.025em;color:#111827;margin:0 0 12px;">
+        Simple, transparent pricing
+      </h2>
+      <p style="font-size:1.1rem;color:#4B5563;margin:0 0 24px;line-height:1.6;">
+        Start free. Scale with your team.
+      </p>
+    </div>
+
+    <!-- Annual / Monthly toggle (display only) -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:48px;font-size:0.9rem;color:#4B5563;">
+      <span style="font-weight:700;color:#7C3AED;text-decoration:underline;cursor:pointer;">Annual (save 45%)</span>
+      <span style="color:#9CA3AF;">&middot;</span>
+      <span style="color:#9CA3AF;cursor:pointer;">Switch to monthly</span>
+    </div>
+
+    <!-- 3 pricing cards -->
+    <div class="pricing-grid">
+
+      <!-- FREE -->
+      <div class="pricing-card">
+        <div class="pricing-card__name">Free</div>
+        <div class="pricing-card__price">$0 <span>/ forever</span></div>
+        <div class="pricing-card__desc">For solo AI explorers</div>
+        <ul class="pricing-card__features">
+          <li class="pricing-card__feature">1 user</li>
+          <li class="pricing-card__feature">1,000 memory items</li>
+          <li class="pricing-card__feature">100 conversations/month</li>
+          <li class="pricing-card__feature">Chrome web clipper</li>
+          <li class="pricing-card__feature">Google Drive sync (read-only)</li>
+          <li class="pricing-card__feature">LibreChat + Open WebUI access</li>
+          <li class="pricing-card__feature" style="color:#9CA3AF;text-decoration:none;">
+            <span style="color:#D1D5DB;font-weight:700;margin-right:2px;">&times;</span> MCP tools
+          </li>
+          <li class="pricing-card__feature" style="color:#9CA3AF;">
+            <span style="color:#D1D5DB;font-weight:700;margin-right:2px;">&times;</span> API access
+          </li>
+          <li class="pricing-card__feature" style="color:#9CA3AF;">
+            <span style="color:#D1D5DB;font-weight:700;margin-right:2px;">&times;</span> Team features
+          </li>
+        </ul>
+        <a
+          href="mailto:team@grooveos.app?subject=xbrain waitlist"
+          class="btn-secondary"
+          style="width:100%;text-align:center;justify-content:center;"
+        >Join Waitlist</a>
+      </div>
+
+      <!-- TEAM — featured -->
+      <div class="pricing-card pricing-card--featured">
+        <div class="pricing-badge">Most popular</div>
+
+        <div class="pricing-card__name" style="margin-top:12px;">Team</div>
+
+        <!-- Annual price -->
+        <div style="margin:4px 0 2px;">
+          <span class="pricing-card__price" style="display:inline;">$299</span>
+          <span style="font-size:1rem;font-weight:400;color:#6B7280;"> / year</span>
+          &nbsp;
+          <span style="text-decoration:line-through;color:#9CA3AF;font-size:1.05rem;font-weight:500;">$540</span>
+          &nbsp;
+          <span style="display:inline-flex;align-items:center;background:#D1FAE5;color:#065F46;font-size:0.78rem;font-weight:700;padding:3px 10px;border-radius:999px;vertical-align:middle;">save 45%</span>
+        </div>
+        <div style="font-size:0.85rem;color:#9CA3AF;margin:6px 0 24px;">or $15/user/month — minimum 3 seats</div>
+
+        <div class="pricing-card__desc">For teams building with AI</div>
+        <ul class="pricing-card__features">
+          <li class="pricing-card__feature">Minimum 3 seats ($15/user/month)</li>
+          <li class="pricing-card__feature">Unlimited memory items</li>
+          <li class="pricing-card__feature">Unlimited conversations</li>
+          <li class="pricing-card__feature">All MCP tools (scraper, Drive, Calendar, Deck)</li>
+          <li class="pricing-card__feature">Google Drive sync (read + write)</li>
+          <li class="pricing-card__feature">Chrome web clipper</li>
+          <li class="pricing-card__feature">API access</li>
+          <li class="pricing-card__feature">GitHub Org authentication</li>
+          <li class="pricing-card__feature">Audit trail</li>
+          <li class="pricing-card__feature">Priority support</li>
+        </ul>
+        <a
+          href="mailto:team@grooveos.app?subject=xbrain waitlist"
+          class="btn-primary"
+          style="width:100%;text-align:center;justify-content:center;"
+        >Join Waitlist</a>
+        <p style="font-size:0.78rem;color:#9CA3AF;margin-top:12px;line-height:1.5;">
+          Annual plan: $299/year for 3 seats. Additional seats at $99/seat/year.
+        </p>
+      </div>
+
+      <!-- ENTERPRISE -->
+      <div class="pricing-card">
+        <div class="pricing-card__name">Enterprise</div>
+        <div class="pricing-card__price">Custom</div>
+        <div class="pricing-card__desc">For organizations at scale</div>
+        <ul class="pricing-card__features">
+          <li class="pricing-card__feature">Everything in Team</li>
+          <li class="pricing-card__feature">Unlimited seats</li>
+          <li class="pricing-card__feature">SSO / SAML</li>
+          <li class="pricing-card__feature">Custom integrations</li>
+          <li class="pricing-card__feature">SLA guarantee</li>
+          <li class="pricing-card__feature">Dedicated support</li>
+          <li class="pricing-card__feature">Self-hosted option</li>
+          <li class="pricing-card__feature">Custom data retention</li>
+        </ul>
+        <a
+          href="mailto:team@grooveos.app?subject=xbrain Enterprise"
+          class="btn-secondary"
+          style="width:100%;text-align:center;justify-content:center;"
+        >Contact us</a>
+      </div>
+
+    </div>
+
+    <!-- Footer note -->
+    <p style="text-align:center;margin-top:32px;font-size:0.9rem;color:#4B5563;">
+      All plans include: end-to-end data isolation between teams, 5 truth levels, Google OAuth SSO.
+    </p>
+
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SECTION 7 — FOR DEVELOPERS (dark)
+     ============================================================ -->
+<section id="developers" style="padding:80px 0;background:#111827;">
+  <div class="container-xl">
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;">
+
+      <!-- Left: text -->
+      <div>
+        <p style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#A78BFA;margin:0 0 12px;">Open Source</p>
+        <h2 style="font-size:2.5rem;font-weight:800;letter-spacing:-0.025em;color:#FFFFFF;margin:0 0 20px;line-height:1.15;">
+          Also available as open source
+        </h2>
+        <p style="font-size:1.05rem;color:rgba(255,255,255,0.7);line-height:1.7;margin:0 0 32px;">
+          Want to self-host xbrain on your own infrastructure? The full stack is open source under MIT license. 25 Docker containers, full documentation, deploy on any VM.
+        </p>
+
+        <!-- CTAs -->
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+          <a
+            href="https://xbrain-marketing.web.app"
+            class="btn-secondary"
+            style="border-color:rgba(255,255,255,0.4);color:#FFFFFF;"
+            target="_blank"
+            rel="noopener"
+          >View self-hosted docs</a>
+          <a
+            href="https://github.com/mrboups/xbrain"
+            style="display:inline-flex;align-items:center;justify-content:center;padding:14px 28px;background:transparent;color:#FFFFFF;border:2px solid rgba(255,255,255,0.35);border-radius:10px;font-size:1rem;font-weight:600;text-decoration:none;transition:background 0.15s;"
+            target="_blank"
+            rel="noopener"
+          >GitHub</a>
+        </div>
+      </div>
+
+      <!-- Right: stats -->
+      <div style="display:flex;flex-direction:column;gap:40px;">
+        <div>
+          <div style="font-size:2.25rem;font-weight:800;color:#FFFFFF;line-height:1;">25</div>
+          <div style="font-size:0.9rem;color:rgba(255,255,255,0.55);margin-top:4px;">Docker containers</div>
+        </div>
+        <div>
+          <div style="font-size:2.25rem;font-weight:800;color:#FFFFFF;line-height:1;">5</div>
+          <div style="font-size:0.9rem;color:rgba(255,255,255,0.55);margin-top:4px;">deployment phases</div>
+        </div>
+        <div>
+          <div style="font-size:2.25rem;font-weight:800;color:#FFFFFF;line-height:1;">MIT</div>
+          <div style="font-size:0.9rem;color:rgba(255,255,255,0.55);margin-top:4px;">license</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer class="xb-footer">
+  <div class="xb-footer__inner">
+    <div class="xb-footer__grid">
+
+      <!-- Product -->
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Product</p>
+        <ul class="xb-footer__links">
+          <li><a href="#features" class="xb-footer__link">Features</a></li>
+          <li><a href="#pricing" class="xb-footer__link">Pricing</a></li>
+          <li><a href="#" class="xb-footer__link">Changelog</a></li>
+          <li><a href="#" class="xb-footer__link">Roadmap</a></li>
+        </ul>
+      </div>
+
+      <!-- Docs -->
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Docs</p>
+        <ul class="xb-footer__links">
+          <li><a href="docs/index.html" class="xb-footer__link">Getting Started</a></li>
+          <li><a href="docs/api.html" class="xb-footer__link">API Reference</a></li>
+          <li><a href="docs/chrome-ext.html" class="xb-footer__link">Chrome Extension</a></li>
+          <li><a href="docs/teams.html" class="xb-footer__link">Teams &amp; Projects</a></li>
+        </ul>
+      </div>
+
+      <!-- Developers -->
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Developers</p>
+        <ul class="xb-footer__links">
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Self-hosted version</a></li>
+          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Open Source</a></li>
+        </ul>
+      </div>
+
+      <!-- Company -->
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Company</p>
+        <ul class="xb-footer__links">
+          <li><a href="mailto:team@grooveos.app" class="xb-footer__link">Contact</a></li>
+          <li><a href="#" class="xb-footer__link">Privacy</a></li>
+          <li><a href="#" class="xb-footer__link">Terms</a></li>
+        </ul>
+      </div>
+
+    </div>
+
+    <div class="xb-footer__bottom">
+      <p class="xb-footer__copyright">
+        &copy; 2026 xbrain &middot; Built with ❤️ for AI-first teams
+      </p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
