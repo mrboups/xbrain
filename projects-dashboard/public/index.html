@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>xbrain Projects</title>
+  <style>
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f8f9fa;
+  color: #212529;
+  min-height: 100vh;
+}
+header {
+  background: #1a1a2e;
+  color: #fff;
+  padding: 1.5rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; }
+header .subtitle { font-size: 0.85rem; opacity: 0.7; }
+.filters {
+  padding: 1.5rem 2rem 1rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.filters input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  width: 220px;
+  background: #fff;
+}
+.filters input:focus {
+  outline: none;
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 3px rgba(26,115,232,0.15);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.25rem;
+  padding: 1rem 2rem 2rem;
+}
+.card {
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 10px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  transition: box-shadow 0.15s;
+}
+.card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.card-title a {
+  color: #1a1a2e;
+  text-decoration: none;
+}
+.card-title a:hover { text-decoration: underline; }
+.card-badges { display: flex; gap: 0.4rem; flex-shrink: 0; align-items: center; }
+.badge {
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.status {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+.status-live { background: #d4edda; color: #155724; }
+.status-unindexed { background: #e9ecef; color: #495057; }
+.card-description {
+  font-size: 0.85rem;
+  color: #6c757d;
+  line-height: 1.4;
+}
+.card-members { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid #dee2e6;
+}
+.no-members { font-size: 0.8rem; color: #adb5bd; font-style: italic; }
+.card-meta { font-size: 0.78rem; color: #868e96; }
+.data-warning {
+  margin: 0.75rem 2rem;
+  padding: 0.75rem 1rem;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #856404;
+}
+.empty-state {
+  grid-column: 1/-1;
+  text-align: center;
+  padding: 3rem;
+  color: #868e96;
+  font-size: 1rem;
+}
+footer {
+  text-align: center;
+  padding: 1.5rem;
+  font-size: 0.8rem;
+  color: #868e96;
+  border-top: 1px solid #e9ecef;
+  background: #fff;
+  margin-top: 1rem;
+}
+
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>xbrain Projects</h1>
+      <div class="subtitle">0 projets &middot; 0 indexés &middot; org: your-github-org</div>
+    </div>
+    <div class="subtitle">Généré le 2026-05-06 09:12 UTC</div>
+  </header>
+  <div class="data-warning">Données partielles — certaines sources API étaient inaccessibles lors de la génération.</div>
+  <div class="filters">
+    <input id="filter-member" type="text" placeholder="Filtrer par membre..." aria-label="Filtrer par membre">
+    <input id="filter-project" type="text" placeholder="Filtrer par projet..." aria-label="Filtrer par projet">
+  </div>
+  <div class="grid">
+    <div class="empty-state" id="empty-state">Aucun projet trouvé.</div>
+  </div>
+  <footer>Généré le 2026-05-06 09:12 UTC — xbrain v5</footer>
+  <script>
+
+function filterCards() {
+  const memberFilter = document.getElementById('filter-member').value.toLowerCase().trim();
+  const projectFilter = document.getElementById('filter-project').value.toLowerCase().trim();
+  const cards = document.querySelectorAll('.card');
+  let visible = 0;
+  cards.forEach(function(card) {
+    const name = (card.dataset.name || '').toLowerCase();
+    const members = (card.dataset.members || '').toLowerCase();
+    const matchMember = !memberFilter || members.includes(memberFilter);
+    const matchProject = !projectFilter || name.includes(projectFilter);
+    if (matchMember && matchProject) {
+      card.style.display = '';
+      visible++;
+    } else {
+      card.style.display = 'none';
+    }
+  });
+  const empty = document.getElementById('empty-state');
+  if (empty) {
+    empty.style.display = visible === 0 ? '' : 'none';
+  }
+}
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('filter-member').addEventListener('input', filterCards);
+  document.getElementById('filter-project').addEventListener('input', filterCards);
+});
+
+  </script>
+</body>
+</html>
