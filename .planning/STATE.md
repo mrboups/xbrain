@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 
 ## Current Position
 
-Phase: 5 (Plateforme Projets Équipe)
-Plan: 4 of 7 in current phase
+Phase: 6 (Marketing Site + Documentation)
+Plan: 1 of 8 in current phase
 Status: In progress
-Last activity: 2026-05-06 — Plan 05-04 terminé : extension Chrome MV3 (manifest+background+popup+content), auth Google OAuth launchWebAuthFlow, CORS chrome-extension://* dans memory-api
+Last activity: 2026-05-06 — Plan 06-01 terminé : firebase.json + .firebaserc (xbrain-marketing site), style.css (242 lignes, nav/footer/buttons violet #7C3AED), docs.css (366 lignes, sidebar grid/code blocks/breadcrumbs/callouts)
 
 Progress: [██████████] 100%
 
@@ -60,6 +60,9 @@ Recent decisions affecting current work:
 - 2026-05-06 (05-03): Workload Identity Federation recommandé (sans JSON key file) pour Cloud Run deploys
 - 2026-05-06 (05-04): launchWebAuthFlow response_type=id_token (Solution A) — ID token JWT compatible verify_google_id_token sans modifier auth.py
 - 2026-05-06 (05-04): chrome-extension://* wildcard CORS — acceptable, auth Bearer token est le vrai contrôle (T-05-04-03 accepted)
+- 2026-05-06 (06-01): Firebase multi-site — site ID xbrain-marketing dans firebase.json, targets dans .firebaserc, projet xbrain-495115
+- 2026-05-06 (06-01): Two-CSS architecture — style.css (global, chargé par toutes les pages) + docs.css (docs-only, chargé uniquement par docs/*.html)
+- 2026-05-06 (06-01): public: "." dans firebase.json — firebase.json est à la racine de marketing-site/, pas de build step
 
 ### Pending Todos
 
@@ -81,5 +84,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-06
-Stopped at: Plan 05-04 complet — manifest+background+icons (975ccb4), popup+content (4b037b3), CORS memory-api (ca56b19).
+Stopped at: Plan 06-01 complet — firebase.json+.firebaserc (c8bae82), style.css (02d17d0), docs.css (dac54da).
 Resume file: None

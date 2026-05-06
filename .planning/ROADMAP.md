@@ -15,8 +15,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Socle Infra + Frontends + memory-api** - GCP VM, Docker Compose multi-service, LibreChat + Open WebUI branchés sur une memory-api qui enforce le contrat de tagging dès le premier write — **DONE 2026-05-03** (https://x.dejavu.cat + https://ai.dejavu.cat)
 - [x] **Phase 2: Mémoire Intelligente + Agents** - VM upgrade, mem0 + MemoryProvider, truth-level promotion workflow, LangGraph agents avec HITL, RAG permission-aware — **DONE 2026-05-04**
 - [x] **Phase 3: Graphe + Extraction + Intégrations** - Neo4j, extraction structurée (Claude NER), Drive sync, MCP gateway + 3 premiers outils — **DONE 2026-05-04**
-- [ ] **Phase 3.5: MCP Gateway Fix + Corrections Phase 3** (INSERTED) - Réécriture mcp-gateway client MCP stateful (Bug 1 critique : tool-call E2E cassé), fix verify-phase3.sh parser (Bug 2 cosmetic)
-- [ ] **Phase 4: Consolidation MCP Frontends + Intégrations Avancées** - LibreChat & agent-runtime branchés sur la gateway MCP (MCP-05/06 réellement câblés), fix logging Open WebUI conversations (MEM-04 résiduel), Drive push webhooks + multi-folder mapping, deck-service MCP tool (MCP-07 déféré)
+- [x] **Phase 3.5: MCP Gateway Fix + Corrections Phase 3** (INSERTED) - Réécriture mcp-gateway client MCP stateful (Bug 1 critique : tool-call E2E cassé), fix verify-phase3.sh parser (Bug 2 cosmetic) — **DONE 2026-05-05**
+- [x] **Phase 4: Consolidation MCP Frontends + Intégrations Avancées** - LibreChat & agent-runtime branchés sur la gateway MCP (MCP-05/06 réellement câblés), fix logging Open WebUI conversations (MEM-04 résiduel), Drive push webhooks + multi-folder mapping, deck-service MCP tool (MCP-07 déféré) — **DONE 2026-05-05**
+- [x] **Phase 5: Plateforme Projets Équipe** - Pipeline GitOps (GitHub Actions → Cloud Run + Firebase), Graphiti extraction temporelle, extension Chrome truth-level, auth GitHub Org + Google + account linking, dashboard projets déployés — **DONE 2026-05-06**
+- [ ] **Phase 6: Marketing Site + Documentation** - Site marketing statique en anglais (fond blanc, cible startup teams), documentation complète de toutes les features, déploiement Firebase Hosting
 
 ## Phase Details
 
@@ -95,18 +97,66 @@ Plans:
 - [ ] 04-07-PLAN.md — mcp-deck sidecar (deck_create/deck_update via python-pptx + MinIO)
 - [ ] 04-08-PLAN.md — register-mcp-tools.sh update + verify-phase4.sh + UAT
 
+### Phase 5: Plateforme Projets Équipe
+**Goal**: Transformer xbrain en plateforme complète pour les équipes : pipeline de déploiement GitOps (GitHub Actions → Cloud Run + Firebase), extraction intelligente temporelle (Graphiti), extension Chrome pour validation truth-level, modèle d'authentification unifié (GitHub Org + Google + account linking), et dashboard des projets déployés.
+**Depends on**: Phase 4
+**Entry gate**: Phase 4 fully shipped (verify-phase4.sh PASS 8/8) ; VM e2-standard-2 avec headroom suffisant (graphiti-service ajoute ~512m).
+**Requirements**: TEAM-01, TEAM-03, AUTH-01, AUTH-03, MEM-06, MEM-07, MEM-08, CHAT-08
+**Success Criteria** (what must be TRUE):
+  1. `GET http://graphiti-service:8300/v1/healthz` retourne `{"status": "ok", "graphiti": true}` et `POST /v1/ingest` retourne 202 en moins de 500ms.
+  2. LibreChat affiche deux boutons de connexion (Google + GitHub) — un user peut se connecter avec son compte GitHub de l'org `your-github-org`.
+  3. La table `users` PostgreSQL a les colonnes `github_username` et `github_id` (migration 0007 appliquée).
+  4. Un repo GitHub avec `brain.yaml` peut déclencher le workflow `deploy-cloudrun.yml` ou `deploy-firebase.yml` et indexer son contenu dans `api.dejavu.cat/v1/memory` via `brain-index.sh`.
+  5. L'extension Chrome (Manifest V3) peut envoyer du contenu sélectionné sur une page web vers `api.dejavu.cat/v1/memory` avec le truth_level choisi par l'utilisateur — memory-api retourne 201.
+  6. `projects-dashboard/public/index.html` est généré par `generate_dashboard.py` et déployé sur Firebase Hosting (ou testable localement).
+  7. `bash infrastructure/scripts/verify-phase5.sh` retourne `PASS: 8 / 8`.
+**Plans**: 7 plans
+Plans:
+- [ ] 05-01-PLAN.md — graphiti-service container (FastAPI wrapper graphiti-core, port 8300, Neo4j backend)
+- [ ] 05-02-PLAN.md — GitHub OAuth LibreChat + migration 0007 github_username + membership middleware
+- [ ] 05-03-PLAN.md — brain.yaml schema + GitHub Actions templates Cloud Run / Firebase + POST /v1/admin/projects
+- [ ] 05-04-PLAN.md — Extension Chrome MV3 (web clipper, auth launchWebAuthFlow, CORS memory-api)
+- [ ] 05-05-PLAN.md — projects.dejavu.cat dashboard statique (generate_dashboard.py + Firebase deploy)
+- [ ] 05-06-PLAN.md — nginx 30-projects.conf + Cloudflare Access runbook + .env.example Phase 5
+- [ ] 05-07-PLAN.md — register-mcp-tools.sh vérification + verify-phase5.sh (8 tests)
+
+### Phase 6: Marketing Site + Documentation
+**Goal**: Livrer un site marketing statique en anglais (fond blanc, cible startup teams implémentant l'AI) + documentation complète de toutes les features Phase 1-5, déployés en ligne via Firebase Hosting.
+**Depends on**: Phase 5
+**Entry gate**: Phase 5 fully shipped.
+**Requirements**: (non-requirements phase — pure content/docs delivery)
+**Success Criteria** (what must be TRUE):
+  1. `https://xbrain-marketing.web.app` accessible (HTTP 200) avec la landing page complète (7 sections : Hero, Problem, Solution, Features, How it works, Technical overview, Footer)
+  2. Les 13 pages de documentation sont accessibles via leurs URLs Firebase et la sidebar 14 liens est fonctionnelle sur toutes les pages
+  3. `docs/memory.html` contient les 5 truth levels et les 7 champs de tagging avec exemples curl
+  4. `docs/api-reference.html` documente >= 15 endpoints memory-api avec exemples request/response
+  5. `docs/deployment.html` couvre les Phases 1 à 5 avec les commandes exactes (docker compose, firebase, gcloud)
+  6. Le design est cohérent : fond blanc, accent violet #7C3AED, TailwindCSS CDN, aucun build step
+**Plans**: 8 plans
+Plans:
+- [x] 06-01-PLAN.md — Firebase config + CSS foundation (style.css + docs.css)
+- [ ] 06-02-PLAN.md — Landing page index.html (7 sections, TailwindCSS CDN)
+- [ ] 06-03-PLAN.md — Docs home + Architecture + Memory System pages
+- [ ] 06-04-PLAN.md — Teams + Chat + MCP Tools pages
+- [ ] 06-05-PLAN.md — Drive Sync + Chrome Extension + GitHub Auth pages
+- [ ] 06-06-PLAN.md — Agents + Graphiti + API Reference pages
+- [ ] 06-07-PLAN.md — Deployment + Configuration pages
+- [ ] 06-08-PLAN.md — Firebase deploy + checkpoint human verification
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4
+Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Socle Infra + Frontends + memory-api | 6/6 | ✅ Complete | 2026-05-03 |
 | 2. Mémoire Intelligente + Agents | 9/9 | ✅ Complete | 2026-05-04 |
 | 3. Graphe + Extraction + Intégrations | 12/12 | ✅ Complete | 2026-05-04 |
-| 3.5. MCP Gateway Fix + Corrections Phase 3 (INSERTED) | 0/2 | In progress | - |
-| 4. Consolidation MCP Frontends + Intégrations Avancées | 1/8 | In progress | - |
+| 3.5. MCP Gateway Fix + Corrections Phase 3 (INSERTED) | 2/2 | ✅ Complete | 2026-05-05 |
+| 4. Consolidation MCP Frontends + Intégrations Avancées | 8/8 | ✅ Complete | 2026-05-05 |
+| 5. Plateforme Projets Équipe | 7/7 | ✅ Complete | 2026-05-06 |
+| 6. Marketing Site + Documentation | 1/8 | 🔄 In progress | - |
 
 ---
 
