@@ -97,6 +97,8 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       OAUTH_CREDENTIALS_ENCRYPTION_KEY: ${OAUTH_CREDENTIALS_ENCRYPTION_KEY:-}
       MEMORY_API_EXTERNAL_URL: ${MEMORY_API_EXTERNAL_URL:-https://x.dejavu.cat}
+      # Phase 5 plan 05-01: Graphiti enrichment (fail-soft if not set)
+      GRAPHITI_SERVICE_URL: ${GRAPHITI_SERVICE_URL:-http://graphiti-service:8300}
     networks: [xbrain_net]
     mem_limit: 384m
     depends_on:
@@ -650,6 +652,35 @@ services:
       retries: 5
       start_period: 20s
 
+  # === graphiti-service (plan 05-01) — temporal fact extraction + contradiction detection ===
+  graphiti-service:
+    build:
+      context: ../apps/graphiti-service
+      dockerfile: Dockerfile
+    image: xbrain/graphiti-service:phase5
+    container_name: xbrain-graphiti-service
+    restart: unless-stopped
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_MODEL: ${GRAPHITI_LLM_MODEL:-claude-haiku-4-5-20251001}
+      SEMAPHORE_LIMIT: ${GRAPHITI_SEMAPHORE_LIMIT:-3}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks: [xbrain_net]
+    mem_limit: 512m
+    depends_on:
+      neo4j: { condition: service_healthy }
+      memory-api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8300/v1/healthz 2>/dev/null | grep -q ok"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   # === drive-sync (plan 03-11) — incremental Google Drive sync sidecar ===
   # Polls Google Drive changes.list every DRIVE_SYNC_POLL_INTERVAL seconds.
   # Delegates extraction to agent-runtime ingestion-agent (plan 02-07).
@@ -670,6 +701,8 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       OAUTH_CREDENTIALS_ENCRYPTION_KEY: ${OAUTH_CREDENTIALS_ENCRYPTION_KEY:-}
+      DRIVE_WEBHOOK_PUBLIC_URL: ${DRIVE_WEBHOOK_PUBLIC_URL:-}
+      DRIVE_WEBHOOK_SECRET: ${DRIVE_WEBHOOK_SECRET:-}
       POLL_INTERVAL_SECONDS: ${DRIVE_SYNC_POLL_INTERVAL:-300}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     networks: [xbrain_net]
