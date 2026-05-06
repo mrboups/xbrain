@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Learn how xbrain memory works — tagging contract, truth levels, promoting facts, and searching your team's shared knowledge base.">
+  <title>Memory &amp; Knowledge — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+<nav class="xb-nav">
+  <div class="xb-nav__inner">
+    <a href="../index.html" class="xb-nav__logo">xbrain</a>
+    <ul class="xb-nav__links">
+      <li><a href="../index.html#features" class="xb-nav__link">Features</a></li>
+      <li><a href="../index.html#pricing" class="xb-nav__link">Pricing</a></li>
+      <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+    </ul>
+    <a href="mailto:team@grooveos.app?subject=xbrain waitlist" class="xb-nav__cta">Join Waitlist</a>
+  </div>
+</nav>
+
+<div class="docs-layout">
+
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <aside class="sidebar">
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Getting Started</div>
+      <a href="index.html" class="sidebar__link">Getting Started</a>
+    </div>
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Features</div>
+      <a href="memory.html" class="sidebar__link active">Memory &amp; Knowledge</a>
+      <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
+      <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
+      <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
+      <a href="drive-sync.html" class="sidebar__link">Drive Sync</a>
+      <a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a>
+    </div>
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Reference</div>
+      <a href="api.html" class="sidebar__link">API Reference</a>
+      <a href="billing.html" class="sidebar__link">Plans &amp; Billing</a>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN CONTENT
+       ============================================================ -->
+  <main class="docs-content">
+
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <span class="breadcrumb__item">
+        <a href="index.html" class="breadcrumb__link">Docs</a>
+        <span class="breadcrumb__separator">/</span>
+      </span>
+      <span class="breadcrumb__current">Memory &amp; Knowledge</span>
+    </nav>
+
+    <h1>Memory &amp; Knowledge</h1>
+
+    <div class="docs-meta">
+      <span class="docs-meta__badge">Core Concept</span>
+      <span>8 min read</span>
+      <span>Updated May 2026</span>
+    </div>
+
+    <!-- --------------------------------------------------------
+         What is xbrain memory?
+         -------------------------------------------------------- -->
+    <h2>What is xbrain memory?</h2>
+
+    <p>
+      Every piece of knowledge your team produces — a conversation, a web clip, a Drive
+      document, an agent output — becomes a memory item in xbrain. Memory items are stored
+      permanently, tagged automatically, and searchable by any team member or AI tool.
+    </p>
+
+    <p>
+      You don't have to think about where knowledge lives. Everything your team produces
+      lands in one place, structured, scoped to your team, and available instantly to every
+      AI conversation you start.
+    </p>
+
+    <!-- --------------------------------------------------------
+         The Tagging Contract
+         -------------------------------------------------------- -->
+    <h2>The Tagging Contract</h2>
+
+    <p>
+      Every memory item in xbrain carries 7 automatic tags. You don't set most of these
+      manually — xbrain infers them from context.
+    </p>
+
+    <table class="docs-table">
+      <thead>
+        <tr>
+          <th>Tag</th>
+          <th>What it means</th>
+          <th>Example</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>team_scope</code></td>
+          <td>Which team owns this item</td>
+          <td><code>acme</code></td>
+        </tr>
+        <tr>
+          <td><code>project_scope</code></td>
+          <td>Which project it belongs to</td>
+          <td><code>fundraising</code></td>
+        </tr>
+        <tr>
+          <td><code>visibility</code></td>
+          <td>Who can see it: <code>team</code> / <code>project</code> / <code>private</code></td>
+          <td><code>team</code></td>
+        </tr>
+        <tr>
+          <td><code>confidence</code></td>
+          <td>How confident is the source (0–1)</td>
+          <td><code>0.9</code></td>
+        </tr>
+        <tr>
+          <td><code>truth_level</code></td>
+          <td>How verified is this fact</td>
+          <td><code>WORKING</code></td>
+        </tr>
+        <tr>
+          <td><code>source</code></td>
+          <td>Where this came from</td>
+          <td><code>librechat:conv_abc</code></td>
+        </tr>
+        <tr>
+          <td><code>validation_status</code></td>
+          <td>Pending, approved, or rejected</td>
+          <td><code>pending</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout--info">
+      <p class="callout__title">Overriding Tags</p>
+      <p>You can override any of these when sending via the API or Chrome extension. The defaults are sensible for most use cases.</p>
+    </div>
+
+    <!-- --------------------------------------------------------
+         The 5 Truth Levels
+         -------------------------------------------------------- -->
+    <h2>The 5 Truth Levels</h2>
+
+    <p>
+      Facts in xbrain aren't binary — they exist on a spectrum of certainty. Every memory
+      item carries a truth level that tells you and your AI tools how much to trust it.
+    </p>
+
+    <div style="display:flex;flex-direction:column;gap:12px;margin:24px 0;">
+
+      <div style="display:flex;align-items:flex-start;gap:16px;padding:16px 20px;border-radius:8px;border:1px solid #E5E7EB;background:#F9FAFB;">
+        <span style="display:inline-flex;align-items:center;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.05em;background:#F3F4F6;color:#6B7280;flex-shrink:0;margin-top:2px;">EPHEMERAL</span>
+        <div>
+          <p style="margin:0 0 4px;font-weight:600;color:#111827;">Raw capture</p>
+          <p style="margin:0;font-size:0.9375rem;color:#4B5563;">A quick note, a web clip, a first draft. Unverified. May expire if never promoted.</p>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:16px;padding:16px 20px;border-radius:8px;border:1px solid #BFDBFE;background:#EFF6FF;">
+        <span style="display:inline-flex;align-items:center;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.05em;background:#DBEAFE;color:#1D4ED8;flex-shrink:0;margin-top:2px;">WORKING</span>
+        <div>
+          <p style="margin:0 0 4px;font-weight:600;color:#111827;">Actively used knowledge</p>
+          <p style="margin:0;font-size:0.9375rem;color:#4B5563;">In-progress facts, current best guesses. The default level for most inputs — your AI uses these but treats them as provisional.</p>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:16px;padding:16px 20px;border-radius:8px;border:1px solid #A7F3D0;background:#ECFDF5;">
+        <span style="display:inline-flex;align-items:center;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.05em;background:#D1FAE5;color:#065F46;flex-shrink:0;margin-top:2px;">VALIDATED</span>
+        <div>
+          <p style="margin:0 0 4px;font-weight:600;color:#111827;">Peer-reviewed</p>
+          <p style="margin:0;font-size:0.9375rem;color:#4B5563;">A team member has explicitly approved this fact. Safe to reference in decisions and share with clients.</p>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:16px;padding:16px 20px;border-radius:8px;border:1px solid #C4B5FD;background:#EDE9FE;">
+        <span style="display:inline-flex;align-items:center;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.05em;background:#DDD6FE;color:#5B21B6;flex-shrink:0;margin-top:2px;">CANONICAL</span>
+        <div>
+          <p style="margin:0 0 4px;font-weight:600;color:#111827;">Team truth</p>
+          <p style="margin:0;font-size:0.9375rem;color:#4B5563;">The definitive answer your team has agreed on. <strong>Automatically injected in every AI conversation.</strong> This is the level that matters most.</p>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:16px;padding:16px 20px;border-radius:8px;border:1px solid #FCD34D;background:#FFFBEB;">
+        <span style="display:inline-flex;align-items:center;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.05em;background:#FEF3C7;color:#92400E;flex-shrink:0;margin-top:2px;">PUBLIC</span>
+        <div>
+          <p style="margin:0 0 4px;font-weight:600;color:#111827;">Published</p>
+          <p style="margin:0;font-size:0.9375rem;color:#4B5563;">Approved for sharing outside the team. Requires explicit promotion from CANONICAL by an admin.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="callout callout--info" style="border-left-color:#7C3AED;">
+      <p class="callout__title">CANONICAL facts are special</p>
+      <p>
+        Every time a team member starts a chat with Claude or GPT-4, xbrain automatically
+        includes your team's CANONICAL facts in the system prompt. Your AI always knows
+        what your team knows — without you having to paste it in every time.
+      </p>
+    </div>
+
+    <!-- --------------------------------------------------------
+         Promoting Facts
+         -------------------------------------------------------- -->
+    <h2>Promoting Facts</h2>
+
+    <p>Facts move up the truth ladder through a human-approval workflow:</p>
+
+    <ol>
+      <li>Any member can <strong>request a promotion</strong>: in LibreChat, click the memory item &rarr; "Propose as VALIDATED".</li>
+      <li>An <strong>admin reviews</strong> the promotion request in Open WebUI &rarr; Approve or Reject.</li>
+      <li>On approval, the fact's truth level updates and it becomes available at the new level across all AI conversations instantly.</li>
+    </ol>
+
+    <p>You can also trigger promotions via the API:</p>
+
+    <pre class="code-block"><span class="code-block__label">bash — Request promotion to VALIDATED</span># Request promotion to VALIDATED
+curl -X POST https://api.dejavu.cat/v1/promotions \
+  -H "Authorization: Bearer $YOUR_TOKEN" \
+  -H "X-Team-Scope: your-team" \
+  -d '{
+    "item_id": "mem_abc123",
+    "target_level": "VALIDATED",
+    "justification": "Confirmed with client on 2026-05-01"
+  }'</pre>
+
+    <!-- --------------------------------------------------------
+         Searching Memory
+         -------------------------------------------------------- -->
+    <h2>Searching Memory</h2>
+
+    <p>Search your team's memory from LibreChat, Open WebUI, or the API:</p>
+
+    <h3>From LibreChat</h3>
+    <p>
+      Type <code>/search [query]</code> in any conversation, or just ask the AI directly —
+      it searches your team memory automatically before answering.
+    </p>
+
+    <h3>Via the API</h3>
+
+    <pre class="code-block"><span class="code-block__label">bash — Semantic search with truth level filter</span>curl "https://api.dejavu.cat/v1/memory/search?q=fundraising+target&truth_level_min=WORKING" \
+  -H "Authorization: Bearer $YOUR_TOKEN" \
+  -H "X-Team-Scope: your-team"</pre>
+
+    <p>
+      Results are always scoped to your team. Other teams' data never appears in your results —
+      isolation is enforced at the infrastructure level.
+    </p>
+
+    <!-- --------------------------------------------------------
+         Memory item limits
+         -------------------------------------------------------- -->
+    <h2>Memory Item Limits</h2>
+
+    <div class="callout callout--info">
+      <p class="callout__title">Plan limits</p>
+      <p>
+        <strong>Free plan:</strong> 1,000 memory items. <strong>Team plan:</strong> unlimited.
+        When you reach the free limit, new items are rejected until you upgrade or delete
+        old items. You will receive an email notification at 80% and 100% capacity.
+      </p>
+    </div>
+
+    <p>
+      Need help managing your memory items? See <a href="billing.html">Plans &amp; Billing</a>
+      for upgrade options, or <a href="api.html">API Reference</a> for bulk deletion endpoints.
+    </p>
+
+  </main>
+</div>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer class="xb-footer">
+  <div class="xb-footer__inner">
+    <div class="xb-footer__grid">
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Product</p>
+        <ul class="xb-footer__links">
+          <li><a href="../index.html#features" class="xb-footer__link">Features</a></li>
+          <li><a href="../index.html#pricing" class="xb-footer__link">Pricing</a></li>
+          <li><a href="#" class="xb-footer__link">Changelog</a></li>
+          <li><a href="#" class="xb-footer__link">Roadmap</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Docs</p>
+        <ul class="xb-footer__links">
+          <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
+          <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
+          <li><a href="chrome-ext.html" class="xb-footer__link">Chrome Extension</a></li>
+          <li><a href="teams.html" class="xb-footer__link">Teams &amp; Projects</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Developers</p>
+        <ul class="xb-footer__links">
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Self-hosted version</a></li>
+          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Open Source</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Company</p>
+        <ul class="xb-footer__links">
+          <li><a href="mailto:team@grooveos.app" class="xb-footer__link">Contact</a></li>
+          <li><a href="#" class="xb-footer__link">Privacy</a></li>
+          <li><a href="#" class="xb-footer__link">Terms</a></li>
+        </ul>
+      </div>
+
+    </div>
+    <div class="xb-footer__bottom">
+      <p class="xb-footer__copyright">&copy; 2026 xbrain &middot; Built with care for AI-first teams</p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

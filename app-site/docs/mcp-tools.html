@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="xbrain MCP Tools let your AI scrape URLs, read Drive files, check your calendar, and generate presentations — all from chat, no setup required.">
+  <title>MCP Tools — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+<nav class="xb-nav">
+  <div class="xb-nav__inner">
+    <a href="../index.html" class="xb-nav__logo">xbrain</a>
+    <ul class="xb-nav__links">
+      <li><a href="../index.html#features" class="xb-nav__link">Features</a></li>
+      <li><a href="../index.html#pricing" class="xb-nav__link">Pricing</a></li>
+      <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+    </ul>
+    <a href="mailto:team@grooveos.app?subject=xbrain waitlist" class="xb-nav__cta">Join Waitlist</a>
+  </div>
+</nav>
+
+<div class="docs-layout">
+
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <aside class="sidebar">
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Getting Started</div>
+      <a href="index.html" class="sidebar__link">Getting Started</a>
+    </div>
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Features</div>
+      <a href="memory.html" class="sidebar__link">Memory &amp; Knowledge</a>
+      <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
+      <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
+      <a href="mcp-tools.html" class="sidebar__link active">MCP Tools</a>
+      <a href="drive-sync.html" class="sidebar__link">Drive Sync</a>
+      <a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a>
+    </div>
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Reference</div>
+      <a href="api.html" class="sidebar__link">API Reference</a>
+      <a href="billing.html" class="sidebar__link">Plans &amp; Billing</a>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN CONTENT
+       ============================================================ -->
+  <main class="docs-content">
+
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <span class="breadcrumb__item">
+        <a href="index.html" class="breadcrumb__link">Docs</a>
+        <span class="breadcrumb__separator">/</span>
+      </span>
+      <span class="breadcrumb__current">MCP Tools</span>
+    </nav>
+
+    <h1>MCP Tools</h1>
+
+    <div class="docs-meta">
+      <span class="docs-meta__badge">Team Plan</span>
+      <span>7 min read</span>
+      <span>Updated May 2026</span>
+    </div>
+
+    <div class="callout callout--warning">
+      <p class="callout__title">Team and Enterprise plans only</p>
+      <p>MCP Tools are available on the Team and Enterprise plans. Free plan users can read about them here but cannot activate them. <a href="billing.html">See Plans &amp; Billing &rarr;</a></p>
+    </div>
+
+    <!-- --------------------------------------------------------
+         What are MCP tools?
+         -------------------------------------------------------- -->
+    <h2>What are MCP tools?</h2>
+
+    <p>
+      MCP (Model Context Protocol) tools are AI-callable functions that extend what your
+      AI can do in chat. Ask Claude to scrape a URL, read a Drive file, check your calendar,
+      or generate a presentation — the right tool activates automatically based on what you ask.
+    </p>
+
+    <p>
+      xbrain includes 4 built-in MCP tools. Every tool call is team-scoped and logged in
+      your audit trail, so you always have a record of what your AI did and when.
+    </p>
+
+    <!-- --------------------------------------------------------
+         How tools work in chat
+         -------------------------------------------------------- -->
+    <h2>How tools work in chat</h2>
+
+    <p>
+      You don't activate tools manually. Just ask naturally — xbrain figures out which tool
+      to use and calls it automatically. Examples:
+    </p>
+
+    <ul>
+      <li>"Summarize the content at https://openai.com/research" &rarr; <strong>scraper activates</strong></li>
+      <li>"What's in our Q2 roadmap on Drive?" &rarr; <strong>Drive reader activates</strong></li>
+      <li>"What meetings do we have this week?" &rarr; <strong>Calendar activates</strong></li>
+      <li>"Create a 5-slide pitch deck for our fundraising round" &rarr; <strong>Deck generator activates</strong></li>
+    </ul>
+
+    <!-- --------------------------------------------------------
+         Tool 1: Web Scraper
+         -------------------------------------------------------- -->
+    <h2>Tool 1: Web Scraper</h2>
+
+    <table class="docs-table">
+      <tbody>
+        <tr>
+          <td style="font-weight:600;width:140px;">What it does</td>
+          <td>Fetches and extracts text from any public URL</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">In chat</td>
+          <td>"Summarize [URL]", "What does [URL] say about X?"</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Output</td>
+          <td>Text content, saved to team memory with source URL as provenance tag</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Limits</td>
+          <td>Max 5,000 characters per scrape; respects <code>robots.txt</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- --------------------------------------------------------
+         Tool 2: Google Drive Reader
+         -------------------------------------------------------- -->
+    <h2>Tool 2: Google Drive Reader</h2>
+
+    <table class="docs-table">
+      <tbody>
+        <tr>
+          <td style="font-weight:600;width:140px;">What it does</td>
+          <td>Reads (and optionally writes) files in your mapped Drive folders</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">In chat</td>
+          <td>"Read the fundraising brief from Drive", "Update the roadmap doc"</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Auth</td>
+          <td>Uses your team's Drive OAuth (set up in <a href="drive-sync.html">Drive Sync settings</a>)</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Write access</td>
+          <td>Requires explicit confirmation in chat before any write operation executes</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout--warning">
+      <p class="callout__title">Drive write operations</p>
+      <p>
+        Drive write operations (creating, editing, or deleting files) are logged in your
+        audit trail and require the user to type <strong>confirm</strong> in chat before
+        execution. The AI will never write to Drive silently.
+      </p>
+    </div>
+
+    <!-- --------------------------------------------------------
+         Tool 3: Google Calendar
+         -------------------------------------------------------- -->
+    <h2>Tool 3: Google Calendar</h2>
+
+    <table class="docs-table">
+      <tbody>
+        <tr>
+          <td style="font-weight:600;width:140px;">What it does</td>
+          <td>Reads your team's calendar events</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">In chat</td>
+          <td>"What meetings do we have this week?", "When is Alice's next sync?"</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Access</td>
+          <td>Read-only — never creates, modifies, or deletes calendar events</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Auth</td>
+          <td>Uses your team's Google OAuth credentials — no separate setup needed if Drive Sync is connected</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- --------------------------------------------------------
+         Tool 4: Deck Generator
+         -------------------------------------------------------- -->
+    <h2>Tool 4: Deck Generator</h2>
+
+    <table class="docs-table">
+      <tbody>
+        <tr>
+          <td style="font-weight:600;width:140px;">What it does</td>
+          <td>Generates PowerPoint (.pptx) presentations from a natural-language brief</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">In chat</td>
+          <td>"Create a 5-slide deck for our pitch", "Generate a status update presentation"</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Output</td>
+          <td>.pptx file available for download, also saved to team memory</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;">Templates</td>
+          <td>Professional, minimal, data-focused</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>Example conversation:</p>
+
+    <pre class="code-block"><span class="code-block__label">chat — Deck generator in action</span>You: Create a 3-slide pitch deck: Problem (teams lose AI context),
+     Solution (xbrain shared memory), Traction (5 teams, 10k memories)
+
+xbrain: Created "pitch-deck-2026-05-07.pptx" (3 slides)
+        [Download] — also saved to your team memory</pre>
+
+    <!-- --------------------------------------------------------
+         Audit Trail
+         -------------------------------------------------------- -->
+    <h2>Audit Trail</h2>
+
+    <p>Every tool call is logged automatically. The audit trail records:</p>
+
+    <ul>
+      <li>Who triggered it (user ID and display name)</li>
+      <li>Which tool was called</li>
+      <li>Timestamp (UTC)</li>
+      <li>Input parameters (sanitized — no file contents, only metadata)</li>
+      <li>Whether write access was used (Drive tool only)</li>
+    </ul>
+
+    <p>
+      Admins can view the full audit trail from <strong>Settings &rarr; Audit Log</strong>
+      in Open WebUI. The log is retained for 90 days on the Team plan and indefinitely on
+      Enterprise.
+    </p>
+
+  </main>
+</div>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer class="xb-footer">
+  <div class="xb-footer__inner">
+    <div class="xb-footer__grid">
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Product</p>
+        <ul class="xb-footer__links">
+          <li><a href="../index.html#features" class="xb-footer__link">Features</a></li>
+          <li><a href="../index.html#pricing" class="xb-footer__link">Pricing</a></li>
+          <li><a href="#" class="xb-footer__link">Changelog</a></li>
+          <li><a href="#" class="xb-footer__link">Roadmap</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Docs</p>
+        <ul class="xb-footer__links">
+          <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
+          <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
+          <li><a href="chrome-ext.html" class="xb-footer__link">Chrome Extension</a></li>
+          <li><a href="teams.html" class="xb-footer__link">Teams &amp; Projects</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Developers</p>
+        <ul class="xb-footer__links">
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Self-hosted version</a></li>
+          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Open Source</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Company</p>
+        <ul class="xb-footer__links">
+          <li><a href="mailto:team@grooveos.app" class="xb-footer__link">Contact</a></li>
+          <li><a href="#" class="xb-footer__link">Privacy</a></li>
+          <li><a href="#" class="xb-footer__link">Terms</a></li>
+        </ul>
+      </div>
+
+    </div>
+    <div class="xb-footer__bottom">
+      <p class="xb-footer__copyright">&copy; 2026 xbrain &middot; Built with care for AI-first teams</p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
