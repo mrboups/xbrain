@@ -1,8 +1,12 @@
 """/v1/memory/* — backend-agnostic memory endpoints (Phase 2)."""
 
+import asyncio
+import os
 from typing import Any
 from uuid import UUID
 
+import httpx
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +21,34 @@ from app.deps import (
     get_team_scope,
 )
 from app.models.neo4j_outbox import NeoOutboxEntry
+
+log = structlog.get_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# Graphiti enrichment — fail-soft (plan 05-01)
+# ---------------------------------------------------------------------------
+_GRAPHITI_URL = os.environ.get("GRAPHITI_SERVICE_URL", "http://graphiti-service:8300")
+
+
+async def _enrich_with_graphiti(content: str, group_id: str) -> None:
+    """Optional call to graphiti-service after successful memory upsert.
+
+    Fail-soft: if graphiti-service is down or returns an error, memory-api
+    continues normally without affecting the HTTP response to the caller.
+
+    Threat T-05-01-02: graphiti-service is internal-only (no public ports).
+    group_id is provided by memory-api (trusted source) — no external input.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.post(
+                f"{_GRAPHITI_URL}/v1/ingest",
+                json={"content": content, "group_id": group_id, "source": "memory-api"},
+            )
+            r.raise_for_status()
+    except Exception as exc:
+        log.warning("graphiti.enrich_skipped", error=str(exc), group_id=group_id)
+
 
 router = APIRouter()
 
@@ -90,6 +122,14 @@ async def upsert_item(
         payload={"source": body.item.source, "truth_level": body.item.truth_level.value},
     )
     await session.commit()
+
+    # Phase 5 plan 05-01: Enrich Graphiti graph with the new memory item.
+    # create_task so we don't block the HTTP response — _enrich_with_graphiti is fail-soft.
+    if body.item.content:
+        asyncio.create_task(
+            _enrich_with_graphiti(body.item.content, team_scope)
+        )
+
     return UpsertOut(id=item_id)
 
 
