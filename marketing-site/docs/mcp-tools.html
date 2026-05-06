@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MCP Tools — xbrain Docs. Four MCP tools (scraper, Drive, Calendar, Deck) via the xbrain gateway. Usage examples, API calls, and audit trail.">
+  <title>MCP Tools — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900 antialiased">
+
+  <!-- ============================================================
+       NAV
+       ============================================================ -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Get Started
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       DOCS LAYOUT
+       ============================================================ -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" aria-label="Documentation navigation">
+      <div class="sidebar__section">
+        <p class="sidebar__section-title">Documentation</p>
+        <ul class="sidebar__links">
+          <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+          <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+          <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+          <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+          <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+          <li><a href="mcp-tools.html" class="sidebar__link active" aria-current="page">MCP Tools</a></li>
+          <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+          <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+          <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+          <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+          <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+          <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+          <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+          <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="docs-content" id="main-content">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <span class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__current">MCP Tools</span>
+      </nav>
+
+      <!-- Page Header -->
+      <h1>MCP Tools</h1>
+      <div class="docs-meta">
+        <span class="docs-meta__badge">Phase 3–4</span>
+        <span>10 min read</span>
+      </div>
+
+      <p>
+        xbrain includes four built-in MCP (Model Context Protocol) tools that extend AI capabilities
+        beyond pure text generation. These tools let your team's AI assistants browse the web, read
+        and write Google Drive files, check calendars, and generate PowerPoint presentations — all
+        team-scoped and fully logged in the audit trail.
+      </p>
+
+      <!-- ========================================================
+           The MCP Gateway
+           ======================================================== -->
+      <h2>The MCP Gateway</h2>
+
+      <p>
+        xbrain includes a central <strong>mcp-gateway</strong> that acts as a registry and proxy for
+        all MCP tools. Every tool call passes through the gateway, which injects
+        <code>team_scope</code> and <code>user_id</code>, and logs every call to the audit trail.
+        No tool call can bypass the gateway — this is where authentication and team isolation are
+        enforced for the MCP layer.
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">Architecture — MCP gateway routing</code><code>LibreChat ──► /mcp/aggregate (SSE) ──► mcp-gateway (8080) ──► mcp-scraper (8100)
+                                                              ├──► mcp-drive-read (8101)
+                                                              ├──► mcp-calendar (8102)
+                                                              └──► mcp-deck (8200)
+
+agent-runtime ──► mcp_gateway_client.py ──────► mcp-gateway (8080) ──► [same tools]</code></pre>
+
+      <p>
+        The gateway aggregates all tools into a single SSE endpoint (<code>/mcp/aggregate</code>)
+        that LibreChat connects to. Each tool call is authenticated and team-scoped before being
+        forwarded to the appropriate backend tool service. The agent-runtime uses the same gateway
+        via the <code>mcp_gateway_client.py</code> Python client.
+      </p>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Single Connection Point</p>
+        <p>
+          LibreChat only needs to know about one URL: <code>http://mcp-gateway:8080/mcp/aggregate</code>.
+          All tools are discovered automatically via the MCP tool listing protocol. When you add a
+          new tool to the gateway, it appears in LibreChat without any reconfiguration.
+        </p>
+      </div>
+
+      <!-- ========================================================
+           Registering Tools
+           ======================================================== -->
+      <h2>Registering Tools</h2>
+
+      <p>
+        Tools are registered with the gateway at startup via the
+        <code>register-mcp-tools.sh</code> script. This script runs as part of the Docker Compose
+        startup sequence via the <code>mcp-tools-registrar</code> service.
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">bash — register-mcp-tools.sh (called at startup)</code><code># Register all MCP tools with the gateway
+bash infrastructure/scripts/register-mcp-tools.sh
+
+# Each tool registration call looks like this:
+curl -X POST http://mcp-gateway:8080/v1/tools/register \
+  -H "Authorization: Bearer $GATEWAY_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "mcp-scraper",
+    "url": "http://mcp-scraper:8100",
+    "team_scope": "acme"
+  }'
+
+# Verify registered tools:
+curl http://mcp-gateway:8080/v1/tools \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"
+# Returns list of all registered tools with their schemas</code></pre>
+
+      <!-- ========================================================
+           Tool 1: mcp-scraper
+           ======================================================== -->
+      <h2>Tool 1: mcp-scraper — Web Scraping</h2>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Service</td>
+            <td><code>mcp-scraper</code></td>
+          </tr>
+          <tr>
+            <td>Port</td>
+            <td>8100</td>
+          </tr>
+          <tr>
+            <td>Tool name</td>
+            <td><code>scrape_url</code></td>
+          </tr>
+          <tr>
+            <td>Input</td>
+            <td><code>url</code> (string), <code>max_chars</code> (int, default 5000)</td>
+          </tr>
+          <tr>
+            <td>Output</td>
+            <td>Extracted text content of the webpage</td>
+          </tr>
+          <tr>
+            <td>Phase introduced</td>
+            <td>Phase 3</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        mcp-scraper lets the AI fetch and read any public webpage. The tool retrieves the page,
+        strips HTML markup, and returns clean text. This is useful for researching competitors,
+        pulling in documentation, or summarising articles — without leaving the LibreChat interface.
+      </p>
+
+      <h3>Usage from LibreChat</h3>
+
+      <p>
+        In LibreChat, simply ask Claude or GPT-4 to fetch a URL. The AI will automatically invoke
+        the <code>scrape_url</code> tool:
+      </p>
+
+      <blockquote style="border-left: 3px solid #7C3AED; padding: 12px 20px; margin: 16px 0; background: #F5F3FF; border-radius: 0 6px 6px 0;">
+        <p style="margin: 0; color: #374151; font-style: italic;">
+          "Scrape https://openai.com/research and summarise the latest papers for me"
+        </p>
+      </blockquote>
+
+      <h3>Direct API Call</h3>
+
+      <pre class="code-block"><code class="code-block__label">bash — call scrape_url via the gateway</code><code>curl -X POST http://mcp-gateway:8080/v1/tools/call \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool": "scrape_url",
+    "params": {
+      "url": "https://example.com/article",
+      "max_chars": 3000
+    }
+  }'
+
+# Response:
+# {
+#   "result": "Article text content here...",
+#   "url": "https://example.com/article",
+#   "chars_extracted": 2847,
+#   "audit_id": "audit_abc123"
+# }</code></pre>
+
+      <!-- ========================================================
+           Tool 2: mcp-drive-read
+           ======================================================== -->
+      <h2>Tool 2: mcp-drive-read — Google Drive</h2>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Service</td>
+            <td><code>mcp-drive-read</code></td>
+          </tr>
+          <tr>
+            <td>Port</td>
+            <td>8101</td>
+          </tr>
+          <tr>
+            <td>Tools</td>
+            <td><code>list_files</code>, <code>read_file</code>, <code>write_file</code></td>
+          </tr>
+          <tr>
+            <td>Auth</td>
+            <td>Team OAuth credentials (stored encrypted in PostgreSQL)</td>
+          </tr>
+          <tr>
+            <td>Encryption</td>
+            <td>Fernet symmetric encryption for stored OAuth tokens</td>
+          </tr>
+          <tr>
+            <td>Phase introduced</td>
+            <td>Phase 3</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        mcp-drive-read provides bidirectional access to Google Drive. The AI can list files in a
+        folder, read their content, and optionally write files back. OAuth credentials are stored
+        per-team and encrypted using Fernet encryption — they are never exposed in logs or API
+        responses.
+      </p>
+
+      <h3>Usage from LibreChat</h3>
+
+      <blockquote style="border-left: 3px solid #7C3AED; padding: 12px 20px; margin: 16px 0; background: #F5F3FF; border-radius: 0 6px 6px 0;">
+        <p style="margin: 0; color: #374151; font-style: italic;">
+          "Read the content of our Q2 roadmap from Drive and give me a summary"
+        </p>
+      </blockquote>
+
+      <h3>Direct API Calls</h3>
+
+      <pre class="code-block"><code class="code-block__label">json — list_files tool call body</code><code>{
+  "tool": "list_files",
+  "params": {
+    "folder_id": "1ABC...xyz",
+    "max_results": 20
+  }
+}
+
+# Response:
+# {
+#   "files": [
+#     {"id": "1DEF...uvw", "name": "Q2 Roadmap.docx", "mimeType": "..."},
+#     {"id": "1GHI...rst", "name": "Budget v3.xlsx", "mimeType": "..."}
+#   ]
+# }</code></pre>
+
+      <pre class="code-block"><code class="code-block__label">json — read_file tool call body</code><code>{
+  "tool": "read_file",
+  "params": {
+    "file_id": "1DEF...uvw"
+  }
+}
+
+# Response:
+# {
+#   "content": "# Q2 Roadmap\n\n## Goal: 3x MRR by June...",
+#   "filename": "Q2 Roadmap.docx",
+#   "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+# }</code></pre>
+
+      <pre class="code-block"><code class="code-block__label">json — write_file tool call body</code><code>{
+  "tool": "write_file",
+  "params": {
+    "folder_id": "1ABC...xyz",
+    "filename": "ai-summary.md",
+    "content": "# AI-Generated Summary\n\nKey takeaways from the Q2 roadmap review...",
+    "mimeType": "text/markdown"
+  }
+}
+
+# Returns: {"file_id": "1JKL...mno", "url": "https://drive.google.com/..."}</code></pre>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Write Operations Require Opt-In</p>
+        <p>
+          <code>write_file</code> requires explicit confirmation from the user when invoked through
+          LibreChat. The AI will present the proposed write action before executing it. All write
+          operations are logged in the audit trail regardless of how they are invoked. The Drive
+          OAuth credentials are stored encrypted using Fernet encryption — never in plaintext.
+        </p>
+      </div>
+
+      <!-- ========================================================
+           Tool 3: mcp-calendar
+           ======================================================== -->
+      <h2>Tool 3: mcp-calendar — Google Calendar</h2>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Service</td>
+            <td><code>mcp-calendar</code></td>
+          </tr>
+          <tr>
+            <td>Port</td>
+            <td>8102</td>
+          </tr>
+          <tr>
+            <td>Tools</td>
+            <td><code>list_events</code>, <code>get_event</code></td>
+          </tr>
+          <tr>
+            <td>Auth</td>
+            <td>Same OAuth credentials as mcp-drive-read (shared team credentials)</td>
+          </tr>
+          <tr>
+            <td>Scope</td>
+            <td>Read-only (<code>https://www.googleapis.com/auth/calendar.readonly</code>)</td>
+          </tr>
+          <tr>
+            <td>Phase introduced</td>
+            <td>Phase 3</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        mcp-calendar gives the AI read access to the team's Google Calendar. The tool is intentionally
+        read-only — the AI can list and describe events, but cannot create, modify, or delete them.
+        This matches the principle of least privilege: the AI should be able to reason about your
+        schedule without being able to change it.
+      </p>
+
+      <h3>Usage from LibreChat</h3>
+
+      <blockquote style="border-left: 3px solid #7C3AED; padding: 12px 20px; margin: 16px 0; background: #F5F3FF; border-radius: 0 6px 6px 0;">
+        <p style="margin: 0; color: #374151; font-style: italic;">
+          "What meetings do we have scheduled this week? Are there any conflicts?"
+        </p>
+      </blockquote>
+
+      <h3>Direct API Calls</h3>
+
+      <pre class="code-block"><code class="code-block__label">json — list_events tool call body</code><code>{
+  "tool": "list_events",
+  "params": {
+    "calendar_id": "primary",
+    "time_min": "2026-05-06T00:00:00Z",
+    "time_max": "2026-05-13T00:00:00Z",
+    "max_results": 10
+  }
+}
+
+# Response:
+# {
+#   "events": [
+#     {
+#       "id": "evt_abc123",
+#       "summary": "Q2 Planning Kickoff",
+#       "start": "2026-05-07T10:00:00+02:00",
+#       "end": "2026-05-07T11:00:00+02:00",
+#       "attendees": ["alice@team.com", "bob@team.com"]
+#     }
+#   ]
+# }</code></pre>
+
+      <pre class="code-block"><code class="code-block__label">json — get_event tool call body</code><code>{
+  "tool": "get_event",
+  "params": {
+    "calendar_id": "primary",
+    "event_id": "evt_abc123"
+  }
+}
+
+# Returns full event details including description, conferencing links,
+# attendee RSVP status, and recurring event information</code></pre>
+
+      <!-- ========================================================
+           Tool 4: mcp-deck
+           ======================================================== -->
+      <h2>Tool 4: mcp-deck — PPTX Generator</h2>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Service</td>
+            <td><code>mcp-deck</code></td>
+          </tr>
+          <tr>
+            <td>Port</td>
+            <td>8200</td>
+          </tr>
+          <tr>
+            <td>Tools</td>
+            <td><code>create_deck</code>, <code>update_deck</code></td>
+          </tr>
+          <tr>
+            <td>Library</td>
+            <td>python-pptx (PPTX generation)</td>
+          </tr>
+          <tr>
+            <td>Storage</td>
+            <td>MinIO (S3-compatible object storage) — file URL returned</td>
+          </tr>
+          <tr>
+            <td>Memory integration</td>
+            <td>Generated deck indexed in memory-api with team tagging</td>
+          </tr>
+          <tr>
+            <td>Phase introduced</td>
+            <td>Phase 4</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        mcp-deck generates PowerPoint presentations from structured content. Give it a title, a list
+        of slides with headings and bullet points, and a template name — it returns a downloadable
+        <code>.pptx</code> file stored in MinIO. The generated deck is automatically indexed in
+        xbrain memory with the team's full tagging contract, so it becomes part of the team's
+        searchable knowledge base.
+      </p>
+
+      <h3>Usage from LibreChat</h3>
+
+      <blockquote style="border-left: 3px solid #7C3AED; padding: 12px 20px; margin: 16px 0; background: #F5F3FF; border-radius: 0 6px 6px 0;">
+        <p style="margin: 0; color: #374151; font-style: italic;">
+          "Generate a 5-slide deck for our fundraising pitch. Cover the problem, our solution, traction, team, and ask."
+        </p>
+      </blockquote>
+
+      <h3>Direct API Call</h3>
+
+      <pre class="code-block"><code class="code-block__label">json — create_deck tool call body</code><code>{
+  "tool": "create_deck",
+  "params": {
+    "title": "Q2 Fundraising Pitch",
+    "project_scope": "fundraising",
+    "template": "professional",
+    "slides": [
+      {
+        "title": "The Problem",
+        "content": "Teams lose critical knowledge in Slack threads, email chains, and one-off conversations. Every new hire starts from zero.",
+        "layout": "content"
+      },
+      {
+        "title": "Our Solution",
+        "content": "xbrain gives teams a shared, persistent AI memory layer — searchable, scoped by team, verified by truth level.",
+        "layout": "content"
+      },
+      {
+        "title": "Traction",
+        "content": "25 containers live, 5 phases shipped, 4 MCP tools, Drive + Calendar + Chrome extension integrated.",
+        "layout": "content"
+      },
+      {
+        "title": "The Team",
+        "content": "Experienced founders with background in AI infrastructure and enterprise SaaS.",
+        "layout": "content"
+      },
+      {
+        "title": "The Ask",
+        "content": "$3M Series A at $15M pre-money. 18 months runway to reach 50 enterprise teams.",
+        "layout": "content"
+      }
+    ]
+  }
+}
+
+# Response:
+# {
+#   "url": "https://minio.internal/decks/deck_a1b2c3.pptx",
+#   "filename": "Q2_Fundraising_Pitch.pptx",
+#   "slides": 5,
+#   "memory_id": "mem_xyz789",
+#   "audit_id": "audit_def456"
+# }</code></pre>
+
+      <p>
+        The generated deck is stored in MinIO and automatically indexed in xbrain memory with the
+        team's tagging contract. The <code>memory_id</code> in the response can be used to retrieve
+        or update the deck's metadata later.
+      </p>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Available Templates</p>
+        <p>
+          mcp-deck ships with three built-in templates: <code>professional</code> (dark blue, serif
+          headings), <code>minimal</code> (white background, clean sans-serif), and
+          <code>technical</code> (code-friendly, monospace accents). Custom templates can be added
+          by mounting a <code>templates/</code> directory into the mcp-deck container.
+        </p>
+      </div>
+
+      <!-- ========================================================
+           Audit Trail
+           ======================================================== -->
+      <h2>Audit Trail</h2>
+
+      <p>
+        Every tool call through the mcp-gateway is logged to the <code>audit_log</code> table in
+        PostgreSQL. Logs include the tool name, calling user, team scope, sanitised parameters
+        (secrets are redacted), and the result status. This audit trail is permanent and cannot
+        be deleted via the API.
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">sql — query recent MCP tool calls for a team</code><code>SELECT
+  al.id,
+  al.action,          -- e.g. 'mcp.scrape_url', 'mcp.write_file'
+  al.user_id,
+  al.team_scope,
+  al.params,          -- sanitised JSON (secrets redacted)
+  al.result_status,   -- 'success', 'error', 'timeout'
+  al.created_at
+FROM audit_log al
+WHERE al.action LIKE 'mcp.%'
+  AND al.team_scope = 'acme'
+ORDER BY al.created_at DESC
+LIMIT 50;
+
+-- Returns: tool name, user_id, team_scope, params (sanitized), timestamp</code></pre>
+
+      <p>
+        The audit log is also used for usage accounting. You can query it to see which tools your
+        team uses most frequently, or to investigate a specific tool call by its <code>audit_id</code>
+        returned in the tool response.
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">sql — look up a specific tool call by audit_id</code><code>SELECT * FROM audit_log
+WHERE id = 'audit_abc123'
+  AND team_scope = 'acme';  -- team_scope always required for isolation</code></pre>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Audit Log Retention</p>
+        <p>
+          By default, audit logs are retained indefinitely. You can configure a retention period via
+          the <code>AUDIT_LOG_RETENTION_DAYS</code> environment variable in memory-api. Logs older
+          than the retention period are archived to MinIO before deletion, so they remain accessible
+          for compliance purposes.
+        </p>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ============================================================
+       FOOTER
+       ============================================================ -->
+  <footer class="xb-footer" role="contentinfo">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+        <div>
+          <p class="xb-footer__col-title">xbrain</p>
+          <ul class="xb-footer__links">
+            <li><a href="../index.html" class="xb-footer__link">Home</a></li>
+            <li><a href="index.html" class="xb-footer__link">Documentation</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Get Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Docs</p>
+          <ul class="xb-footer__links">
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="memory.html" class="xb-footer__link">Memory System</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+            <li><a href="configuration.html" class="xb-footer__link">Configuration</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Community</p>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">GitHub</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="xb-footer__bottom">
+        <p class="xb-footer__copyright">&copy; 2026 xbrain. Open source under MIT License.</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

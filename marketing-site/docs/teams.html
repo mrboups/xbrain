@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Teams & Scopes — xbrain Docs. Learn how xbrain enforces team isolation via the X-Team-Scope header, project scopes, and visibility controls.">
+  <title>Teams &amp; Scopes — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900 antialiased">
+
+  <!-- ============================================================
+       NAV
+       ============================================================ -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Get Started
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       DOCS LAYOUT
+       ============================================================ -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" aria-label="Documentation navigation">
+      <div class="sidebar__section">
+        <p class="sidebar__section-title">Documentation</p>
+        <ul class="sidebar__links">
+          <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+          <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+          <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+          <li><a href="teams.html" class="sidebar__link active" aria-current="page">Teams &amp; Scopes</a></li>
+          <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+          <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+          <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+          <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+          <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+          <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+          <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+          <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+          <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+          <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="docs-content" id="main-content">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <span class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__current">Teams &amp; Scopes</span>
+      </nav>
+
+      <!-- Page Header -->
+      <h1>Teams &amp; Scopes</h1>
+      <div class="docs-meta">
+        <span class="docs-meta__badge">Core Concept</span>
+        <span>Phase 1+</span>
+        <span>5 min read</span>
+      </div>
+
+      <p>
+        xbrain's entire data isolation model is built on teams. Every piece of data — conversations,
+        extracted facts, Drive files, agent outputs — belongs to exactly one team and is permanently
+        tagged with that team's scope identifier. This is not an optional feature: it is enforced at
+        every layer of the stack.
+      </p>
+
+      <!-- ========================================================
+           Team Isolation
+           ======================================================== -->
+      <h2>Team Isolation</h2>
+
+      <p>
+        In xbrain, every piece of data belongs to exactly one team. The <code>X-Team-Scope</code>
+        HTTP header is mandatory on every authenticated API call. Team A cannot read, write, or search
+        Team B's data — enforced at the API layer, not just the UI.
+      </p>
+
+      <p>
+        This isolation is absolute. Even if two users share the same Google account or the same
+        LibreChat instance, their data remains separated if they belong to different teams. There is
+        no cross-team query, no cross-team aggregation, and no way to bypass the scope check via the
+        API.
+      </p>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Design Principle</p>
+        <p>
+          Security by isolation, not by obscurity. The <code>X-Team-Scope</code> check is enforced
+          server-side on every write and every search. Removing it from the UI would not grant access
+          to another team's data.
+        </p>
+      </div>
+
+      <!-- ========================================================
+           The team_scope Field
+           ======================================================== -->
+      <h2>The team_scope Field</h2>
+
+      <p>
+        Every memory item carries a <code>team_scope</code> field. If the item's
+        <code>team_scope</code> doesn't match the <code>X-Team-Scope</code> header sent with the
+        request, the write returns HTTP 400. This prevents data from being written to the wrong
+        team's namespace, even by accident.
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">bash</code><code># This works — team_scope matches header
+curl -X POST https://api.dejavu.cat/v1/memory/upsert \
+  -H "X-Team-Scope: acme" \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "item": {
+      "team_scope": "acme",
+      "content": "Q2 planning is confirmed for May 15th",
+      "truth_level": "WORKING",
+      "source": "librechat:conv_abc123"
+    }
+  }'
+
+# This fails — team_scope mismatch
+curl -X POST https://api.dejavu.cat/v1/memory/upsert \
+  -H "X-Team-Scope: acme" \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "item": {
+      "team_scope": "other-team",
+      "content": "..."
+    }
+  }'
+# → 400 Bad Request: item.team_scope must match X-Team-Scope header</code></pre>
+
+      <p>
+        The <code>X-Team-Scope</code> header is validated against the authenticated user's team
+        memberships. A user cannot set an arbitrary team scope — the value must correspond to a team
+        they are a member of.
+      </p>
+
+      <!-- ========================================================
+           Project Scopes
+           ======================================================== -->
+      <h2>Project Scopes</h2>
+
+      <p>
+        Within a team, data can be further scoped by project (<code>project_scope</code>). This
+        allows isolation of e.g. fundraising data from engineering data within the same team. Project
+        scopes are optional — if omitted, a memory item is visible to all team members.
+      </p>
+
+      <p>
+        The full tagging contract requires at minimum: <code>team_scope</code>,
+        <code>truth_level</code>, <code>source</code>, and <code>visibility</code>. The
+        <code>project_scope</code> and <code>confidence</code> fields are strongly recommended.
+      </p>
+
+      <h3>Visibility Options</h3>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Visibility</th>
+            <th>Who Can See It</th>
+            <th>Typical Use Case</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>team</code></td>
+            <td>All authenticated members of the team</td>
+            <td>Shared facts, architecture decisions, team agreements</td>
+          </tr>
+          <tr>
+            <td><code>project</code></td>
+            <td>Only members with access to that <code>project_scope</code></td>
+            <td>Fundraising docs (separate from engineering data), client-specific data</td>
+          </tr>
+          <tr>
+            <td><code>private</code></td>
+            <td>Only the owner (<code>source_user_id</code>)</td>
+            <td>Personal notes, draft thoughts not yet shared with the team</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <pre class="code-block"><code class="code-block__label">json — memory item with full tagging contract</code><code>{
+  "team_scope": "acme",
+  "project_scope": "fundraising",
+  "visibility": "project",
+  "truth_level": "VALIDATED",
+  "confidence": 0.95,
+  "source": "librechat:conv_def456",
+  "source_user_id": "google:108765432109876543",
+  "validation_status": "peer_reviewed",
+  "content": "Series A target: $3M at $15M pre-money valuation"
+}</code></pre>
+
+      <!-- ========================================================
+           User Management
+           ======================================================== -->
+      <h2>User Management</h2>
+
+      <p>
+        Users authenticate via Google OAuth (SSO) — the same identity works across LibreChat and
+        Open WebUI. xbrain uses the OIDC claims from Google to build a stable user identity.
+      </p>
+
+      <ul>
+        <li><strong>source_user_id</strong> — OIDC <code>sub</code> claim from Google (e.g. <code>google:108765432109876543</code>) or <code>github:{login}</code> for GitHub-authenticated users</li>
+        <li><strong>Admin users</strong> — configured via the <code>ADMIN_USER_SUBS</code> environment variable (comma-separated list of Google <code>sub</code> claims)</li>
+        <li><strong>Team membership</strong> — managed via the memory-api admin endpoints; a user can belong to multiple teams</li>
+      </ul>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Single Identity Across Frontends</p>
+        <p>
+          Because both LibreChat and Open WebUI use Google OAuth with the same
+          <code>GOOGLE_CLIENT_ID</code>, a user's identity is consistent across all xbrain frontends.
+          The <code>source_user_id</code> is always derived from the same Google <code>sub</code> claim.
+        </p>
+      </div>
+
+      <!-- ========================================================
+           Creating Teams
+           ======================================================== -->
+      <h2>Creating Teams</h2>
+
+      <p>
+        Teams are created by an admin via the memory-api admin endpoints. Once created, a team has a
+        <code>team_scope</code> string identifier that is used in all API calls and memory items. The
+        identifier should be short, lowercase, and URL-safe (e.g. <code>acme</code>,
+        <code>engineering</code>, <code>growth</code>).
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">bash — create a new team</code><code>curl -X POST https://api.dejavu.cat/v1/admin/teams \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Engineering Team",
+    "scope": "engineering"
+  }'
+
+# Response:
+# {
+#   "team_id": "team_abc123",
+#   "scope": "engineering",
+#   "name": "Engineering Team",
+#   "created_at": "2026-05-06T10:00:00Z"
+# }</code></pre>
+
+      <p>
+        After creating the team, add users to it via the team membership endpoint:
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">bash — add a user to a team</code><code>curl -X POST https://api.dejavu.cat/v1/admin/teams/engineering/members \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "google:108765432109876543",
+    "role": "member"
+  }'</code></pre>
+
+      <!-- ========================================================
+           Drive Folder Mapping per Team
+           ======================================================== -->
+      <h2>Drive Folder Mapping per Team</h2>
+
+      <p>
+        Each team can have one or more Google Drive folders mapped to it. When a file is updated in a
+        mapped folder, it's automatically synced to xbrain and tagged with that team's scope.
+        Drive mappings tie a specific Google Drive folder to a <code>team_scope</code> and optionally
+        a <code>project_scope</code>.
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">bash — map a Drive folder to a team</code><code>curl -X POST https://api.dejavu.cat/v1/admin/drive/mappings \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "team_scope": "acme",
+    "project_scope": "fundraising",
+    "folder_id": "1ABC...xyz",
+    "folder_name": "Fundraising Docs"
+  }'
+
+# After this mapping, any file added or updated in the Drive folder
+# is automatically picked up by drive-sync and stored in memory-api
+# with team_scope="acme" and project_scope="fundraising".</code></pre>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Multiple Folders per Team</p>
+        <p>
+          Multiple Drive folders can be mapped to the same team with different
+          <code>project_scope</code> values. For example, the <code>acme</code> team might have
+          a <code>fundraising</code> folder and an <code>engineering</code> folder, each synced with
+          their respective project scopes. See the
+          <a href="drive-sync.html">Drive Sync documentation</a> for details on webhook setup and
+          sync frequency.
+        </p>
+      </div>
+
+      <h3>Drive Mapping Properties</h3>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Required</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>team_scope</code></td>
+            <td>Yes</td>
+            <td>The team that owns the synced content</td>
+          </tr>
+          <tr>
+            <td><code>project_scope</code></td>
+            <td>No</td>
+            <td>Optional project subdivision within the team</td>
+          </tr>
+          <tr>
+            <td><code>folder_id</code></td>
+            <td>Yes</td>
+            <td>Google Drive folder ID (from the URL)</td>
+          </tr>
+          <tr>
+            <td><code>folder_name</code></td>
+            <td>No</td>
+            <td>Human-readable name for the mapping (display only)</td>
+          </tr>
+          <tr>
+            <td><code>watch_enabled</code></td>
+            <td>No</td>
+            <td>Whether to set up a Drive push notification webhook (default: true)</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </main>
+  </div>
+
+  <!-- ============================================================
+       FOOTER
+       ============================================================ -->
+  <footer class="xb-footer" role="contentinfo">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+        <div>
+          <p class="xb-footer__col-title">xbrain</p>
+          <ul class="xb-footer__links">
+            <li><a href="../index.html" class="xb-footer__link">Home</a></li>
+            <li><a href="index.html" class="xb-footer__link">Documentation</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Get Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Docs</p>
+          <ul class="xb-footer__links">
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="memory.html" class="xb-footer__link">Memory System</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+            <li><a href="configuration.html" class="xb-footer__link">Configuration</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Community</p>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">GitHub</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="xb-footer__bottom">
+        <p class="xb-footer__copyright">&copy; 2026 xbrain. Open source under MIT License.</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

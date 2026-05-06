@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Chat Interfaces — xbrain Docs. LibreChat and Open WebUI configuration, memory sync architecture, and MCP tools setup.">
+  <title>Chat Interfaces — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900 antialiased">
+
+  <!-- ============================================================
+       NAV
+       ============================================================ -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Get Started
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       DOCS LAYOUT
+       ============================================================ -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" aria-label="Documentation navigation">
+      <div class="sidebar__section">
+        <p class="sidebar__section-title">Documentation</p>
+        <ul class="sidebar__links">
+          <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+          <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+          <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+          <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+          <li><a href="chat.html" class="sidebar__link active" aria-current="page">Chat Interfaces</a></li>
+          <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+          <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+          <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+          <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+          <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+          <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+          <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+          <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+          <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="docs-content" id="main-content">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <span class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__current">Chat Interfaces</span>
+      </nav>
+
+      <!-- Page Header -->
+      <h1>Chat Interfaces</h1>
+      <div class="docs-meta">
+        <span class="docs-meta__badge">Phase 1+</span>
+        <span>8 min read</span>
+      </div>
+
+      <!-- ========================================================
+           Two Frontends, One Memory
+           ======================================================== -->
+      <h2>Two Frontends, One Memory</h2>
+
+      <p>
+        xbrain ships with two chat frontends — LibreChat for everyday team use, Open WebUI for admin
+        and agent testing. Both write to the same memory-api, so conversations from either frontend
+        are searchable by the other.
+      </p>
+
+      <p>
+        This is the multi-frontend invariant at the core of xbrain: no frontend owns the data. The
+        memory layer is the source of truth, and every frontend is a view into it. Switching from
+        LibreChat to Open WebUI — or to the API directly — does not create a separate silo.
+      </p>
+
+      <!-- ========================================================
+           LibreChat — Primary Chat Frontend
+           ======================================================== -->
+      <h2>LibreChat — Primary Chat Frontend</h2>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Version</td>
+            <td>v0.8.2-rc2</td>
+          </tr>
+          <tr>
+            <td>URL</td>
+            <td><code>https://your-domain</code> (nginx proxied)</td>
+          </tr>
+          <tr>
+            <td>Auth</td>
+            <td>Google OAuth SSO</td>
+          </tr>
+          <tr>
+            <td>Models</td>
+            <td>Claude (Anthropic), GPT-4 (OpenAI), Grok (xAI)</td>
+          </tr>
+          <tr>
+            <td>Features</td>
+            <td>MCP tools, conversation history, file uploads, MeiliSearch full-text search</td>
+          </tr>
+          <tr>
+            <td>Memory integration</td>
+            <td>Via <code>librechat-bridge</code> sidecar (monitors MongoDB)</td>
+          </tr>
+          <tr>
+            <td>Internal dependencies</td>
+            <td>MongoDB 8.0, MeiliSearch v1.35.1</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        LibreChat is where your team spends most of their time. It supports multiple AI providers
+        simultaneously — your team can switch between Claude, GPT-4, and Grok in the same interface,
+        within a single conversation if needed. Authentication is handled via Google OAuth, so there
+        is no separate password to manage.
+      </p>
+
+      <!-- ========================================================
+           Configuring AI Models in LibreChat
+           ======================================================== -->
+      <h2>Configuring AI Models in LibreChat</h2>
+
+      <p>
+        Model endpoints are configured in <code>librechat.yaml</code>. Each provider needs an API
+        key set as an environment variable. The configuration below enables all three providers
+        supported in xbrain Phase 1:
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">yaml — librechat.yaml (endpoints section)</code><code>endpoints:
+  anthropic:
+    apiKey: "${ANTHROPIC_API_KEY}"
+    models:
+      default: ["claude-sonnet-4-6"]
+      fetch: false
+    titleConvo: true
+    titleModel: "claude-sonnet-4-6"
+
+  openAI:
+    apiKey: "${OPENAI_API_KEY}"
+    models:
+      default: ["gpt-4o", "gpt-4o-mini"]
+      fetch: false
+
+  custom:
+    - name: "xAI (Grok)"
+      apiKey: "${XAI_API_KEY}"
+      baseURL: "https://api.x.ai/v1"
+      models:
+        default: ["grok-3"]
+      titleConvo: true
+      titleModel: "grok-3"</code></pre>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Model Selection</p>
+        <p>
+          Users can switch between providers in the LibreChat UI using the model selector in the top
+          bar. Each provider's models appear in a dropdown. The active model is persisted per
+          conversation.
+        </p>
+      </div>
+
+      <!-- ========================================================
+           MCP Tools in LibreChat
+           ======================================================== -->
+      <h2>MCP Tools in LibreChat</h2>
+
+      <p>
+        LibreChat connects to the <strong>mcp-gateway</strong> via a special aggregated SSE endpoint.
+        Tools appear automatically in the LibreChat UI once the <code>mcpServers</code> block is
+        configured in <code>librechat.yaml</code>. No plugin installation or manual wiring needed.
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">yaml — librechat.yaml (mcpServers section)</code><code>mcpServers:
+  xbrain:
+    type: sse
+    url: http://mcp-gateway:8080/mcp/aggregate
+    headers:
+      X-Team-Scope: "${TEAM_SCOPE}"
+    mcpSettings:
+      allowedDomains:
+        - "mcp-scraper"
+        - "mcp-drive-read"
+        - "mcp-calendar"
+        - "mcp-deck"</code></pre>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">allowedDomains Required</p>
+        <p>
+          <code>mcpSettings.allowedDomains</code> is required to whitelist internal Docker hostnames.
+          LibreChat v0.8.5+ blocks internal domains by default as an SSRF protection measure. Without
+          this list, LibreChat will refuse to connect to any <code>http://mcp-*</code> endpoint,
+          even within the Docker network.
+        </p>
+      </div>
+
+      <p>
+        Once connected, the following tools appear in the LibreChat tool selector (accessible via the
+        paperclip icon in the message input):
+      </p>
+
+      <ul>
+        <li><strong>scrape_url</strong> — Fetch and extract text from any public URL</li>
+        <li><strong>list_files / read_file / write_file</strong> — Google Drive access</li>
+        <li><strong>list_events / get_event</strong> — Google Calendar (read-only)</li>
+        <li><strong>create_deck</strong> — Generate a PPTX presentation stored in MinIO</li>
+      </ul>
+
+      <p>
+        See the <a href="mcp-tools.html">MCP Tools documentation</a> for full details on each tool's
+        parameters and usage examples.
+      </p>
+
+      <!-- ========================================================
+           Open WebUI — Admin and Agent Testing
+           ======================================================== -->
+      <h2>Open WebUI — Admin and Agent Testing</h2>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Version</td>
+            <td>v0.9.0</td>
+          </tr>
+          <tr>
+            <td>URL</td>
+            <td><code>https://your-domain/owui</code> (nginx proxied at <code>/owui</code>)</td>
+          </tr>
+          <tr>
+            <td>Auth</td>
+            <td>Google OAuth SSO (same identity as LibreChat)</td>
+          </tr>
+          <tr>
+            <td>License</td>
+            <td>Custom (non-OSI since v0.6.6 — retain branding for &gt;50 users/30 days)</td>
+          </tr>
+          <tr>
+            <td>Features</td>
+            <td>RAG testing, agent pipelines, truth-level approval UI</td>
+          </tr>
+          <tr>
+            <td>Memory integration</td>
+            <td>Via <code>openwebui-pipeline</code> (Pipelines API hook)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        Open WebUI is your admin and power-user frontend. Use it to approve truth-level promotion
+        requests, test agent pipelines, and manage RAG configurations. While LibreChat is optimised
+        for daily chat use, Open WebUI provides deeper control over how the AI processes and
+        retrieves information.
+      </p>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">License Note</p>
+        <p>
+          Open WebUI uses a custom non-OSI license since v0.6.6 (April 2025). For internal team
+          deployments under 50 daily active users, this is generally acceptable. If your deployment
+          exceeds 50 users in any 30-day window, the branding (Open WebUI logo and name) must be
+          retained in the UI. Review the
+          <a href="https://docs.openwebui.com/license/" target="_blank" rel="noopener noreferrer">
+            Open WebUI license terms
+          </a>
+          before deploying at scale.
+        </p>
+      </div>
+
+      <!-- ========================================================
+           Memory Sync Architecture
+           ======================================================== -->
+      <h2>Memory Sync Architecture</h2>
+
+      <p>
+        Both frontends write to memory-api, but via different integration paths. Understanding the
+        path helps you debug sync issues and understand latency characteristics.
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">Architecture diagram — memory sync paths</code><code>LibreChat ──► MongoDB ──► librechat-bridge ──► memory-api
+                (stores msgs)   (tail -f coll,          (upsert with
+                                detects new msgs,        full tagging)
+                                extracts content)
+
+Open WebUI ──► openwebui-pipeline ────────────► memory-api
+                (Pipelines API hook fires        (upsert with
+                 on every message send)           full tagging)</code></pre>
+
+      <p>
+        Every conversation from both frontends arrives at memory-api with full tagging. The bridge
+        and pipeline add the mandatory fields if not present — <code>team_scope</code> is derived
+        from the authenticated user's context (their Google OAuth identity mapped to their team
+        membership).
+      </p>
+
+      <h3>librechat-bridge</h3>
+
+      <p>
+        The <code>librechat-bridge</code> is a Python sidecar that watches LibreChat's MongoDB
+        collection for new messages. When a conversation completes, the bridge:
+      </p>
+
+      <ol>
+        <li>Extracts the message content and metadata from MongoDB</li>
+        <li>Looks up the user's <code>team_scope</code> via the memory-api identity endpoint</li>
+        <li>Constructs a memory item with the full tagging contract</li>
+        <li>POSTs to <code>memory-api /v1/conversations</code></li>
+      </ol>
+
+      <h3>openwebui-pipeline</h3>
+
+      <p>
+        The <code>openwebui-pipeline</code> uses Open WebUI's native Pipelines API. It intercepts
+        every outgoing message and syncs it to memory-api in real time — unlike the bridge, there is
+        no polling delay. The pipeline runs as a separate container and is registered with Open WebUI
+        via the <code>OPENAI_API_BASE_URL</code> hook.
+      </p>
+
+      <!-- ========================================================
+           Conversation API
+           ======================================================== -->
+      <h2>Conversation API</h2>
+
+      <p>
+        Conversations can also be created directly via the API, bypassing both frontends. This is
+        useful for importing existing conversations from other tools or for agent-generated
+        conversations:
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">bash — create a conversation via API</code><code>curl -X POST https://api.dejavu.cat/v1/conversations \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Q2 Planning",
+    "project_scope": "fundraising",
+    "source": "librechat:conv_abc123",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What should our fundraising target be for Q2?",
+        "source_user_id": "google:108765432109876543"
+      },
+      {
+        "role": "assistant",
+        "content": "Based on our traction metrics...",
+        "model": "claude-sonnet-4-6"
+      }
+    ]
+  }'</code></pre>
+
+      <!-- ========================================================
+           CANONICAL Facts in System Prompts
+           ======================================================== -->
+      <h2>CANONICAL Facts in System Prompts</h2>
+
+      <p>
+        Every LibreChat chat with Claude automatically includes the team's CANONICAL facts in the
+        system prompt — retrieved from Qdrant filtered by <code>team_scope</code> and
+        <code>truth_level &gt;= CANONICAL</code>. This is automatic via the bridge's
+        <code>system_prompt</code> endpoint.
+      </p>
+
+      <p>
+        CANONICAL facts are the highest tier of validated knowledge in xbrain. When your team has
+        confirmed a fact (e.g. "Our Series A target is $3M" with truth_level=CANONICAL), that fact
+        is automatically surfaced to Claude at the start of every conversation — without users needing
+        to copy-paste or remember to mention it.
+      </p>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Truth Level Hierarchy</p>
+        <p>
+          Facts flow upward through truth levels as they are validated:
+          <strong>EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC</strong>.
+          Only CANONICAL and PUBLIC facts are injected into system prompts by default.
+          Use Open WebUI's admin UI to promote facts from VALIDATED to CANONICAL after
+          peer review.
+        </p>
+      </div>
+
+      <pre class="code-block"><code class="code-block__label">bash — retrieve CANONICAL facts for system prompt injection</code><code># This is what librechat-bridge calls automatically before each conversation
+curl https://api.dejavu.cat/v1/memory/search \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme" \
+  -G \
+  --data-urlencode "truth_level=CANONICAL" \
+  --data-urlencode "limit=20"
+
+# Returns top 20 CANONICAL facts for the team,
+# pre-formatted for system prompt injection</code></pre>
+
+    </main>
+  </div>
+
+  <!-- ============================================================
+       FOOTER
+       ============================================================ -->
+  <footer class="xb-footer" role="contentinfo">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+        <div>
+          <p class="xb-footer__col-title">xbrain</p>
+          <ul class="xb-footer__links">
+            <li><a href="../index.html" class="xb-footer__link">Home</a></li>
+            <li><a href="index.html" class="xb-footer__link">Documentation</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Get Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Docs</p>
+          <ul class="xb-footer__links">
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="memory.html" class="xb-footer__link">Memory System</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+            <li><a href="configuration.html" class="xb-footer__link">Configuration</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Community</p>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">GitHub</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="xb-footer__bottom">
+        <p class="xb-footer__copyright">&copy; 2026 xbrain. Open source under MIT License.</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
