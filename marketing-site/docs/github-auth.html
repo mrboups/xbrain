@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="xbrain GitHub Auth — GitHub OAuth login with GitHub Organization membership verification. Restrict access to org members only.">
+  <title>GitHub Auth — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+  <!-- NAV -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Get Started
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- DOCS LAYOUT -->
+  <div class="docs-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" role="complementary" aria-label="Documentation navigation">
+      <nav>
+        <div class="sidebar__section">
+          <p class="sidebar__section-title">Documentation</p>
+          <ul class="sidebar__links">
+            <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+            <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+            <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+            <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+            <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+            <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+            <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+            <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+            <li><a href="github-auth.html" class="sidebar__link active" aria-current="page">GitHub Auth</a></li>
+            <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+            <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+            <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+            <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+            <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="docs-content" role="main">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <div class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </div>
+        <span class="breadcrumb__current">GitHub Auth</span>
+      </nav>
+
+      <!-- Page title -->
+      <h1>GitHub Auth + Org Membership</h1>
+
+      <div class="docs-meta">
+        <span class="docs-meta__badge">Phase 5</span>
+        <span>GitHub OAuth + Org verification</span>
+        <span>Migration 0007</span>
+      </div>
+
+      <!-- OVERVIEW -->
+      <h2>Overview</h2>
+      <p>
+        xbrain supports two authentication methods: <strong>Google OAuth</strong> (default) and
+        <strong>GitHub OAuth</strong>. GitHub auth adds team membership verification via GitHub
+        Organization membership — only members of your configured GitHub Org can access xbrain.
+      </p>
+      <p>
+        Both methods produce JWT sessions in LibreChat. The auth method is transparent to the
+        memory-api interface — the same API endpoints work regardless of how the user authenticated.
+      </p>
+
+      <!-- AUTH METHODS TABLE -->
+      <h2>Authentication Methods</h2>
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Provider</th>
+            <th>User ID format</th>
+            <th>Org restriction</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Google OAuth</td>
+            <td>Google SSO</td>
+            <td><code>google:{sub}</code></td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td>GitHub OAuth</td>
+            <td>GitHub</td>
+            <td><code>github:{login}</code></td>
+            <td>Yes (optional, via <code>GITHUB_ORG</code>)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Both methods use the same session mechanism. A user authenticated with Google and the same
+        person authenticated with GitHub are treated as <strong>separate user records</strong> in
+        xbrain unless account linking is configured (see below).
+      </p>
+
+      <!-- GITHUB OAUTH SETUP -->
+      <h2>GitHub OAuth Setup</h2>
+
+      <h3>Step 1 — Create GitHub OAuth App</h3>
+      <p>
+        In your GitHub organization settings:
+        <strong>Settings → Developer settings → OAuth Apps → New OAuth App</strong>
+      </p>
+      <ul>
+        <li><strong>Application name:</strong> xbrain</li>
+        <li><strong>Homepage URL:</strong> <code>https://your-domain</code></li>
+        <li><strong>Authorization callback URL:</strong> <code>https://your-domain/oauth/github/callback</code></li>
+      </ul>
+
+      <h3>Step 2 — Configure LibreChat</h3>
+      <p>Add the GitHub OAuth credentials to LibreChat's environment:</p>
+      <pre class="code-block"><span class="code-block__label">infrastructure/.env</span>GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret</pre>
+      <p>
+        LibreChat will display a "Sign in with GitHub" button on the login page alongside the
+        existing "Sign in with Google" button.
+      </p>
+
+      <h3>Step 3 — Configure Org verification in memory-api</h3>
+      <pre class="code-block"><span class="code-block__label">infrastructure/.env</span>GITHUB_ORG=your-github-org-name    # e.g. "your-github-org"
+GITHUB_API_PAT=ghp_...             # Personal Access Token with read:org scope</pre>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Org restriction</p>
+        <p>
+          Set <code>GITHUB_ORG</code> to restrict access to org members only. If left empty,
+          any GitHub user can authenticate successfully. The <code>GITHUB_API_PAT</code> must
+          have <code>read:org</code> permission to check organization membership via the GitHub API.
+        </p>
+      </div>
+
+      <!-- HOW ORG MEMBERSHIP WORKS -->
+      <h2>How Org Membership Verification Works</h2>
+      <p>
+        When a user authenticates with GitHub, memory-api detects the token type by its prefix
+        and verifies org membership before granting access:
+      </p>
+      <pre class="code-block">User clicks "Sign in with GitHub" in LibreChat
+       │
+       ▼
+GitHub OAuth → returns gho_ prefixed access token
+       │
+       ▼
+memory-api detects token prefix (gho_) → GitHub auth path
+       │
+       ▼
+GET https://api.github.com/orgs/{GITHUB_ORG}/members/{login}
+    using GITHUB_API_PAT
+       │
+   ┌───┴───┐
+   │ 204   │ 404
+   ▼       ▼
+ Allow   Return 403
+  (github_is_org_member=True)   (not an org member)</pre>
+
+      <p>
+        The <code>gho_</code> prefix is the standard prefix for GitHub OAuth user access tokens.
+        Detecting it requires no additional API call — memory-api routes the token to the GitHub
+        verification path immediately upon seeing the prefix.
+      </p>
+
+      <!-- DATABASE SCHEMA -->
+      <h2>Database Schema</h2>
+      <p>
+        GitHub user data is stored in the <code>users</code> table. Migration 0007 (Alembic) adds
+        the GitHub-specific columns:
+      </p>
+      <pre class="code-block"><span class="code-block__label">sql — migration 0007</span>-- Migration 0007 adds GitHub identity columns:
+ALTER TABLE users ADD COLUMN github_username VARCHAR(255);
+ALTER TABLE users ADD COLUMN github_id BIGINT;
+
+-- github_is_org_member uses three-state logic:
+--   True  → verified org member (GitHub user, check passed)
+--   False → not an org member (GitHub user, check failed)
+--   None  → not applicable (Google user — NOT False)
+--
+-- This allows: if user.github_is_org_member is False: reject
+-- Without accidentally blocking Google users (who have NULL)</pre>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Three-state logic</p>
+        <p>
+          <code>github_is_org_member=None</code> (NULL) is the correct value for Google-authenticated
+          users — not <code>False</code>. This distinction prevents a naive <code>if not github_is_org_member</code>
+          check from blocking all Google users. Always use explicit <code>is False</code> comparison
+          when checking org membership.
+        </p>
+      </div>
+
+      <!-- USER IDENTITY -->
+      <h2>User Identity</h2>
+      <p>
+        GitHub users are identified by their login handle. The <code>source_user_id</code> format
+        is <code>github:{login}</code>:
+      </p>
+      <pre class="code-block"><span class="code-block__label">python</span># Example GitHub user identity
+source_user_id = "github:mrboups"
+github_username = "mrboups"
+github_id = 12345678  # GitHub numeric user ID
+
+# Note: GitHub email can be null if the user has hidden their email
+# xbrain uses github:{login} as the stable identifier, not email.
+# Email is stored only when GitHub returns it in the OAuth response.</pre>
+
+      <!-- ACCOUNT LINKING -->
+      <h2>Account Linking</h2>
+      <p>
+        A user can sign in with both Google AND GitHub. Each creates a <strong>separate user record</strong>
+        in xbrain's database. The two identities are not automatically merged.
+      </p>
+      <pre class="code-block"><span class="code-block__label">bash</span># Check the identity of a GitHub-authenticated user
+curl "https://api.dejavu.cat/v1/me" \
+  -H "Authorization: Bearer $GITHUB_JWT"
+# Returns: {"source_user_id": "github:mrboups", "github_username": "mrboups", ...}
+
+# The same physical person with Google auth would return:
+# {"source_user_id": "google:115...", "github_username": null, ...}</pre>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Future enhancement</p>
+        <p>
+          Automatic account linking — merging Google and GitHub identities into a single user record
+          — is a planned future enhancement. For now, each auth method creates a separate record and
+          the user's memory entries are scoped to that identity. Manual linking can be done via direct
+          database update by an admin.
+        </p>
+      </div>
+
+      <!-- SECURITY NOTES -->
+      <h2>Security Notes</h2>
+      <ul>
+        <li>
+          <strong>Token detection:</strong> GitHub tokens are detected by the <code>gho_</code>
+          prefix — no additional API call is required to determine the token type.
+        </li>
+        <li>
+          <strong>PAT storage:</strong> <code>GITHUB_API_PAT</code> is stored as an environment
+          variable on the VM. It is never written to the database or returned in API responses.
+        </li>
+        <li>
+          <strong>Membership caching:</strong> Org membership is verified at login time only.
+          The result is stored in <code>github_is_org_member</code> and cached for the session
+          duration. No per-request GitHub API call is made.
+        </li>
+        <li>
+          <strong>Null safety:</strong> <code>github_is_org_member=None</code> for Google users
+          prevents accidental access restriction on non-GitHub auth paths.
+        </li>
+        <li>
+          <strong>GITHUB_ORG env var:</strong> Set to your org slug (e.g. <code>your-github-org</code>).
+          If unset, GitHub OAuth works but without org restriction.
+        </li>
+      </ul>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer id="footer" class="xb-footer" role="contentinfo">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+
+        <div>
+          <h3 class="xb-footer__col-title">Documentation</h3>
+          <ul class="xb-footer__links">
+            <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Deployment Guide</a></li>
+            <li><a href="configuration.html" class="xb-footer__link">Configuration</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="xb-footer__col-title">Features</h3>
+          <ul class="xb-footer__links">
+            <li><a href="memory.html" class="xb-footer__link">Memory System</a></li>
+            <li><a href="mcp-tools.html" class="xb-footer__link">MCP Tools</a></li>
+            <li><a href="drive-sync.html" class="xb-footer__link">Drive Sync</a></li>
+            <li><a href="chrome-ext.html" class="xb-footer__link">Chrome Extension</a></li>
+            <li><a href="github-auth.html" class="xb-footer__link">GitHub Auth</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="xb-footer__col-title">Project</h3>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link"
+                 style="display: flex; align-items: center; gap: 8px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+                GitHub
+              </a>
+            </li>
+            <li>
+              <a href="https://github.com/mrboups/xbrain/blob/main/LICENSE"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">
+                License (MIT)
+              </a>
+            </li>
+            <li>
+              <a href="https://github.com/mrboups/xbrain/issues"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">
+                Report an Issue
+              </a>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+
+      <div class="xb-footer__bottom">
+        <span class="xb-footer__copyright">
+          &copy; 2026 xbrain &mdash; Open Source AI Memory OS
+        </span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-block; width: 8px; height: 8px; background: #34D399; border-radius: 50%;"></span>
+          <span style="font-size: 0.8125rem; color: #6B7280;">Self-hosted. No telemetry. Your data stays yours.</span>
+        </div>
+      </div>
+
+    </div>
+  </footer>
+
+</body>
+</html>

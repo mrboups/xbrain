@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="xbrain Chrome Extension Web Clipper — send selected web content to your team's xbrain memory with one click. MV3, Google identity, truth-level tagging.">
+  <title>Chrome Extension — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+  <!-- NAV -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Get Started
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- DOCS LAYOUT -->
+  <div class="docs-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" role="complementary" aria-label="Documentation navigation">
+      <nav>
+        <div class="sidebar__section">
+          <p class="sidebar__section-title">Documentation</p>
+          <ul class="sidebar__links">
+            <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+            <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+            <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+            <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+            <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+            <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+            <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+            <li><a href="chrome-ext.html" class="sidebar__link active" aria-current="page">Chrome Extension</a></li>
+            <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+            <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+            <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+            <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+            <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+            <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="docs-content" role="main">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <div class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </div>
+        <span class="breadcrumb__current">Chrome Extension</span>
+      </nav>
+
+      <!-- Page title -->
+      <h1>Chrome Extension Web Clipper</h1>
+
+      <div class="docs-meta">
+        <span class="docs-meta__badge">Phase 5</span>
+        <span>Manifest V3</span>
+        <span>Developer mode install</span>
+      </div>
+
+      <!-- WHAT IS IT -->
+      <h2>What is the xbrain Web Clipper?</h2>
+      <p>
+        The xbrain Chrome Extension (Manifest V3) lets you send selected web content directly to your
+        team's xbrain memory from any webpage. You choose the <strong>truth level</strong> before
+        sending — making it easy to capture and classify information on the fly without leaving your
+        browser.
+      </p>
+      <p>
+        The extension uses Chrome's native identity API (<code>launchWebAuthFlow</code>) for
+        authentication with your Google account. No passwords are stored in the extension — only the
+        Google ID token, which is sent as the Bearer token to memory-api.
+      </p>
+
+      <!-- INSTALLATION -->
+      <h2>Installation</h2>
+      <p>
+        The extension is not yet on the Chrome Web Store. Install it in developer mode from the
+        source repository:
+      </p>
+      <ol>
+        <li>Clone the xbrain repo: <code>git clone https://github.com/mrboups/xbrain.git</code></li>
+        <li>Open Chrome → Settings → Extensions → Enable <strong>Developer mode</strong> (toggle top right)</li>
+        <li>Click <strong>"Load unpacked"</strong> → Select the <code>chrome-extension/</code> folder in the cloned repo</li>
+        <li>The xbrain icon appears in your Chrome toolbar</li>
+      </ol>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Team access</p>
+        <p>
+          The extension requires a Google account that has been added to your xbrain team by an admin.
+          Authenticate with the same Google account you use to sign in to LibreChat or Open WebUI.
+        </p>
+      </div>
+
+      <!-- MANIFEST -->
+      <h2>Extension Manifest</h2>
+      <p>
+        The extension uses Manifest V3 with Chrome's Google Identity API. Below is the actual
+        <code>manifest.json</code> from the <code>chrome-extension/</code> directory:
+      </p>
+      <pre class="code-block"><span class="code-block__label">chrome-extension/manifest.json</span>{
+  "manifest_version": 3,
+  "name": "xbrain Web Clipper",
+  "version": "1.0.0",
+  "description": "Envoyez du contenu web dans le brain xbrain de votre équipe",
+  "permissions": ["identity", "activeTab", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["&lt;all_urls&gt;"],
+      "js": ["content.js"]
+    }
+  ],
+  "oauth2": {
+    "client_id": "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+    "scopes": ["openid", "email", "profile"]
+  },
+  "host_permissions": [
+    "https://api.dejavu.cat/*"
+  ]
+}</pre>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Configuration required</p>
+        <p>
+          Replace <code>host_permissions</code> with your actual memory-api URL
+          (e.g. <code>https://api.yourdomain.com/*</code>) and set <code>oauth2.client_id</code>
+          to your Google OAuth client ID before loading the extension.
+        </p>
+      </div>
+
+      <!-- HOW TO USE -->
+      <h2>How to Use</h2>
+
+      <h3>Step 1 — Authenticate</h3>
+      <p>
+        Click the xbrain icon in your Chrome toolbar. On first use, click <strong>"Sign in with Google"</strong>.
+        The extension uses Chrome's <code>launchWebAuthFlow</code> to obtain a Google ID token —
+        this opens a secure auth popup without triggering popup blockers on regular pages.
+      </p>
+
+      <h3>Step 2 — Select content</h3>
+      <p>
+        On any webpage, select the text you want to save. Right-click and choose
+        <strong>"Send to xbrain"</strong> — or open the popup directly and the current page URL
+        and title are pre-filled automatically by <code>content.js</code>.
+      </p>
+
+      <h3>Step 3 — Choose truth level</h3>
+      <p>In the popup, select the truth level that reflects your confidence in the clipped content:</p>
+      <ul>
+        <li><strong>EPHEMERAL</strong> — Quick notes, unverified snippets, transient information</li>
+        <li><strong>WORKING</strong> — Actively useful, in progress, not yet validated</li>
+        <li><strong>VALIDATED</strong> — Verified information, cross-checked</li>
+        <li><strong>CANONICAL</strong> — Team-approved truth, the authoritative version</li>
+      </ul>
+
+      <h3>Step 4 — Send to Brain</h3>
+      <p>
+        Click <strong>"Send to Brain"</strong>. The content is POSTed to memory-api with your team's
+        scope. You'll see a success confirmation directly in the popup. The item is immediately
+        searchable by your teammates.
+      </p>
+
+      <!-- ARCHITECTURE -->
+      <h2>Architecture</h2>
+      <p>
+        The extension follows a strict MV3 service worker model. All API calls are made from
+        <code>background.js</code> — content scripts cannot make cross-origin requests.
+      </p>
+      <pre class="code-block">Browser tab (content.js)
+    │ selected text + URL + title
+    ▼
+popup.html (user selects truth level, clicks Send)
+    │
+    ▼
+background.js (service worker)
+    │ chrome.identity.launchWebAuthFlow → Google ID token
+    │
+    ▼
+POST https://api.dejavu.cat/v1/memory/upsert
+Authorization: Bearer {google_id_token}
+X-Team-Scope: {team_from_storage}
+{
+  "item": {
+    "content": "selected text",
+    "source": "chrome-extension:dejavu.cat",
+    "truth_level": "WORKING",
+    "team_scope": "acme",
+    "project_scope": "fundraising",
+    "visibility": "team"
+  }
+}</pre>
+
+      <!-- CORS -->
+      <h2>CORS Configuration</h2>
+      <p>
+        The memory-api accepts requests from <code>chrome-extension://</code> origins. This is
+        configured in memory-api's CORS middleware using a regex pattern to allow any extension ID:
+      </p>
+      <pre class="code-block"><span class="code-block__label">memory-api/app/main.py</span>from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"chrome-extension://.*",
+    allow_origins=["https://api.dejavu.cat"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)</pre>
+      <p>
+        Authentication via Bearer token (Google ID token) is the real security control — the wide
+        <code>chrome-extension://*</code> CORS origin is acceptable because any request still requires
+        a valid Google ID token that memory-api verifies against Google's public keys.
+      </p>
+
+      <!-- CONFIG -->
+      <h2>Configuring for Your Deployment</h2>
+      <p>Three values in <code>manifest.json</code> must be updated before loading the extension:</p>
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Where</th>
+            <th>What to set</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>host_permissions</code></td>
+            <td>manifest.json</td>
+            <td>Your memory-api URL, e.g. <code>https://api.yourdomain.com/*</code></td>
+          </tr>
+          <tr>
+            <td><code>oauth2.client_id</code></td>
+            <td>manifest.json</td>
+            <td>Your Google OAuth client ID (same as <code>GOOGLE_CLIENT_ID</code> in <code>.env</code>)</td>
+          </tr>
+          <tr>
+            <td>team_scope</td>
+            <td>popup.html / storage</td>
+            <td>Saved automatically in Chrome local storage after first sign-in</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout--info">
+        <p class="callout__title">OAuth client ID</p>
+        <p>
+          The Google OAuth <code>client_id</code> in the manifest is a public value — it is safe
+          to commit to the repository. It identifies your OAuth app to Google but contains no secret.
+          The actual authentication is secured by the ID token signature verification in memory-api.
+        </p>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer id="footer" class="xb-footer" role="contentinfo">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+
+        <div>
+          <h3 class="xb-footer__col-title">Documentation</h3>
+          <ul class="xb-footer__links">
+            <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Deployment Guide</a></li>
+            <li><a href="configuration.html" class="xb-footer__link">Configuration</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="xb-footer__col-title">Features</h3>
+          <ul class="xb-footer__links">
+            <li><a href="memory.html" class="xb-footer__link">Memory System</a></li>
+            <li><a href="mcp-tools.html" class="xb-footer__link">MCP Tools</a></li>
+            <li><a href="drive-sync.html" class="xb-footer__link">Drive Sync</a></li>
+            <li><a href="chrome-ext.html" class="xb-footer__link">Chrome Extension</a></li>
+            <li><a href="github-auth.html" class="xb-footer__link">GitHub Auth</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="xb-footer__col-title">Project</h3>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link"
+                 style="display: flex; align-items: center; gap: 8px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+                GitHub
+              </a>
+            </li>
+            <li>
+              <a href="https://github.com/mrboups/xbrain/blob/main/LICENSE"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">
+                License (MIT)
+              </a>
+            </li>
+            <li>
+              <a href="https://github.com/mrboups/xbrain/issues"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">
+                Report an Issue
+              </a>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+
+      <div class="xb-footer__bottom">
+        <span class="xb-footer__copyright">
+          &copy; 2026 xbrain &mdash; Open Source AI Memory OS
+        </span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-block; width: 8px; height: 8px; background: #34D399; border-radius: 50%;"></span>
+          <span style="font-size: 0.8125rem; color: #6B7280;">Self-hosted. No telemetry. Your data stays yours.</span>
+        </div>
+      </div>
+
+    </div>
+  </footer>
+
+</body>
+</html>

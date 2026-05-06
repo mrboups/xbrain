@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="xbrain Drive Sync — automatically sync Google Drive folders to your team's persistent memory with push webhooks and polling fallback.">
+  <title>Drive Sync — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+  <!-- NAV -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Get Started
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- DOCS LAYOUT -->
+  <div class="docs-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" role="complementary" aria-label="Documentation navigation">
+      <nav>
+        <div class="sidebar__section">
+          <p class="sidebar__section-title">Documentation</p>
+          <ul class="sidebar__links">
+            <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+            <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+            <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+            <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+            <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+            <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+            <li><a href="drive-sync.html" class="sidebar__link active" aria-current="page">Drive Sync</a></li>
+            <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+            <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+            <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+            <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+            <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+            <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+            <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="docs-content" role="main">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <div class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </div>
+        <span class="breadcrumb__current">Drive Sync</span>
+      </nav>
+
+      <!-- Page title -->
+      <h1>Google Drive Sync</h1>
+
+      <div class="docs-meta">
+        <span class="docs-meta__badge">Phase 4</span>
+        <span>Push webhooks + polling fallback</span>
+        <span>drive-sync service</span>
+      </div>
+
+      <!-- OVERVIEW -->
+      <h2>Overview</h2>
+      <p>
+        xbrain continuously synchronizes Google Drive folders to your team's memory. When a file is added
+        or updated in a mapped folder, it's automatically processed and indexed in xbrain with full
+        tagging — <code>team_scope</code>, <code>project_scope</code>, <code>truth_level=WORKING</code>.
+      </p>
+      <p>
+        The <strong>drive-sync</strong> service handles the sync loop. It runs in its own container and
+        communicates with memory-api to upsert content. Each mapped folder gets a unique
+        <code>mapping_id</code> (UUID) that ties the Drive credentials to the correct team and project scope.
+      </p>
+
+      <!-- HOW IT WORKS -->
+      <h2>How It Works</h2>
+
+      <h3>Mode 1 — Push Webhooks (Primary)</h3>
+      <p>
+        When a Drive file changes, Google sends a push notification to xbrain within seconds. This is the
+        default for mapped folders and requires no polling overhead.
+      </p>
+      <pre class="code-block">Drive file updated
+       │
+       ▼
+Google → POST /v1/drive/webhook (xbrain)
+       │
+       ▼
+drive-sync processes the changed file
+       │
+       ▼
+memory-api upsert (truth_level=WORKING)</pre>
+
+      <h3>Mode 2 — Polling Fallback (5-minute intervals)</h3>
+      <p>
+        If webhooks are unavailable (e.g. the VM is temporarily unreachable by Google), drive-sync
+        falls back to polling Drive every 5 minutes for changes. Only modified files are re-processed
+        — the sync is incremental and uses Drive's <code>pageToken</code> mechanism to track position.
+      </p>
+
+      <!-- SETTING UP -->
+      <h2>Setting Up Drive Sync</h2>
+
+      <h3>Step 1 — OAuth authorization (admin only)</h3>
+      <p>
+        An admin must authorize xbrain to access the team's Google Drive. This redirects to Google
+        OAuth and stores the credentials encrypted in PostgreSQL using Fernet encryption.
+      </p>
+      <pre class="code-block"><span class="code-block__label">bash</span># Admin initiates OAuth flow
+GET https://api.dejavu.cat/v1/admin/drive/auth
+# → Redirects to Google OAuth consent screen
+# → After consent, credentials stored with Fernet encryption in PostgreSQL</pre>
+
+      <h3>Step 2 — Map a folder</h3>
+      <p>
+        Once authorized, map a specific Drive folder to a team and project scope. The
+        <code>folder_id</code> is the last segment of the Drive URL for that folder.
+      </p>
+      <pre class="code-block"><span class="code-block__label">bash</span>curl -X POST https://api.dejavu.cat/v1/admin/drive/mappings \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "team_scope": "acme",
+    "project_scope": "fundraising",
+    "folder_id": "1ABC...xyz",
+    "folder_name": "Fundraising Docs"
+  }'
+# Returns: {"mapping_id": "uuid-...", "status": "active"}</pre>
+
+      <h3>Step 3 — Webhook auto-registered</h3>
+      <p>
+        After mapping, drive-sync automatically registers a Drive push notification channel pointing
+        to <code>POST /v1/drive/webhook</code>. Webhook channels expire after 7 days by default —
+        drive-sync renews them automatically before expiry using a background scheduler.
+      </p>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Info</p>
+        <p>
+          The webhook channel renewal is handled automatically by the drive-sync scheduler.
+          No manual intervention is required after initial mapping.
+        </p>
+      </div>
+
+      <!-- MULTI-FOLDER -->
+      <h2>Multi-Folder Mapping</h2>
+      <p>
+        Multiple Drive folders can be mapped to the same team, each with a distinct
+        <code>project_scope</code>. This lets you scope Drive content to the relevant project without
+        creating separate team accounts.
+      </p>
+      <pre class="code-block"><span class="code-block__label">bash</span># Map fundraising folder
+POST /v1/admin/drive/mappings
+{"team_scope": "acme", "project_scope": "fundraising", "folder_id": "1ABC..."}
+
+# Map engineering folder (same team, different project scope)
+POST /v1/admin/drive/mappings
+{"team_scope": "acme", "project_scope": "engineering", "folder_id": "2DEF..."}</pre>
+      <p>
+        Files in the fundraising folder get <code>project_scope='fundraising'</code>, and engineering
+        files get <code>project_scope='engineering'</code>. They are indexed and searchable
+        independently within xbrain memory.
+      </p>
+
+      <!-- LIST MAPPINGS -->
+      <h2>List Current Mappings</h2>
+      <pre class="code-block"><span class="code-block__label">bash</span>curl https://api.dejavu.cat/v1/admin/drive/mappings \
+  -H "Authorization: Bearer $ADMIN_JWT"
+# Returns a list of all active folder mappings for the team</pre>
+
+      <!-- SYNC STATUS -->
+      <h2>Sync Status</h2>
+      <p>Check what has been synced by querying memory-api with the drive-sync source filter:</p>
+      <pre class="code-block"><span class="code-block__label">bash</span>curl "https://api.dejavu.cat/v1/memory/search?q=drive+sync&source=drive-sync" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"</pre>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Security</p>
+        <p>
+          Drive credentials are stored encrypted using Fernet encryption. Never commit OAuth tokens,
+          service account keys, or the <code>FERNET_KEY</code> value to the repository. These must
+          be injected via environment variables or a secrets manager.
+        </p>
+      </div>
+
+      <!-- SUPPORTED FILE TYPES -->
+      <h2>Supported File Types</h2>
+      <p>
+        drive-sync extracts text from supported formats and passes it to memory-api. Unsupported
+        formats are logged and skipped — they do not cause sync failures.
+      </p>
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>File Type</th>
+            <th>Processing</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Google Docs</td>
+            <td>Text extraction</td>
+            <td>Exported as plain text via Drive export API</td>
+          </tr>
+          <tr>
+            <td>Google Sheets</td>
+            <td>Text extraction</td>
+            <td>First sheet only; cell values joined as text</td>
+          </tr>
+          <tr>
+            <td>PDF</td>
+            <td>Text extraction</td>
+            <td>Via PyMuPDF; scanned PDFs without OCR may be empty</td>
+          </tr>
+          <tr>
+            <td>Markdown (.md)</td>
+            <td>Direct</td>
+            <td>No conversion needed; indexed as-is</td>
+          </tr>
+          <tr>
+            <td>Text (.txt)</td>
+            <td>Direct</td>
+            <td>No conversion needed; indexed as-is</td>
+          </tr>
+          <tr>
+            <td>Images (.png, .jpg, etc.)</td>
+            <td>Skipped</td>
+            <td>Not yet supported — logged but not indexed</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ARCHITECTURE NOTE -->
+      <h2>Architecture Notes</h2>
+      <p>
+        The OAuth state parameter used during the Drive authorization flow is set to the
+        <code>mapping_id</code> UUID — not the <code>team_scope</code>. This ensures the callback
+        correctly resolves which mapping to associate credentials with, even when multiple mappings
+        are in progress simultaneously.
+      </p>
+      <p>
+        The push webhook endpoint — <code>POST /v1/drive/webhook</code> — is public (no auth
+        header required) because Google Drive sends notifications without Bearer tokens. Request
+        authenticity is verified using the channel ID and resource ID returned during webhook
+        registration.
+      </p>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer id="footer" class="xb-footer" role="contentinfo">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+
+        <div>
+          <h3 class="xb-footer__col-title">Documentation</h3>
+          <ul class="xb-footer__links">
+            <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Deployment Guide</a></li>
+            <li><a href="configuration.html" class="xb-footer__link">Configuration</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="xb-footer__col-title">Features</h3>
+          <ul class="xb-footer__links">
+            <li><a href="memory.html" class="xb-footer__link">Memory System</a></li>
+            <li><a href="mcp-tools.html" class="xb-footer__link">MCP Tools</a></li>
+            <li><a href="drive-sync.html" class="xb-footer__link">Drive Sync</a></li>
+            <li><a href="chrome-ext.html" class="xb-footer__link">Chrome Extension</a></li>
+            <li><a href="github-auth.html" class="xb-footer__link">GitHub Auth</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="xb-footer__col-title">Project</h3>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link"
+                 style="display: flex; align-items: center; gap: 8px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+                GitHub
+              </a>
+            </li>
+            <li>
+              <a href="https://github.com/mrboups/xbrain/blob/main/LICENSE"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">
+                License (MIT)
+              </a>
+            </li>
+            <li>
+              <a href="https://github.com/mrboups/xbrain/issues"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">
+                Report an Issue
+              </a>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+
+      <div class="xb-footer__bottom">
+        <span class="xb-footer__copyright">
+          &copy; 2026 xbrain &mdash; Open Source AI Memory OS
+        </span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-block; width: 8px; height: 8px; background: #34D399; border-radius: 50%;"></span>
+          <span style="font-size: 0.8125rem; color: #6B7280;">Self-hosted. No telemetry. Your data stays yours.</span>
+        </div>
+      </div>
+
+    </div>
+  </footer>
+
+</body>
+</html>
