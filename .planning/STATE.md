@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 ## Current Position
 
 Phase: 5 (Plateforme Projets Équipe)
-Plan: 1 of 7 in current phase
+Plan: 2 of 7 in current phase
 Status: In progress
-Last activity: 2026-05-06 — Plan 05-01 terminé : graphiti-service container (FastAPI + graphiti-core, 3 endpoints, lifespan pattern), ajouté à docker-compose.yml, enrichissement fail-soft depuis memory-api
+Last activity: 2026-05-06 — Plan 05-02 terminé : GitHub OAuth LibreChat, migration Alembic 0007 (github_username+github_id), check_github_org_membership() cache 5min, branche gho_ dans deps.py, POST /v1/me/link-github
 
 Progress: [██████████] 100%
 
@@ -52,6 +52,9 @@ Recent decisions affecting current work:
 - 2026-05-06 (05-01): graphiti_client initialisé dans lifespan() uniquement — piège event loop graphiti-core
 - 2026-05-06 (05-01): OPENAI_API_KEY obligatoire pour graphiti-service même avec Anthropic LLM (embeddings text-embedding-3-small ne supportent pas Anthropic)
 - 2026-05-06 (05-01): SEMAPHORE_LIMIT=3 défaut pour respecter rate limit Anthropic Haiku Tier 1
+- 2026-05-06 (05-02): GitHub token détecté par préfixe gho_ dans deps.py — simple, sans appel API supplémentaire
+- 2026-05-06 (05-02): github_is_org_member=None (pas False) pour Google users — permet `if ... is False` sans bloquer Google users (D7)
+- 2026-05-06 (05-02): source_user_id GitHub = github:{login} — robuste car email GitHub peut être null
 
 ### Pending Todos
 
@@ -73,5 +76,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-06
-Stopped at: Plan 05-01 complet — graphiti-service container créé (d4911e9), ajouté à docker-compose (3747678), enrichissement fail-soft memory-api (d4fb4c7).
+Stopped at: Plan 05-02 complet — librechat.yaml + docker-compose GitHub OAuth (eaaa9a8), auth.py + deps.py + config.py GitHub membership (e8cc456), me_github.py + user.py + main.py (1a429dc).
 Resume file: None
