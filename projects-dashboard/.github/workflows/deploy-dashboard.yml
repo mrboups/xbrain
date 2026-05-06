@@ -1,0 +1,36 @@
+name: Deploy Dashboard to Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install requests pyyaml
+      - name: Generate dashboard
+        env:
+          GITHUB_ORG: ${{ vars.GITHUB_ORG || 'your-github-org' }}
+          GITHUB_API_PAT: ${{ secrets.GITHUB_API_PAT }}
+          XBRAIN_BRIDGE_JWT: ${{ secrets.XBRAIN_BRIDGE_JWT }}
+          XBRAIN_MEMORY_API_URL: https://api.dejavu.cat
+        run: |
+          cd projects-dashboard
+          python3 scripts/generate_dashboard.py
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_XBRAIN }}
+          projectId: xbrain-495115
+          channelId: live
+          entryPoint: ./projects-dashboard
