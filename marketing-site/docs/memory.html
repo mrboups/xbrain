@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memory System — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+  <!-- ============================================================
+       NAV
+       ============================================================ -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Deploy
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       DOCS LAYOUT
+       ============================================================ -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" aria-label="Documentation navigation">
+      <nav>
+        <div class="sidebar__section">
+          <p class="sidebar__section-title">Documentation</p>
+          <ul class="sidebar__links">
+            <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+            <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+            <li><a href="memory.html" class="sidebar__link active">Memory System</a></li>
+            <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+            <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+            <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+            <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+            <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+            <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+            <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+            <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+            <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+            <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+            <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="docs-content" id="main-content">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <span class="breadcrumb__item">
+          <a href="../index.html" class="breadcrumb__link">Home</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__current">Memory System</span>
+      </nav>
+
+      <h1>Memory System</h1>
+      <div class="docs-meta">
+        <span>7 fields</span>
+        <span>&#183;</span>
+        <span>5 truth levels</span>
+        <span class="docs-meta__badge">Core Invariant</span>
+      </div>
+
+      <!-- ======================================================
+           What is the Memory System?
+           ====================================================== -->
+      <h2>What is the Memory System?</h2>
+      <p>
+        The memory system is xbrain's central invariant. Every piece of data — whether it comes
+        from a chat, an agent, a Drive sync, or the Chrome extension — must pass through
+        <code>memory-api</code> and carry exactly 7 mandatory tags. A write without any of
+        these tags returns HTTP <strong>422</strong>.
+      </p>
+      <p>
+        This is not a convention — it is enforced at the API level. The tagging contract is what
+        makes scoped retrieval, truth-level promotion, team isolation, and audit logging possible.
+        Remove the contract and xbrain becomes an ordinary vector database.
+      </p>
+
+      <!-- ======================================================
+           The Tagging Contract
+           ====================================================== -->
+      <h2>The Tagging Contract (7 Fields)</h2>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Enforced at the API level</p>
+        <p>Any <code>POST</code> to <code>/v1/memory/upsert</code> missing one of these 7 fields
+        returns <strong>422 Unprocessable Entity</strong>. This is enforced at the API level, not
+        by convention. No exceptions.</p>
+      </div>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>team_scope</code></td>
+            <td>string</td>
+            <td>Team identifier — hard isolation wall between teams. Team A can never see Team B's memories.</td>
+            <td><code>"acme"</code></td>
+          </tr>
+          <tr>
+            <td><code>project_scope</code></td>
+            <td>string | null</td>
+            <td>Sub-project within the team. <code>null</code> means team-wide scope.</td>
+            <td><code>"fundraising"</code></td>
+          </tr>
+          <tr>
+            <td><code>visibility</code></td>
+            <td>enum</td>
+            <td>Who can see this item within the team: <code>team</code> (all members), <code>project</code> (project members only), <code>private</code> (author only).</td>
+            <td><code>"team"</code></td>
+          </tr>
+          <tr>
+            <td><code>confidence</code></td>
+            <td>float</td>
+            <td>Confidence score from 0.0 to 1.0. Set by the source (agent, user, or extraction pipeline).</td>
+            <td><code>0.85</code></td>
+          </tr>
+          <tr>
+            <td><code>truth_level</code></td>
+            <td>enum</td>
+            <td>Epistemic status of this data point. Progresses from EPHEMERAL to PUBLIC via the promotions workflow.</td>
+            <td><code>"WORKING"</code></td>
+          </tr>
+          <tr>
+            <td><code>source</code></td>
+            <td>string</td>
+            <td>Who or what wrote this. Format: <code>prefix:id</code>. Used for attribution and audit.</td>
+            <td><code>"librechat:conv_abc123"</code></td>
+          </tr>
+          <tr>
+            <td><code>validation_status</code></td>
+            <td>enum</td>
+            <td>Current validation state: <code>pending</code> (not yet reviewed), <code>approved</code>, <code>rejected</code>.</td>
+            <td><code>"pending"</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ======================================================
+           The 5 Truth Levels
+           ====================================================== -->
+      <h2>The 5 Truth Levels</h2>
+      <p>
+        Truth levels represent the epistemic status of a memory item. They form a one-way
+        progression: you can promote a fact forward (e.g., WORKING &rarr; VALIDATED), but you
+        cannot demote it. Promotion requires an explicit workflow — it cannot be done by patching
+        the <code>truth_level</code> field directly.
+      </p>
+
+      <!-- EPHEMERAL -->
+      <div style="border: 1px solid #E5E7EB; border-radius: 10px; padding: 20px 24px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; background: #F3F4F6; color: #374151; font-size: 13px; font-weight: 700; letter-spacing: 0.04em;">EPHEMERAL</span>
+          <span style="font-size: 13px; color: #6B7280;">Level 0 — Raw output</span>
+        </div>
+        <p style="margin: 0; color: #374151; font-size: 0.9375rem; line-height: 1.6;">
+          Raw output: chat messages, web clips, draft notes. Unverified. Expires or gets promoted.
+          The default level for anything that enters xbrain without explicit classification.
+        </p>
+      </div>
+
+      <!-- WORKING -->
+      <div style="border: 1px solid #BFDBFE; border-radius: 10px; padding: 20px 24px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; background: #DBEAFE; color: #1D4ED8; font-size: 13px; font-weight: 700; letter-spacing: 0.04em;">WORKING</span>
+          <span style="font-size: 13px; color: #6B7280;">Level 1 — In-progress knowledge</span>
+        </div>
+        <p style="margin: 0; color: #374151; font-size: 0.9375rem; line-height: 1.6;">
+          In-progress knowledge: actively used but not yet validated. Most team knowledge lives here.
+          Facts the team is working with daily but has not yet formally reviewed.
+        </p>
+      </div>
+
+      <!-- VALIDATED -->
+      <div style="border: 1px solid #A7F3D0; border-radius: 10px; padding: 20px 24px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; background: #D1FAE5; color: #065F46; font-size: 13px; font-weight: 700; letter-spacing: 0.04em;">VALIDATED</span>
+          <span style="font-size: 13px; color: #6B7280;">Level 2 — Peer-reviewed</span>
+        </div>
+        <p style="margin: 0; color: #374151; font-size: 0.9375rem; line-height: 1.6;">
+          Peer-reviewed: at least one team member has explicitly approved this fact.
+          Safe to reference in decisions and to surface in agent context.
+        </p>
+      </div>
+
+      <!-- CANONICAL -->
+      <div style="border: 1px solid #DDD6FE; border-radius: 10px; padding: 20px 24px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; background: #EDE9FE; color: #5B21B6; font-size: 13px; font-weight: 700; letter-spacing: 0.04em;">CANONICAL</span>
+          <span style="font-size: 13px; color: #6B7280;">Level 3 — Team truth</span>
+        </div>
+        <p style="margin: 0; color: #374151; font-size: 0.9375rem; line-height: 1.6;">
+          Team truth: the definitive answer your team has agreed on.
+          CANONICAL facts are injected automatically in LLM system prompts during agent runs.
+          Querying memory with <code>truth_level_min=CANONICAL</code> retrieves only authoritative facts.
+        </p>
+      </div>
+
+      <!-- PUBLIC -->
+      <div style="border: 1px solid #FDE68A; border-radius: 10px; padding: 20px 24px; margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; background: #FEF3C7; color: #92400E; font-size: 13px; font-weight: 700; letter-spacing: 0.04em;">PUBLIC</span>
+          <span style="font-size: 13px; color: #6B7280;">Level 4 — Published externally</span>
+        </div>
+        <p style="margin: 0; color: #374151; font-size: 0.9375rem; line-height: 1.6;">
+          Published externally: shareable outside the team. Requires explicit promotion from CANONICAL.
+          Only PUBLIC facts can be queried without a <code>team_scope</code> header.
+        </p>
+      </div>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Direct PATCH is blocked</p>
+        <p>
+          <code>truth_level</code> can <strong>ONLY</strong> be promoted via the
+          <code>/v1/promotions</code> workflow. A direct <code>PATCH</code> on
+          <code>truth_level</code> returns <strong>HTTP 405 Method Not Allowed</strong>.
+          This prevents bypassing the approval chain.
+        </p>
+      </div>
+
+      <!-- ======================================================
+           Promotion Workflow
+           ====================================================== -->
+      <h2>Promotion Workflow</h2>
+      <p>
+        To change a memory item's truth_level, a team member requests a promotion.
+        An admin (or automated policy for lower levels) approves or rejects it.
+      </p>
+
+      <pre class="code-block"><code><span class="code-block__label">bash — request a promotion</span># Any team member can request a promotion
+POST /v1/promotions
+{
+  "item_id": "mem_abc123",
+  "target_level": "VALIDATED",
+  "justification": "Confirmed with the client on 2026-05-01"
+}
+
+# Admin approves the promotion
+PATCH /v1/promotions/{promotion_id}
+{
+  "decision": "approved",
+  "note": "Verified against signed contract doc"
+}</code></pre>
+
+      <!-- ======================================================
+           Memory Upsert API
+           ====================================================== -->
+      <h2>Memory Upsert API</h2>
+      <p>
+        The primary write endpoint. Accepts a memory item with all 7 required fields.
+        On success, returns the canonical <code>id</code> of the stored item. If the item
+        already exists (same <code>source</code> + <code>team_scope</code> combination),
+        it is updated in-place.
+      </p>
+
+      <pre class="code-block"><code><span class="code-block__label">bash</span>curl -X POST https://api.dejavu.cat/v1/memory/upsert \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "item": {
+      "content": "The Q2 fundraising target is 2M€",
+      "team_scope": "acme",
+      "project_scope": "fundraising",
+      "visibility": "team",
+      "confidence": 0.9,
+      "truth_level": "WORKING",
+      "source": "librechat:conv_abc123",
+      "validation_status": "pending"
+    }
+  }'
+
+# Response
+{"id": "mem_a8f3c2d1..."}</code></pre>
+
+      <h3>Upsert with metadata and entities</h3>
+      <p>
+        Include an <code>entities</code> array in <code>metadata</code> to trigger
+        automatic Neo4j graph enrichment:
+      </p>
+      <pre class="code-block"><code><span class="code-block__label">json</span>{
+  "item": {
+    "content": "Alice leads the fundraising project",
+    "team_scope": "acme",
+    "project_scope": "fundraising",
+    "visibility": "team",
+    "confidence": 0.85,
+    "truth_level": "WORKING",
+    "source": "agent-runtime:run_xyz789",
+    "validation_status": "pending",
+    "metadata": {
+      "entities": [
+        {"name": "Alice", "type": "person"},
+        {"name": "fundraising", "type": "project"}
+      ]
+    }
+  }
+}</code></pre>
+
+      <!-- ======================================================
+           Semantic Search
+           ====================================================== -->
+      <h2>Semantic Search</h2>
+      <p>
+        Search memory items by natural language query. Results are filtered by
+        <code>team_scope</code> automatically — Team A can never see Team B's memories.
+        Use <code>truth_level_min</code> to restrict results to a minimum epistemic level.
+      </p>
+
+      <pre class="code-block"><code><span class="code-block__label">bash</span>curl "https://api.dejavu.cat/v1/memory/search?q=fundraising+target&truth_level_min=WORKING&limit=5" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"</code></pre>
+
+      <h3>Search parameters</h3>
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Type</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>q</code></td>
+            <td>string</td>
+            <td>required</td>
+            <td>Natural language search query. Converted to embedding by memory-api.</td>
+          </tr>
+          <tr>
+            <td><code>truth_level_min</code></td>
+            <td>enum</td>
+            <td>EPHEMERAL</td>
+            <td>Minimum truth level filter. <code>CANONICAL</code> returns only authoritative facts.</td>
+          </tr>
+          <tr>
+            <td><code>project_scope</code></td>
+            <td>string</td>
+            <td>null</td>
+            <td>Filter by project. Omit for all projects within the team.</td>
+          </tr>
+          <tr>
+            <td><code>limit</code></td>
+            <td>integer</td>
+            <td>10</td>
+            <td>Maximum number of results. Max 100.</td>
+          </tr>
+          <tr>
+            <td><code>visibility</code></td>
+            <td>enum</td>
+            <td>team</td>
+            <td>Filter by visibility level.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ======================================================
+           Neo4j Graph Enrichment
+           ====================================================== -->
+      <h2>Neo4j Graph Enrichment</h2>
+      <p>
+        When a memory item includes an <code>entities</code> field in its metadata,
+        memory-api asynchronously creates <strong>Entity nodes</strong> and
+        <strong>MENTIONS edges</strong> in Neo4j. This builds a knowledge graph of
+        who mentions what, across all conversations and agents.
+      </p>
+      <p>
+        Query relationships after they've been built:
+      </p>
+      <pre class="code-block"><code><span class="code-block__label">bash</span>curl "https://api.dejavu.cat/v1/graph/neighbors?entity=Alice" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"
+
+# Returns: Alice's connected entities, co-mentioned projects, relationships</code></pre>
+
+      <p>
+        The Neo4j enrichment is <strong>async and fail-soft</strong>: if the Neo4j container
+        is down or the worker is backed up, the memory upsert still returns 200. The entity
+        processing is retried when Neo4j recovers.
+      </p>
+
+      <!-- ======================================================
+           Graphiti Enrichment
+           ====================================================== -->
+      <h2>Graphiti Enrichment</h2>
+      <p>
+        Every memory upsert triggers an async call to <strong>graphiti-service</strong>,
+        which extracts temporal facts and updates the knowledge graph with time-aware
+        relationships. Graphiti understands sentences like <em>"Alice was the lead until Q2"</em>
+        and creates time-bounded edges rather than static ones.
+      </p>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Fail-soft by design</p>
+        <p>
+          If graphiti-service is down, the memory upsert still succeeds. The graphiti enrichment
+          is queued and retried when the service recovers. You can track enrichment backlog via
+          <code>GET /v1/graph/queue-status</code>.
+        </p>
+      </div>
+
+      <h3>Why temporal facts matter</h3>
+      <p>
+        Standard knowledge graphs store facts as static triples: <em>Alice &rarr; WORKS_ON &rarr; fundraising</em>.
+        Graphiti adds temporal context: <em>Alice &rarr; WORKS_ON &rarr; fundraising [2026-01-01 to 2026-04-30]</em>.
+        When an agent retrieves context for a question about Q1, it gets the correct team structure
+        for that period — not the current one.
+      </p>
+
+      <p>
+        See <a href="graphiti.html">Graphiti documentation</a> for the full extraction pipeline,
+        configuration options, and query examples.
+      </p>
+
+      <!-- ======================================================
+           Error Reference
+           ====================================================== -->
+      <h2>Error Reference</h2>
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>HTTP Status</th>
+            <th>When</th>
+            <th>Resolution</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>422</code></td>
+            <td>One or more of the 7 required fields is missing from the request body</td>
+            <td>Check that all 7 fields are present: team_scope, project_scope, visibility, confidence, truth_level, source, validation_status</td>
+          </tr>
+          <tr>
+            <td><code>405</code></td>
+            <td>Attempted direct PATCH on truth_level field</td>
+            <td>Use the <code>/v1/promotions</code> workflow instead</td>
+          </tr>
+          <tr>
+            <td><code>401</code></td>
+            <td>Missing or expired JWT in Authorization header</td>
+            <td>Re-authenticate and obtain a fresh JWT</td>
+          </tr>
+          <tr>
+            <td><code>403</code></td>
+            <td>team_scope in request does not match X-Team-Scope header</td>
+            <td>Ensure the JWT's team claim and the request body's team_scope match</td>
+          </tr>
+          <tr>
+            <td><code>404</code></td>
+            <td>item_id not found (for promotions or graph queries)</td>
+            <td>Verify the memory item ID exists in the correct team_scope</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </main>
+  </div>
+
+  <!-- ============================================================
+       FOOTER
+       ============================================================ -->
+  <footer class="xb-footer">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+        <div>
+          <p class="xb-footer__col-title">Product</p>
+          <ul class="xb-footer__links">
+            <li><a href="../index.html" class="xb-footer__link">Home</a></li>
+            <li><a href="index.html" class="xb-footer__link">Documentation</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Deployment</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Docs</p>
+          <ul class="xb-footer__links">
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="memory.html" class="xb-footer__link">Memory System</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Community</p>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">GitHub</a>
+            </li>
+            <li><a href="https://github.com/mrboups/xbrain/issues" target="_blank" rel="noopener noreferrer" class="xb-footer__link">Issues</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="xb-footer__bottom">
+        <span class="xb-footer__copyright">
+          &copy; 2026 xbrain. Open source under MIT License.
+        </span>
+        <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener noreferrer" class="xb-footer__link">
+          GitHub &rarr;
+        </a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
