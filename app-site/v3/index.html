@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Groove OS — Cognitive OS for Agentic Teams</title>
+  <meta name="description" content="Connect your vibe coding, marketing, and ops agents to one shared brain. Run your entire organization on autopilot." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            groove:      '#00FFB2',
+            'groove-dim':'#00CC8E',
+            'groove-glow':'rgba(0,255,178,0.15)',
+            ink:         '#07070F',
+            'ink-2':     '#0D0D1A',
+            'ink-3':     '#121224',
+            'ink-4':     '#18182E',
+            border:      '#1E1E38',
+            'border-lit':'#00FFB2',
+          },
+          fontFamily: {
+            sans: ['Inter','system-ui','sans-serif'],
+            mono: ['JetBrains Mono','Fira Code','monospace'],
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4,0,0.6,1) infinite',
+            'float':      'float 7s ease-in-out infinite',
+            'scan':       'scan 4s linear infinite',
+            'blink':      'blink 1.2s step-end infinite',
+          },
+          keyframes: {
+            float: { '0%,100%': {transform:'translateY(0)'}, '50%': {transform:'translateY(-8px)'} },
+            scan:  { '0%': {top:'-4px'}, '100%': {top:'100%'} },
+            blink: { '0%,100%': {opacity:1}, '50%': {opacity:0} },
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { background-color: #07070F; color: #D4D4F0; }
+
+    /* grid background */
+    .grid-bg {
+      background-image:
+        linear-gradient(rgba(0,255,178,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,178,0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+
+    /* glow utilities */
+    .glow-groove  { box-shadow: 0 0 40px rgba(0,255,178,0.18); }
+    .glow-groove-sm { box-shadow: 0 0 16px rgba(0,255,178,0.12); }
+    .text-glow    { text-shadow: 0 0 40px rgba(0,255,178,0.5); }
+
+    /* gradient text */
+    .gt-groove {
+      background: linear-gradient(135deg, #00FFB2 0%, #00CC8E 60%, #0099FF 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .gt-warm {
+      background: linear-gradient(135deg, #FFD700 0%, #FF6B6B 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    /* card hover */
+    .card {
+      border: 1px solid #1E1E38;
+      transition: border-color .2s, box-shadow .2s, transform .2s;
+    }
+    .card:hover {
+      border-color: #00CC8E;
+      box-shadow: 0 0 24px rgba(0,255,178,0.1);
+      transform: translateY(-2px);
+    }
+
+    /* agent node */
+    .agent-node {
+      border: 1px solid #1E1E38;
+      background: #0D0D1A;
+      transition: all .2s;
+    }
+    .agent-node:hover { border-color: #00CC8E; }
+    .agent-node.active { border-color: #00FFB2; box-shadow: 0 0 12px rgba(0,255,178,0.2); }
+
+    /* status dot */
+    .dot-live  { background: #00FFB2; box-shadow: 0 0 8px #00FFB2; }
+    .dot-idle  { background: #4B5563; }
+    .dot-busy  { background: #F59E0B; box-shadow: 0 0 8px #F59E0B; }
+
+    /* tags */
+    .tag { display:inline-flex; align-items:center; padding:.15rem .55rem; border-radius:9999px; font-family:'JetBrains Mono',monospace; font-size:.65rem; font-weight:600; letter-spacing:.06em; }
+    .tag-dev  { background:rgba(0,255,178,.1);  color:#00FFB2; border:1px solid rgba(0,255,178,.2); }
+    .tag-mkt  { background:rgba(251,191,36,.1); color:#FCD34D; border:1px solid rgba(251,191,36,.2); }
+    .tag-ops  { background:rgba(99,102,241,.1); color:#A5B4FC; border:1px solid rgba(99,102,241,.2); }
+    .tag-ai   { background:rgba(244,114,182,.1);color:#F9A8D4; border:1px solid rgba(244,114,182,.2); }
+    .tag-sys  { background:rgba(0,153,255,.1);  color:#7DD3FC; border:1px solid rgba(0,153,255,.2); }
+
+    /* pricing toggle */
+    .toggle-btn { transition: all .2s; }
+    .toggle-btn.active { background:#00CC8E; color:#07070F; font-weight:700; }
+    .toggle-btn.inactive { color:#6B7280; }
+
+    /* pricing card */
+    .price-featured {
+      border: 1px solid #00CC8E;
+      box-shadow: 0 0 40px rgba(0,255,178,.15), inset 0 0 40px rgba(0,255,178,.03);
+    }
+
+    /* scan line effect on OS window */
+    .os-window { position: relative; overflow: hidden; }
+    .scan-line {
+      position: absolute; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(0,255,178,.3), transparent);
+      animation: scan 5s linear infinite;
+      pointer-events: none;
+    }
+
+    /* terminal cursor */
+    .cursor::after { content:'█'; animation: blink 1.2s step-end infinite; color:#00FFB2; }
+
+    /* connection line */
+    .conn { stroke:#00CC8E; stroke-width:1.5; stroke-dasharray:6 4; opacity:.4; }
+
+    /* noise overlay on cards */
+    .noise::before {
+      content:''; position:absolute; inset:0; pointer-events:none;
+      background: radial-gradient(ellipse at top left, rgba(0,255,178,.06), transparent 60%);
+    }
+  </style>
+</head>
+<body class="antialiased">
+
+  <!-- ═══════════ NAV ═══════════ -->
+  <nav class="fixed top-0 w-full z-50 border-b border-border" style="background:rgba(7,7,15,.9);backdrop-filter:blur(20px);">
+    <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+      <a href="#" class="flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-md flex items-center justify-center" style="background:linear-gradient(135deg,#00FFB2,#0099FF);">
+          <svg class="w-4 h-4 text-black" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 2a5 5 0 110 10A5 5 0 018 3zm0 2a3 3 0 100 6 3 3 0 000-6z"/>
+          </svg>
+        </div>
+        <span class="font-black text-lg tracking-tight text-white">Groove<span class="gt-groove">OS</span></span>
+        <span class="tag tag-sys">private beta</span>
+      </a>
+      <div class="hidden md:flex items-center gap-8 text-sm text-gray-500">
+        <a href="#agents" class="hover:text-white transition-colors">Agents</a>
+        <a href="#how"    class="hover:text-white transition-colors">How it works</a>
+        <a href="#org"    class="hover:text-white transition-colors">Agentic Org</a>
+        <a href="#pricing"class="hover:text-white transition-colors">Pricing</a>
+      </div>
+      <a href="mailto:team@grooveos.app?subject=Groove OS waitlist"
+         class="px-4 py-1.5 rounded-lg text-sm font-semibold text-ink transition-all hover:opacity-90"
+         style="background:linear-gradient(135deg,#00FFB2,#00CC8E);">
+        Join waitlist
+      </a>
+    </div>
+  </nav>
+
+  <!-- ═══════════ HERO ═══════════ -->
+  <section class="relative min-h-screen flex items-center justify-center grid-bg pt-14 overflow-hidden">
+
+    <!-- ambient blobs -->
+    <div class="absolute inset-0 pointer-events-none">
+      <div class="absolute top-1/3 left-1/4 w-[500px] h-[500px] rounded-full opacity-8" style="background:radial-gradient(circle,#00FFB2,transparent 65%);filter:blur(80px);"></div>
+      <div class="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-6" style="background:radial-gradient(circle,#0099FF,transparent 65%);filter:blur(100px);"></div>
+    </div>
+
+    <div class="relative max-w-5xl mx-auto px-6 text-center">
+
+      <!-- eyebrow -->
+      <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-ink-2 text-sm text-gray-500 mb-8">
+        <span class="w-2 h-2 rounded-full dot-live animate-pulse-slow"></span>
+        <span>Cognitive OS · Private beta open</span>
+        <span class="text-gray-700 mx-1">·</span>
+        <span class="text-groove font-mono text-xs">v0.1.0</span>
+      </div>
+
+      <h1 class="text-5xl md:text-7xl font-black tracking-tight text-white leading-none mb-6">
+        The OS your<br/>
+        <span class="gt-groove text-glow">agents run on.</span>
+      </h1>
+
+      <p class="text-xl md:text-2xl text-gray-400 max-w-2xl mx-auto mb-3 leading-relaxed">
+        Connect your vibe coding, marketing, and ops agents to one shared cognitive core.
+        Stop managing agents. Start running a <em class="text-white not-italic font-semibold">fully agentic organization.</em>
+      </p>
+      <p class="text-sm text-gray-600 mb-10 font-mono">
+        Claude Code · Cursor · ChatGPT · Grok — all agents, one brain.
+      </p>
+
+      <!-- CTAs -->
+      <div class="flex flex-col sm:flex-row gap-4 justify-center mb-16">
+        <a href="mailto:team@grooveos.app?subject=Groove OS waitlist"
+           class="px-8 py-4 rounded-xl font-bold text-ink text-base transition-all hover:opacity-90 hover:scale-105 glow-groove"
+           style="background:linear-gradient(135deg,#00FFB2,#00CC8E);">
+          Join the Waitlist →
+        </a>
+        <a href="#how"
+           class="px-8 py-4 rounded-xl font-semibold text-gray-300 text-base border border-border bg-ink-2 hover:border-groove hover:text-white transition-all">
+          See the OS in action ↓
+        </a>
+      </div>
+
+      <!-- OS dashboard preview -->
+      <div class="max-w-3xl mx-auto rounded-2xl border border-border bg-ink-2 overflow-hidden glow-groove os-window animate-float">
+        <div class="scan-line"></div>
+        <!-- title bar -->
+        <div class="flex items-center gap-3 px-5 py-3 border-b border-border bg-ink-3">
+          <div class="flex gap-1.5">
+            <div class="w-3 h-3 rounded-full" style="background:#FF5F57;opacity:.7"></div>
+            <div class="w-3 h-3 rounded-full" style="background:#FFBD2E;opacity:.7"></div>
+            <div class="w-3 h-3 rounded-full" style="background:#28C840;opacity:.7"></div>
+          </div>
+          <span class="font-mono text-xs text-gray-500 ml-1">Groove OS · Agent Runtime · team: acme</span>
+          <div class="ml-auto flex items-center gap-1.5">
+            <div class="w-2 h-2 rounded-full dot-live"></div>
+            <span class="font-mono text-xs text-groove">4 agents active</span>
+          </div>
+        </div>
+
+        <!-- agent process list -->
+        <div class="p-5 font-mono text-xs space-y-2.5 text-left">
+
+          <div class="grid grid-cols-12 gap-3 text-gray-600 border-b border-border pb-2 text-left">
+            <span class="col-span-1">PID</span>
+            <span class="col-span-2">TYPE</span>
+            <span class="col-span-3">AGENT</span>
+            <span class="col-span-1">STATUS</span>
+            <span class="col-span-5">LAST ACTION</span>
+          </div>
+
+          <div class="grid grid-cols-12 gap-3 items-center">
+            <span class="col-span-1 text-gray-600">001</span>
+            <span class="col-span-2"><span class="tag tag-dev">dev</span></span>
+            <span class="col-span-3 text-gray-300">claude-code</span>
+            <span class="col-span-1"><span class="dot-live w-2 h-2 rounded-full inline-block"></span></span>
+            <span class="col-span-5 text-gray-400 truncate">Shipped <span class="text-groove">payment-v2</span> → brain updated</span>
+          </div>
+
+          <div class="grid grid-cols-12 gap-3 items-center">
+            <span class="col-span-1 text-gray-600">002</span>
+            <span class="col-span-2"><span class="tag tag-mkt">mkt</span></span>
+            <span class="col-span-3 text-gray-300">gpt-4o</span>
+            <span class="col-span-1"><span class="w-2 h-2 rounded-full inline-block dot-busy"></span></span>
+            <span class="col-span-5 text-gray-400 truncate">Drafting launch copy from <span class="text-yellow-400">payment-v2</span> spec</span>
+          </div>
+
+          <div class="grid grid-cols-12 gap-3 items-center">
+            <span class="col-span-1 text-gray-600">003</span>
+            <span class="col-span-2"><span class="tag tag-ops">ops</span></span>
+            <span class="col-span-3 text-gray-300">claude-opus</span>
+            <span class="col-span-1"><span class="dot-live w-2 h-2 rounded-full inline-block"></span></span>
+            <span class="col-span-5 text-gray-400 truncate">Runbook auto-updated from brain delta</span>
+          </div>
+
+          <div class="grid grid-cols-12 gap-3 items-center">
+            <span class="col-span-1 text-gray-600">004</span>
+            <span class="col-span-2"><span class="tag tag-ai">orch</span></span>
+            <span class="col-span-3 text-gray-300">groove-kernel</span>
+            <span class="col-span-1"><span class="dot-live w-2 h-2 rounded-full inline-block"></span></span>
+            <span class="col-span-5 text-gray-400 truncate">Truth engine: <span class="text-groove">VALIDATED</span> → 12 nodes promoted</span>
+          </div>
+
+          <div class="border-t border-border pt-2 text-gray-600 flex items-center gap-2">
+            <span class="text-groove">▸</span>
+            <span class="cursor">groove kernel running</span>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════ PROBLEM ═══════════ -->
+  <section class="py-24 max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <p class="text-xs font-mono text-groove tracking-widest uppercase mb-4">// ERROR: agents.disconnected</p>
+      <h2 class="text-4xl md:text-5xl font-black text-white leading-tight">
+        You have agents.<br/>
+        <span class="text-gray-600">They don't have each other.</span>
+      </h2>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-5">
+
+      <div class="relative noise rounded-2xl bg-ink-2 p-7 card overflow-hidden">
+        <div class="font-mono text-xs text-red-400 mb-4 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-red-400"></span>AGENT_ISOLATION
+        </div>
+        <h3 class="text-lg font-bold text-white mb-3">Your agents run blind</h3>
+        <p class="text-sm text-gray-400 leading-relaxed">
+          Claude Code ships a feature. Your marketing AI has no idea. Your ops agent is using last month's architecture.
+          Each agent has its own context bubble — and those bubbles never touch.
+        </p>
+        <div class="mt-5 bg-ink-3 rounded-lg p-3 border border-border font-mono text-xs text-gray-600 space-y-1">
+          <div>dev_agent: "shipped oauth-v2"</div>
+          <div>mkt_agent: "what is oauth-v2?"</div>
+          <div>ops_agent: "still running oauth-v1?"</div>
+        </div>
+      </div>
+
+      <div class="relative noise rounded-2xl bg-ink-2 p-7 card overflow-hidden">
+        <div class="font-mono text-xs text-yellow-400 mb-4 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-yellow-400"></span>HANDOFF_FAILURE
+        </div>
+        <h3 class="text-lg font-bold text-white mb-3">Handoffs are manual — still</h3>
+        <p class="text-sm text-gray-400 leading-relaxed">
+          Dev finishes. You copy-paste context to marketing. Marketing finishes. You brief ops.
+          You're the middleware. An agentic org can't have a human bottleneck in every handoff.
+        </p>
+        <div class="mt-5 bg-ink-3 rounded-lg p-3 border border-border font-mono text-xs text-gray-600 space-y-1">
+          <div>dev → <span class="text-yellow-400">you</span> → mkt → <span class="text-yellow-400">you</span> → ops</div>
+          <div class="text-red-400">// you are the agent</div>
+        </div>
+      </div>
+
+      <div class="relative noise rounded-2xl bg-ink-2 p-7 card overflow-hidden">
+        <div class="font-mono text-xs text-red-400 mb-4 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-red-400"></span>SCALE_ENTROPY
+        </div>
+        <h3 class="text-lg font-bold text-white mb-3">More agents = more chaos</h3>
+        <p class="text-sm text-gray-400 leading-relaxed">
+          You add a growth agent, a support agent, a research agent. Now you have six isolated brains
+          and zero coordination. Scaling agents without an OS creates entropy, not leverage.
+        </p>
+        <div class="mt-5 bg-ink-3 rounded-lg p-3 border border-border font-mono text-xs text-gray-600 space-y-1">
+          <div>agents: 6</div>
+          <div>shared_context: 0</div>
+          <div>org_velocity: <span class="text-red-400">↓↓↓</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="mt-12 text-center">
+      <p class="text-2xl md:text-3xl font-black text-white">
+        Agents without an OS aren't a team.<br/>
+        <span class="gt-groove">They're a list of processes.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══════════ WHAT IS GROOVE OS ═══════════ -->
+  <section class="py-24 border-y border-border bg-ink-2">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="grid md:grid-cols-2 gap-16 items-center">
+
+        <div>
+          <p class="text-xs font-mono text-groove tracking-widest uppercase mb-4">// groove_os.init()</p>
+          <h2 class="text-4xl md:text-5xl font-black text-white leading-tight mb-6">
+            Not another AI tool.<br/>
+            <span class="gt-groove">The OS your agents run on.</span>
+          </h2>
+          <p class="text-gray-400 text-lg leading-relaxed mb-5">
+            Groove OS is a cognitive operating system. It sits between your team and every agent they run —
+            collecting every decision, output, and fact into a shared cognitive core.
+          </p>
+          <p class="text-gray-400 text-lg leading-relaxed mb-8">
+            Every agent reads from the same brain. Every output feeds back into it.
+            Handoffs become automatic. Your organization thinks as one.
+          </p>
+          <div class="space-y-4">
+            <div class="flex items-start gap-3">
+              <div class="w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5" style="background:rgba(0,255,178,.15); border:1px solid rgba(0,255,178,.3);">
+                <svg class="w-3 h-3 text-groove" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div>
+                <span class="text-white font-semibold">Cognitive Core</span>
+                <span class="text-gray-500"> — shared memory layer all agents read and write</span>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <div class="w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5" style="background:rgba(0,255,178,.15); border:1px solid rgba(0,255,178,.3);">
+                <svg class="w-3 h-3 text-groove" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div>
+                <span class="text-white font-semibold">Truth Engine</span>
+                <span class="text-gray-500"> — agents act on validated facts, never stale context</span>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <div class="w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5" style="background:rgba(0,255,178,.15); border:1px solid rgba(0,255,178,.3);">
+                <svg class="w-3 h-3 text-groove" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div>
+                <span class="text-white font-semibold">Agent Bus</span>
+                <span class="text-gray-500"> — MCP-native bridge connecting every AI tool your team uses</span>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <div class="w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5" style="background:rgba(0,255,178,.15); border:1px solid rgba(0,255,178,.3);">
+                <svg class="w-3 h-3 text-groove" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div>
+                <span class="text-white font-semibold">Auto-Handoffs</span>
+                <span class="text-gray-500"> — when dev agent ships, marketing agent picks up automatically</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Architecture diagram -->
+        <div class="rounded-2xl border border-border bg-ink-3 p-6 font-mono text-xs glow-groove-sm">
+          <div class="text-gray-500 mb-5">// groove_os.architecture</div>
+
+          <!-- top agents -->
+          <div class="grid grid-cols-3 gap-3 mb-4">
+            <div class="agent-node active rounded-xl p-3 text-center">
+              <div class="text-lg mb-1">👩‍💻</div>
+              <div class="text-groove text-xs">dev agent</div>
+              <div class="text-gray-600 text-xs">claude-code</div>
+            </div>
+            <div class="agent-node active rounded-xl p-3 text-center">
+              <div class="text-lg mb-1">📣</div>
+              <div class="text-yellow-400 text-xs">mkt agent</div>
+              <div class="text-gray-600 text-xs">gpt-4o</div>
+            </div>
+            <div class="agent-node active rounded-xl p-3 text-center">
+              <div class="text-lg mb-1">⚙️</div>
+              <div class="text-indigo-400 text-xs">ops agent</div>
+              <div class="text-gray-600 text-xs">claude-opus</div>
+            </div>
+          </div>
+
+          <!-- connector lines -->
+          <div class="flex justify-around px-6 mb-1">
+            <div class="w-px h-6 bg-groove opacity-30"></div>
+            <div class="w-px h-6 bg-groove opacity-30"></div>
+            <div class="w-px h-6 bg-groove opacity-30"></div>
+          </div>
+          <div class="mx-6 h-px bg-groove opacity-20 mb-1"></div>
+          <div class="flex justify-center mb-1">
+            <div class="w-px h-4 bg-groove opacity-30"></div>
+          </div>
+
+          <!-- Agent Bus -->
+          <div class="rounded-xl border border-border bg-ink-4 p-3 text-center mb-4" style="border-color:rgba(0,255,178,.2);">
+            <div class="text-groove text-xs font-bold mb-0.5">⬡ Agent Bus</div>
+            <div class="text-gray-600 text-xs">MCP · REST · WebSocket</div>
+          </div>
+
+          <div class="flex justify-center mb-1">
+            <div class="w-px h-4 bg-groove opacity-30"></div>
+          </div>
+
+          <!-- Groove OS kernel -->
+          <div class="rounded-xl p-4 text-center mb-4 glow-groove-sm" style="background:rgba(0,255,178,.06); border:1px solid rgba(0,255,178,.3);">
+            <div class="text-xl mb-1">🧠</div>
+            <div class="text-groove font-bold mb-1">Groove OS · Cognitive Core</div>
+            <div class="grid grid-cols-3 gap-2 mt-2">
+              <div class="text-gray-500">Memory</div>
+              <div class="text-gray-500">Truth Engine</div>
+              <div class="text-gray-500">Scoping</div>
+            </div>
+          </div>
+
+          <!-- storage layer -->
+          <div class="grid grid-cols-3 gap-2">
+            <div class="rounded-lg border border-border bg-ink-4 p-2 text-center">
+              <div class="text-gray-500">Vector</div>
+              <div class="text-xs text-gray-700">semantic</div>
+            </div>
+            <div class="rounded-lg border border-border bg-ink-4 p-2 text-center">
+              <div class="text-gray-500">Graph</div>
+              <div class="text-xs text-gray-700">relations</div>
+            </div>
+            <div class="rounded-lg border border-border bg-ink-4 p-2 text-center">
+              <div class="text-gray-500">SQL</div>
+              <div class="text-xs text-gray-700">audit</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ YOUR AGENTS ═══════════ -->
+  <section id="agents" class="py-24 max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <p class="text-xs font-mono text-groove tracking-widest uppercase mb-4">// agents.register()</p>
+      <h2 class="text-4xl md:text-5xl font-black text-white leading-tight">
+        One OS.<br/>
+        <span class="gt-groove">Every agent your team runs.</span>
+      </h2>
+      <p class="text-gray-400 text-lg mt-4 max-w-xl mx-auto">
+        Plug any agent into Groove OS via the Agent Bus. They all get shared context —
+        and they all feed back into it.
+      </p>
+    </div>
+
+    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+
+      <!-- Dev agents -->
+      <div class="rounded-2xl bg-ink-2 p-6 card noise relative overflow-hidden">
+        <div class="flex items-center justify-between mb-5">
+          <span class="tag tag-dev">dev</span>
+          <div class="w-2 h-2 rounded-full dot-live"></div>
+        </div>
+        <h3 class="font-bold text-white mb-3">Vibe Coding Agents</h3>
+        <div class="space-y-2 text-xs text-gray-500 mb-5">
+          <div class="flex items-center gap-2"><span class="text-groove">●</span> Claude Code</div>
+          <div class="flex items-center gap-2"><span class="text-groove">●</span> Cursor</div>
+          <div class="flex items-center gap-2"><span class="text-groove">●</span> Windsurf</div>
+          <div class="flex items-center gap-2"><span class="text-gray-700">○</span> Any MCP client</div>
+        </div>
+        <p class="text-xs text-gray-500 leading-relaxed">
+          Ship features. Every architecture decision, every shipped function auto-indexes into the shared brain.
+        </p>
+      </div>
+
+      <!-- Marketing agents -->
+      <div class="rounded-2xl bg-ink-2 p-6 card noise relative overflow-hidden">
+        <div class="flex items-center justify-between mb-5">
+          <span class="tag tag-mkt">marketing</span>
+          <div class="w-2 h-2 rounded-full dot-busy"></div>
+        </div>
+        <h3 class="font-bold text-white mb-3">Marketing Agents</h3>
+        <div class="space-y-2 text-xs text-gray-500 mb-5">
+          <div class="flex items-center gap-2"><span class="text-yellow-400">●</span> ChatGPT / GPT-4o</div>
+          <div class="flex items-center gap-2"><span class="text-yellow-400">●</span> Claude Projects</div>
+          <div class="flex items-center gap-2"><span class="text-yellow-400">●</span> Grok</div>
+          <div class="flex items-center gap-2"><span class="text-gray-700">○</span> Content agents</div>
+        </div>
+        <p class="text-xs text-gray-500 leading-relaxed">
+          Always know what shipped. AI drafts launch copy, social posts, and campaigns from real product context.
+        </p>
+      </div>
+
+      <!-- Ops agents -->
+      <div class="rounded-2xl bg-ink-2 p-6 card noise relative overflow-hidden">
+        <div class="flex items-center justify-between mb-5">
+          <span class="tag tag-ops">ops</span>
+          <div class="w-2 h-2 rounded-full dot-live"></div>
+        </div>
+        <h3 class="font-bold text-white mb-3">Operations Agents</h3>
+        <div class="space-y-2 text-xs text-gray-500 mb-5">
+          <div class="flex items-center gap-2"><span class="text-indigo-400">●</span> Claude Opus</div>
+          <div class="flex items-center gap-2"><span class="text-indigo-400">●</span> n8n / Zapier AI</div>
+          <div class="flex items-center gap-2"><span class="text-indigo-400">●</span> Monitoring bots</div>
+          <div class="flex items-center gap-2"><span class="text-gray-700">○</span> Runbook agents</div>
+        </div>
+        <p class="text-xs text-gray-500 leading-relaxed">
+          Runbooks auto-update. Incidents get full context. Configs stay in sync with what dev actually built.
+        </p>
+      </div>
+
+      <!-- Leadership -->
+      <div class="rounded-2xl bg-ink-2 p-6 card noise relative overflow-hidden">
+        <div class="flex items-center justify-between mb-5">
+          <span class="tag tag-sys">leadership</span>
+          <div class="w-2 h-2 rounded-full dot-live"></div>
+        </div>
+        <h3 class="font-bold text-white mb-3">Leadership Layer</h3>
+        <div class="space-y-2 text-xs text-gray-500 mb-5">
+          <div class="flex items-center gap-2"><span class="text-sky-400">●</span> Full brain visibility</div>
+          <div class="flex items-center gap-2"><span class="text-sky-400">●</span> Cross-team decisions</div>
+          <div class="flex items-center gap-2"><span class="text-sky-400">●</span> Truth audit trail</div>
+          <div class="flex items-center gap-2"><span class="text-gray-700">○</span> Strategic context</div>
+        </div>
+        <p class="text-xs text-gray-500 leading-relaxed">
+          See the full picture. Query what the whole org knows. Make decisions that all agents instantly inherit.
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════ HOW IT WORKS ═══════════ -->
+  <section id="how" class="py-24 border-y border-border bg-ink-2">
+    <div class="max-w-5xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <p class="text-xs font-mono text-groove tracking-widest uppercase mb-4">// system.boot()</p>
+        <h2 class="text-4xl md:text-5xl font-black text-white">
+          Up in minutes.<br/>
+          <span class="gt-groove">Agentic forever.</span>
+        </h2>
+      </div>
+
+      <div class="space-y-5">
+
+        <!-- Step 1 -->
+        <div class="rounded-2xl bg-ink-3 border border-border p-6 grid md:grid-cols-2 gap-8 items-center card">
+          <div>
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm text-ink" style="background:#00FFB2;">01</div>
+              <span class="font-bold text-white text-lg">Create your org on Groove OS</span>
+            </div>
+            <p class="text-gray-400 text-sm leading-relaxed">
+              Sign up, define your team structure — dev, marketing, ops, or whatever your org looks like.
+              Set visibility rules: who sees what, which agents have cross-team access.
+            </p>
+          </div>
+          <div class="bg-ink-4 rounded-xl border border-border p-4 font-mono text-xs">
+            <div class="text-gray-600 mb-3"># groove init</div>
+            <div class="text-gray-300">org: <span class="text-groove">"acme-corp"</span></div>
+            <div class="text-gray-300">teams: <span class="text-yellow-400">["dev", "marketing", "ops"]</span></div>
+            <div class="text-gray-300">visibility: <span class="text-indigo-400">"scoped_by_team"</span></div>
+            <div class="text-gray-300">cognitive_core: <span class="text-groove">initializing...</span> ✓</div>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="rounded-2xl bg-ink-3 border border-border p-6 grid md:grid-cols-2 gap-8 items-center card">
+          <div>
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm text-ink" style="background:#00FFB2;">02</div>
+              <span class="font-bold text-white text-lg">Connect your agents via Agent Bus</span>
+            </div>
+            <p class="text-gray-400 text-sm leading-relaxed">
+              Add the Groove OS MCP server to Claude Code, Cursor, ChatGPT Custom GPTs, or any MCP-compatible agent.
+              Connect Google Drive. Install the Chrome Extension. Takes 5 minutes.
+            </p>
+          </div>
+          <div class="bg-ink-4 rounded-xl border border-border p-4 font-mono text-xs">
+            <div class="text-gray-600 mb-2"># claude_desktop_config.json</div>
+            <div class="text-gray-300">"mcpServers": &#123;</div>
+            <div class="text-gray-300 pl-3">"groove-os": &#123;</div>
+            <div class="text-gray-300 pl-6">"url": <span class="text-groove">"api.grooveos.io"</span>,</div>
+            <div class="text-gray-300 pl-6">"token": <span class="text-yellow-400">"gos_****"</span>,</div>
+            <div class="text-gray-300 pl-6">"team": <span class="text-indigo-400">"dev"</span></div>
+            <div class="text-gray-300 pl-3">&#125;</div>
+            <div class="text-gray-300">&#125;</div>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="rounded-2xl bg-ink-3 border border-border p-6 grid md:grid-cols-2 gap-8 items-center card">
+          <div>
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm text-ink" style="background:#00FFB2;">03</div>
+              <span class="font-bold text-white text-lg">Run your agents. The OS does the rest.</span>
+            </div>
+            <p class="text-gray-400 text-sm leading-relaxed">
+              Work normally. Your agents automatically write to and read from the shared cognitive core.
+              The Truth Engine validates context. Handoffs trigger automatically. Your org finds its groove.
+            </p>
+          </div>
+          <div class="bg-ink-4 rounded-xl border border-border p-4 font-mono text-xs space-y-2">
+            <div class="flex items-center gap-2"><span class="dot-live w-2 h-2 rounded-full"></span><span class="text-gray-300">321 memories indexed · last 24h</span></div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-yellow-400"></span><span class="text-gray-300">4 agents active across 3 teams</span></div>
+            <div class="flex items-center gap-2"><span class="dot-live w-2 h-2 rounded-full"></span><span class="text-gray-300">17 truths promoted to VALIDATED</span></div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-indigo-400"></span><span class="text-gray-300">3 auto-handoffs triggered today</span></div>
+            <div class="flex items-center gap-2"><span class="dot-live w-2 h-2 rounded-full"></span><span class="text-gray-300">0 manual context transfers</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ AGENTIC ORG ═══════════ -->
+  <section id="org" class="py-24 max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <p class="text-xs font-mono text-groove tracking-widest uppercase mb-4">// org.mode = "full_agentic"</p>
+      <h2 class="text-4xl md:text-5xl font-black text-white leading-tight">
+        What a fully agentic<br/>
+        <span class="gt-groove">organization looks like.</span>
+      </h2>
+      <p class="text-gray-400 text-lg mt-4 max-w-2xl mx-auto">
+        This is not a future state. This is what Groove OS enables today,
+        for every team that connects their agents to the shared cognitive core.
+      </p>
+    </div>
+
+    <!-- flow diagram -->
+    <div class="rounded-2xl border border-border bg-ink-2 p-8 mb-12">
+      <div class="text-xs font-mono text-gray-600 mb-6">// real-time org flow · payment-v2 launch</div>
+
+      <div class="space-y-0">
+
+        <!-- event 1 -->
+        <div class="flex gap-5 pb-6">
+          <div class="flex flex-col items-center">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 bg-ink-3 border border-border">👩‍💻</div>
+            <div class="w-px flex-1 mt-2" style="background:linear-gradient(to bottom,rgba(0,255,178,.3),rgba(0,255,178,.1));"></div>
+          </div>
+          <div class="pb-2">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="tag tag-dev">dev agent · claude code</span>
+              <span class="text-gray-600 text-xs font-mono">09:14</span>
+            </div>
+            <p class="text-gray-300 text-sm">Shipped <strong>payment-v2</strong>: Stripe integration, 3DS auth, webhook handler.</p>
+            <div class="mt-1.5 text-xs font-mono text-gray-600">→ Groove OS indexed 24 new memory nodes · truth: WORKING</div>
+          </div>
+        </div>
+
+        <!-- event 2 -->
+        <div class="flex gap-5 pb-6">
+          <div class="flex flex-col items-center">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 bg-ink-3 border border-border">🧠</div>
+            <div class="w-px flex-1 mt-2" style="background:linear-gradient(to bottom,rgba(0,255,178,.2),rgba(0,255,178,.05));"></div>
+          </div>
+          <div class="pb-2">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="tag tag-sys">groove os · truth engine</span>
+              <span class="text-gray-600 text-xs font-mono">09:14</span>
+            </div>
+            <p class="text-gray-300 text-sm">Cross-validated payment-v2 spec against prior architecture decisions. Promoted to <span class="text-groove font-mono">VALIDATED</span>.</p>
+            <div class="mt-1.5 text-xs font-mono text-gray-600">→ Auto-triggered handoff signal to marketing team scope</div>
+          </div>
+        </div>
+
+        <!-- event 3 -->
+        <div class="flex gap-5 pb-6">
+          <div class="flex flex-col items-center">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 bg-ink-3 border border-border">📣</div>
+            <div class="w-px flex-1 mt-2" style="background:linear-gradient(to bottom,rgba(251,191,36,.2),rgba(251,191,36,.05));"></div>
+          </div>
+          <div class="pb-2">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="tag tag-mkt">mkt agent · gpt-4o</span>
+              <span class="text-gray-600 text-xs font-mono">09:15</span>
+            </div>
+            <p class="text-gray-300 text-sm">Retrieved payment-v2 spec from Groove OS. Drafted launch tweet, blog post intro, and Product Hunt copy — <em>without being briefed.</em></p>
+            <div class="mt-1.5 text-xs font-mono text-gray-600">→ 3 assets ready for review · 0 human context transfers</div>
+          </div>
+        </div>
+
+        <!-- event 4 -->
+        <div class="flex gap-5 pb-6">
+          <div class="flex flex-col items-center">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 bg-ink-3 border border-border">⚙️</div>
+            <div class="w-px flex-1 mt-2" style="background:linear-gradient(to bottom,rgba(99,102,241,.2),transparent);"></div>
+          </div>
+          <div class="pb-2">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="tag tag-ops">ops agent · claude opus</span>
+              <span class="text-gray-600 text-xs font-mono">09:16</span>
+            </div>
+            <p class="text-gray-300 text-sm">Pulled Stripe webhook config from brain. Updated runbook, added monitoring rules for payment-v2, opened infra PR.</p>
+            <div class="mt-1.5 text-xs font-mono text-gray-600">→ Zero manual briefing · runbook v47 committed</div>
+          </div>
+        </div>
+
+        <!-- final state -->
+        <div class="flex gap-5">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 bg-ink-3 border border-groove">🚀</div>
+          <div class="flex items-center">
+            <div>
+              <p class="text-white font-bold text-sm">payment-v2 shipped, marketed, and ops-ready</p>
+              <p class="text-gray-600 text-xs font-mono mt-0.5">Total human time: 0 minutes of context transfer · 3 agents · fully automated</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="text-center">
+      <p class="text-2xl md:text-3xl font-black text-white">
+        This is what <span class="gt-groove">fully agentic</span> means.<br/>
+        <span class="text-gray-500">Your org moves — you direct it.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══════════ FEATURES ═══════════ -->
+  <section class="py-24 border-y border-border bg-ink-2">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <p class="text-xs font-mono text-groove tracking-widest uppercase mb-4">// system.features</p>
+        <h2 class="text-4xl md:text-5xl font-black text-white">
+          The OS primitives<br/>
+          <span class="gt-groove">every agentic org needs.</span>
+        </h2>
+      </div>
+
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+
+        <div class="relative noise overflow-hidden rounded-2xl bg-ink-3 p-6 card">
+          <div class="w-9 h-9 rounded-lg bg-ink-4 border border-border flex items-center justify-center mb-4 text-lg">🧠</div>
+          <div class="flex items-center gap-2 mb-2">
+            <h3 class="font-bold text-white">Cognitive Core</h3>
+            <span class="tag tag-sys text-xs">kernel</span>
+          </div>
+          <p class="text-sm text-gray-400 leading-relaxed">Shared memory layer — vector, graph, and relational. Every agent reads from and writes to the same truth. Semantic search across all team memory.</p>
+        </div>
+
+        <div class="relative noise overflow-hidden rounded-2xl bg-ink-3 p-6 card">
+          <div class="w-9 h-9 rounded-lg bg-ink-4 border border-border flex items-center justify-center mb-4 text-lg">⬡</div>
+          <div class="flex items-center gap-2 mb-2">
+            <h3 class="font-bold text-white">Agent Bus</h3>
+            <span class="tag tag-sys text-xs">MCP native</span>
+          </div>
+          <p class="text-sm text-gray-400 leading-relaxed">MCP-native bridge. Any agent — Claude Code, Cursor, ChatGPT, n8n — plugs in and immediately reads the shared cognitive core.</p>
+        </div>
+
+        <div class="relative noise overflow-hidden rounded-2xl bg-ink-3 p-6 card">
+          <div class="w-9 h-9 rounded-lg bg-ink-4 border border-border flex items-center justify-center mb-4 text-lg">⚖️</div>
+          <div class="flex items-center gap-2 mb-2">
+            <h3 class="font-bold text-white">Truth Engine</h3>
+            <span class="tag tag-dev text-xs">5 levels</span>
+          </div>
+          <p class="text-sm text-gray-400 leading-relaxed">Not all memory is equal. Ephemeral → Working → Validated → Canonical → Public. Agents act on the right level — never stale, never wrong.</p>
+        </div>
+
+        <div class="relative noise overflow-hidden rounded-2xl bg-ink-3 p-6 card">
+          <div class="w-9 h-9 rounded-lg bg-ink-4 border border-border flex items-center justify-center mb-4 text-lg">🔀</div>
+          <div class="flex items-center gap-2 mb-2">
+            <h3 class="font-bold text-white">Auto-Handoffs</h3>
+            <span class="tag tag-mkt text-xs">zero manual</span>
+          </div>
+          <p class="text-sm text-gray-400 leading-relaxed">When dev ships, marketing agent picks up context automatically. When ops needs architecture info, it pulls from the brain — no Slack pings, no copy-paste.</p>
+        </div>
+
+        <div class="relative noise overflow-hidden rounded-2xl bg-ink-3 p-6 card">
+          <div class="w-9 h-9 rounded-lg bg-ink-4 border border-border flex items-center justify-center mb-4 text-lg">🔒</div>
+          <div class="flex items-center gap-2 mb-2">
+            <h3 class="font-bold text-white">Team Scoping</h3>
+            <span class="tag tag-ops text-xs">RBAC</span>
+          </div>
+          <p class="text-sm text-gray-400 leading-relaxed">Dev agents see dev context. Marketing agents see marketing. Leaders see all. Fine-grained scoping so agents are powerful — and safe.</p>
+        </div>
+
+        <div class="relative noise overflow-hidden rounded-2xl bg-ink-3 p-6 card">
+          <div class="w-9 h-9 rounded-lg bg-ink-4 border border-border flex items-center justify-center mb-4 text-lg">📡</div>
+          <div class="flex items-center gap-2 mb-2">
+            <h3 class="font-bold text-white">Drive Sync + Clipper</h3>
+            <span class="tag tag-ai text-xs">auto-index</span>
+          </div>
+          <p class="text-sm text-gray-400 leading-relaxed">Google Drive docs auto-indexed. Chrome extension clips anything into the brain. Every asset your org produces becomes agent-accessible memory.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ PRICING ═══════════ -->
+  <section id="pricing" class="py-24 max-w-5xl mx-auto px-6">
+    <div class="text-center mb-10">
+      <p class="text-xs font-mono text-groove tracking-widest uppercase mb-4">// pricing.init()</p>
+      <h2 class="text-4xl md:text-5xl font-black text-white">Simple pricing.<br/><span class="gt-groove">Scales with your org.</span></h2>
+      <p class="text-gray-500 mt-3 text-sm">One flat price for the whole team. No per-agent fees.</p>
+    </div>
+
+    <!-- toggle -->
+    <div class="flex justify-center mb-10">
+      <div class="inline-flex items-center rounded-xl border border-border bg-ink-2 p-1 text-sm gap-1">
+        <button id="btn-monthly" onclick="setPricing('monthly')"
+          class="toggle-btn active px-5 py-2 rounded-lg text-ink font-bold">
+          Monthly
+        </button>
+        <button id="btn-annual" onclick="setPricing('annual')"
+          class="toggle-btn inactive px-5 py-2 rounded-lg font-medium">
+          Annual
+          <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-xs font-bold" style="background:rgba(0,255,178,.15);color:#00FFB2;">–45%</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-6 items-stretch">
+
+      <!-- Free -->
+      <div class="rounded-2xl bg-ink-2 border border-border p-8 flex flex-col">
+        <div class="mb-6">
+          <div class="text-xs font-mono text-gray-500 uppercase tracking-widest mb-3">Free</div>
+          <div class="text-4xl font-black text-white">$0</div>
+          <div class="text-gray-600 text-sm mt-1">Forever · 1 agent operator</div>
+        </div>
+        <ul class="space-y-3 text-sm text-gray-400 flex-1 mb-8">
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>1 user · personal cognitive core</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>Claude + ChatGPT via Agent Bus</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>100 memories / day</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>Basic truth levels</li>
+          <li class="flex gap-2 items-start"><span class="text-gray-700 shrink-0">✗</span><span class="text-gray-600">Team scoping</span></li>
+          <li class="flex gap-2 items-start"><span class="text-gray-700 shrink-0">✗</span><span class="text-gray-600">Auto-handoffs</span></li>
+          <li class="flex gap-2 items-start"><span class="text-gray-700 shrink-0">✗</span><span class="text-gray-600">Drive Sync</span></li>
+        </ul>
+        <a href="mailto:team@grooveos.app?subject=Groove OS free tier"
+           class="block text-center py-3 rounded-xl border border-border text-gray-400 text-sm font-semibold hover:border-groove hover:text-white transition-all">
+          Join waitlist
+        </a>
+      </div>
+
+      <!-- Team -->
+      <div class="rounded-2xl p-8 flex flex-col price-featured" style="background:rgba(0,255,178,.04);">
+        <div class="mb-6">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="text-xs font-mono text-groove uppercase tracking-widest">Team</div>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold" style="background:rgba(0,255,178,.15);color:#00FFB2;">Most popular</span>
+          </div>
+
+          <div id="price-monthly">
+            <div class="flex items-end gap-2">
+              <div class="text-4xl font-black text-white">$45</div>
+              <div class="text-gray-400 text-sm pb-1">/month · 3 agents</div>
+            </div>
+            <div class="text-gray-600 text-xs mt-1">$15/operator/mo · billed monthly</div>
+            <div class="text-gray-600 text-xs">+$15/operator beyond 3</div>
+          </div>
+
+          <div id="price-annual" class="hidden">
+            <div class="flex items-end gap-2">
+              <div class="text-4xl font-black text-white">$299</div>
+              <div class="text-gray-400 text-sm pb-1">/year · 3 agents</div>
+            </div>
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-gray-600 text-sm line-through">$540</span>
+              <span class="px-2 py-0.5 rounded-full text-xs font-bold" style="background:rgba(0,255,178,.12);color:#00FFB2;">Save 45%</span>
+            </div>
+            <div class="text-gray-600 text-xs mt-1">+$99/operator/year beyond 3</div>
+          </div>
+        </div>
+
+        <ul class="space-y-3 text-sm text-gray-300 flex-1 mb-8">
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>Everything in Free</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span><strong>3 agent operators minimum</strong></li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>Full team + project scoping</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>Auto-handoffs between agents</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>All 4 MCP tools on Agent Bus</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>Google Drive Sync</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>Chrome Extension</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>Unlimited memories</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>Full Truth Engine (5 levels)</li>
+        </ul>
+        <a href="mailto:team@grooveos.app?subject=Groove OS team plan"
+           class="block text-center py-3 rounded-xl font-bold text-ink text-sm transition-all hover:opacity-90"
+           style="background:linear-gradient(135deg,#00FFB2,#00CC8E);">
+          Join waitlist →
+        </a>
+      </div>
+
+      <!-- Enterprise -->
+      <div class="rounded-2xl bg-ink-2 border border-border p-8 flex flex-col">
+        <div class="mb-6">
+          <div class="text-xs font-mono text-gray-500 uppercase tracking-widest mb-3">Enterprise</div>
+          <div class="text-4xl font-black text-white">Custom</div>
+          <div class="text-gray-600 text-sm mt-1">10+ operators · SLA · SSO</div>
+        </div>
+        <ul class="space-y-3 text-sm text-gray-400 flex-1 mb-8">
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>Everything in Team</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>SSO / SAML</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>Custom agent policies</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>Full audit trail</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>Dedicated support</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>On-prem deployment</li>
+          <li class="flex gap-2 items-start"><span class="text-groove shrink-0">✓</span>Custom integrations</li>
+        </ul>
+        <a href="mailto:team@grooveos.app?subject=Groove OS enterprise"
+           class="block text-center py-3 rounded-xl border border-border text-gray-400 text-sm font-semibold hover:border-groove hover:text-white transition-all">
+          Contact us
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════ FINAL CTA ═══════════ -->
+  <section class="py-28 relative overflow-hidden">
+    <div class="absolute inset-0 grid-bg opacity-40 pointer-events-none"></div>
+    <div class="absolute inset-0 pointer-events-none">
+      <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[300px] rounded-full opacity-15" style="background:radial-gradient(ellipse,#00FFB2,transparent 65%);filter:blur(80px);"></div>
+    </div>
+    <div class="relative max-w-3xl mx-auto px-6 text-center">
+      <div class="font-mono text-xs text-groove mb-6 tracking-widest">// ORG.STATUS: READY_TO_GROOVE</div>
+      <h2 class="text-4xl md:text-6xl font-black text-white mb-6 leading-tight">
+        Your agents are waiting<br/>
+        <span class="gt-groove text-glow">for an OS to run on.</span>
+      </h2>
+      <p class="text-xl text-gray-400 mb-10 leading-relaxed">
+        Stop managing agents manually.<br/>
+        Give them a shared brain and let your whole org find its groove.
+      </p>
+      <a href="mailto:team@grooveos.app?subject=Groove OS waitlist"
+         class="inline-block px-10 py-5 rounded-2xl font-bold text-ink text-lg transition-all hover:opacity-90 hover:scale-105 glow-groove"
+         style="background:linear-gradient(135deg,#00FFB2,#00CC8E);">
+        Join the Waitlist →
+      </a>
+      <p class="text-gray-700 text-sm mt-4 font-mono">team@grooveos.app · early access · limited spots</p>
+    </div>
+  </section>
+
+  <!-- ═══════════ FOOTER ═══════════ -->
+  <footer class="border-t border-border bg-ink-2 py-10">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-6 h-6 rounded flex items-center justify-center" style="background:linear-gradient(135deg,#00FFB2,#0099FF);">
+          <svg class="w-3.5 h-3.5 text-black" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 2a5 5 0 110 10A5 5 0 018 3zm0 2a3 3 0 100 6 3 3 0 000-6z"/>
+          </svg>
+        </div>
+        <span class="font-black text-white">Groove<span class="gt-groove">OS</span></span>
+        <span class="text-gray-600 text-sm">— Cognitive OS for agentic teams</span>
+      </div>
+      <div class="flex items-center gap-6 text-sm text-gray-600">
+        <a href="/docs/index.html" class="hover:text-white transition-colors">Docs</a>
+        <a href="/docs/api.html" class="hover:text-white transition-colors">API</a>
+        <a href="/docs/billing.html" class="hover:text-white transition-colors">Pricing</a>
+        <a href="https://xbrain-marketing.web.app" class="hover:text-white transition-colors">Self-host →</a>
+        <a href="mailto:team@grooveos.app" class="hover:text-white transition-colors">Contact</a>
+      </div>
+      <div class="text-xs text-gray-700 font-mono">© 2026 Groove OS · all agents in sync</div>
+    </div>
+  </footer>
+
+  <script>
+    function setPricing(mode) {
+      const monthly = document.getElementById('price-monthly');
+      const annual  = document.getElementById('price-annual');
+      const btnM    = document.getElementById('btn-monthly');
+      const btnA    = document.getElementById('btn-annual');
+      if (mode === 'monthly') {
+        monthly.classList.remove('hidden');
+        annual.classList.add('hidden');
+        btnM.classList.replace('inactive','active'); btnM.classList.add('text-ink');
+        btnA.classList.replace('active','inactive'); btnA.classList.remove('text-ink');
+      } else {
+        annual.classList.remove('hidden');
+        monthly.classList.add('hidden');
+        btnA.classList.replace('inactive','active'); btnA.classList.add('text-ink');
+        btnM.classList.replace('active','inactive'); btnM.classList.remove('text-ink');
+      }
+    }
+  </script>
+</body>
+</html>
