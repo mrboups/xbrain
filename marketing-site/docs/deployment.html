@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deployment — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+  <!-- ============================================================
+       NAV
+       ============================================================ -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Deploy
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       DOCS LAYOUT
+       ============================================================ -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" aria-label="Documentation navigation">
+      <nav>
+        <div class="sidebar__section">
+          <p class="sidebar__section-title">Documentation</p>
+          <ul class="sidebar__links">
+            <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+            <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+            <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+            <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+            <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+            <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+            <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+            <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+            <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+            <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+            <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+            <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+            <li><a href="deployment.html" class="sidebar__link active">Deployment</a></li>
+            <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="docs-content" id="main-content">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <span class="breadcrumb__item">
+          <a href="../index.html" class="breadcrumb__link">Home</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__current">Deployment</span>
+      </nav>
+
+      <h1>Deployment</h1>
+      <div class="docs-meta">
+        <span>Phase 1–5 deployment</span>
+        <span>&#183;</span>
+        <span>~20 min read</span>
+        <span class="docs-meta__badge">v1.0</span>
+      </div>
+
+      <!-- ======================================================
+           Prerequisites
+           ====================================================== -->
+      <h2>Prerequisites</h2>
+      <p>
+        xbrain deploys as a Docker Compose stack on a Linux VM. GCP e2-medium is the recommended
+        starting point for Phase 1 (~25&euro;/mo). All services run as Docker containers — no
+        Kubernetes required.
+      </p>
+
+      <div class="callout callout--info">
+        <p class="callout__title">VM Sizing by Phase</p>
+        <p>Phase 1 runs on a 4 GB VM (e2-medium, ~25&euro;/mo on GCP). Before starting Phase 2,
+        upgrade to 8 GB (e2-standard-2, ~49&euro;/mo). Phase 3+ may require 16 GB depending on load.</p>
+      </div>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Requirement</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Cloud VM</td>
+            <td>GCP e2-medium (4 GB, 2 vCPU) for Phase 1</td>
+          </tr>
+          <tr>
+            <td>Operating System</td>
+            <td>Ubuntu 24.04 LTS</td>
+          </tr>
+          <tr>
+            <td>Docker</td>
+            <td>24.0+ (install via official script)</td>
+          </tr>
+          <tr>
+            <td>Docker Compose</td>
+            <td>v2 (included with Docker or via <code>apt install docker-compose-plugin</code>)</td>
+          </tr>
+          <tr>
+            <td>Firewall</td>
+            <td>TCP 80 and 443 open (GCP firewall rules)</td>
+          </tr>
+          <tr>
+            <td>Domain (optional)</td>
+            <td>For HTTPS via Cloudflare DNS proxy</td>
+          </tr>
+          <tr>
+            <td>Google OAuth App</td>
+            <td>Client ID + Secret from Google Cloud Console (for SSO)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ======================================================
+           Phase 1: Core Stack
+           ====================================================== -->
+      <h2>Phase 1: Core Stack</h2>
+      <p>
+        Phase 1 deploys nginx, PostgreSQL, Qdrant, memory-api, LibreChat, Open WebUI, and the
+        memory bridges. This is the minimal stack that satisfies the core memory invariant:
+        every conversation is stored with the 7-field tagging contract enforced.
+      </p>
+
+      <h3>Step 1 — Create a GCP VM</h3>
+      <pre class="code-block"><code><span class="code-block__label">bash</span># Create e2-medium VM (GCP Console or gcloud CLI)
+gcloud compute instances create xbrain-vm \
+  --zone=europe-west1-b \
+  --machine-type=e2-medium \
+  --image-family=ubuntu-2404-lts \
+  --image-project=ubuntu-os-cloud \
+  --boot-disk-size=50GB \
+  --tags=http-server,https-server
+
+# Open HTTP/HTTPS ports
+gcloud compute firewall-rules create xbrain-http \
+  --allow tcp:80,tcp:443 \
+  --target-tags http-server,https-server</code></pre>
+
+      <h3>Step 2 — Install Docker</h3>
+      <pre class="code-block"><code><span class="code-block__label">bash</span>ssh user@YOUR_VM_IP
+
+# Install Docker (official script)
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Verify
+docker --version         # Docker 24.x+
+docker compose version   # Docker Compose version v2.x</code></pre>
+
+      <h3>Step 3 — Clone and configure</h3>
+      <pre class="code-block"><code><span class="code-block__label">bash</span>git clone https://github.com/mrboups/xbrain.git
+cd xbrain/infrastructure
+cp .env.example .env
+nano .env  # Fill in your values (see Configuration page)</code></pre>
+
+      <p>Required <code>.env</code> values for Phase 1:</p>
+      <pre class="code-block"><code><span class="code-block__label">.env — Phase 1 required</span>POSTGRES_PASSWORD=&lt;strong-random-password&gt;
+GOOGLE_CLIENT_ID=&lt;from-google-cloud-console&gt;
+GOOGLE_CLIENT_SECRET=&lt;from-google-cloud-console&gt;
+BRIDGE_SHARED_SECRET=$(openssl rand -hex 32)
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+MEILI_MASTER_KEY=$(openssl rand -hex 32)
+PIPELINE_API_KEY=$(openssl rand -hex 32)</code></pre>
+
+      <h3>Step 4 — Start Phase 1</h3>
+      <pre class="code-block"><code><span class="code-block__label">bash</span>docker compose up -d
+
+# Monitor startup (takes ~60s for all healthchecks to pass)
+docker compose ps
+watch docker compose ps   # Wait for all to show "healthy"</code></pre>
+
+      <h3>Step 5 — Configure nginx</h3>
+      <pre class="code-block"><code><span class="code-block__label">bash</span># Edit nginx config with your VM IP or domain
+nano infrastructure/nginx/conf.d/10-xbrain.conf
+
+# Restart nginx to apply
+docker compose restart nginx</code></pre>
+
+      <h3>Step 6 — Verify Phase 1</h3>
+      <pre class="code-block"><code><span class="code-block__label">bash</span>bash infrastructure/scripts/verify-phase1.sh
+# Expected: PASS: 6 / 6</code></pre>
+
+      <div class="callout callout--info">
+        <p class="callout__title">First Login</p>
+        <p>Access LibreChat at <code>http://YOUR_VM_IP</code>. Sign in with Google — the email
+        must match a configured team scope. Open WebUI is available at
+        <code>http://YOUR_VM_IP/open-webui</code>.</p>
+      </div>
+
+      <!-- ======================================================
+           Phase 2: Intelligent Memory
+           ====================================================== -->
+      <h2>Phase 2: Intelligent Memory</h2>
+      <p>
+        Phase 2 adds agent-runtime (LangGraph), Langfuse observability, mem0, Redis, MinIO,
+        and ClickHouse. This phase requires more RAM — upgrade before starting.
+      </p>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">VM Upgrade Required</p>
+        <p>Before starting Phase 2, upgrade your VM from e2-medium (4 GB) to e2-standard-2 (8 GB).
+        Adding Phase 2 services to a 4 GB VM will cause OOM kills.</p>
+      </div>
+
+      <pre class="code-block"><code><span class="code-block__label">bash — resize VM</span># GCP Console: stop VM → Edit → Change machine type → e2-standard-2 → Start
+# Or via gcloud CLI:
+gcloud compute instances stop xbrain-vm
+gcloud compute instances set-machine-type xbrain-vm --machine-type=e2-standard-2
+gcloud compute instances start xbrain-vm</code></pre>
+
+      <p>Add to <code>.env</code>:</p>
+      <pre class="code-block"><code><span class="code-block__label">.env — Phase 2 additions</span>LANGFUSE_PUBLIC_KEY=&lt;from-langfuse-setup&gt;
+LANGFUSE_SECRET_KEY=&lt;from-langfuse-setup&gt;</code></pre>
+
+      <pre class="code-block"><code><span class="code-block__label">bash</span># Phase 2 services are already defined in docker-compose.yml
+docker compose up -d
+bash infrastructure/scripts/verify-phase2.sh
+# Expected: PASS: 6 / 6</code></pre>
+
+      <p>
+        Langfuse UI is available at <code>http://YOUR_VM_IP:3000</code> (or <code>obs.yourdomain.com</code>
+        if using a custom domain). On first boot, create an admin account and generate your
+        <code>LANGFUSE_PUBLIC_KEY</code> and <code>LANGFUSE_SECRET_KEY</code>.
+      </p>
+
+      <!-- ======================================================
+           Phase 3: Graph + Integrations
+           ====================================================== -->
+      <h2>Phase 3: Graph + Integrations</h2>
+      <p>
+        Phase 3 adds Neo4j (knowledge graph), mcp-gateway, mcp-scraper, mcp-drive-read,
+        mcp-calendar, and drive-sync. MCP tools are registered with memory-api after startup.
+      </p>
+
+      <p>Add to <code>.env</code>:</p>
+      <pre class="code-block"><code><span class="code-block__label">.env — Phase 3 additions</span>NEO4J_PASSWORD=&lt;strong-password&gt;
+OAUTH_CREDENTIALS_ENCRYPTION_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+# GOOGLE_CLIENT_SECRET must already be set from Phase 1</code></pre>
+
+      <pre class="code-block"><code><span class="code-block__label">bash</span>docker compose up -d
+
+# Register MCP tools with memory-api
+bash infrastructure/scripts/register-mcp-tools.sh
+
+# Verify
+bash infrastructure/scripts/verify-phase3.sh
+# Expected: PASS: 7 / 7</code></pre>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Google Drive OAuth Setup</p>
+        <p>For Drive sync, you must add your VM's callback URL to your Google OAuth app's
+        Authorized Redirect URIs:
+        <code>https://api.yourdomain.com/v1/oauth/callback</code>. Users then authorize
+        from their LibreChat profile page.</p>
+      </div>
+
+      <!-- ======================================================
+           Phase 4: MCP Completion
+           ====================================================== -->
+      <h2>Phase 4: MCP Completion</h2>
+      <p>
+        Phase 4 adds mcp-deck (PPTX generation) and upgrades the LibreChat bridge for full
+        multi-tool support. No new environment variables are required.
+      </p>
+
+      <pre class="code-block"><code><span class="code-block__label">bash</span># Build mcp-deck (local build required)
+docker compose build mcp-deck
+
+# Restart stack
+docker compose up -d
+
+# Verify
+bash infrastructure/scripts/verify-phase4.sh
+# Expected: PASS: 8 / 8</code></pre>
+
+      <!-- ======================================================
+           Phase 5: Team Platform
+           ====================================================== -->
+      <h2>Phase 5: Team Platform</h2>
+      <p>
+        Phase 5 adds graphiti-service (temporal fact extraction), github-auth (GitHub Org SSO),
+        and projects-dashboard. The Chrome extension is installed manually from the
+        <a href="chrome-ext.html">Chrome Extension guide</a>.
+      </p>
+
+      <p>Add to <code>.env</code>:</p>
+      <pre class="code-block"><code><span class="code-block__label">.env — Phase 5 additions</span>GITHUB_ORG=your-github-org
+GITHUB_API_PAT=ghp_...        # Requires read:org scope
+GRAPHITI_SERVICE_URL=http://graphiti-service:8300</code></pre>
+
+      <pre class="code-block"><code><span class="code-block__label">bash</span>docker compose up -d
+bash infrastructure/scripts/verify-phase5.sh
+# Expected: PASS: 8 / 8</code></pre>
+
+      <div class="callout callout--info">
+        <p class="callout__title">GitHub PAT Scope</p>
+        <p>The GitHub Personal Access Token only requires the <code>read:org</code> scope.
+        It is used solely to verify that a user belongs to the configured GitHub Organization
+        before granting access. No repository access is needed.</p>
+      </div>
+
+      <!-- ======================================================
+           HTTPS with Cloudflare
+           ====================================================== -->
+      <h2>HTTPS with Cloudflare</h2>
+      <p>
+        Cloudflare provides free HTTPS via their DNS proxy. Add your domain to Cloudflare,
+        point an A record to your VM IP, and enable the proxy (orange cloud icon). Cloudflare
+        terminates TLS and proxies HTTP to your VM on port 80.
+      </p>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Cloudflare Proxy Mode</p>
+        <p>With the orange cloud enabled, Cloudflare handles TLS — your nginx only needs to
+        listen on port 80. Set SSL/TLS mode to "Flexible" in Cloudflare if your VM has no
+        certificate, or "Full" if you add a self-signed cert on the VM.</p>
+      </div>
+
+      <p>Key nginx configuration for proxying to services:</p>
+      <pre class="code-block"><code><span class="code-block__label">nginx — 10-xbrain.conf (excerpt)</span>server {
+    listen 80;
+    server_name x.yourdomain.com;
+
+    location / {
+        proxy_pass         http://librechat:3080;
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+    }
+}
+
+server {
+    listen 80;
+    server_name api.yourdomain.com;
+
+    location / {
+        proxy_pass       http://memory-api:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}</code></pre>
+
+      <p>
+        Domains used in the reference deployment:
+      </p>
+      <ul>
+        <li><code>x.dejavu.cat</code> — LibreChat</li>
+        <li><code>ai.dejavu.cat</code> — Open WebUI</li>
+        <li><code>api.dejavu.cat</code> — memory-api</li>
+        <li><code>obs.dejavu.cat</code> — Langfuse</li>
+      </ul>
+
+      <!-- ======================================================
+           Backups
+           ====================================================== -->
+      <h2>Backups</h2>
+      <p>
+        xbrain ships with backup and restore scripts for PostgreSQL, Qdrant, and Neo4j volumes.
+        Run backups on a cron schedule or before major upgrades.
+      </p>
+
+      <pre class="code-block"><code><span class="code-block__label">bash</span># Create a full backup (dumps PostgreSQL + archives named volumes)
+bash infrastructure/scripts/backup.sh
+# Output: backups/backup_20260501_120000.tar.gz
+
+# Restore on a fresh VM (after cloning repo + setting .env)
+bash infrastructure/scripts/restore.sh backups/backup_20260501_120000.tar.gz</code></pre>
+
+      <p>Recommended cron schedule for automated backups:</p>
+      <pre class="code-block"><code><span class="code-block__label">crontab</span># Daily backup at 2:00 AM UTC
+0 2 * * * cd /home/user/xbrain/infrastructure && bash scripts/backup.sh >> /var/log/xbrain-backup.log 2>&amp;1</code></pre>
+
+      <!-- ======================================================
+           Monitoring VM Resources
+           ====================================================== -->
+      <h2>Monitoring VM Resources</h2>
+      <p>
+        With 25+ containers running, memory and disk usage require regular monitoring.
+        These commands give you an instant view of the stack's health.
+      </p>
+
+      <pre class="code-block"><code><span class="code-block__label">bash</span># Real-time container memory and CPU usage
+docker stats --no-stream
+
+# Check disk space (Docker layers + volumes are the main consumers)
+df -h
+
+# See how much Docker is using
+docker system df
+
+# If disk usage exceeds 90%, clean up unused images and stopped containers
+docker system prune --volumes -f</code></pre>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Disk Usage Warning</p>
+        <p>The VM disk (50 GB recommended) can fill up quickly with Docker image layers, logs,
+        and Qdrant vector data. If disk usage exceeds 95%, services will fail to write data.
+        Run <code>docker system prune</code> or expand the GCP boot disk before adding new
+        services or phases.</p>
+      </div>
+
+      <p>Check for containers in a restart loop or unhealthy state:</p>
+      <pre class="code-block"><code><span class="code-block__label">bash</span># List all containers with health status
+docker compose ps
+
+# Tail logs for a specific service
+docker compose logs -f memory-api
+
+# Check recent events (OOM kills, restarts)
+docker events --since 1h</code></pre>
+
+      <!-- ======================================================
+           Upgrading
+           ====================================================== -->
+      <h2>Upgrading</h2>
+      <p>
+        To upgrade xbrain to a newer version, pull the latest code and rebuild changed images.
+        Always run a backup before upgrading.
+      </p>
+
+      <pre class="code-block"><code><span class="code-block__label">bash</span># 1. Take a backup first
+bash infrastructure/scripts/backup.sh
+
+# 2. Pull latest code
+git pull origin main
+
+# 3. Pull updated Docker images
+docker compose pull
+
+# 4. Rebuild locally-built services (memory-api, agent-runtime, bridges, MCP tools)
+docker compose build
+
+# 5. Restart the stack
+docker compose up -d
+
+# 6. Check for any failed healthchecks
+docker compose ps</code></pre>
+
+      <!-- ======================================================
+           Troubleshooting
+           ====================================================== -->
+      <h2>Troubleshooting</h2>
+
+      <h3>Services not starting</h3>
+      <p>Check logs for the failing service:</p>
+      <pre class="code-block"><code><span class="code-block__label">bash</span>docker compose logs memory-api
+docker compose logs librechat
+docker compose logs postgres</code></pre>
+
+      <h3>LibreChat can't connect to memory-api</h3>
+      <p>
+        Ensure <code>BRIDGE_SHARED_SECRET</code> is identical in both the bridge environment and
+        the memory-api environment. Mismatched secrets cause 401 errors on every memory write.
+      </p>
+
+      <h3>OAuth login fails</h3>
+      <p>
+        Verify that <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> are set
+        correctly and that the OAuth callback URI is registered in Google Cloud Console.
+        The expected callback URL is <code>https://api.yourdomain.com/v1/oauth/callback</code>.
+      </p>
+
+      <h3>Out of memory (OOM) kills</h3>
+      <p>
+        If you see containers restarting with exit code 137, the VM is running out of memory.
+        Check <code>docker stats</code> to identify the largest consumer and either upgrade
+        the VM or disable non-essential services.
+      </p>
+
+      <!-- ======================================================
+           Next Steps
+           ====================================================== -->
+      <h2>Next Steps</h2>
+      <ul>
+        <li>
+          <a href="configuration.html">Configuration reference</a> — Full list of environment
+          variables with types, defaults, and generation commands.
+        </li>
+        <li>
+          <a href="architecture.html">Architecture overview</a> — All 25 containers and how
+          data flows between them.
+        </li>
+        <li>
+          <a href="mcp-tools.html">MCP Tools guide</a> — How to use the Drive, Calendar,
+          Scraper, and Deck tools from LibreChat.
+        </li>
+        <li>
+          <a href="agents.html">Agents</a> — Building LangGraph agents that read and write
+          to the shared memory layer.
+        </li>
+      </ul>
+
+    </main>
+  </div>
+
+  <!-- ============================================================
+       FOOTER
+       ============================================================ -->
+  <footer class="xb-footer">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+        <div>
+          <p class="xb-footer__col-title">Product</p>
+          <ul class="xb-footer__links">
+            <li><a href="../index.html" class="xb-footer__link">Home</a></li>
+            <li><a href="index.html" class="xb-footer__link">Documentation</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Deployment</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Docs</p>
+          <ul class="xb-footer__links">
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="memory.html" class="xb-footer__link">Memory System</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Community</p>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">GitHub</a>
+            </li>
+            <li><a href="https://github.com/mrboups/xbrain/issues" target="_blank" rel="noopener noreferrer" class="xb-footer__link">Issues</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="xb-footer__bottom">
+        <span class="xb-footer__copyright">
+          &copy; 2026 xbrain. Open source under MIT License.
+        </span>
+        <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener noreferrer" class="xb-footer__link">
+          GitHub &rarr;
+        </a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
