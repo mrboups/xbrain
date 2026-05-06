@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dejavu — The Brain Your Vibe Team Was Missing</title>
+  <meta name="description" content="Ship 10x faster when every AI in your team shares the same memory. Dev, marketing, ops — all in sync." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            neon: '#A78BFA',
+            'neon-bright': '#C4B5FD',
+            'neon-dim': '#7C3AED',
+            surface: '#0F0F14',
+            'surface-2': '#16161F',
+            'surface-3': '#1E1E2E',
+            'surface-4': '#252535',
+            border: '#2A2A3D',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'float': 'float 6s ease-in-out infinite',
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0px)' },
+              '50%': { transform: 'translateY(-8px)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    body { background-color: #0F0F14; color: #E2E2F0; }
+
+    .glow { box-shadow: 0 0 40px rgba(167,139,250,0.15); }
+    .glow-text { text-shadow: 0 0 60px rgba(167,139,250,0.4); }
+
+    .gradient-text {
+      background: linear-gradient(135deg, #C4B5FD 0%, #A78BFA 40%, #7C3AED 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .gradient-text-warm {
+      background: linear-gradient(135deg, #FDE68A 0%, #F59E0B 40%, #EC4899 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .card-hover {
+      transition: all 0.2s ease;
+      border: 1px solid #2A2A3D;
+    }
+    .card-hover:hover {
+      border-color: #7C3AED;
+      box-shadow: 0 0 24px rgba(124,58,237,0.15);
+      transform: translateY(-2px);
+    }
+
+    .brain-grid {
+      background-image:
+        linear-gradient(rgba(167,139,250,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(167,139,250,0.05) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.7rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+    }
+    .tag-dev    { background: rgba(167,139,250,0.12); color: #C4B5FD; border: 1px solid rgba(167,139,250,0.2); }
+    .tag-mkt    { background: rgba(251,191,36,0.1);   color: #FCD34D; border: 1px solid rgba(251,191,36,0.2); }
+    .tag-ops    { background: rgba(52,211,153,0.1);   color: #6EE7B7; border: 1px solid rgba(52,211,153,0.2); }
+    .tag-ai     { background: rgba(244,114,182,0.1);  color: #F9A8D4; border: 1px solid rgba(244,114,182,0.2); }
+
+    .noise-card {
+      position: relative;
+      overflow: hidden;
+    }
+    .noise-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at top left, rgba(124,58,237,0.08), transparent 60%);
+      pointer-events: none;
+    }
+
+    .flow-line {
+      width: 2px;
+      background: linear-gradient(to bottom, transparent, #7C3AED, transparent);
+    }
+
+    .pricing-featured {
+      border: 1px solid #7C3AED;
+      box-shadow: 0 0 40px rgba(124,58,237,0.2), inset 0 0 40px rgba(124,58,237,0.03);
+    }
+
+    .memory-stream {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body class="antialiased">
+
+  <!-- NAV -->
+  <nav class="fixed top-0 w-full z-50 border-b border-border" style="background: rgba(15,15,20,0.85); backdrop-filter: blur(16px);">
+    <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+      <a href="#" class="flex items-center gap-2">
+        <span class="text-lg font-bold tracking-tight text-white">deja<span class="gradient-text">vu</span></span>
+        <span class="tag tag-dev">beta</span>
+      </a>
+      <div class="hidden md:flex items-center gap-8 text-sm text-gray-400">
+        <a href="#problem" class="hover:text-white transition-colors">Why</a>
+        <a href="#how" class="hover:text-white transition-colors">How it works</a>
+        <a href="#scale" class="hover:text-white transition-colors">Scale</a>
+        <a href="#pricing" class="hover:text-white transition-colors">Pricing</a>
+        <a href="/docs/index.html" class="hover:text-white transition-colors">Docs</a>
+      </div>
+      <a href="mailto:team@grooveos.app?subject=dejavu waitlist" class="px-4 py-1.5 rounded-lg text-sm font-medium text-white" style="background: linear-gradient(135deg, #7C3AED, #6D28D9);">
+        Join waitlist
+      </a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="relative min-h-screen flex items-center justify-center brain-grid pt-14 overflow-hidden">
+
+    <!-- background glow blobs -->
+    <div class="absolute inset-0 pointer-events-none">
+      <div class="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-10" style="background: radial-gradient(circle, #7C3AED, transparent 70%); filter: blur(60px);"></div>
+      <div class="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-8" style="background: radial-gradient(circle, #EC4899, transparent 70%); filter: blur(80px);"></div>
+    </div>
+
+    <div class="relative max-w-5xl mx-auto px-6 text-center">
+
+      <!-- pill -->
+      <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-surface-2 text-sm text-gray-400 mb-8">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse-slow"></span>
+        The shared brain for vibe teams
+        <span class="text-gray-600">·</span>
+        <span class="text-neon">Private beta</span>
+      </div>
+
+      <h1 class="text-5xl md:text-7xl font-black tracking-tight text-white leading-none mb-6 glow-text">
+        Your vibe team.<br/>
+        <span class="gradient-text">One shared brain.</span>
+      </h1>
+
+      <p class="text-xl md:text-2xl text-gray-400 max-w-2xl mx-auto mb-4 leading-relaxed">
+        Every AI conversation across dev, marketing, and ops lands in one memory layer —
+        so your whole team ships as one, not as strangers.
+      </p>
+
+      <p class="text-base text-gray-500 mb-10">
+        Built for vibe coders who want to scale without losing context.
+      </p>
+
+      <!-- CTAs -->
+      <div class="flex flex-col sm:flex-row gap-4 justify-center mb-16">
+        <a href="mailto:team@grooveos.app?subject=dejavu waitlist"
+           class="px-8 py-4 rounded-xl font-semibold text-white text-base transition-all hover:opacity-90 hover:scale-105 glow"
+           style="background: linear-gradient(135deg, #7C3AED, #6D28D9);">
+          Join the Waitlist →
+        </a>
+        <a href="#how"
+           class="px-8 py-4 rounded-xl font-semibold text-gray-300 text-base border border-border bg-surface-2 hover:border-neon-dim hover:text-white transition-all">
+          See how it works ↓
+        </a>
+      </div>
+
+      <!-- Live memory stream preview -->
+      <div class="max-w-2xl mx-auto rounded-2xl border border-border bg-surface-2 overflow-hidden glow animate-float">
+        <div class="flex items-center gap-2 px-4 py-3 border-b border-border bg-surface-3">
+          <div class="flex gap-1.5">
+            <div class="w-3 h-3 rounded-full bg-red-500 opacity-70"></div>
+            <div class="w-3 h-3 rounded-full bg-yellow-500 opacity-70"></div>
+            <div class="w-3 h-3 rounded-full bg-green-500 opacity-70"></div>
+          </div>
+          <span class="text-xs text-gray-500 font-mono ml-2">dejavu / team memory — live</span>
+        </div>
+        <div class="p-5 memory-stream text-left space-y-2.5">
+          <div class="flex items-start gap-3">
+            <span class="tag tag-dev shrink-0 mt-0.5">dev</span>
+            <span class="text-gray-300">Shipped <span class="text-neon">auth-v2</span> — OAuth + GitHub SSO, session tokens in Redis. <span class="text-gray-600">2m ago · truth: VALIDATED</span></span>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="tag tag-ai shrink-0 mt-0.5">claude</span>
+            <span class="text-gray-300">Indexed 14 new memory nodes from chat session <span class="text-neon">#342</span>. Architecture decisions locked. <span class="text-gray-600">4m ago</span></span>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="tag tag-mkt shrink-0 mt-0.5">mkt</span>
+            <span class="text-gray-300">Launch copy for <span class="text-neon">auth-v2</span> auto-drafted — AI pulled feature spec from brain. <span class="text-gray-600">6m ago</span></span>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="tag tag-ops shrink-0 mt-0.5">ops</span>
+            <span class="text-gray-300">Runbook updated: Redis session config synced from dev memory. <span class="text-gray-600">9m ago</span></span>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="tag tag-dev shrink-0 mt-0.5">dev</span>
+            <span class="text-gray-300">New vibe session started: <span class="text-neon">payment-flow</span>. AI pre-loaded with full product context. <span class="text-gray-600">just now</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROBLEM -->
+  <section id="problem" class="py-24 max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <p class="text-sm font-mono text-neon tracking-widest uppercase mb-4">The reality</p>
+      <h2 class="text-4xl md:text-5xl font-black text-white leading-tight">
+        Vibecoding alone is easy.<br/>
+        <span class="text-gray-500">Vibecoding as a team is broken.</span>
+      </h2>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-6">
+
+      <div class="noise-card rounded-2xl bg-surface-2 p-8 card-hover">
+        <div class="text-4xl mb-4">🧠</div>
+        <h3 class="text-xl font-bold text-white mb-3">Every AI starts blind</h3>
+        <p class="text-gray-400 text-sm leading-relaxed">
+          You spend 10 minutes explaining your stack to Claude. Your co-founder explains the product to ChatGPT.
+          Your marketer starts from scratch with their AI. Same project. Zero shared context.
+        </p>
+        <div class="mt-5 font-mono text-xs text-gray-600 bg-surface-3 rounded-lg p-3 border border-border">
+          "Can you explain the architecture again?"<br/>
+          "What was the decision on auth?"<br/>
+          "Which database are we using?"
+        </div>
+      </div>
+
+      <div class="noise-card rounded-2xl bg-surface-2 p-8 card-hover">
+        <div class="text-4xl mb-4">🏝️</div>
+        <h3 class="text-xl font-bold text-white mb-3">Your team ships in silos</h3>
+        <p class="text-gray-400 text-sm leading-relaxed">
+          Dev ships a feature. Marketing doesn't know what changed. Ops updates a config that
+          breaks what dev just built. The AI that helped dev has no idea ops exists.
+        </p>
+        <div class="mt-5 font-mono text-xs text-gray-600 bg-surface-3 rounded-lg p-3 border border-border">
+          Dev: "shipped auth-v2"<br/>
+          Mkt: "what's auth-v2?"<br/>
+          Ops: "why is Redis config wrong?"
+        </div>
+      </div>
+
+      <div class="noise-card rounded-2xl bg-surface-2 p-8 card-hover">
+        <div class="text-4xl mb-4">📉</div>
+        <h3 class="text-xl font-bold text-white mb-3">Scaling breaks the vibe</h3>
+        <p class="text-gray-400 text-sm leading-relaxed">
+          You hire a second vibe coder. Now you have two isolated AI brains that don't talk.
+          Onboarding takes days. Context leaks everywhere. The more people, the slower you ship.
+        </p>
+        <div class="mt-5 font-mono text-xs text-gray-600 bg-surface-3 rounded-lg p-3 border border-border">
+          Solo: 100 mph<br/>
+          2 people: 60 mph each<br/>
+          5 people: chaos
+        </div>
+      </div>
+
+    </div>
+
+    <div class="mt-12 text-center">
+      <p class="text-2xl md:text-3xl font-black text-white">
+        The problem isn't your team. It's that
+        <span class="gradient-text-warm">your AIs don't talk to each other.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- SOLUTION -->
+  <section class="py-24 border-y border-border bg-surface-2">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="grid md:grid-cols-2 gap-16 items-center">
+
+        <div>
+          <p class="text-sm font-mono text-neon tracking-widest uppercase mb-4">The fix</p>
+          <h2 class="text-4xl md:text-5xl font-black text-white leading-tight mb-6">
+            One brain.<br/>
+            <span class="gradient-text">Every voice.</span>
+          </h2>
+          <p class="text-gray-400 text-lg leading-relaxed mb-6">
+            dejavu is a shared memory layer that sits between your team and every AI they use.
+            Every conversation, decision, and file your team touches — tagged, stored, retrievable.
+          </p>
+          <p class="text-gray-400 text-lg leading-relaxed mb-8">
+            Your marketer's AI knows what dev shipped. Your ops AI knows the real architecture.
+            New hire's Claude gets full context on day one.
+          </p>
+          <div class="space-y-3">
+            <div class="flex items-center gap-3">
+              <div class="w-5 h-5 rounded-full bg-neon-dim flex items-center justify-center shrink-0">
+                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <span class="text-gray-300">Works with Claude, ChatGPT, Cursor, Grok — all of them</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="w-5 h-5 rounded-full bg-neon-dim flex items-center justify-center shrink-0">
+                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <span class="text-gray-300">Dev context stays in dev. Marketing context stays in marketing.</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="w-5 h-5 rounded-full bg-neon-dim flex items-center justify-center shrink-0">
+                <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <span class="text-gray-300">Zero infrastructure to manage — we run it, you vibe</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- visual -->
+        <div class="relative">
+          <div class="rounded-2xl border border-border bg-surface-3 p-6 space-y-4">
+
+            <!-- team nodes feeding into brain -->
+            <div class="space-y-3">
+              <div class="flex items-center gap-3 p-3 rounded-xl bg-surface-4 border border-border">
+                <span class="text-2xl">👩‍💻</span>
+                <div class="flex-1 min-w-0">
+                  <div class="text-xs text-gray-500 mb-1">Lea · dev</div>
+                  <div class="text-sm text-gray-300 truncate">"just shipped the payment flow with Stripe"</div>
+                </div>
+                <span class="tag tag-dev shrink-0">claude</span>
+              </div>
+              <div class="flex items-center gap-3 p-3 rounded-xl bg-surface-4 border border-border">
+                <span class="text-2xl">📣</span>
+                <div class="flex-1 min-w-0">
+                  <div class="text-xs text-gray-500 mb-1">Tom · marketing</div>
+                  <div class="text-sm text-gray-300 truncate">"write a launch tweet for the payment feature"</div>
+                </div>
+                <span class="tag tag-mkt shrink-0">gpt-4o</span>
+              </div>
+              <div class="flex items-center gap-3 p-3 rounded-xl bg-surface-4 border border-border">
+                <span class="text-2xl">⚙️</span>
+                <div class="flex-1 min-w-0">
+                  <div class="text-xs text-gray-500 mb-1">Alex · ops</div>
+                  <div class="text-sm text-gray-300 truncate">"update the runbook with Stripe webhook config"</div>
+                </div>
+                <span class="tag tag-ops shrink-0">claude</span>
+              </div>
+            </div>
+
+            <!-- arrow down -->
+            <div class="flex justify-center">
+              <div class="flex flex-col items-center gap-1">
+                <div class="w-px h-4 bg-neon-dim"></div>
+                <svg class="w-4 h-4 text-neon" fill="currentColor" viewBox="0 0 20 20"><path d="M10 14l-5-5h10l-5 5z"/></svg>
+              </div>
+            </div>
+
+            <!-- shared brain -->
+            <div class="rounded-xl border border-neon-dim p-4 text-center" style="background: rgba(124,58,237,0.08); box-shadow: 0 0 20px rgba(124,58,237,0.1);">
+              <div class="text-2xl mb-1">🧠</div>
+              <div class="font-bold text-neon text-sm">dejavu shared brain</div>
+              <div class="text-xs text-gray-500 mt-1">payment-flow · truth: VALIDATED · team: all</div>
+            </div>
+
+            <!-- arrow down -->
+            <div class="flex justify-center">
+              <div class="flex flex-col items-center gap-1">
+                <div class="w-px h-4 bg-neon-dim"></div>
+                <svg class="w-4 h-4 text-neon" fill="currentColor" viewBox="0 0 20 20"><path d="M10 14l-5-5h10l-5 5z"/></svg>
+              </div>
+            </div>
+
+            <!-- results -->
+            <div class="grid grid-cols-3 gap-2">
+              <div class="p-2 rounded-lg bg-surface-4 text-center border border-border">
+                <div class="text-xs text-neon font-mono mb-0.5">dev</div>
+                <div class="text-xs text-gray-400">Context loaded</div>
+              </div>
+              <div class="p-2 rounded-lg bg-surface-4 text-center border border-border">
+                <div class="text-xs text-yellow-400 font-mono mb-0.5">mkt</div>
+                <div class="text-xs text-gray-400">Tweet ready</div>
+              </div>
+              <div class="p-2 rounded-lg bg-surface-4 text-center border border-border">
+                <div class="text-xs text-emerald-400 font-mono mb-0.5">ops</div>
+                <div class="text-xs text-gray-400">Runbook synced</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how" class="py-24 max-w-5xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <p class="text-sm font-mono text-neon tracking-widest uppercase mb-4">Workflow</p>
+      <h2 class="text-4xl md:text-5xl font-black text-white">
+        Set up in minutes.<br/>
+        <span class="gradient-text">Ship forever.</span>
+      </h2>
+    </div>
+
+    <div class="relative">
+      <!-- connecting line -->
+      <div class="absolute left-8 md:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-neon-dim to-transparent hidden md:block" style="transform: translateX(-50%);"></div>
+
+      <div class="space-y-12">
+
+        <!-- Step 1 -->
+        <div class="relative grid md:grid-cols-2 gap-8 items-center">
+          <div class="md:text-right">
+            <div class="inline-flex items-center gap-2 mb-3">
+              <span class="text-xs font-mono text-gray-500">STEP 01</span>
+            </div>
+            <h3 class="text-2xl font-bold text-white mb-3">Join and create your team</h3>
+            <p class="text-gray-400 leading-relaxed">
+              Sign up, create your team workspace, invite co-founders, teammates, contractors.
+              Everyone gets access to the shared brain — scoped to their role.
+            </p>
+          </div>
+          <div class="md:pl-12">
+            <div class="rounded-xl bg-surface-2 border border-border p-5 font-mono text-sm">
+              <div class="text-gray-500 mb-3">// New team created</div>
+              <div class="text-gray-300">team: <span class="text-neon">"acme-vibe-squad"</span></div>
+              <div class="text-gray-300">members: <span class="text-yellow-400">["lea", "tom", "alex"]</span></div>
+              <div class="text-gray-300">scopes: <span class="text-emerald-400">["dev", "marketing", "ops"]</span></div>
+              <div class="text-gray-300">brain: <span class="text-pink-400">initializing...</span> ✓</div>
+            </div>
+          </div>
+          <!-- step dot -->
+          <div class="absolute left-0 md:left-1/2 top-0 w-4 h-4 rounded-full bg-neon-dim border-2 border-surface hidden md:block" style="transform: translateX(-50%); margin-top: 4px;"></div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="relative grid md:grid-cols-2 gap-8 items-center">
+          <div class="md:col-start-2">
+            <div class="inline-flex items-center gap-2 mb-3">
+              <span class="text-xs font-mono text-gray-500">STEP 02</span>
+            </div>
+            <h3 class="text-2xl font-bold text-white mb-3">Connect your AI tools</h3>
+            <p class="text-gray-400 leading-relaxed">
+              Add the dejavu MCP server to Claude Code, Cursor, or any MCP-compatible AI.
+              Connect Google Drive, install the Chrome clipper. Takes 5 minutes.
+            </p>
+          </div>
+          <div class="md:row-start-1 md:pl-0 md:pr-12">
+            <div class="rounded-xl bg-surface-2 border border-border p-5 font-mono text-sm">
+              <div class="text-gray-500 mb-3"># claude_desktop_config.json</div>
+              <div class="text-gray-300">"mcpServers": &#123;</div>
+              <div class="text-gray-300 pl-4">"dejavu": &#123;</div>
+              <div class="text-gray-300 pl-8">"url": <span class="text-neon">"api.dejavu.cat"</span>,</div>
+              <div class="text-gray-300 pl-8">"token": <span class="text-yellow-400">"dv_****"</span></div>
+              <div class="text-gray-300 pl-4">&#125;</div>
+              <div class="text-gray-300">&#125;</div>
+            </div>
+          </div>
+          <div class="absolute left-0 md:left-1/2 top-0 w-4 h-4 rounded-full bg-neon-dim border-2 border-surface hidden md:block" style="transform: translateX(-50%); margin-top: 4px;"></div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="relative grid md:grid-cols-2 gap-8 items-center">
+          <div class="md:text-right">
+            <div class="inline-flex items-center gap-2 mb-3">
+              <span class="text-xs font-mono text-gray-500">STEP 03</span>
+            </div>
+            <h3 class="text-2xl font-bold text-white mb-3">Vibe. The brain grows with you.</h3>
+            <p class="text-gray-400 leading-relaxed">
+              Build normally. Every conversation your team has with their AI is automatically
+              tagged and stored. The more you vibe, the smarter the shared brain gets.
+            </p>
+          </div>
+          <div class="md:pl-12">
+            <div class="rounded-xl bg-surface-2 border border-border p-5 space-y-3">
+              <div class="flex items-center gap-3">
+                <div class="w-2 h-2 rounded-full bg-emerald-400"></div>
+                <span class="text-sm text-gray-300">247 memories indexed today</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="w-2 h-2 rounded-full bg-neon"></div>
+                <span class="text-sm text-gray-300">3 team members active</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="w-2 h-2 rounded-full bg-yellow-400"></div>
+                <span class="text-sm text-gray-300">12 decisions promoted to VALIDATED</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="w-2 h-2 rounded-full bg-pink-400"></div>
+                <span class="text-sm text-gray-300">5 cross-team context retrievals</span>
+              </div>
+            </div>
+          </div>
+          <div class="absolute left-0 md:left-1/2 top-0 w-4 h-4 rounded-full bg-neon-dim border-2 border-surface hidden md:block" style="transform: translateX(-50%); margin-top: 4px;"></div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- SCALE SECTION -->
+  <section id="scale" class="py-24 border-y border-border bg-surface-2">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <p class="text-sm font-mono text-neon tracking-widest uppercase mb-4">The real unlock</p>
+        <h2 class="text-4xl md:text-5xl font-black text-white leading-tight">
+          Scale your vibe team<br/>
+          <span class="gradient-text">without losing speed.</span>
+        </h2>
+        <p class="text-gray-400 text-lg mt-4 max-w-2xl mx-auto">
+          Most tools slow you down when you grow. dejavu makes every new person smarter from day one —
+          because they inherit the whole team's context.
+        </p>
+      </div>
+
+      <!-- scale diagram -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16">
+        <div class="rounded-2xl bg-surface-3 border border-border p-6 text-center card-hover">
+          <div class="text-3xl mb-3">🧑‍💻</div>
+          <div class="font-bold text-white mb-1">Solo vibe coder</div>
+          <div class="text-xs text-gray-500 mb-4">1 brain · 1 context</div>
+          <div class="text-2xl font-black text-neon">100</div>
+          <div class="text-xs text-gray-500">mph</div>
+        </div>
+        <div class="rounded-2xl bg-surface-3 border border-border p-6 text-center card-hover">
+          <div class="text-3xl mb-3">👥</div>
+          <div class="font-bold text-white mb-1">2-person team</div>
+          <div class="text-xs text-gray-500 mb-4">without dejavu</div>
+          <div class="text-2xl font-black text-yellow-400">~60</div>
+          <div class="text-xs text-gray-500">mph each · coordination drag</div>
+        </div>
+        <div class="rounded-2xl border p-6 text-center card-hover" style="background: rgba(124,58,237,0.08); border-color: #7C3AED;">
+          <div class="text-3xl mb-3">🚀</div>
+          <div class="font-bold text-white mb-1">2-person team</div>
+          <div class="text-xs text-neon mb-4">with dejavu</div>
+          <div class="text-2xl font-black text-neon">120</div>
+          <div class="text-xs text-gray-500">mph each · shared context</div>
+        </div>
+        <div class="rounded-2xl border p-6 text-center card-hover" style="background: rgba(124,58,237,0.08); border-color: #7C3AED;">
+          <div class="text-3xl mb-3">⚡</div>
+          <div class="font-bold text-white mb-1">5+ person team</div>
+          <div class="text-xs text-neon mb-4">with dejavu</div>
+          <div class="text-2xl font-black gradient-text">∞</div>
+          <div class="text-xs text-gray-500">every hire accelerates the team</div>
+        </div>
+      </div>
+
+      <!-- role breakdown -->
+      <h3 class="text-2xl font-bold text-white text-center mb-8">How each role vibes with the shared brain</h3>
+      <div class="grid md:grid-cols-3 gap-6">
+
+        <div class="rounded-2xl bg-surface-3 border border-border p-6 card-hover">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="text-2xl">👩‍💻</span>
+            <div>
+              <span class="tag tag-dev">dev</span>
+              <div class="text-sm font-semibold text-white mt-1">Vibe Coders</div>
+            </div>
+          </div>
+          <ul class="space-y-2 text-sm text-gray-400">
+            <li class="flex gap-2"><span class="text-neon shrink-0">→</span> Claude Code auto-loads project context before each session</li>
+            <li class="flex gap-2"><span class="text-neon shrink-0">→</span> Architecture decisions are permanently indexed — no more "wait, why did we use Redis?"</li>
+            <li class="flex gap-2"><span class="text-neon shrink-0">→</span> Code review comments become memory nodes for future sessions</li>
+            <li class="flex gap-2"><span class="text-neon shrink-0">→</span> Switch between features without losing context</li>
+          </ul>
+        </div>
+
+        <div class="rounded-2xl bg-surface-3 border border-border p-6 card-hover">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="text-2xl">📣</span>
+            <div>
+              <span class="tag tag-mkt">marketing</span>
+              <div class="text-sm font-semibold text-white mt-1">Growth & Content</div>
+            </div>
+          </div>
+          <ul class="space-y-2 text-sm text-gray-400">
+            <li class="flex gap-2"><span class="text-yellow-400 shrink-0">→</span> AI knows what shipped last sprint — launch copy writes itself</li>
+            <li class="flex gap-2"><span class="text-yellow-400 shrink-0">→</span> Product positioning auto-synced from dev decisions</li>
+            <li class="flex gap-2"><span class="text-yellow-400 shrink-0">→</span> Clip competitor intel into shared brain with Chrome extension</li>
+            <li class="flex gap-2"><span class="text-yellow-400 shrink-0">→</span> Campaign results feed back into product memory</li>
+          </ul>
+        </div>
+
+        <div class="rounded-2xl bg-surface-3 border border-border p-6 card-hover">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="text-2xl">⚙️</span>
+            <div>
+              <span class="tag tag-ops">ops</span>
+              <div class="text-sm font-semibold text-white mt-1">Operations & Infra</div>
+            </div>
+          </div>
+          <ul class="space-y-2 text-sm text-gray-400">
+            <li class="flex gap-2"><span class="text-emerald-400 shrink-0">→</span> Runbooks auto-update when dev ships new infrastructure</li>
+            <li class="flex gap-2"><span class="text-emerald-400 shrink-0">→</span> Incident context instantly available — "what changed this week?"</li>
+            <li class="flex gap-2"><span class="text-emerald-400 shrink-0">→</span> Config decisions tracked with full rationale</li>
+            <li class="flex gap-2"><span class="text-emerald-400 shrink-0">→</span> Onboard new ops members with zero knowledge loss</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="py-24 max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <p class="text-sm font-mono text-neon tracking-widest uppercase mb-4">Under the hood</p>
+      <h2 class="text-4xl md:text-5xl font-black text-white">
+        Everything a vibe team needs.<br/>
+        <span class="gradient-text">Nothing they don't.</span>
+      </h2>
+    </div>
+
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+
+      <div class="rounded-2xl bg-surface-2 border border-border p-6 card-hover noise-card">
+        <div class="w-10 h-10 rounded-xl bg-neon-dim bg-opacity-20 flex items-center justify-center mb-4 text-xl">🧠</div>
+        <h3 class="font-bold text-white mb-2">Shared Memory Layer</h3>
+        <p class="text-sm text-gray-400 leading-relaxed">
+          Every chat, decision, file, and fact your team produces is tagged with team-scope,
+          truth-level, and provenance. Searchable by anyone, scoped to the right people.
+        </p>
+      </div>
+
+      <div class="rounded-2xl bg-surface-2 border border-border p-6 card-hover noise-card">
+        <div class="w-10 h-10 rounded-xl bg-neon-dim bg-opacity-20 flex items-center justify-center mb-4 text-xl">🔗</div>
+        <h3 class="font-bold text-white mb-2">Multi-AI Support</h3>
+        <p class="text-sm text-gray-400 leading-relaxed">
+          Claude, ChatGPT, Cursor, Grok — all read from the same brain via MCP.
+          Switch AI tools without losing context. Use the right model for the right job.
+        </p>
+      </div>
+
+      <div class="rounded-2xl bg-surface-2 border border-border p-6 card-hover noise-card">
+        <div class="w-10 h-10 rounded-xl bg-neon-dim bg-opacity-20 flex items-center justify-center mb-4 text-xl">🏷️</div>
+        <h3 class="font-bold text-white mb-2">Truth Levels</h3>
+        <p class="text-sm text-gray-400 leading-relaxed">
+          Not all memory is equal. Tag facts as Ephemeral → Working → Validated → Canonical → Public.
+          AI responses reference the right tier automatically.
+        </p>
+      </div>
+
+      <div class="rounded-2xl bg-surface-2 border border-border p-6 card-hover noise-card">
+        <div class="w-10 h-10 rounded-xl bg-neon-dim bg-opacity-20 flex items-center justify-center mb-4 text-xl">📁</div>
+        <h3 class="font-bold text-white mb-2">Drive Sync</h3>
+        <p class="text-sm text-gray-400 leading-relaxed">
+          Connect Google Drive. Docs, specs, decks auto-indexed into team memory.
+          Your AI can search your Drive like it already read everything.
+        </p>
+      </div>
+
+      <div class="rounded-2xl bg-surface-2 border border-border p-6 card-hover noise-card">
+        <div class="w-10 h-10 rounded-xl bg-neon-dim bg-opacity-20 flex items-center justify-center mb-4 text-xl">🔌</div>
+        <h3 class="font-bold text-white mb-2">Chrome Clipper</h3>
+        <p class="text-sm text-gray-400 leading-relaxed">
+          Right-click anything on the web — competitor pages, articles, research — and clip
+          it directly into the team brain with one click. No copy-paste.
+        </p>
+      </div>
+
+      <div class="rounded-2xl bg-surface-2 border border-border p-6 card-hover noise-card">
+        <div class="w-10 h-10 rounded-xl bg-neon-dim bg-opacity-20 flex items-center justify-center mb-4 text-xl">🔒</div>
+        <h3 class="font-bold text-white mb-2">Scoped by Role</h3>
+        <p class="text-sm text-gray-400 leading-relaxed">
+          Dev memory is visible to devs. Marketing memory stays with marketing.
+          Leaders see all. Contractors see only their project. Granular by design.
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- TESTIMONIAL / PULL QUOTE -->
+  <section class="py-16 border-y border-border bg-surface-2">
+    <div class="max-w-4xl mx-auto px-6 text-center">
+      <div class="text-5xl mb-6">💬</div>
+      <blockquote class="text-2xl md:text-3xl font-bold text-white leading-relaxed mb-6">
+        "We stopped spending 20% of our AI time explaining the project.<br/>
+        That time now goes into building."
+      </blockquote>
+      <p class="text-gray-500 text-sm">— What your future self will say</p>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section id="pricing" class="py-24 max-w-5xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <p class="text-sm font-mono text-neon tracking-widest uppercase mb-4">Pricing</p>
+      <h2 class="text-4xl md:text-5xl font-black text-white">
+        Simple. Scales with your team.
+      </h2>
+      <p class="text-gray-400 mt-3">No per-seat AI costs. Just the shared brain.</p>
+    </div>
+
+    <!-- billing toggle -->
+    <div class="flex justify-center mb-10">
+      <div class="inline-flex items-center rounded-xl border border-border bg-surface-2 p-1 text-sm">
+        <button id="btn-monthly" onclick="setPricing('monthly')"
+          class="px-5 py-2 rounded-lg font-medium transition-all text-white" style="background: #7C3AED;">
+          Monthly
+        </button>
+        <button id="btn-annual" onclick="setPricing('annual')"
+          class="px-5 py-2 rounded-lg font-medium transition-all text-gray-400 hover:text-white">
+          Annual
+          <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-emerald-900 text-emerald-400">–45%</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-6 items-stretch">
+
+      <!-- Free -->
+      <div class="rounded-2xl bg-surface-2 border border-border p-8 flex flex-col">
+        <div class="mb-6">
+          <div class="text-sm font-mono text-gray-500 uppercase tracking-wider mb-2">Free</div>
+          <div class="text-4xl font-black text-white">$0</div>
+          <div class="text-gray-500 text-sm mt-1">Forever · 1 seat</div>
+        </div>
+        <ul class="space-y-3 text-sm text-gray-400 flex-1 mb-8">
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>1 user</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>Shared memory (personal)</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>Claude + ChatGPT MCP</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>100 memories / day</li>
+          <li class="flex gap-2 items-start"><span class="text-gray-600 shrink-0 mt-0.5">✗</span><span class="text-gray-600">Team scoping</span></li>
+          <li class="flex gap-2 items-start"><span class="text-gray-600 shrink-0 mt-0.5">✗</span><span class="text-gray-600">Drive Sync</span></li>
+        </ul>
+        <a href="mailto:team@grooveos.app?subject=dejavu free tier"
+           class="block text-center py-3 rounded-xl border border-border text-gray-300 text-sm font-medium hover:border-neon-dim hover:text-white transition-all">
+          Join waitlist
+        </a>
+      </div>
+
+      <!-- Team -->
+      <div class="rounded-2xl p-8 flex flex-col pricing-featured" style="background: rgba(124,58,237,0.05);">
+        <div class="mb-6">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="text-sm font-mono text-neon uppercase tracking-wider">Team</div>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold" style="background: rgba(167,139,250,0.2); color: #C4B5FD;">Most popular</span>
+          </div>
+          <!-- monthly price (default) -->
+          <div id="price-monthly">
+            <div class="flex items-end gap-2">
+              <div class="text-4xl font-black text-white">$45</div>
+              <div class="text-gray-400 text-sm pb-1">/month · 3 seats</div>
+            </div>
+            <div class="text-gray-500 text-xs mt-1">$15/seat/mo · +$15/seat beyond 3</div>
+          </div>
+          <!-- annual price (hidden by default) -->
+          <div id="price-annual" class="hidden">
+            <div class="flex items-end gap-2">
+              <div class="text-4xl font-black text-white">$299</div>
+              <div class="text-gray-400 text-sm pb-1">/year · 3 seats</div>
+            </div>
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-gray-500 text-sm line-through">$540</span>
+              <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-900 text-emerald-400">Save 45%</span>
+            </div>
+            <div class="text-gray-500 text-xs mt-1">+$99/seat/year beyond 3</div>
+          </div>
+        </div>
+        <ul class="space-y-3 text-sm text-gray-300 flex-1 mb-8">
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>Everything in Free</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span><strong>3 seats minimum</strong> (dev + mkt + ops)</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>Team + project scoping</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>Google Drive Sync</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>Chrome Extension</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>All 4 MCP tools</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>Unlimited memories</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>Truth level promotion</li>
+        </ul>
+        <a href="mailto:team@grooveos.app?subject=dejavu team plan"
+           class="block text-center py-3 rounded-xl font-semibold text-white text-sm transition-all hover:opacity-90"
+           style="background: linear-gradient(135deg, #7C3AED, #6D28D9);">
+          Join waitlist →
+        </a>
+      </div>
+
+      <!-- Enterprise -->
+      <div class="rounded-2xl bg-surface-2 border border-border p-8 flex flex-col">
+        <div class="mb-6">
+          <div class="text-sm font-mono text-gray-500 uppercase tracking-wider mb-2">Enterprise</div>
+          <div class="text-4xl font-black text-white">Custom</div>
+          <div class="text-gray-500 text-sm mt-1">10+ seats · SLA · SSO</div>
+        </div>
+        <ul class="space-y-3 text-sm text-gray-400 flex-1 mb-8">
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>Everything in Team</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>SSO / SAML</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>Advanced audit logs</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>Custom data retention</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>Dedicated support</li>
+          <li class="flex gap-2 items-start"><span class="text-neon shrink-0 mt-0.5">✓</span>On-prem option</li>
+        </ul>
+        <a href="mailto:team@grooveos.app?subject=dejavu enterprise"
+           class="block text-center py-3 rounded-xl border border-border text-gray-300 text-sm font-medium hover:border-neon-dim hover:text-white transition-all">
+          Contact us
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="py-24 relative overflow-hidden">
+    <div class="absolute inset-0 pointer-events-none">
+      <div class="absolute inset-0 brain-grid opacity-30"></div>
+      <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] rounded-full opacity-20" style="background: radial-gradient(ellipse, #7C3AED, transparent 70%); filter: blur(60px);"></div>
+    </div>
+    <div class="relative max-w-3xl mx-auto px-6 text-center">
+      <div class="text-6xl mb-6">🚀</div>
+      <h2 class="text-4xl md:text-6xl font-black text-white mb-6 leading-tight">
+        Stop explaining<br/>
+        <span class="gradient-text">yourself to your AI.</span>
+      </h2>
+      <p class="text-xl text-gray-400 mb-10">
+        Build the shared brain your vibe team deserves.<br/>
+        Early access — limited spots.
+      </p>
+      <a href="mailto:team@grooveos.app?subject=dejavu waitlist - vibe team"
+         class="inline-block px-10 py-5 rounded-2xl font-bold text-white text-lg transition-all hover:opacity-90 hover:scale-105 glow"
+         style="background: linear-gradient(135deg, #7C3AED, #6D28D9);">
+        Join the Waitlist →
+      </a>
+      <p class="text-gray-600 text-sm mt-4">team@grooveos.app · We reply to everyone.</p>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-border bg-surface-2 py-10">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-4">
+        <span class="font-bold text-white">deja<span class="gradient-text">vu</span></span>
+        <span class="text-gray-600 text-sm">The vibe team OS</span>
+      </div>
+      <div class="flex items-center gap-6 text-sm text-gray-500">
+        <a href="/docs/index.html" class="hover:text-white transition-colors">Docs</a>
+        <a href="/docs/api.html" class="hover:text-white transition-colors">API</a>
+        <a href="/docs/billing.html" class="hover:text-white transition-colors">Pricing</a>
+        <a href="https://xbrain-marketing.web.app" class="hover:text-white transition-colors">Self-host →</a>
+        <a href="mailto:team@grooveos.app" class="hover:text-white transition-colors">Contact</a>
+      </div>
+      <div class="text-xs text-gray-600">© 2026 dejavu · Built with shared memory</div>
+    </div>
+  </footer>
+
+  <script>
+    function setPricing(mode) {
+      const monthly = document.getElementById('price-monthly');
+      const annual  = document.getElementById('price-annual');
+      const btnM    = document.getElementById('btn-monthly');
+      const btnA    = document.getElementById('btn-annual');
+      if (mode === 'monthly') {
+        monthly.classList.remove('hidden');
+        annual.classList.add('hidden');
+        btnM.style.background = '#7C3AED';
+        btnM.classList.replace('text-gray-400', 'text-white');
+        btnA.style.background = '';
+        btnA.classList.replace('text-white', 'text-gray-400');
+      } else {
+        annual.classList.remove('hidden');
+        monthly.classList.add('hidden');
+        btnA.style.background = '#7C3AED';
+        btnA.classList.replace('text-gray-400', 'text-white');
+        btnM.style.background = '';
+        btnM.classList.replace('text-white', 'text-gray-400');
+      }
+    }
+  </script>
+</body>
+</html>
