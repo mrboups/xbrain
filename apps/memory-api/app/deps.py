@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from xbrain_memory import MemoryProvider
 
-from app.auth import verify_bridge_jwt, verify_google_id_token
+from app.auth import check_github_org_membership, verify_bridge_jwt, verify_google_id_token
 from app.config import settings
 from app.db.session import async_session_factory
 from app.repos.teams import get_membership
@@ -45,6 +45,37 @@ async def get_current_principal(
                 "user": user,
                 "claims": claims,
                 "sub": claims["sub"],
+                # D7: Google-only users always get team access (no GitHub org check)
+                "github_is_org_member": None,
+            }
+        except Exception:
+            # Fall through to GitHub OAuth token attempt
+            pass
+
+    # Try GitHub OAuth token (tokens start with "gho_" prefix).
+    # D4: GitHub Org members get full team access; non-members get team_scope=None.
+    if settings.GITHUB_API_PAT and token.startswith("gho_"):
+        try:
+            gh = await check_github_org_membership(
+                token, settings.GITHUB_ORG, settings.GITHUB_API_PAT
+            )
+            # Use GitHub numeric ID as the stable source_user_id (login can change)
+            github_source_id = f"github:{gh['login']}"
+            user = await get_or_create_user(
+                session,
+                source_user_id=github_source_id,
+                email=gh.get("email") or f"{gh['login']}@github.noreply",
+                display_name=gh.get("name") or gh["login"],
+            )
+            await session.commit()
+            return {
+                "kind": "user",
+                "user": user,
+                "claims": {"sub": github_source_id, "login": gh["login"]},
+                "sub": github_source_id,
+                "github_is_org_member": gh["is_org_member"],
+                # team_scope enforcement: non-members cannot access team routes (T-05-02-02)
+                # The get_team_scope dependency will reject them via membership check.
             }
         except Exception:
             # Fall through to bridge JWT attempt
@@ -92,6 +123,11 @@ async def get_team_scope(
         if principal["team_scope"] != x_team_scope:
             raise HTTPException(403, "Bridge JWT team_scope mismatch with header")
         return x_team_scope
+
+    # T-05-02-02: GitHub users who are not org members cannot access team-scoped routes.
+    # github_is_org_member=False means non-member; None means Google user (D7 — always allowed).
+    if principal.get("github_is_org_member") is False:
+        raise HTTPException(403, "GitHub account is not a member of the required org")
 
     user = principal["user"]
     membership = await get_membership(session, user_id=user.id, team_slug=x_team_scope)

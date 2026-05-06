@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     # Used to build OAuth redirect_uri returned to Google
     MEMORY_API_EXTERNAL_URL: str = "https://x.dejavu.cat"
 
+    # Phase 5 — GitHub OAuth (plan 05-02)
+    GITHUB_CLIENT_ID: str = ""
+    GITHUB_CLIENT_SECRET: str = ""
+    GITHUB_ORG: str = "your-github-org"
+    # Fine-grained PAT with scope read:org — required to see private org members (pitfall Q3)
+    GITHUB_API_PAT: str = ""
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}

@@ -99,6 +99,9 @@ services:
       MEMORY_API_EXTERNAL_URL: ${MEMORY_API_EXTERNAL_URL:-https://x.dejavu.cat}
       # Phase 5 plan 05-01: Graphiti enrichment (fail-soft if not set)
       GRAPHITI_SERVICE_URL: ${GRAPHITI_SERVICE_URL:-http://graphiti-service:8300}
+      # Phase 5 plan 05-02: GitHub OAuth membership verification
+      GITHUB_ORG: ${GITHUB_ORG:-your-github-org}
+      GITHUB_API_PAT: ${GITHUB_API_PAT:-}
     networks: [xbrain_net]
     mem_limit: 384m
     depends_on:

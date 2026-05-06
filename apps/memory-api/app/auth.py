@@ -55,3 +55,69 @@ def verify_bridge_jwt(token: str, secret: str) -> dict:
 def is_admin(sub: str) -> bool:
     """Phase 1 simplification: admin SUBs come from env. Phase 2 will use DB roles."""
     return sub in settings.admin_user_subs
+
+
+# === GitHub OAuth membership verification (Phase 5 — plan 05-02) ===
+
+_github_membership_cache: dict[str, tuple[float, dict]] = {}
+_GITHUB_CACHE_TTL = 300  # 5 minutes — reduces GitHub API calls, well within 5000 req/h rate limit
+
+
+async def check_github_org_membership(
+    github_token: str,
+    org: str,
+    server_pat: str,
+) -> dict:
+    """Verify if a GitHub OAuth token belongs to a member of the given org.
+
+    Uses two-step approach:
+    1. GET /user with the user's own OAuth token to get their username.
+    2. GET /orgs/{org}/members/{username} with the server PAT to check membership
+       (server PAT is required to see private org members — pitfall documented in
+       RESEARCH.md Q3, Pitfall 4).
+
+    Returns: {"login": str, "email": str|None, "is_org_member": bool}
+    Caches result for _GITHUB_CACHE_TTL seconds per token[:16]+org key.
+    """
+    # Truncate token prefix for cache key — avoids excessively long keys (T-05-02-03)
+    cache_key = f"{github_token[:16]}:{org}"
+    now = time.time()
+    if cache_key in _github_membership_cache:
+        ts, result = _github_membership_cache[cache_key]
+        if now - ts < _GITHUB_CACHE_TTL:
+            return result
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        # Step 1: resolve the GitHub username from the OAuth token
+        user_r = await client.get(
+            "https://api.github.com/user",
+            headers={
+                "Authorization": f"Bearer {github_token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        user_r.raise_for_status()
+        user_data = user_r.json()
+        username = user_data["login"]
+
+        # Step 2: check org membership using the server PAT
+        # Using PAT (not user token) so private members are visible (204 = member, else not)
+        org_r = await client.get(
+            f"https://api.github.com/orgs/{org}/members/{username}",
+            headers={
+                "Authorization": f"Bearer {server_pat}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        is_member = org_r.status_code == 204
+
+    result = {
+        "login": username,
+        "email": user_data.get("email"),
+        "name": user_data.get("name"),
+        "is_org_member": is_member,
+    }
+    _github_membership_cache[cache_key] = (now, result)
+    return result
