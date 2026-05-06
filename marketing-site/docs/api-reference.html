@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Reference — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+  <!-- NAV -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Get Started
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- DOCS LAYOUT -->
+  <div class="docs-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" role="complementary" aria-label="Documentation navigation">
+      <nav>
+        <ul class="sidebar__links">
+          <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+          <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+          <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+          <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+          <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+          <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+          <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+          <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+          <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+          <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+          <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+          <li><a href="api-reference.html" class="sidebar__link active">API Reference</a></li>
+          <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+          <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="docs-content" role="main">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <span class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__current">API Reference</span>
+      </nav>
+
+      <h1>API Reference</h1>
+
+      <div class="docs-meta">
+        <span class="docs-meta__badge">memory-api</span>
+        <span>FastAPI &bull; port 8000 &bull; 15 route modules</span>
+      </div>
+
+      <!-- ============================================================
+           Introduction
+           ============================================================ -->
+      <h2>Introduction</h2>
+
+      <p>
+        The <strong>xbrain memory-api</strong> is a FastAPI application running on port 8000 inside
+        the Docker Compose stack. It is the single write/read interface for all memory data —
+        whether the source is LibreChat, Open WebUI, a LangGraph agent, or the Chrome extension.
+      </p>
+
+      <p>
+        All endpoints (except <code>GET /v1/healthz</code>) require two headers:
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Header</th>
+            <th>Value</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>Authorization</code></td>
+            <td><code>Bearer {token}</code></td>
+            <td>Google ID token (from OAuth login) or GitHub OAuth token. Bridge services use BRIDGE_SHARED_SECRET-signed JWTs.</td>
+          </tr>
+          <tr>
+            <td><code>X-Team-Scope</code></td>
+            <td><code>{team_scope}</code></td>
+            <td>Team identifier. Must match the <code>team_scope</code> field in any payload. Requests with mismatched scopes return 400.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p><strong>Base URL:</strong> <code>https://api.dejavu.cat</code> (replace with your domain)</p>
+
+      <!-- ============================================================
+           Authentication
+           ============================================================ -->
+      <h2>Authentication</h2>
+
+      <p>
+        xbrain supports three authentication mechanisms:
+      </p>
+
+      <ul>
+        <li>
+          <strong>Google OAuth:</strong> Standard Google ID token obtained after the OAuth consent
+          screen. LibreChat and Open WebUI users are authenticated this way.
+        </li>
+        <li>
+          <strong>GitHub OAuth:</strong> GitHub access token (via GitHub App). Used for GitHub Auth
+          integration — org membership is verified for team auto-assignment.
+        </li>
+        <li>
+          <strong>Bridge JWT:</strong> HMAC-signed JWT using <code>BRIDGE_SHARED_SECRET</code>.
+          Used by internal bridge services (librechat-bridge, openwebui-bridge) that act on behalf
+          of users without forwarding their tokens.
+        </li>
+      </ul>
+
+      <pre class="code-block"><span class="code-block__label">bash — authenticating requests</span># Google ID token (from frontend after OAuth flow)
+curl https://api.dejavu.cat/v1/me \
+  -H "Authorization: Bearer $GOOGLE_ID_TOKEN" \
+  -H "X-Team-Scope: acme"
+
+# GitHub token (after GitHub OAuth)
+curl https://api.dejavu.cat/v1/me/github \
+  -H "Authorization: Bearer $GITHUB_TOKEN" \
+  -H "X-Team-Scope: acme"</pre>
+
+      <!-- ============================================================
+           HEALTH
+           ============================================================ -->
+      <h2>Health</h2>
+
+      <h3>GET /v1/healthz</h3>
+
+      <p>Health check endpoint. No authentication required. Used by Docker Compose healthcheck
+      and load balancers.</p>
+
+      <table class="docs-table">
+        <thead>
+          <tr><th>Property</th><th>Value</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Auth required</td><td>No</td></tr>
+          <tr><td>Response</td><td>200 OK</td></tr>
+        </tbody>
+      </table>
+
+      <pre class="code-block"><span class="code-block__label">bash — health check</span>curl https://api.dejavu.cat/v1/healthz
+
+# Response:
+{
+  "status": "ok",
+  "version": "1.0.0"
+}</pre>
+
+      <!-- ============================================================
+           USER PROFILE
+           ============================================================ -->
+      <h2>User Profile</h2>
+
+      <h3>GET /v1/me</h3>
+
+      <p>Returns the authenticated user's profile, including their team memberships and source
+      identity (Google or GitHub).</p>
+
+      <table class="docs-table">
+        <thead>
+          <tr><th>Property</th><th>Value</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Auth required</td><td>Yes</td></tr>
+          <tr><td>Response</td><td>200 OK</td></tr>
+        </tbody>
+      </table>
+
+      <pre class="code-block"><span class="code-block__label">bash — get user profile</span>curl https://api.dejavu.cat/v1/me \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"
+
+# Response:
+{
+  "id": "a1b2c3d4-...",
+  "email": "alice@acme.example.com",
+  "source_user_id": "google:116249012345678901234",
+  "is_admin": false,
+  "teams": ["acme", "engineering"]
+}</pre>
+
+      <h3>GET /v1/me/github</h3>
+
+      <p>Returns GitHub profile information if the user authenticated via GitHub OAuth.
+      Includes org membership verification result.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — get GitHub profile</span>curl https://api.dejavu.cat/v1/me/github \
+  -H "Authorization: Bearer $GITHUB_TOKEN" \
+  -H "X-Team-Scope: acme"
+
+# Response:
+{
+  "github_username": "alicedev",
+  "github_id": 8234567,
+  "github_avatar_url": "https://avatars.githubusercontent.com/u/8234567",
+  "is_org_member": true,
+  "org": "your-github-org"
+}</pre>
+
+      <!-- ============================================================
+           MEMORY
+           ============================================================ -->
+      <h2>Memory</h2>
+
+      <p>
+        The memory endpoints implement the core tagging contract. Every item must carry the 7
+        required fields: <code>team_scope</code>, <code>project_scope</code>,
+        <code>visibility</code>, <code>confidence</code>, <code>truth_level</code>,
+        <code>source</code>, <code>validation_status</code>.
+      </p>
+
+      <h3>POST /v1/memory/upsert</h3>
+
+      <p>
+        Create or update a memory item. Returns 201 on creation. If an item with the same
+        <code>source</code> already exists in this team, it is updated in place
+        (vector + metadata).
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr><th>Property</th><th>Value</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Auth required</td><td>Yes</td></tr>
+          <tr><td>Success response</td><td>201 Created</td></tr>
+          <tr><td>Error: missing tag field</td><td>422 Unprocessable Entity</td></tr>
+          <tr><td>Error: team_scope mismatch</td><td>400 Bad Request</td></tr>
+        </tbody>
+      </table>
+
+      <pre class="code-block"><span class="code-block__label">bash — upsert a memory item (all 7 required fields)</span>curl -X POST https://api.dejavu.cat/v1/memory/upsert \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "item": {
+      "content": "The Q2 fundraising target is 2M€, confirmed by Alice in the board meeting.",
+      "team_scope": "acme",
+      "project_scope": "fundraising",
+      "visibility": "team",
+      "confidence": 0.9,
+      "truth_level": "WORKING",
+      "source": "librechat:conv_abc123:msg_7",
+      "validation_status": "pending",
+      "metadata": {
+        "extracted_by": "librechat-bridge",
+        "conversation_id": "conv_abc123"
+      }
+    }
+  }'
+
+# Response (201 Created):
+{
+  "id": "mem_f7a3b1c9d2e4...",
+  "team_scope": "acme",
+  "truth_level": "WORKING"
+}</pre>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">truth_level is write-once via upsert</p>
+        <p>
+          You can set <code>truth_level</code> when upserting. To promote a fact from
+          WORKING to VALIDATED or CANONICAL, use the Promotions API — you cannot PATCH
+          <code>truth_level</code> directly (returns 405).
+        </p>
+      </div>
+
+      <h3>GET /v1/memory/search</h3>
+
+      <p>
+        Semantic search over the team's memory using Qdrant vector similarity. Filtered by
+        <code>team_scope</code> from the <code>X-Team-Scope</code> header. Optionally filter
+        by <code>project_scope</code> and minimum truth level.
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr><th>Query Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>q</code></td><td>string</td><td>required</td><td>Search query text (embedded and compared against Qdrant vectors)</td></tr>
+          <tr><td><code>project_scope</code></td><td>string</td><td>—</td><td>Filter to a specific project</td></tr>
+          <tr><td><code>truth_level_min</code></td><td>string</td><td>EPHEMERAL</td><td>Minimum truth level to return (EPHEMERAL, WORKING, VALIDATED, CANONICAL, PUBLIC)</td></tr>
+          <tr><td><code>limit</code></td><td>integer</td><td>10</td><td>Number of results (max 100)</td></tr>
+        </tbody>
+      </table>
+
+      <pre class="code-block"><span class="code-block__label">bash — semantic memory search</span>curl "https://api.dejavu.cat/v1/memory/search?q=fundraising+target&truth_level_min=WORKING&limit=5" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"
+
+# Response:
+[
+  {
+    "id": "mem_f7a3b1c9d2e4...",
+    "content": "The Q2 fundraising target is 2M€...",
+    "score": 0.947,
+    "team_scope": "acme",
+    "project_scope": "fundraising",
+    "truth_level": "WORKING",
+    "confidence": 0.9,
+    "source": "librechat:conv_abc123:msg_7"
+  }
+]</pre>
+
+      <h3>GET /v1/memory/{item_id}</h3>
+
+      <p>Retrieve a single memory item by ID. Returns 404 if the item is not in the requesting
+      team's scope.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — get a single memory item</span>curl https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"</pre>
+
+      <h3>PATCH /v1/memory/{item_id}</h3>
+
+      <p>
+        Update a memory item's mutable fields: <code>content</code>, <code>project_scope</code>,
+        <code>visibility</code>, <code>confidence</code>, <code>validation_status</code>,
+        <code>metadata</code>.
+      </p>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">405 — truth_level cannot be patched directly</p>
+        <p>
+          Attempting to PATCH <code>truth_level</code> returns <strong>405 Method Not Allowed</strong>.
+          Truth level promotion is an explicit workflow — use <code>POST /v1/promotions</code>
+          instead. This is intentional: truth level changes require justification and
+          (for VALIDATED and above) admin approval.
+        </p>
+      </div>
+
+      <pre class="code-block"><span class="code-block__label">bash — update confidence and validation_status</span>curl -X PATCH https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "confidence": 0.95,
+    "validation_status": "human_reviewed"
+  }'
+
+# Response (200 OK):
+{
+  "id": "mem_f7a3b1c9d2e4...",
+  "updated_fields": ["confidence", "validation_status"]
+}
+
+# Attempting to patch truth_level:
+curl -X PATCH https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{"truth_level": "VALIDATED"}'
+
+# Response (405 Method Not Allowed):
+{
+  "detail": "truth_level cannot be patched directly. Use POST /v1/promotions."
+}</pre>
+
+      <h3>DELETE /v1/memory/{item_id}</h3>
+
+      <p>Delete a memory item. Removes from both Qdrant (vector) and PostgreSQL (metadata).
+      Returns 204 No Content on success.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — delete a memory item</span>curl -X DELETE https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"
+
+# Response: 204 No Content</pre>
+
+      <!-- ============================================================
+           CONVERSATIONS
+           ============================================================ -->
+      <h2>Conversations</h2>
+
+      <h3>POST /v1/conversations</h3>
+
+      <p>Create a new conversation record. Conversations are the organizational unit for
+      messages — every message belongs to a conversation.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — create a conversation</span>curl -X POST https://api.dejavu.cat/v1/conversations \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Q2 Fundraising Strategy Session",
+    "project_scope": "fundraising",
+    "source": "librechat:conv_abc123"
+  }'
+
+# Response (201 Created):
+{
+  "id": "conv_uuid_...",
+  "title": "Q2 Fundraising Strategy Session",
+  "team_scope": "acme",
+  "project_scope": "fundraising",
+  "owner_user_id": "a1b2c3d4-...",
+  "created_at": "2026-05-06T10:30:00Z"
+}</pre>
+
+      <h3>GET /v1/conversations</h3>
+
+      <p>List conversations for the authenticated team. Results are paginated and scoped to
+      <code>X-Team-Scope</code>. Query params: <code>project_scope</code>, <code>limit</code>
+      (default 20), <code>offset</code>.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — list team conversations</span>curl "https://api.dejavu.cat/v1/conversations?project_scope=fundraising&limit=10" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"</pre>
+
+      <h3>GET /v1/conversations/{conversation_id}</h3>
+
+      <p>Retrieve a single conversation with its metadata. Does not include messages —
+      use <code>GET /v1/messages?conversation_id=</code> for messages.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — get conversation by ID</span>curl https://api.dejavu.cat/v1/conversations/conv_uuid_123 \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"</pre>
+
+      <!-- ============================================================
+           MESSAGES
+           ============================================================ -->
+      <h2>Messages</h2>
+
+      <h3>POST /v1/messages</h3>
+
+      <p>
+        Log a message to memory-api. If the referenced conversation does not exist, it is
+        created silently (upsert-silent pattern). Used by librechat-bridge and openwebui-bridge
+        to stream conversation content into xbrain.
+      </p>
+
+      <pre class="code-block"><span class="code-block__label">bash — log a message (bridge usage)</span>curl -X POST https://api.dejavu.cat/v1/messages \
+  -H "Authorization: Bearer $BRIDGE_JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "conversation_id": "conv_abc123",
+    "role": "user",
+    "content": "What is our fundraising target for Q2?",
+    "source": "librechat",
+    "user_id": "a1b2c3d4-..."
+  }'
+
+# Response (201 Created):
+{
+  "id": "msg_uuid_...",
+  "conversation_id": "conv_abc123"
+}</pre>
+
+      <!-- ============================================================
+           TRUTH LEVEL PROMOTIONS
+           ============================================================ -->
+      <h2>Truth Level Promotions</h2>
+
+      <p>
+        Truth level promotion is the formal workflow for advancing a fact from EPHEMERAL through
+        WORKING, VALIDATED, CANONICAL, and PUBLIC. Every promotion requires explicit justification.
+        Promotions to VALIDATED and above require admin approval.
+      </p>
+
+      <h3>POST /v1/promotions</h3>
+
+      <p>Submit a promotion request for a memory item.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — request promotion to VALIDATED</span>curl -X POST https://api.dejavu.cat/v1/promotions \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "item_id": "mem_f7a3b1c9d2e4",
+    "target_level": "VALIDATED",
+    "justification": "Confirmed in board meeting on 2026-05-01. Three stakeholders present."
+  }'
+
+# Response (202 Accepted):
+{
+  "promotion_id": "promo_uuid_...",
+  "item_id": "mem_f7a3b1c9d2e4",
+  "target_level": "VALIDATED",
+  "status": "pending",
+  "created_at": "2026-05-06T10:45:00Z"
+}</pre>
+
+      <h3>GET /v1/promotions</h3>
+
+      <p>List pending promotions. Admin only — requires the user's <code>sub</code> to be in
+      <code>ADMIN_USER_SUBS</code>. Supports query params: <code>status</code> (pending, approved,
+      rejected), <code>item_id</code>.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — list pending promotions (admin)</span>curl "https://api.dejavu.cat/v1/promotions?status=pending" \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "X-Team-Scope: acme"</pre>
+
+      <h3>PATCH /v1/promotions/{promotion_id}</h3>
+
+      <p>Approve or reject a pending promotion. Admin only. On approval, the memory item's
+      <code>truth_level</code> is updated atomically.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — approve a promotion (admin)</span>curl -X PATCH https://api.dejavu.cat/v1/promotions/promo_uuid_123 \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "decision": "approved",
+    "note": "Verified in board minutes. Elevating to VALIDATED."
+  }'
+
+# Response (200 OK):
+{
+  "promotion_id": "promo_uuid_123",
+  "decision": "approved",
+  "item_id": "mem_f7a3b1c9d2e4",
+  "new_truth_level": "VALIDATED"
+}</pre>
+
+      <!-- ============================================================
+           SYSTEM PROMPT
+           ============================================================ -->
+      <h2>System Prompt</h2>
+
+      <h3>GET /v1/system-prompt</h3>
+
+      <p>
+        Returns CANONICAL facts for the team, pre-formatted for injection into an LLM system
+        prompt. Filtered by <code>X-Team-Scope</code> and <code>truth_level=CANONICAL</code>.
+        Used by librechat-bridge, openwebui-bridge, and agent-runtime to ground every LLM
+        call with verified team knowledge.
+      </p>
+
+      <pre class="code-block"><span class="code-block__label">bash — fetch team CANONICAL facts for system prompt</span>curl https://api.dejavu.cat/v1/system-prompt \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"
+
+# Response (200 OK, text/plain):
+Team knowledge (CANONICAL, acme):
+- Q2 fundraising target: 2M€ (confirmed 2026-05-01)
+- Tech lead: Alice Dupont (since 2025-06-01)
+- Current runway: 18 months (as of 2026-04-15)
+- Primary investor: Acme Capital (lead), Angel Group (co-lead)</pre>
+
+      <!-- ============================================================
+           GRAPH
+           ============================================================ -->
+      <h2>Graph</h2>
+
+      <h3>GET /v1/graph/neighbors</h3>
+
+      <p>Query the Neo4j temporal knowledge graph for entities connected to a given entity
+      within the team scope. Results include temporal validity of each relationship.</p>
+
+      <table class="docs-table">
+        <thead>
+          <tr><th>Query Parameter</th><th>Type</th><th>Required</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>entity</code></td><td>string</td><td>Yes</td><td>Entity name to query (person, project, concept)</td></tr>
+          <tr><td><code>team_scope</code></td><td>string</td><td>Yes</td><td>Team graph partition to search in</td></tr>
+          <tr><td><code>depth</code></td><td>integer</td><td>No</td><td>Graph traversal depth (default: 1, max: 3)</td></tr>
+        </tbody>
+      </table>
+
+      <pre class="code-block"><span class="code-block__label">bash — get graph neighbors for an entity</span>curl "https://api.dejavu.cat/v1/graph/neighbors?entity=Alice&team_scope=acme" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"
+
+# Response:
+{
+  "entity": "Alice",
+  "team_scope": "acme",
+  "neighbors": [
+    {
+      "name": "Acme.Engineering",
+      "relationship": "WAS_TECH_LEAD",
+      "valid_from": "2025-01-15",
+      "valid_until": "2025-05-31"
+    },
+    {
+      "name": "Q2-Fundraising",
+      "relationship": "CONTRIBUTED_TO",
+      "valid_from": "2025-03-01",
+      "valid_until": null
+    },
+    {
+      "name": "Bob",
+      "relationship": "TRANSFERRED_ROLE_TO",
+      "valid_from": "2025-06-01",
+      "valid_until": null
+    }
+  ]
+}</pre>
+
+      <!-- ============================================================
+           AUDIT
+           ============================================================ -->
+      <h2>Audit</h2>
+
+      <h3>GET /v1/audit</h3>
+
+      <p>
+        Returns the audit log — every write operation (upsert, delete, promotion, admin action)
+        is logged with user, timestamp, action type, and the affected resource. Admin only.
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr><th>Query Parameter</th><th>Type</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>team_scope</code></td><td>string</td><td>Filter by team (admin sees all teams; regular user sees own)</td></tr>
+          <tr><td><code>action</code></td><td>string</td><td>Filter by action type: upsert, delete, promote, approve, reject</td></tr>
+          <tr><td><code>user_id</code></td><td>string</td><td>Filter by actor user ID</td></tr>
+          <tr><td><code>limit</code></td><td>integer</td><td>Max results (default 50, max 500)</td></tr>
+          <tr><td><code>offset</code></td><td>integer</td><td>Pagination offset</td></tr>
+        </tbody>
+      </table>
+
+      <pre class="code-block"><span class="code-block__label">bash — fetch audit log for a team</span>curl "https://api.dejavu.cat/v1/audit?team_scope=acme&action=promote&limit=20" \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "X-Team-Scope: acme"
+
+# Response:
+{
+  "total": 42,
+  "items": [
+    {
+      "id": "audit_uuid_...",
+      "timestamp": "2026-05-06T10:45:00Z",
+      "user_id": "a1b2c3d4-...",
+      "user_email": "alice@acme.example.com",
+      "action": "promote",
+      "resource_type": "memory_item",
+      "resource_id": "mem_f7a3b1c9d2e4",
+      "detail": {"target_level": "VALIDATED", "justification": "..."}
+    }
+  ]
+}</pre>
+
+      <!-- ============================================================
+           TEAMS
+           ============================================================ -->
+      <h2>Teams</h2>
+
+      <h3>GET /v1/teams</h3>
+
+      <p>List teams the authenticated user belongs to.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — list user teams</span>curl https://api.dejavu.cat/v1/teams \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"
+
+# Response:
+[
+  {"scope": "acme", "name": "Acme Game", "role": "admin"},
+  {"scope": "engineering", "name": "Engineering", "role": "member"}
+]</pre>
+
+      <h3>POST /v1/admin/teams</h3>
+
+      <p>Create a new team. Admin only. The team scope must be a unique slug (lowercase,
+      hyphens allowed).</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — create a team (admin)</span>curl -X POST https://api.dejavu.cat/v1/admin/teams \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Engineering",
+    "scope": "engineering"
+  }'
+
+# Response (201 Created):
+{
+  "id": "team_uuid_...",
+  "scope": "engineering",
+  "name": "Engineering",
+  "created_at": "2026-05-06T10:00:00Z"
+}</pre>
+
+      <!-- ============================================================
+           DRIVE (Admin)
+           ============================================================ -->
+      <h2>Google Drive Integration</h2>
+
+      <h3>GET /v1/admin/drive/auth</h3>
+
+      <p>Initiates the Google Drive OAuth2 flow. Redirects to Google's consent screen.
+      Admin only. After consent, Google redirects back to the callback URL with an auth code
+      which drive-sync exchanges for tokens.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — initiate Drive OAuth (redirect in browser)</span># This endpoint redirects — open in browser, not curl
+GET https://api.dejavu.cat/v1/admin/drive/auth
+  ?team_scope=acme
+  &Authorization=Bearer+{admin_jwt}</pre>
+
+      <h3>POST /v1/admin/drive/mappings</h3>
+
+      <p>Map a Google Drive folder to a team scope and project. Once mapped, drive-sync
+      will watch the folder for changes and upsert new/modified files into memory-api.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — map a Drive folder to a project</span>curl -X POST https://api.dejavu.cat/v1/admin/drive/mappings \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "folder_id": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms",
+    "team_scope": "acme",
+    "project_scope": "fundraising",
+    "truth_level": "WORKING",
+    "label": "Fundraising Deck Folder"
+  }'
+
+# Response (201 Created):
+{
+  "mapping_id": "map_uuid_...",
+  "folder_id": "1BxiMVs...",
+  "team_scope": "acme",
+  "label": "Fundraising Deck Folder",
+  "status": "active",
+  "webhook_registered": true
+}</pre>
+
+      <h3>GET /v1/admin/drive/mappings</h3>
+
+      <p>List all active Drive folder mappings for the team.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — list Drive mappings</span>curl https://api.dejavu.cat/v1/admin/drive/mappings \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "X-Team-Scope: acme"</pre>
+
+      <h3>POST /v1/drive/webhook</h3>
+
+      <p>
+        Google Drive push notification endpoint. Called by Google when a watched folder changes.
+        This is an internal endpoint — Google calls it automatically after a mapping is registered.
+        Validates the Google push notification signature before processing.
+      </p>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Internal endpoint</p>
+        <p>
+          <code>POST /v1/drive/webhook</code> is called by Google, not by your application.
+          It is exposed via Nginx at the public URL so Google can reach it. No user auth required —
+          it validates the Google push notification headers instead.
+        </p>
+      </div>
+
+      <!-- ============================================================
+           PROJECTS (Admin)
+           ============================================================ -->
+      <h2>Projects</h2>
+
+      <h3>POST /v1/admin/projects</h3>
+
+      <p>Create a new project within a team. Projects are used as the <code>project_scope</code>
+      for memory items, conversations, and Drive mappings.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — create a project (admin)</span>curl -X POST https://api.dejavu.cat/v1/admin/projects \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Series A Fundraising",
+    "slug": "fundraising",
+    "team_scope": "acme",
+    "deploy_target": "firebase"
+  }'
+
+# Response (201 Created):
+{
+  "id": "proj_uuid_...",
+  "slug": "fundraising",
+  "name": "Series A Fundraising",
+  "team_scope": "acme",
+  "status": "active",
+  "created_at": "2026-05-06T10:00:00Z"
+}</pre>
+
+      <h3>GET /v1/admin/projects</h3>
+
+      <p>List all projects for the team. Admin only.</p>
+
+      <pre class="code-block"><span class="code-block__label">bash — list team projects</span>curl https://api.dejavu.cat/v1/admin/projects \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "X-Team-Scope: acme"</pre>
+
+      <!-- ============================================================
+           ERROR CODES
+           ============================================================ -->
+      <h2>Error Codes</h2>
+
+      <p>
+        memory-api uses standard HTTP status codes. All error responses include a
+        <code>detail</code> field with a human-readable message.
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Meaning</th>
+            <th>Common causes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>400</code></td>
+            <td>Bad Request</td>
+            <td><code>team_scope</code> in payload does not match <code>X-Team-Scope</code> header; malformed JSON body</td>
+          </tr>
+          <tr>
+            <td><code>401</code></td>
+            <td>Unauthorized</td>
+            <td>Missing or expired Bearer token; invalid Google/GitHub token; invalid bridge JWT signature</td>
+          </tr>
+          <tr>
+            <td><code>403</code></td>
+            <td>Forbidden</td>
+            <td>Authenticated user is not a member of the requested team; non-admin attempting an admin-only action</td>
+          </tr>
+          <tr>
+            <td><code>404</code></td>
+            <td>Not Found</td>
+            <td>Memory item, conversation, promotion, or project does not exist within this team scope</td>
+          </tr>
+          <tr>
+            <td><code>405</code></td>
+            <td>Method Not Allowed</td>
+            <td>Attempted to PATCH <code>truth_level</code> directly — use <code>POST /v1/promotions</code> instead</td>
+          </tr>
+          <tr>
+            <td><code>422</code></td>
+            <td>Unprocessable Entity</td>
+            <td>One or more required tagging fields missing from the memory item: <code>team_scope</code>, <code>project_scope</code>, <code>visibility</code>, <code>confidence</code>, <code>truth_level</code>, <code>source</code>, <code>validation_status</code></td>
+          </tr>
+          <tr>
+            <td><code>500</code></td>
+            <td>Internal Server Error</td>
+            <td>Qdrant or PostgreSQL connection failure; unhandled exception. Check <code>docker logs memory-api</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <pre class="code-block"><span class="code-block__label">json — example error response</span>{
+  "detail": "Missing required field: truth_level. All memory items must carry the 7 tagging contract fields."
+}</pre>
+
+      <!-- ============================================================
+           Quick Reference Table
+           ============================================================ -->
+      <h2>Quick Reference</h2>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Path</th>
+            <th>Auth</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>GET</td><td><code>/v1/healthz</code></td><td>None</td><td>Health check</td></tr>
+          <tr><td>GET</td><td><code>/v1/me</code></td><td>Bearer</td><td>Authenticated user profile</td></tr>
+          <tr><td>GET</td><td><code>/v1/me/github</code></td><td>Bearer</td><td>GitHub profile + org membership</td></tr>
+          <tr><td>GET</td><td><code>/v1/teams</code></td><td>Bearer</td><td>List user's teams</td></tr>
+          <tr><td>POST</td><td><code>/v1/admin/teams</code></td><td>Admin</td><td>Create team</td></tr>
+          <tr><td>POST</td><td><code>/v1/memory/upsert</code></td><td>Bearer</td><td>Create/update memory item</td></tr>
+          <tr><td>GET</td><td><code>/v1/memory/search</code></td><td>Bearer</td><td>Semantic search</td></tr>
+          <tr><td>GET</td><td><code>/v1/memory/{id}</code></td><td>Bearer</td><td>Get memory item</td></tr>
+          <tr><td>PATCH</td><td><code>/v1/memory/{id}</code></td><td>Bearer</td><td>Update memory item (not truth_level)</td></tr>
+          <tr><td>DELETE</td><td><code>/v1/memory/{id}</code></td><td>Bearer</td><td>Delete memory item</td></tr>
+          <tr><td>POST</td><td><code>/v1/conversations</code></td><td>Bearer</td><td>Create conversation</td></tr>
+          <tr><td>GET</td><td><code>/v1/conversations</code></td><td>Bearer</td><td>List conversations</td></tr>
+          <tr><td>GET</td><td><code>/v1/conversations/{id}</code></td><td>Bearer</td><td>Get conversation</td></tr>
+          <tr><td>POST</td><td><code>/v1/messages</code></td><td>Bearer</td><td>Log message (upsert-silent)</td></tr>
+          <tr><td>POST</td><td><code>/v1/promotions</code></td><td>Bearer</td><td>Request truth level promotion</td></tr>
+          <tr><td>GET</td><td><code>/v1/promotions</code></td><td>Admin</td><td>List promotions</td></tr>
+          <tr><td>PATCH</td><td><code>/v1/promotions/{id}</code></td><td>Admin</td><td>Approve/reject promotion</td></tr>
+          <tr><td>GET</td><td><code>/v1/system-prompt</code></td><td>Bearer</td><td>CANONICAL facts for LLM prompt</td></tr>
+          <tr><td>GET</td><td><code>/v1/graph/neighbors</code></td><td>Bearer</td><td>Query temporal knowledge graph</td></tr>
+          <tr><td>GET</td><td><code>/v1/audit</code></td><td>Admin</td><td>Audit log</td></tr>
+          <tr><td>GET</td><td><code>/v1/admin/drive/auth</code></td><td>Admin</td><td>Initiate Drive OAuth</td></tr>
+          <tr><td>POST</td><td><code>/v1/admin/drive/mappings</code></td><td>Admin</td><td>Map Drive folder to team/project</td></tr>
+          <tr><td>GET</td><td><code>/v1/admin/drive/mappings</code></td><td>Admin</td><td>List Drive mappings</td></tr>
+          <tr><td>POST</td><td><code>/v1/drive/webhook</code></td><td>Google</td><td>Drive push notification (internal)</td></tr>
+          <tr><td>POST</td><td><code>/v1/admin/projects</code></td><td>Admin</td><td>Create project</td></tr>
+          <tr><td>GET</td><td><code>/v1/admin/projects</code></td><td>Admin</td><td>List team projects</td></tr>
+        </tbody>
+      </table>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="xb-footer" role="contentinfo">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+        <div>
+          <p class="xb-footer__col-title">Product</p>
+          <ul class="xb-footer__links">
+            <li><a href="../index.html" class="xb-footer__link">Home</a></li>
+            <li><a href="index.html" class="xb-footer__link">Documentation</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Get Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Documentation</p>
+          <ul class="xb-footer__links">
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+            <li><a href="agents.html" class="xb-footer__link">Agents</a></li>
+            <li><a href="configuration.html" class="xb-footer__link">Configuration</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Project</p>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">GitHub</a>
+            </li>
+            <li><a href="mailto:team@grooveos.app" class="xb-footer__link">Contact</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="xb-footer__bottom">
+        <p class="xb-footer__copyright">&copy; 2026 xbrain. Open source, MIT license.</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
