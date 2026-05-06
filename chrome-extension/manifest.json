@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "xbrain Web Clipper",
+  "version": "1.0.0",
+  "description": "Envoyez du contenu web dans le brain xbrain de votre équipe",
+  "permissions": ["identity", "activeTab", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "oauth2": {
+    "client_id": "__GOOGLE_CLIENT_ID__",
+    "scopes": ["openid", "email", "profile"]
+  },
+  "host_permissions": [
+    "https://api.dejavu.cat/*"
+  ]
+}
