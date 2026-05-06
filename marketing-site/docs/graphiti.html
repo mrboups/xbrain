@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Graphiti — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+  <!-- NAV -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Get Started
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- DOCS LAYOUT -->
+  <div class="docs-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" role="complementary" aria-label="Documentation navigation">
+      <nav>
+        <ul class="sidebar__links">
+          <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+          <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+          <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+          <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+          <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+          <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+          <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+          <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+          <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+          <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+          <li><a href="graphiti.html" class="sidebar__link active">Graphiti</a></li>
+          <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+          <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+          <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="docs-content" role="main">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <span class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__current">Graphiti</span>
+      </nav>
+
+      <h1>Graphiti Temporal Fact Extraction</h1>
+
+      <div class="docs-meta">
+        <span class="docs-meta__badge">Phase 5</span>
+        <span>graphiti-service &bull; port 8300 &bull; Neo4j temporal graph</span>
+      </div>
+
+      <!-- ============================================================
+           What is Graphiti?
+           ============================================================ -->
+      <h2>What is Graphiti?</h2>
+
+      <p>
+        <strong>graphiti-service</strong> is a FastAPI wrapper around
+        <a href="https://github.com/getzep/graphiti" target="_blank" rel="noopener noreferrer">graphiti-core</a>
+        that runs as a Docker container on port 8300. It extracts temporal facts from conversation
+        content and stores them in the Neo4j temporal knowledge graph.
+      </p>
+
+      <p>
+        Every memory upsert to memory-api triggers an async call to graphiti-service
+        (<strong>fail-soft</strong> — if graphiti-service is down or slow, the memory write to
+        Qdrant still succeeds immediately). The ingestion call is dispatched via
+        <code>asyncio.create_task()</code> so it never blocks the upsert response.
+      </p>
+
+      <!-- ============================================================
+           Why Temporal Facts?
+           ============================================================ -->
+      <h2>Why Temporal Facts?</h2>
+
+      <p>
+        Standard knowledge graphs store static assertions: <em>"Alice works at Acme."</em>
+        Graphiti stores facts with temporal validity:
+        <em>"Alice joined Acme on 2024-01-15, became Tech Lead on 2025-06-01."</em>
+      </p>
+
+      <p>This temporal dimension lets you query your team's history with precision:</p>
+
+      <ul>
+        <li>"Who was the tech lead in Q3 2025?"</li>
+        <li>"What was our fundraising target before the pivot in November?"</li>
+        <li>"Which decisions were made by Alice before she moved to a new role?"</li>
+        <li>"What did we know about competitor X six months ago?"</li>
+      </ul>
+
+      <p>
+        Without temporal tracking, every new fact overwrites the old one.
+        With graphiti-core, both facts coexist as time-bounded edges in Neo4j —
+        the full history is queryable.
+      </p>
+
+      <!-- ============================================================
+           Architecture
+           ============================================================ -->
+      <h2>Architecture</h2>
+
+      <p>
+        The ingestion pipeline is fully asynchronous and fail-soft. The primary write path
+        (memory-api → Qdrant) completes in milliseconds; graphiti-service processes the content
+        in the background:
+      </p>
+
+      <pre class="code-block"><span class="code-block__label">Data flow — memory upsert to temporal graph</span>memory-api (POST /v1/memory/upsert)
+       │
+       ├──► Qdrant (primary write — synchronous, &lt;50ms)
+       │     returns 201 to caller immediately
+       │
+       └──► asyncio.create_task (fail-soft, non-blocking)
+              │
+              ▼
+       graphiti-service (port 8300)
+         POST /v1/ingest
+              │
+              ▼
+       graphiti-core (Python library)
+         - Extract entities (people, projects, concepts, dates)
+         - Extract relationships (LEADS, WORKS_ON, DECIDED, FUNDED)
+         - Detect temporal markers (since, until, from, before)
+         - Resolve contradictions via temporal edges
+              │
+              ▼
+       Neo4j (temporal graph)
+         - Episode nodes  (conversation chunks, source-tagged)
+         - Entity nodes   (Alice, Acme, Q2-fundraising)
+         - Temporal edges (WORKED_AT, IS_TECH_LEAD, DECIDED)
+           each edge carries: valid_from, valid_until, confidence</pre>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Fail-soft design</p>
+        <p>
+          If graphiti-service is unavailable (container restarting, Neo4j unreachable, rate limit
+          hit), the memory upsert still returns 201. The graphiti call is logged as a failed
+          background task. You lose temporal graph coverage for that chunk, but the semantic
+          memory in Qdrant is never affected. This is intentional — graphiti-service is enrichment,
+          not the primary write path.
+        </p>
+      </div>
+
+      <!-- ============================================================
+           Service API
+           ============================================================ -->
+      <h2>Service API</h2>
+
+      <h3>Health Check</h3>
+
+      <p>
+        The health endpoint verifies that graphiti-service is alive and that graphiti-core has
+        initialized successfully (including the Neo4j connection check):
+      </p>
+
+      <pre class="code-block"><span class="code-block__label">bash — health check</span>curl http://graphiti-service:8300/v1/healthz
+
+# Response (200 OK):
+{
+  "status": "ok",
+  "graphiti": true
+}</pre>
+
+      <h3>Ingest Endpoint</h3>
+
+      <p>
+        The primary ingestion endpoint. Accepts content, a group identifier (team_scope), and a
+        source tag. Returns 202 Accepted immediately — processing is asynchronous:
+      </p>
+
+      <pre class="code-block"><span class="code-block__label">bash — ingest conversation content</span>curl -X POST http://graphiti-service:8300/v1/ingest \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Alice confirmed the Q2 fundraising target is 2M€. Bob will lead the investor outreach starting next week.",
+    "group_id": "acme",
+    "source": "memory-api"
+  }'
+
+# Response (202 Accepted):
+{
+  "status": "queued",
+  "group_id": "acme"
+}</pre>
+
+      <p>Request body fields:</p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Type</th>
+            <th>Required</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>content</code></td>
+            <td>string</td>
+            <td>Yes</td>
+            <td>The text to extract facts from (conversation chunk, document excerpt)</td>
+          </tr>
+          <tr>
+            <td><code>group_id</code></td>
+            <td>string</td>
+            <td>Yes</td>
+            <td>Team scope identifier — maps to Neo4j graph partition</td>
+          </tr>
+          <tr>
+            <td><code>source</code></td>
+            <td>string</td>
+            <td>Yes</td>
+            <td>Origin of the content (<code>memory-api</code>, <code>drive-sync</code>, etc.)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ============================================================
+           Configuration
+           ============================================================ -->
+      <h2>Configuration</h2>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Environment Variable</th>
+            <th>Required</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>NEO4J_URI</code></td>
+            <td>Yes</td>
+            <td><code>bolt://neo4j:7687</code> (Docker internal DNS)</td>
+          </tr>
+          <tr>
+            <td><code>NEO4J_USER</code></td>
+            <td>Yes</td>
+            <td><code>neo4j</code> (default)</td>
+          </tr>
+          <tr>
+            <td><code>NEO4J_PASSWORD</code></td>
+            <td>Yes</td>
+            <td>Set in <code>.env</code> — must match Neo4j container config</td>
+          </tr>
+          <tr>
+            <td><code>OPENAI_API_KEY</code></td>
+            <td>Yes</td>
+            <td>Required for embeddings (<code>text-embedding-3-small</code>). See warning below.</td>
+          </tr>
+          <tr>
+            <td><code>ANTHROPIC_API_KEY</code></td>
+            <td>Yes</td>
+            <td>LLM for entity extraction (Claude Haiku — fast and cheap)</td>
+          </tr>
+          <tr>
+            <td><code>SEMAPHORE_LIMIT</code></td>
+            <td>No</td>
+            <td>Max concurrent graphiti-core requests (default: <code>3</code> — for Anthropic Tier 1 rate limit)</td>
+          </tr>
+          <tr>
+            <td><code>GRAPHITI_SERVICE_URL</code></td>
+            <td>No</td>
+            <td>URL memory-api uses to reach graphiti-service (default: <code>http://graphiti-service:8300</code>)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">OPENAI_API_KEY is required even if you use Anthropic</p>
+        <p>
+          <strong>graphiti-core uses OpenAI's <code>text-embedding-3-small</code> model for
+          embeddings.</strong> This is a hard dependency of graphiti-core — Anthropic embeddings
+          are not yet supported by the library. Even if you configure Claude Haiku as the LLM
+          for entity extraction, you must provide a valid <code>OPENAI_API_KEY</code> for
+          graphiti-service to function.
+        </p>
+        <p>
+          Embedding costs are minimal for typical usage: ~$0.02 per million tokens with
+          <code>text-embedding-3-small</code>.
+        </p>
+      </div>
+
+      <!-- ============================================================
+           Contradiction Detection
+           ============================================================ -->
+      <h2>Contradiction Detection</h2>
+
+      <p>
+        graphiti-core automatically detects when new facts contradict existing ones.
+        Rather than overwriting, it creates temporal edges that capture the full history:
+      </p>
+
+      <pre class="code-block"><span class="code-block__label">Example — temporal contradiction resolution in Neo4j</span>Episode 1 (2025-01-15):
+  "Alice is the Tech Lead of the engineering team."
+
+Episode 2 (2025-06-01):
+  "Bob is now the Tech Lead. Alice moved to a product role."
+
+→ graphiti-core detects the contradiction and creates temporal edges:
+
+  Alice -[WAS_TECH_LEAD: valid_from=2025-01-15, valid_until=2025-05-31]→ Acme.Engineering
+  Bob   -[IS_TECH_LEAD:  valid_from=2025-06-01, valid_until=null]→ Acme.Engineering
+
+Both facts coexist. Querying for "tech lead in Q1 2025" returns Alice.
+Querying for "current tech lead" returns Bob.</pre>
+
+      <p>
+        This contradiction resolution happens automatically — no manual curation required.
+        graphiti-core uses the LLM (Claude Haiku) to understand whether two facts are
+        contradictory, and what the temporal relationship is between them.
+      </p>
+
+      <!-- ============================================================
+           Querying the Graph
+           ============================================================ -->
+      <h2>Querying the Graph</h2>
+
+      <p>
+        Query temporal graph data through memory-api (not directly from Neo4j).
+        The <code>GET /v1/graph/neighbors</code> endpoint returns entities and their
+        relationships for a given entity name within a team scope:
+      </p>
+
+      <pre class="code-block"><span class="code-block__label">bash — query graph neighbors via memory-api</span>curl "https://api.dejavu.cat/v1/graph/neighbors?entity=Alice&amp;team_scope=acme" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"
+
+# Response:
+{
+  "entity": "Alice",
+  "team_scope": "acme",
+  "neighbors": [
+    {
+      "name": "Acme.Engineering",
+      "relationship": "WAS_TECH_LEAD",
+      "valid_from": "2025-01-15",
+      "valid_until": "2025-05-31"
+    },
+    {
+      "name": "Q2-Fundraising",
+      "relationship": "CONTRIBUTED_TO",
+      "valid_from": "2025-03-01",
+      "valid_until": null
+    }
+  ]
+}</pre>
+
+      <!-- ============================================================
+           lifespan() initialization
+           ============================================================ -->
+      <h2>Implementation Notes</h2>
+
+      <div class="callout callout--info">
+        <p class="callout__title">graphiti_client lifespan() initialization</p>
+        <p>
+          <code>graphiti_client</code> is initialized inside the FastAPI <code>lifespan()</code>
+          context manager — <strong>not at module load time</strong>. This is a requirement of
+          graphiti-core: the client must be created within an active asyncio event loop.
+          Initializing it at import time causes event loop conflicts that are difficult to debug.
+        </p>
+        <p>
+          The <code>SEMAPHORE_LIMIT</code> variable controls how many concurrent graphiti-core
+          calls are permitted. Anthropic Tier 1 accounts are limited to 5 requests/minute for
+          Haiku — set <code>SEMAPHORE_LIMIT=3</code> to stay safely under the limit.
+        </p>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="xb-footer" role="contentinfo">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+        <div>
+          <p class="xb-footer__col-title">Product</p>
+          <ul class="xb-footer__links">
+            <li><a href="../index.html" class="xb-footer__link">Home</a></li>
+            <li><a href="index.html" class="xb-footer__link">Documentation</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Get Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Documentation</p>
+          <ul class="xb-footer__links">
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+            <li><a href="agents.html" class="xb-footer__link">Agents</a></li>
+            <li><a href="configuration.html" class="xb-footer__link">Configuration</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Project</p>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">GitHub</a>
+            </li>
+            <li><a href="mailto:team@grooveos.app" class="xb-footer__link">Contact</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="xb-footer__bottom">
+        <p class="xb-footer__copyright">&copy; 2026 xbrain. Open source, MIT license.</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
