@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cortex OS — The Agentic Operating System for Billion-Dollar Companies</title>
+  <meta name="description" content="One small team. Every business function automated. Cortex OS is the cognitive operating system that lets a team of five build like a company of five hundred." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy:    '#0A0F2E',
+            'navy-2':'#0F1A4A',
+            'navy-3':'#162057',
+            royal:   '#1E40AF',
+            'royal-2':'#1D4ED8',
+            'royal-lt':'#3B82F6',
+            'slate-lt':'#64748B',
+            ice:     '#EFF6FF',
+            'ice-2': '#DBEAFE',
+            'ice-3': '#BFDBFE',
+            mist:    '#F8FAFC',
+            gold:    '#D97706',
+          },
+          fontFamily: {
+            sans: ['Inter','system-ui','sans-serif'],
+            mono: ['JetBrains Mono','monospace'],
+          },
+          boxShadow: {
+            'card':    '0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(10,15,46,.06)',
+            'card-lg': '0 2px 8px rgba(0,0,0,.06), 0 12px 40px rgba(10,15,46,.1)',
+            'royal':   '0 4px 24px rgba(30,64,175,.25)',
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    body { background:#FFFFFF; color:#0F172A; }
+
+    /* gradient text */
+    .gt-royal {
+      background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 60%, #06B6D4 100%);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    }
+    .gt-dark {
+      background: linear-gradient(135deg, #0A0F2E 0%, #1E40AF 100%);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    }
+
+    /* hero gradient bg */
+    .hero-bg {
+      background: linear-gradient(160deg, #FFFFFF 0%, #EFF6FF 50%, #DBEAFE 100%);
+    }
+
+    /* section alt */
+    .bg-mist { background:#F8FAFC; }
+    .bg-navy-section { background:#0A0F2E; }
+
+    /* cards */
+    .card-white {
+      background:#FFFFFF;
+      border:1px solid #E2E8F0;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(10,15,46,.06);
+      transition: box-shadow .2s, transform .2s, border-color .2s;
+    }
+    .card-white:hover {
+      box-shadow: 0 2px 8px rgba(0,0,0,.08), 0 12px 40px rgba(10,15,46,.12);
+      border-color:#BFDBFE;
+      transform:translateY(-2px);
+    }
+    .card-ice {
+      background:#EFF6FF;
+      border:1px solid #DBEAFE;
+    }
+    .card-navy {
+      background:#0F1A4A;
+      border:1px solid #162057;
+    }
+
+    /* tags */
+    .tag { display:inline-flex; align-items:center; padding:.2rem .65rem; border-radius:9999px; font-size:.7rem; font-weight:600; letter-spacing:.04em; }
+    .tag-dev  { background:#EFF6FF; color:#1E40AF; border:1px solid #BFDBFE; }
+    .tag-mkt  { background:#FFFBEB; color:#92400E; border:1px solid #FDE68A; }
+    .tag-ops  { background:#F0FDF4; color:#166534; border:1px solid #BBF7D0; }
+    .tag-fin  { background:#FDF4FF; color:#7E22CE; border:1px solid #E9D5FF; }
+    .tag-sys  { background:#0A0F2E; color:#BFDBFE; border:1px solid #1E40AF; }
+
+    /* function pill */
+    .fn-pill {
+      display:inline-flex; align-items:center; gap:.5rem;
+      padding:.35rem .9rem; border-radius:9999px;
+      background:#FFFFFF; border:1px solid #E2E8F0;
+      font-size:.8rem; font-weight:500; color:#0F172A;
+      box-shadow:0 1px 2px rgba(0,0,0,.06);
+    }
+    .fn-dot { width:.55rem; height:.55rem; border-radius:50%; }
+
+    /* divider */
+    .divider { border:none; border-top:1px solid #E2E8F0; }
+
+    /* pricing */
+    .price-featured {
+      border:2px solid #1E40AF;
+      box-shadow:0 4px 24px rgba(30,64,175,.2), 0 0 0 1px rgba(30,64,175,.1);
+    }
+
+    /* toggle */
+    .toggle-btn { transition:all .15s; border-radius:.6rem; padding:.45rem 1.25rem; font-weight:500; font-size:.875rem; }
+    .toggle-btn.active { background:#0A0F2E; color:#FFFFFF; }
+    .toggle-btn.inactive { color:#64748B; }
+    .toggle-btn.inactive:hover { color:#0A0F2E; }
+
+    /* stat card */
+    .stat-card { border-left:3px solid #1E40AF; }
+
+    /* flow line */
+    .flow-dot { width:.75rem; height:.75rem; border-radius:50%; background:#1E40AF; border:2px solid #fff; box-shadow:0 0 0 2px #1E40AF; }
+
+    /* nav */
+    nav { background:rgba(255,255,255,.92); backdrop-filter:blur(16px); border-bottom:1px solid #E2E8F0; }
+  </style>
+</head>
+<body class="antialiased">
+
+  <!-- ═══ NAV ═══ -->
+  <nav class="fixed top-0 w-full z-50">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <a href="#" class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:linear-gradient(135deg,#0A0F2E,#1E40AF);">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2v-4M9 21H5a2 2 0 01-2-2v-4m0 0h18"/>
+          </svg>
+        </div>
+        <span class="font-black text-lg tracking-tight text-navy">Cortex<span class="text-royal-2">OS</span></span>
+      </a>
+      <div class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-lt">
+        <a href="#platform" class="hover:text-navy transition-colors">Platform</a>
+        <a href="#functions" class="hover:text-navy transition-colors">Functions</a>
+        <a href="#org"       class="hover:text-navy transition-colors">Agentic Org</a>
+        <a href="#pricing"   class="hover:text-navy transition-colors">Pricing</a>
+        <a href="/docs/index.html" class="hover:text-navy transition-colors">Docs</a>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="mailto:team@grooveos.app?subject=Cortex OS demo"
+           class="hidden md:block text-sm font-medium text-slate-lt hover:text-navy transition-colors">
+          Book a demo
+        </a>
+        <a href="mailto:team@grooveos.app?subject=Cortex OS early access"
+           class="px-5 py-2.5 rounded-lg text-sm font-semibold text-white shadow-royal transition-all hover:opacity-90"
+           style="background:linear-gradient(135deg,#1E40AF,#1D4ED8);">
+          Request Access
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ═══ HERO ═══ -->
+  <section class="hero-bg pt-32 pb-24 overflow-hidden relative">
+    <!-- subtle grid -->
+    <div class="absolute inset-0 pointer-events-none opacity-40" style="background-image:linear-gradient(#DBEAFE 1px,transparent 1px),linear-gradient(90deg,#DBEAFE 1px,transparent 1px);background-size:64px 64px;"></div>
+
+    <div class="relative max-w-5xl mx-auto px-6 text-center">
+
+      <!-- eyebrow pill -->
+      <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-ice-3 shadow-card text-sm font-medium text-navy mb-8">
+        <span class="w-2 h-2 rounded-full bg-royal-2 animate-pulse"></span>
+        Private beta — limited early access
+      </div>
+
+      <h1 class="text-5xl md:text-7xl font-black text-navy tracking-tight leading-none mb-6">
+        One agentic team.<br/>
+        <span class="gt-royal">Billion-dollar output.</span>
+      </h1>
+
+      <p class="text-xl md:text-2xl text-slate-lt max-w-2xl mx-auto mb-4 leading-relaxed font-light">
+        Cortex OS is the cognitive operating system that lets a team of five
+        execute like a company of five hundred — every business function automated,
+        every agent aligned.
+      </p>
+
+      <p class="text-sm text-slate-lt mb-10">
+        Product · Marketing · Operations · Finance · Support — all running on one shared brain.
+      </p>
+
+      <div class="flex flex-col sm:flex-row gap-3 justify-center mb-20">
+        <a href="mailto:team@grooveos.app?subject=Cortex OS early access"
+           class="px-8 py-4 rounded-xl font-semibold text-white text-base shadow-royal transition-all hover:opacity-90 hover:scale-105"
+           style="background:linear-gradient(135deg,#1E40AF,#1D4ED8);">
+          Request Early Access →
+        </a>
+        <a href="#platform"
+           class="px-8 py-4 rounded-xl font-semibold text-navy text-base bg-white border border-gray-200 shadow-card hover:border-ice-3 hover:shadow-card-lg transition-all">
+          Explore the Platform ↓
+        </a>
+      </div>
+
+      <!-- org chart preview -->
+      <div class="max-w-3xl mx-auto bg-white rounded-2xl border border-gray-200 shadow-card-lg overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-royal-2"></div>
+            <span class="text-sm font-semibold text-navy">Cortex OS — Org Dashboard</span>
+          </div>
+          <div class="flex items-center gap-4 text-xs text-slate-lt">
+            <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>6 agents active</span>
+            <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-royal-2"></span>Shared brain synced</span>
+          </div>
+        </div>
+
+        <!-- agent function grid -->
+        <div class="p-6 grid grid-cols-3 md:grid-cols-6 gap-3">
+          <div class="flex flex-col items-center p-3 rounded-xl bg-mist border border-gray-100 text-center">
+            <div class="text-2xl mb-1.5">💻</div>
+            <div class="text-xs font-semibold text-navy">Product</div>
+            <div class="text-xs text-slate-lt mt-0.5">Claude Code</div>
+            <div class="mt-2 w-1.5 h-1.5 rounded-full bg-emerald-500 mx-auto"></div>
+          </div>
+          <div class="flex flex-col items-center p-3 rounded-xl bg-mist border border-gray-100 text-center">
+            <div class="text-2xl mb-1.5">📈</div>
+            <div class="text-xs font-semibold text-navy">Marketing</div>
+            <div class="text-xs text-slate-lt mt-0.5">GPT-4o</div>
+            <div class="mt-2 w-1.5 h-1.5 rounded-full bg-amber-400 mx-auto"></div>
+          </div>
+          <div class="flex flex-col items-center p-3 rounded-xl bg-mist border border-gray-100 text-center">
+            <div class="text-2xl mb-1.5">⚙️</div>
+            <div class="text-xs font-semibold text-navy">Operations</div>
+            <div class="text-xs text-slate-lt mt-0.5">Claude Opus</div>
+            <div class="mt-2 w-1.5 h-1.5 rounded-full bg-emerald-500 mx-auto"></div>
+          </div>
+          <div class="flex flex-col items-center p-3 rounded-xl bg-mist border border-gray-100 text-center">
+            <div class="text-2xl mb-1.5">💰</div>
+            <div class="text-xs font-semibold text-navy">Finance</div>
+            <div class="text-xs text-slate-lt mt-0.5">GPT-4o</div>
+            <div class="mt-2 w-1.5 h-1.5 rounded-full bg-emerald-500 mx-auto"></div>
+          </div>
+          <div class="flex flex-col items-center p-3 rounded-xl bg-mist border border-gray-100 text-center">
+            <div class="text-2xl mb-1.5">🎧</div>
+            <div class="text-xs font-semibold text-navy">Support</div>
+            <div class="text-xs text-slate-lt mt-0.5">Grok</div>
+            <div class="mt-2 w-1.5 h-1.5 rounded-full bg-emerald-500 mx-auto"></div>
+          </div>
+          <div class="flex flex-col items-center p-3 rounded-xl border-2 border-royal text-center" style="background:#EFF6FF;">
+            <div class="text-2xl mb-1.5">🧠</div>
+            <div class="text-xs font-semibold text-royal">Cortex OS</div>
+            <div class="text-xs text-royal-lt mt-0.5">Shared Brain</div>
+            <div class="mt-2 w-1.5 h-1.5 rounded-full bg-royal-2 mx-auto"></div>
+          </div>
+        </div>
+
+        <div class="px-6 pb-5">
+          <div class="bg-mist rounded-xl p-4 border border-gray-100">
+            <div class="flex items-center justify-between text-xs text-slate-lt font-mono">
+              <span>Last 24h: <strong class="text-navy">412 memories</strong> indexed · <strong class="text-navy">8 auto-handoffs</strong> · <strong class="text-navy">0 manual briefs</strong></span>
+              <span class="text-emerald-600 font-semibold">● All systems nominal</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ THESIS ═══ -->
+  <section class="py-24 bg-white">
+    <div class="max-w-6xl mx-auto px-6">
+
+      <div class="grid md:grid-cols-2 gap-16 items-center mb-20">
+        <div>
+          <p class="text-xs font-semibold text-royal tracking-widest uppercase mb-4">The New Paradigm</p>
+          <h2 class="text-4xl md:text-5xl font-black text-navy leading-tight mb-6">
+            The next billion-dollar company will be run by a team of five.
+          </h2>
+          <p class="text-lg text-slate-lt leading-relaxed mb-5">
+            The constraint has never been ideas or capital. It's always been execution capacity — the number of skilled people you can hire, onboard, and align around a shared context.
+          </p>
+          <p class="text-lg text-slate-lt leading-relaxed">
+            Cortex OS removes that constraint. When every business function runs as an agent on a shared cognitive core, one small team can execute with the throughput of an entire organization.
+          </p>
+        </div>
+        <div class="space-y-4">
+          <div class="stat-card card-white rounded-xl p-6">
+            <div class="text-3xl font-black text-navy mb-1">100×</div>
+            <div class="font-semibold text-navy mb-1">Execution leverage</div>
+            <div class="text-sm text-slate-lt">A 5-person agentic team executing across 6 business functions simultaneously, 24/7.</div>
+          </div>
+          <div class="stat-card card-white rounded-xl p-6">
+            <div class="text-3xl font-black text-navy mb-1">0 hrs</div>
+            <div class="font-semibold text-navy mb-1">Context transfer overhead</div>
+            <div class="text-sm text-slate-lt">Every agent reads from the same cognitive core. No briefings. No Slack threads. No lost context.</div>
+          </div>
+          <div class="stat-card card-white rounded-xl p-6">
+            <div class="text-3xl font-black text-navy mb-1">Day 1</div>
+            <div class="font-semibold text-navy mb-1">Full organizational context</div>
+            <div class="text-sm text-slate-lt">Every new agent inherits the full history, decisions, and truth of your organization immediately.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- function pills -->
+      <hr class="divider mb-12" />
+      <p class="text-center text-sm font-semibold text-slate-lt uppercase tracking-widest mb-8">Every business function. One shared brain.</p>
+      <div class="flex flex-wrap justify-center gap-3">
+        <span class="fn-pill"><span class="fn-dot bg-royal-2"></span>Product &amp; Engineering</span>
+        <span class="fn-pill"><span class="fn-dot bg-amber-500"></span>Marketing &amp; Growth</span>
+        <span class="fn-pill"><span class="fn-dot bg-emerald-500"></span>Operations</span>
+        <span class="fn-pill"><span class="fn-dot bg-purple-600"></span>Finance &amp; Legal</span>
+        <span class="fn-pill"><span class="fn-dot bg-rose-500"></span>Customer Support</span>
+        <span class="fn-pill"><span class="fn-dot bg-cyan-500"></span>Strategy &amp; Research</span>
+        <span class="fn-pill"><span class="fn-dot bg-orange-500"></span>Sales</span>
+        <span class="fn-pill"><span class="fn-dot bg-navy"></span>Leadership</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ PLATFORM ═══ -->
+  <section id="platform" class="py-24 bg-mist">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <p class="text-xs font-semibold text-royal tracking-widest uppercase mb-4">The Platform</p>
+        <h2 class="text-4xl md:text-5xl font-black text-navy leading-tight">
+          Four layers.<br/>
+          <span class="gt-royal">One unified operating system.</span>
+        </h2>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-6 mb-6">
+
+        <!-- Cognitive Core -->
+        <div class="card-white rounded-2xl p-8">
+          <div class="flex items-start gap-4 mb-5">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-2xl" style="background:#EFF6FF;">🧠</div>
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <h3 class="text-lg font-bold text-navy">Cognitive Core</h3>
+                <span class="tag tag-sys">kernel</span>
+              </div>
+              <p class="text-sm text-slate-lt">The shared memory layer every agent reads from and writes to.</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div class="bg-mist rounded-xl p-3 text-center">
+              <div class="text-xs font-semibold text-navy mb-0.5">Vector</div>
+              <div class="text-xs text-slate-lt">Semantic search</div>
+            </div>
+            <div class="bg-mist rounded-xl p-3 text-center">
+              <div class="text-xs font-semibold text-navy mb-0.5">Graph</div>
+              <div class="text-xs text-slate-lt">Relationships</div>
+            </div>
+            <div class="bg-mist rounded-xl p-3 text-center">
+              <div class="text-xs font-semibold text-navy mb-0.5">Relational</div>
+              <div class="text-xs text-slate-lt">Audit &amp; truth</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Truth Engine -->
+        <div class="card-white rounded-2xl p-8">
+          <div class="flex items-start gap-4 mb-5">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-2xl" style="background:#EFF6FF;">⚖️</div>
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <h3 class="text-lg font-bold text-navy">Truth Engine</h3>
+                <span class="tag tag-dev">5 levels</span>
+              </div>
+              <p class="text-sm text-slate-lt">Not all information is equal. Cortex OS knows the difference.</p>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-mist">
+              <span class="font-mono text-slate-lt">EPHEMERAL</span>
+              <span class="text-slate-lt">drafts, speculation</span>
+            </div>
+            <div class="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-ice">
+              <span class="font-mono text-royal">WORKING</span>
+              <span class="text-slate-lt">in-progress decisions</span>
+            </div>
+            <div class="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-ice-2">
+              <span class="font-mono text-royal font-semibold">VALIDATED</span>
+              <span class="text-slate-lt">cross-verified truths</span>
+            </div>
+            <div class="flex items-center justify-between text-xs px-3 py-2 rounded-lg" style="background:#DBEAFE;">
+              <span class="font-mono text-navy font-bold">CANONICAL</span>
+              <span class="text-slate-lt">locked architecture</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-6">
+
+        <!-- Agent Bus -->
+        <div class="card-white rounded-2xl p-8">
+          <div class="flex items-start gap-4 mb-5">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-2xl" style="background:#EFF6FF;">⬡</div>
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <h3 class="text-lg font-bold text-navy">Agent Bus</h3>
+                <span class="tag tag-dev">MCP native</span>
+              </div>
+              <p class="text-sm text-slate-lt">The integration layer that connects any AI agent to the Cognitive Core.</p>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span class="tag tag-dev">Claude Code</span>
+            <span class="tag tag-mkt">ChatGPT</span>
+            <span class="tag tag-ops">Cursor</span>
+            <span class="tag tag-fin">Grok</span>
+            <span class="tag tag-dev">Windsurf</span>
+            <span class="tag tag-sys">n8n</span>
+            <span class="tag tag-ops">Any MCP client</span>
+          </div>
+        </div>
+
+        <!-- Auto-Orchestration -->
+        <div class="card-white rounded-2xl p-8">
+          <div class="flex items-start gap-4 mb-5">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-2xl" style="background:#EFF6FF;">🔀</div>
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <h3 class="text-lg font-bold text-navy">Auto-Orchestration</h3>
+                <span class="tag tag-ops">zero manual</span>
+              </div>
+              <p class="text-sm text-slate-lt">Cross-function handoffs triggered automatically when an agent completes a task.</p>
+            </div>
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="flex items-center gap-3 text-slate-lt">
+              <div class="w-1.5 h-1.5 rounded-full bg-royal-2 shrink-0"></div>
+              Product ships → Marketing agent drafts launch copy
+            </div>
+            <div class="flex items-center gap-3 text-slate-lt">
+              <div class="w-1.5 h-1.5 rounded-full bg-royal-2 shrink-0"></div>
+              Feature merges → Ops agent updates runbook
+            </div>
+            <div class="flex items-center gap-3 text-slate-lt">
+              <div class="w-1.5 h-1.5 rounded-full bg-royal-2 shrink-0"></div>
+              Revenue event → Finance agent reconciles
+            </div>
+            <div class="flex items-center gap-3 text-slate-lt">
+              <div class="w-1.5 h-1.5 rounded-full bg-royal-2 shrink-0"></div>
+              New decision → All agents inherit context
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ FUNCTIONS ═══ -->
+  <section id="functions" class="py-24 bg-white">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <p class="text-xs font-semibold text-royal tracking-widest uppercase mb-4">Business Functions</p>
+        <h2 class="text-4xl md:text-5xl font-black text-navy leading-tight">
+          Every function of your company.<br/>
+          <span class="gt-royal">Running in parallel.</span>
+        </h2>
+        <p class="text-slate-lt text-lg mt-4 max-w-xl mx-auto">
+          Each function gets its own AI agent, scoped to the right context — and all sharing the same cognitive core.
+        </p>
+      </div>
+
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+
+        <div class="card-white rounded-2xl p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl text-xl flex items-center justify-center" style="background:#EFF6FF;">💻</div>
+            <div>
+              <span class="tag tag-dev mb-1">product &amp; engineering</span>
+              <div class="font-bold text-navy text-sm mt-1">Build agents</div>
+            </div>
+          </div>
+          <p class="text-sm text-slate-lt leading-relaxed mb-4">
+            Vibe coding agents (Claude Code, Cursor) ship features. Architecture decisions auto-index into the shared brain. New agents inherit full system context on day one.
+          </p>
+          <div class="text-xs font-mono text-slate-lt bg-mist rounded-lg px-3 py-2 border border-gray-100">
+            Ships → Validates → Broadcasts to all agents
+          </div>
+        </div>
+
+        <div class="card-white rounded-2xl p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl text-xl flex items-center justify-center" style="background:#FFFBEB;">📈</div>
+            <div>
+              <span class="tag tag-mkt mb-1">marketing &amp; growth</span>
+              <div class="font-bold text-navy text-sm mt-1">Growth agents</div>
+            </div>
+          </div>
+          <p class="text-sm text-slate-lt leading-relaxed mb-4">
+            Marketing agents always know what shipped. Launch copy, social campaigns, and SEO content drafted automatically from real product context — without a brief.
+          </p>
+          <div class="text-xs font-mono text-slate-lt bg-mist rounded-lg px-3 py-2 border border-gray-100">
+            Receives → Creates → Distributes
+          </div>
+        </div>
+
+        <div class="card-white rounded-2xl p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl text-xl flex items-center justify-center" style="background:#F0FDF4;">⚙️</div>
+            <div>
+              <span class="tag tag-ops mb-1">operations</span>
+              <div class="font-bold text-navy text-sm mt-1">Ops agents</div>
+            </div>
+          </div>
+          <p class="text-sm text-slate-lt leading-relaxed mb-4">
+            Runbooks auto-update when product ships. Incident response has full organizational context. Configurations stay in sync with what engineering actually built.
+          </p>
+          <div class="text-xs font-mono text-slate-lt bg-mist rounded-lg px-3 py-2 border border-gray-100">
+            Monitors → Responds → Documents
+          </div>
+        </div>
+
+        <div class="card-white rounded-2xl p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl text-xl flex items-center justify-center" style="background:#FDF4FF;">💰</div>
+            <div>
+              <span class="tag tag-fin mb-1">finance</span>
+              <div class="font-bold text-navy text-sm mt-1">Finance agents</div>
+            </div>
+          </div>
+          <p class="text-sm text-slate-lt leading-relaxed mb-4">
+            Revenue events reconcile automatically. Budget impact of product decisions calculated in real time. Finance agents know what's being built and what it costs.
+          </p>
+          <div class="text-xs font-mono text-slate-lt bg-mist rounded-lg px-3 py-2 border border-gray-100">
+            Reconciles → Reports → Forecasts
+          </div>
+        </div>
+
+        <div class="card-white rounded-2xl p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl text-xl flex items-center justify-center" style="background:#FFF1F2;">🎧</div>
+            <div>
+              <span class="tag tag-sys mb-1" style="background:#FFF1F2;color:#BE123C;border-color:#FECDD3;">support</span>
+              <div class="font-bold text-navy text-sm mt-1">Support agents</div>
+            </div>
+          </div>
+          <p class="text-sm text-slate-lt leading-relaxed mb-4">
+            Support agents have full product context — every feature, every known issue, every decision. Customer insights feed back into the cognitive core for product to learn from.
+          </p>
+          <div class="text-xs font-mono text-slate-lt bg-mist rounded-lg px-3 py-2 border border-gray-100">
+            Resolves → Learns → Feeds back
+          </div>
+        </div>
+
+        <div class="card-white rounded-2xl p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl text-xl flex items-center justify-center" style="background:#EFF6FF;">🎯</div>
+            <div>
+              <span class="tag tag-sys mb-1">leadership</span>
+              <div class="font-bold text-navy text-sm mt-1">Strategy layer</div>
+            </div>
+          </div>
+          <p class="text-sm text-slate-lt leading-relaxed mb-4">
+            Full visibility across every function. Strategic decisions propagate to all agents instantly. Leadership sets direction — Cortex OS ensures every agent executes on it.
+          </p>
+          <div class="text-xs font-mono text-slate-lt bg-mist rounded-lg px-3 py-2 border border-gray-100">
+            Decides → Broadcasts → Validates
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ AGENTIC ORG IN ACTION ═══ -->
+  <section id="org" class="py-24 bg-navy" style="background:#0A0F2E;">
+    <div class="max-w-5xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <p class="text-xs font-semibold tracking-widest uppercase mb-4" style="color:#3B82F6;">Case Study</p>
+        <h2 class="text-4xl md:text-5xl font-black text-white leading-tight">
+          What happens when one decision<br/>
+          <span class="gt-royal">cascades through your entire org.</span>
+        </h2>
+        <p class="text-slate-lt text-lg mt-4">
+          One product ship. Six business functions. Zero manual handoffs.
+        </p>
+      </div>
+
+      <!-- timeline -->
+      <div class="relative">
+        <!-- vertical line -->
+        <div class="absolute left-5 top-0 bottom-0 w-px bg-royal opacity-30 hidden md:block"></div>
+
+        <div class="space-y-6">
+
+          <!-- Event 1 -->
+          <div class="flex gap-6 items-start">
+            <div class="flex flex-col items-center shrink-0">
+              <div class="flow-dot mt-1"></div>
+            </div>
+            <div class="card-navy rounded-2xl p-6 flex-1">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="tag tag-dev">Product Agent · Claude Code</span>
+                <span class="text-xs text-slate-lt font-mono">T+0:00</span>
+              </div>
+              <p class="text-white font-semibold mb-1">Shipped: <code class="text-royal-lt font-mono text-sm bg-navy-3 px-2 py-0.5 rounded">payments-v2</code> — Stripe 3DS, webhook handler, fraud detection</p>
+              <p class="text-sm text-slate-lt">Cortex OS indexed 31 memory nodes. Truth Engine cross-validated against architecture spec. Status promoted to <span class="text-royal-lt font-mono">VALIDATED</span>. Auto-orchestration triggered for 5 downstream agents.</p>
+            </div>
+          </div>
+
+          <!-- Event 2 -->
+          <div class="flex gap-6 items-start">
+            <div class="flex flex-col items-center shrink-0">
+              <div class="flow-dot mt-1" style="background:#F59E0B;box-shadow:0 0 0 2px #F59E0B;"></div>
+            </div>
+            <div class="card-navy rounded-2xl p-6 flex-1">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="tag tag-mkt">Marketing Agent · GPT-4o</span>
+                <span class="text-xs text-slate-lt font-mono">T+0:02</span>
+              </div>
+              <p class="text-white font-semibold mb-1">Auto-drafted: Product Hunt post, launch tweet thread, and blog article — <em>without a brief.</em></p>
+              <p class="text-sm text-slate-lt">Agent pulled payment-v2 spec, fraud detection rationale, and competitive context from Cognitive Core. All 3 assets accurate and ready for human approval.</p>
+            </div>
+          </div>
+
+          <!-- Event 3 -->
+          <div class="flex gap-6 items-start">
+            <div class="flex flex-col items-center shrink-0">
+              <div class="flow-dot mt-1" style="background:#10B981;box-shadow:0 0 0 2px #10B981;"></div>
+            </div>
+            <div class="card-navy rounded-2xl p-6 flex-1">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="tag tag-ops">Operations Agent · Claude Opus</span>
+                <span class="text-xs text-slate-lt font-mono">T+0:03</span>
+              </div>
+              <p class="text-white font-semibold mb-1">Runbook v31 committed. Stripe webhook monitoring rules added. Fraud alert thresholds configured.</p>
+              <p class="text-sm text-slate-lt">Agent read webhook handler spec directly from Cognitive Core. Zero human briefing. Infrastructure in sync with what was actually shipped.</p>
+            </div>
+          </div>
+
+          <!-- Event 4 -->
+          <div class="flex gap-6 items-start">
+            <div class="flex flex-col items-center shrink-0">
+              <div class="flow-dot mt-1" style="background:#8B5CF6;box-shadow:0 0 0 2px #8B5CF6;"></div>
+            </div>
+            <div class="card-navy rounded-2xl p-6 flex-1">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="tag tag-fin">Finance Agent · GPT-4o</span>
+                <span class="text-xs text-slate-lt font-mono">T+0:04</span>
+              </div>
+              <p class="text-white font-semibold mb-1">Revenue model updated: Stripe fee structure loaded, payment volume forecast revised upward 23%.</p>
+              <p class="text-sm text-slate-lt">Agent retrieved pricing decisions from Cognitive Core and updated the financial model. CFO dashboard updated automatically.</p>
+            </div>
+          </div>
+
+          <!-- Event 5 -->
+          <div class="flex gap-6 items-start">
+            <div class="flex flex-col items-center shrink-0">
+              <div class="flow-dot mt-1" style="background:#F43F5E;box-shadow:0 0 0 2px #F43F5E;"></div>
+            </div>
+            <div class="card-navy rounded-2xl p-6 flex-1">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="tag tag-sys" style="background:rgba(244,63,94,.1);color:#FDA4AF;border-color:rgba(244,63,94,.3);">Support Agent · Grok</span>
+                <span class="text-xs text-slate-lt font-mono">T+0:05</span>
+              </div>
+              <p class="text-white font-semibold mb-1">FAQ updated. 3DS authentication flow documented for users. Payment failure resolution guide drafted.</p>
+              <p class="text-sm text-slate-lt">Support agent indexed the complete user-facing behavior of payments-v2 and updated the help center — before any customer hit an issue.</p>
+            </div>
+          </div>
+
+          <!-- Result -->
+          <div class="flex gap-6 items-start">
+            <div class="flex flex-col items-center shrink-0">
+              <div class="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5" style="background:#1E40AF;box-shadow:0 0 0 3px rgba(30,64,175,.3);">
+                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/></svg>
+              </div>
+            </div>
+            <div class="rounded-2xl p-6 flex-1" style="background:rgba(30,64,175,.15);border:1px solid rgba(59,130,246,.3);">
+              <p class="text-white font-bold text-lg mb-1">5 business functions updated. 5 minutes. 0 human context transfers.</p>
+              <p class="text-royal-lt text-sm">This is what a fully agentic organization looks like. You ship. Cortex OS orchestrates everything else.</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ HOW TO START ═══ -->
+  <section class="py-24 bg-white">
+    <div class="max-w-5xl mx-auto px-6">
+      <div class="text-center mb-16">
+        <p class="text-xs font-semibold text-royal tracking-widest uppercase mb-4">Getting Started</p>
+        <h2 class="text-4xl md:text-5xl font-black text-navy">
+          Operational in days.<br/>
+          <span class="gt-royal">Transformational in weeks.</span>
+        </h2>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-6">
+        <div class="card-white rounded-2xl p-7">
+          <div class="w-10 h-10 rounded-xl bg-ice flex items-center justify-center font-black text-royal text-lg mb-5">1</div>
+          <h3 class="font-bold text-navy text-lg mb-3">Map your org</h3>
+          <p class="text-sm text-slate-lt leading-relaxed">Define your team structure, agent roles, and visibility policies. Cortex OS provisions a scoped cognitive core for each function and a shared layer for cross-function context.</p>
+        </div>
+        <div class="card-white rounded-2xl p-7">
+          <div class="w-10 h-10 rounded-xl bg-ice flex items-center justify-center font-black text-royal text-lg mb-5">2</div>
+          <h3 class="font-bold text-navy text-lg mb-3">Connect your agents</h3>
+          <p class="text-sm text-slate-lt leading-relaxed">Add the Cortex OS MCP endpoint to Claude Code, Cursor, ChatGPT, or any MCP-compatible tool. Connect Google Drive. Install the Chrome extension. Five minutes per agent.</p>
+        </div>
+        <div class="card-white rounded-2xl p-7">
+          <div class="w-10 h-10 rounded-xl bg-ice flex items-center justify-center font-black text-royal text-lg mb-5">3</div>
+          <h3 class="font-bold text-navy text-lg mb-3">Execute at scale</h3>
+          <p class="text-sm text-slate-lt leading-relaxed">Run your organization normally. Every output feeds the cognitive core. Handoffs become automatic. Your team's leverage compounds with every decision made and every task completed.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ ENTERPRISE TRUST ═══ -->
+  <section class="py-16 bg-mist border-y border-gray-200">
+    <div class="max-w-6xl mx-auto px-6">
+      <p class="text-center text-xs font-semibold text-slate-lt uppercase tracking-widest mb-10">Built for teams that need to move fast and stay secure</p>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div class="text-center">
+          <div class="text-3xl mb-2">🔐</div>
+          <div class="font-semibold text-navy text-sm mb-1">End-to-end encryption</div>
+          <div class="text-xs text-slate-lt">All memory encrypted at rest and in transit</div>
+        </div>
+        <div class="text-center">
+          <div class="text-3xl mb-2">📋</div>
+          <div class="font-semibold text-navy text-sm mb-1">Full audit trail</div>
+          <div class="text-xs text-slate-lt">Every agent action logged and attributable</div>
+        </div>
+        <div class="text-center">
+          <div class="text-3xl mb-2">🏢</div>
+          <div class="font-semibold text-navy text-sm mb-1">SSO &amp; SAML</div>
+          <div class="text-xs text-slate-lt">Enterprise identity on Team and above</div>
+        </div>
+        <div class="text-center">
+          <div class="text-3xl mb-2">🌍</div>
+          <div class="font-semibold text-navy text-sm mb-1">On-prem available</div>
+          <div class="text-xs text-slate-lt">Deploy in your own infrastructure</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ PRICING ═══ -->
+  <section id="pricing" class="py-24 bg-white">
+    <div class="max-w-5xl mx-auto px-6">
+      <div class="text-center mb-10">
+        <p class="text-xs font-semibold text-royal tracking-widest uppercase mb-4">Pricing</p>
+        <h2 class="text-4xl md:text-5xl font-black text-navy">Start free. Scale without limits.</h2>
+        <p class="text-slate-lt mt-3 text-sm">One flat price per team. No per-agent fees. No hidden costs.</p>
+      </div>
+
+      <!-- toggle -->
+      <div class="flex justify-center mb-10">
+        <div class="inline-flex items-center rounded-xl border border-gray-200 bg-mist p-1.5 gap-1">
+          <button id="btn-monthly" onclick="setPricing('monthly')" class="toggle-btn active">Monthly</button>
+          <button id="btn-annual"  onclick="setPricing('annual')"  class="toggle-btn inactive">
+            Annual
+            <span class="ml-2 px-1.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">–45%</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-6 items-stretch">
+
+        <!-- Free -->
+        <div class="card-white rounded-2xl p-8 flex flex-col">
+          <div class="mb-6">
+            <div class="text-xs font-semibold text-slate-lt uppercase tracking-widest mb-3">Starter</div>
+            <div class="text-4xl font-black text-navy">$0</div>
+            <div class="text-slate-lt text-sm mt-1">Forever · 1 agent operator</div>
+          </div>
+          <ul class="space-y-3 text-sm text-slate-lt flex-1 mb-8">
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>1 user · personal cognitive core</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>Claude + ChatGPT via Agent Bus</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>100 memories / day</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>Basic Truth Engine</li>
+            <li class="flex gap-2 items-start"><span class="text-gray-300 shrink-0">✗</span><span class="text-gray-400">Team scoping</span></li>
+            <li class="flex gap-2 items-start"><span class="text-gray-300 shrink-0">✗</span><span class="text-gray-400">Auto-orchestration</span></li>
+            <li class="flex gap-2 items-start"><span class="text-gray-300 shrink-0">✗</span><span class="text-gray-400">Drive Sync</span></li>
+          </ul>
+          <a href="mailto:team@grooveos.app?subject=Cortex OS starter"
+             class="block text-center py-3 rounded-xl border border-gray-200 text-slate-lt text-sm font-semibold hover:border-royal hover:text-navy transition-all">
+            Join waitlist
+          </a>
+        </div>
+
+        <!-- Team -->
+        <div class="rounded-2xl p-8 flex flex-col price-featured" style="background:#F8FAFF;">
+          <div class="mb-6">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="text-xs font-semibold text-royal uppercase tracking-widest">Team</div>
+              <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-royal text-white">Most popular</span>
+            </div>
+
+            <div id="price-monthly">
+              <div class="flex items-end gap-2">
+                <div class="text-4xl font-black text-navy">$45</div>
+                <div class="text-slate-lt text-sm pb-1">/month · 3 operators</div>
+              </div>
+              <div class="text-slate-lt text-xs mt-1">$15/operator/mo · billed monthly</div>
+              <div class="text-slate-lt text-xs">+$15/operator beyond 3</div>
+            </div>
+
+            <div id="price-annual" class="hidden">
+              <div class="flex items-end gap-2">
+                <div class="text-4xl font-black text-navy">$299</div>
+                <div class="text-slate-lt text-sm pb-1">/year · 3 operators</div>
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-slate-lt text-sm line-through">$540</span>
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">Save 45%</span>
+              </div>
+              <div class="text-slate-lt text-xs mt-1">+$99/operator/year beyond 3</div>
+            </div>
+          </div>
+
+          <ul class="space-y-3 text-sm text-slate-lt flex-1 mb-8">
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>Everything in Starter</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span><strong class="text-navy">3 agent operators minimum</strong></li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>Full team + project scoping</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>Auto-orchestration across functions</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>All 4 Agent Bus MCP tools</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>Google Drive Sync</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>Chrome Extension</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>Unlimited memories</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>Full Truth Engine (5 levels)</li>
+          </ul>
+          <a href="mailto:team@grooveos.app?subject=Cortex OS team"
+             class="block text-center py-3 rounded-xl font-semibold text-white text-sm transition-all hover:opacity-90 shadow-royal"
+             style="background:linear-gradient(135deg,#1E40AF,#1D4ED8);">
+            Join waitlist →
+          </a>
+        </div>
+
+        <!-- Enterprise -->
+        <div class="card-white rounded-2xl p-8 flex flex-col">
+          <div class="mb-6">
+            <div class="text-xs font-semibold text-slate-lt uppercase tracking-widest mb-3">Enterprise</div>
+            <div class="text-4xl font-black text-navy">Custom</div>
+            <div class="text-slate-lt text-sm mt-1">10+ operators · SLA · SSO</div>
+          </div>
+          <ul class="space-y-3 text-sm text-slate-lt flex-1 mb-8">
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>Everything in Team</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>SSO / SAML</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>Custom agent policies &amp; guardrails</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>Full audit logs &amp; compliance export</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>Dedicated success manager</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>On-prem deployment option</li>
+            <li class="flex gap-2 items-start"><span class="text-royal shrink-0 font-bold">✓</span>Custom integrations &amp; SLA</li>
+          </ul>
+          <a href="mailto:team@grooveos.app?subject=Cortex OS enterprise"
+             class="block text-center py-3 rounded-xl border border-gray-200 text-slate-lt text-sm font-semibold hover:border-royal hover:text-navy transition-all">
+            Contact sales
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ FINAL CTA ═══ -->
+  <section class="py-28 bg-navy relative overflow-hidden" style="background:#0A0F2E;">
+    <div class="absolute inset-0 pointer-events-none opacity-30" style="background-image:linear-gradient(rgba(59,130,246,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,.08) 1px,transparent 1px);background-size:64px 64px;"></div>
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[200px] opacity-20 pointer-events-none" style="background:radial-gradient(ellipse,#1E40AF,transparent 70%);filter:blur(60px);"></div>
+    <div class="relative max-w-3xl mx-auto px-6 text-center">
+      <p class="text-xs font-semibold tracking-widest uppercase mb-6" style="color:#3B82F6;">The Future of Company Building</p>
+      <h2 class="text-4xl md:text-6xl font-black text-white mb-6 leading-tight">
+        Build a billion-dollar company<br/>
+        <span class="gt-royal">with one agentic team.</span>
+      </h2>
+      <p class="text-xl text-slate-lt mb-10 leading-relaxed font-light">
+        The constraint was never ambition. It was execution capacity.<br/>
+        Cortex OS removes the constraint.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        <a href="mailto:team@grooveos.app?subject=Cortex OS early access"
+           class="px-10 py-4 rounded-xl font-semibold text-white text-base shadow-royal transition-all hover:opacity-90 hover:scale-105"
+           style="background:linear-gradient(135deg,#1E40AF,#1D4ED8);">
+          Request Early Access →
+        </a>
+        <a href="mailto:team@grooveos.app?subject=Cortex OS demo"
+           class="px-10 py-4 rounded-xl font-semibold text-white text-base border transition-all hover:bg-white hover:text-navy"
+           style="border-color:rgba(255,255,255,.2);">
+          Book a Demo
+        </a>
+      </div>
+      <p class="text-sm mt-5" style="color:rgba(255,255,255,.3);">team@grooveos.app · We respond to every inquiry.</p>
+    </div>
+  </section>
+
+  <!-- ═══ FOOTER ═══ -->
+  <footer class="bg-white border-t border-gray-200 py-10">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:linear-gradient(135deg,#0A0F2E,#1E40AF);">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2v-4M9 21H5a2 2 0 01-2-2v-4m0 0h18"/>
+          </svg>
+        </div>
+        <span class="font-black text-navy">Cortex<span class="text-royal-2">OS</span></span>
+        <span class="text-slate-lt text-sm">— Cognitive OS for agentic organizations</span>
+      </div>
+      <div class="flex items-center gap-6 text-sm text-slate-lt">
+        <a href="/docs/index.html" class="hover:text-navy transition-colors">Docs</a>
+        <a href="/docs/api.html"   class="hover:text-navy transition-colors">API</a>
+        <a href="#pricing"         class="hover:text-navy transition-colors">Pricing</a>
+        <a href="https://xbrain-marketing.web.app" class="hover:text-navy transition-colors">Self-host →</a>
+        <a href="mailto:team@grooveos.app" class="hover:text-navy transition-colors">Contact</a>
+      </div>
+      <div class="text-xs text-gray-400">© 2026 Cortex OS</div>
+    </div>
+  </footer>
+
+  <script>
+    function setPricing(mode) {
+      const monthly = document.getElementById('price-monthly');
+      const annual  = document.getElementById('price-annual');
+      const btnM    = document.getElementById('btn-monthly');
+      const btnA    = document.getElementById('btn-annual');
+      if (mode === 'monthly') {
+        monthly.classList.remove('hidden'); annual.classList.add('hidden');
+        btnM.classList.replace('inactive','active');
+        btnA.classList.replace('active','inactive');
+      } else {
+        annual.classList.remove('hidden'); monthly.classList.add('hidden');
+        btnA.classList.replace('inactive','active');
+        btnM.classList.replace('active','inactive');
+      }
+    }
+  </script>
+</body>
+</html>
