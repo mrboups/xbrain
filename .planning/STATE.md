@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 ## Current Position
 
 Phase: 5 (Plateforme Projets Équipe)
-Plan: 3 of 7 in current phase
+Plan: 4 of 7 in current phase
 Status: In progress
-Last activity: 2026-05-06 — Plan 05-03 terminé : brain.yaml schema (docs/), GCP GitOps runbook, templates GitHub Actions Cloud Run + Firebase, brain-index.sh fail-soft, POST/GET /v1/admin/projects
+Last activity: 2026-05-06 — Plan 05-04 terminé : extension Chrome MV3 (manifest+background+popup+content), auth Google OAuth launchWebAuthFlow, CORS chrome-extension://* dans memory-api
 
 Progress: [██████████] 100%
 
@@ -58,6 +58,8 @@ Recent decisions affecting current work:
 - 2026-05-06 (05-03): Stockage projets dans memory_items (source='admin:project') — pas de migration Alembic 0008
 - 2026-05-06 (05-03): brain-index.sh fail-soft (exit 0) — T-05-03-04 accepted, brain indexing optionnel
 - 2026-05-06 (05-03): Workload Identity Federation recommandé (sans JSON key file) pour Cloud Run deploys
+- 2026-05-06 (05-04): launchWebAuthFlow response_type=id_token (Solution A) — ID token JWT compatible verify_google_id_token sans modifier auth.py
+- 2026-05-06 (05-04): chrome-extension://* wildcard CORS — acceptable, auth Bearer token est le vrai contrôle (T-05-04-03 accepted)
 
 ### Pending Todos
 
@@ -79,5 +81,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-06
-Stopped at: Plan 05-03 complet — docs/brain-yaml-schema.md + docs/gitops-setup.md (3a21891), workflow templates + brain-index.sh (4a14298), admin_projects.py + main.py (df97988).
+Stopped at: Plan 05-04 complet — manifest+background+icons (975ccb4), popup+content (4b037b3), CORS memory-api (ca56b19).
 Resume file: None
