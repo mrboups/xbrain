@@ -1,0 +1,90 @@
+# deploy-firebase.yml — Template GitHub Actions : Firebase Hosting deploy + brain indexing
+#
+# Usage : copier ce fichier dans .github/workflows/deploy.yml de votre repo et
+# adapter les variables en commentaire (commande de build, etc.).
+#
+# Secrets GitHub requis dans le repo :
+#   FIREBASE_SERVICE_ACCOUNT_XBRAIN — clé JSON du service account firebase-deploy
+#                                      (généré via docs/gitops-setup.md Étape 4)
+#   XBRAIN_BRIDGE_JWT               — JWT de service xbrain (BRIDGE_SHARED_SECRET signé HS256)
+#
+# Le repo doit avoir à sa racine :
+#   - firebase.json        (généré par `firebase init hosting`)
+#   - .firebaserc          (généré par `firebase init hosting`)
+#   - brain.yaml           (optionnel — requis uniquement pour brain indexing)
+#
+# Prérequis GCP (à faire une seule fois via docs/gitops-setup.md) :
+#   - Service account firebase-deploy@xbrain-495115.iam.gserviceaccount.com avec 4 IAM roles
+#   - Firebase Hosting initialisé sur le projet xbrain-495115
+#
+# Le step "Brain indexing" est fail-soft : brain-index.sh retourne toujours exit 0
+# même si l'API xbrain est inaccessible (T-05-03-04 accepted).
+
+name: Deploy to Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+  # Déclencher manuellement si besoin
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build & Deploy to Firebase Hosting
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      # GITHUB_TOKEN est utilisé par action-hosting-deploy pour les Pull Request previews
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- Build du site statique ---
+      # Adapter cette commande selon le type de projet :
+      #   - Reveal.js deck    : npx reveal-md slides.md --static public --static-dirs images
+      #   - VitePress/Docusaurus : npm run build
+      #   - HTML statique pur : mkdir -p public && cp -r src/* public/
+      #   - Script Python personnalisé : python scripts/generate_site.py
+      - name: Build static site
+        run: |
+          # === ADAPTER LA COMMANDE CI-DESSOUS SELON LE PROJET ===
+          # Exemple Reveal.js :
+          # npx reveal-md slides.md --static public --static-dirs images
+          #
+          # Exemple VitePress :
+          # npm ci && npm run build
+          #
+          # Exemple HTML statique (copie directe) :
+          mkdir -p public
+          cp -r . public/ 2>/dev/null || true
+          echo "Build done. Contents of public/:"
+          ls -la public/ | head -20
+
+      # --- Deploy sur Firebase Hosting ---
+      # action-hosting-deploy gère automatiquement :
+      #   - Le deploy sur le canal live (channelId: live)
+      #   - Les previews sur Pull Requests (channelId: pr-${{ github.event.number }})
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_XBRAIN }}
+          projectId: xbrain-495115
+          channelId: live
+
+      # --- Brain indexing (fail-soft) ---
+      # Lit brain.yaml à la racine du repo et indexe le contenu dans xbrain.
+      # Si brain.enrich: false ou si l'API xbrain est inaccessible, le step
+      # se termine avec exit 0 (T-05-03-04 accepted — brain indexing est optionnel).
+      - name: Brain indexing
+        env:
+          XBRAIN_BRIDGE_JWT: ${{ secrets.XBRAIN_BRIDGE_JWT }}
+          MEMORY_API_URL: https://api.dejavu.cat
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          bash infrastructure/scripts/brain-index.sh || true
+        # Note : le "|| true" est une sécurité supplémentaire. brain-index.sh
+        # retourne déjà exit 0 sur toute erreur — cette ligne est défensive.

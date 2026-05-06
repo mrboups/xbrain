@@ -1,0 +1,78 @@
+# deploy-cloudrun.yml — Template GitHub Actions : Cloud Run deploy + brain indexing
+#
+# Usage : copier ce fichier dans .github/workflows/deploy.yml de votre repo et
+# adapter les variables en commentaire (CLOUD_RUN_SERVICE_NAME, région, etc.).
+#
+# Secrets/Variables GitHub requis dans le repo :
+#   Secrets:
+#     XBRAIN_BRIDGE_JWT   — JWT de service xbrain (BRIDGE_SHARED_SECRET signé HS256)
+#   Variables (Settings > Secrets and variables > Variables) :
+#     GCP_PROJECT_NUMBER  — Numéro du projet GCP (ex: 495115)
+#     CLOUD_RUN_SERVICE_NAME — Nom du service Cloud Run (ex: my-api, scraper-tool)
+#
+# Prérequis GCP (à faire une seule fois via docs/gitops-setup.md) :
+#   - APIs activées : run, cloudbuild, artifactregistry, iamcredentials
+#   - Service account github-deploy@xbrain-495115.iam.gserviceaccount.com avec 4 IAM roles
+#   - Workload Identity Pool github-pool + provider github-provider configurés
+#   - L'org/repo GitHub autorisé via principalSet (voir docs/gitops-setup.md Étape 3)
+#
+# Le step "Brain indexing" est fail-soft : brain-index.sh retourne toujours exit 0
+# même si l'API xbrain est inaccessible (T-05-03-04 accepted).
+
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+  # Déclencher manuellement si besoin
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build & Deploy to Cloud Run
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write   # requis pour Workload Identity Federation
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- Authentification GCP via Workload Identity (sans JSON key file) ---
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: >-
+            projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deploy@xbrain-495115.iam.gserviceaccount.com
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      # --- Deploy sur Cloud Run ---
+      # gcloud run deploy --source . utilise Cloud Buildpacks (sans Dockerfile)
+      # ou le Dockerfile si présent à la racine. Build effectué dans Cloud Build.
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "${{ vars.CLOUD_RUN_SERVICE_NAME }}" \
+            --source . \
+            --region europe-west1 \
+            --project xbrain-495115 \
+            --allow-unauthenticated
+
+      # --- Brain indexing (fail-soft) ---
+      # Lit brain.yaml à la racine du repo et indexe le contenu dans xbrain.
+      # Si brain.enrich: false ou si l'API xbrain est inaccessible, le step
+      # se termine avec exit 0 (T-05-03-04 accepted — brain indexing est optionnel).
+      - name: Brain indexing
+        env:
+          XBRAIN_BRIDGE_JWT: ${{ secrets.XBRAIN_BRIDGE_JWT }}
+          MEMORY_API_URL: https://api.dejavu.cat
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          bash infrastructure/scripts/brain-index.sh || true
+        # Note : le "|| true" est une sécurité supplémentaire. brain-index.sh
+        # retourne déjà exit 0 sur toute erreur — cette ligne est défensive.
