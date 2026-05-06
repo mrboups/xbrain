@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="xbrain API Reference — read and write team memory, search knowledge, and manage conversations programmatically. Base URL: https://api.dejavu.cat">
+  <title>API Reference — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+<nav class="xb-nav">
+  <div class="xb-nav__inner">
+    <a href="../index.html" class="xb-nav__logo">xbrain</a>
+    <ul class="xb-nav__links">
+      <li><a href="../index.html#features" class="xb-nav__link">Features</a></li>
+      <li><a href="../index.html#pricing" class="xb-nav__link">Pricing</a></li>
+      <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+    </ul>
+    <a href="mailto:team@grooveos.app?subject=xbrain waitlist" class="xb-nav__cta">Join Waitlist</a>
+  </div>
+</nav>
+
+<div class="docs-layout">
+
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <aside class="sidebar">
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Getting Started</div>
+      <a href="index.html" class="sidebar__link">Getting Started</a>
+    </div>
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Features</div>
+      <a href="memory.html" class="sidebar__link">Memory &amp; Knowledge</a>
+      <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
+      <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
+      <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
+      <a href="drive-sync.html" class="sidebar__link">Drive Sync</a>
+      <a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a>
+    </div>
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Reference</div>
+      <a href="api.html" class="sidebar__link active">API Reference</a>
+      <a href="billing.html" class="sidebar__link">Plans &amp; Billing</a>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN CONTENT
+       ============================================================ -->
+  <main class="docs-content">
+
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <span class="breadcrumb__item">
+        <a href="index.html" class="breadcrumb__link">Docs</a>
+        <span class="breadcrumb__separator">/</span>
+      </span>
+      <span class="breadcrumb__current">API Reference</span>
+    </nav>
+
+    <h1>API Reference</h1>
+
+    <div class="docs-meta">
+      <span class="docs-meta__badge">Reference</span>
+      <span>10 min read</span>
+      <span>Updated May 2026</span>
+    </div>
+
+    <!-- --------------------------------------------------------
+         Overview
+         -------------------------------------------------------- -->
+    <h2>Overview</h2>
+
+    <p>
+      The xbrain API lets you integrate team memory into your own applications, scripts,
+      and agents. Read and write memory items, search your team's knowledge, and manage
+      conversations — all programmatically.
+    </p>
+
+    <p><strong>Base URL:</strong> <code>https://api.dejavu.cat</code></p>
+
+    <h3>Authentication</h3>
+
+    <pre class="code-block"><code># All requests need:
+Authorization: Bearer {your-api-token}
+X-Team-Scope: {your-team-slug}</code></pre>
+
+    <div class="callout callout--info">
+      <p class="callout__title">Getting your API token</p>
+      <p>
+        Get your API token from your profile page at
+        <a href="https://app.dejavu.cat" target="_blank" rel="noopener">app.dejavu.cat</a>
+        &rarr; <strong>Settings &rarr; API tokens</strong>. Tokens are team-scoped — one token
+        works for your team only. Treat your token like a password: do not commit it to version
+        control.
+      </p>
+    </div>
+
+    <!-- --------------------------------------------------------
+         Quick start
+         -------------------------------------------------------- -->
+    <h2>Quick start</h2>
+
+    <pre class="code-block"><code># Test your token
+curl https://api.dejavu.cat/v1/me \
+  -H "Authorization: Bearer $TOKEN"
+
+# Search team memory
+curl "https://api.dejavu.cat/v1/memory/search?q=Q2+target" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Team-Scope: your-team"</code></pre>
+
+    <!-- --------------------------------------------------------
+         Core endpoints
+         -------------------------------------------------------- -->
+    <h2>Core endpoints</h2>
+
+    <h3>Health</h3>
+
+    <p>
+      <code>GET /v1/healthz</code> — No auth required. Returns <code>{"status": "ok"}</code>
+      when the API is up.
+    </p>
+
+    <h3>Your profile</h3>
+
+    <p>
+      <code>GET /v1/me</code> — Returns your user info and team memberships. Useful for
+      verifying your token and resolving your team slug.
+    </p>
+
+    <h3>Search memory</h3>
+
+    <p>
+      <code>GET /v1/memory/search?q={query}</code> — Semantic search across your team's
+      memory. Results are ranked by relevance and filtered to your team scope automatically.
+    </p>
+
+    <table class="docs-table">
+      <thead>
+        <tr>
+          <th>Parameter</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>q</code></td>
+          <td>string</td>
+          <td>Search query (semantic — natural language works)</td>
+        </tr>
+        <tr>
+          <td><code>project_scope</code></td>
+          <td>string</td>
+          <td>Filter by project slug</td>
+        </tr>
+        <tr>
+          <td><code>truth_level_min</code></td>
+          <td>string</td>
+          <td>Minimum truth level, e.g. <code>WORKING</code></td>
+        </tr>
+        <tr>
+          <td><code>limit</code></td>
+          <td>int</td>
+          <td>Results per page (default 10, max 100)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <pre class="code-block"><code>curl "https://api.dejavu.cat/v1/memory/search?q=fundraising+target&truth_level_min=WORKING&limit=5" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Team-Scope: your-team"</code></pre>
+
+    <h3>Write a memory item</h3>
+
+    <p>
+      <code>POST /v1/memory/upsert</code> — Save a fact to your team's memory. If an item
+      with the same content and source already exists, it is updated rather than duplicated.
+    </p>
+
+    <pre class="code-block"><code>curl -X POST https://api.dejavu.cat/v1/memory/upsert \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Team-Scope: your-team" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "item": {
+      "content": "The Q2 fundraising target is 2M€",
+      "team_scope": "your-team",
+      "project_scope": "fundraising",
+      "visibility": "team",
+      "confidence": 0.9,
+      "truth_level": "WORKING",
+      "source": "api:my-script",
+      "validation_status": "pending"
+    }
+  }'
+# Returns: {"id": "mem_abc123..."}</code></pre>
+
+    <div class="callout callout--warning">
+      <p class="callout__title">All 7 tagging fields are required</p>
+      <p>
+        Every memory item must include: <code>team_scope</code>, <code>project_scope</code>,
+        <code>visibility</code>, <code>confidence</code>, <code>truth_level</code>,
+        <code>source</code>, and <code>validation_status</code>. Missing any field returns
+        HTTP 422.
+      </p>
+    </div>
+
+    <h3>Get a memory item</h3>
+
+    <p>
+      <code>GET /v1/memory/{item_id}</code> — Retrieve a specific item by its ID. Returns
+      the full item including all tagging fields, timestamps, and audit history.
+    </p>
+
+    <h3>Conversations</h3>
+
+    <p>
+      <code>GET /v1/conversations</code> — List your team's conversations, ordered by most
+      recent. Paginate with <code>?limit=</code> and <code>?offset=</code>.
+    </p>
+    <p>
+      <code>POST /v1/conversations</code> — Create a conversation record manually (useful
+      for importing conversations from external tools).
+    </p>
+    <p>
+      <code>GET /v1/conversations/{id}</code> — Get a specific conversation including all
+      messages and extracted memory items.
+    </p>
+
+    <h3>Graph neighbors</h3>
+
+    <p>
+      <code>GET /v1/graph/neighbors?entity={name}</code> — Get entities related to a
+      person, project, or concept in your team's knowledge graph. Useful for exploring
+      connections without writing Cypher queries.
+    </p>
+
+    <pre class="code-block"><code>curl "https://api.dejavu.cat/v1/graph/neighbors?entity=Alice" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Team-Scope: your-team"
+# Returns people, projects, and concepts connected to Alice</code></pre>
+
+    <h3>System prompt</h3>
+
+    <p>
+      <code>GET /v1/system-prompt</code> — Get your team's <code>CANONICAL</code> facts
+      formatted and ready for LLM injection. Use this as the system prompt in your own AI
+      integrations so your models always know your team's ground truth.
+    </p>
+
+    <pre class="code-block"><code>curl https://api.dejavu.cat/v1/system-prompt \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Team-Scope: your-team"
+# Returns: "Team knowledge:\n- Q2 target: 2M€\n- Tech lead: Alice..."</code></pre>
+
+    <!-- --------------------------------------------------------
+         Error codes
+         -------------------------------------------------------- -->
+    <h2>Error codes</h2>
+
+    <table class="docs-table">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Meaning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>400</code></td>
+          <td>Validation error or team_scope mismatch</td>
+        </tr>
+        <tr>
+          <td><code>401</code></td>
+          <td>Invalid or missing token</td>
+        </tr>
+        <tr>
+          <td><code>403</code></td>
+          <td>Insufficient permissions (e.g., non-admin writing CANONICAL)</td>
+        </tr>
+        <tr>
+          <td><code>404</code></td>
+          <td>Item not found in your team</td>
+        </tr>
+        <tr>
+          <td><code>405</code></td>
+          <td>Cannot directly change truth_level — use the promotions workflow</td>
+        </tr>
+        <tr>
+          <td><code>422</code></td>
+          <td>Missing required tagging field(s)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- --------------------------------------------------------
+         Rate limits
+         -------------------------------------------------------- -->
+    <h2>Rate limits</h2>
+
+    <table class="docs-table">
+      <thead>
+        <tr>
+          <th>Plan</th>
+          <th>Limit</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Free</td>
+          <td>60 requests / minute</td>
+        </tr>
+        <tr>
+          <td>Team</td>
+          <td>300 requests / minute</td>
+        </tr>
+        <tr>
+          <td>Enterprise</td>
+          <td>Custom limits</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout--info">
+      <p class="callout__title">Building an agent or automation?</p>
+      <p>
+        If your use case needs higher rate limits — for example, a background agent that
+        continuously writes memory items — contact us at
+        <a href="mailto:team@grooveos.app">team@grooveos.app</a> for Enterprise pricing.
+      </p>
+    </div>
+
+    <!-- --------------------------------------------------------
+         SDKs
+         -------------------------------------------------------- -->
+    <h2>SDKs</h2>
+
+    <p>
+      Official SDKs are coming soon. For now, use the REST API directly with
+      <code>curl</code>, <code>requests</code> (Python), or <code>fetch</code> (JavaScript).
+    </p>
+
+    <h3>Python example</h3>
+
+    <pre class="code-block"><code>import requests
+
+def search_memory(query: str, team: str, token: str):
+    response = requests.get(
+        "https://api.dejavu.cat/v1/memory/search",
+        params={"q": query, "truth_level_min": "WORKING"},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "X-Team-Scope": team
+        }
+    )
+    return response.json()
+
+results = search_memory("Q2 target", "your-team", "your-token")</code></pre>
+
+    <h3>JavaScript example</h3>
+
+    <pre class="code-block"><code>async function searchMemory(query, team, token) {
+  const params = new URLSearchParams({ q: query, truth_level_min: "WORKING" });
+  const res = await fetch(
+    `https://api.dejavu.cat/v1/memory/search?${params}`,
+    {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "X-Team-Scope": team
+      }
+    }
+  );
+  return res.json();
+}
+
+const results = await searchMemory("Q2 target", "your-team", "your-token");</code></pre>
+
+    <!-- --------------------------------------------------------
+         What's next
+         -------------------------------------------------------- -->
+    <h2>What's next</h2>
+
+    <ul>
+      <li><a href="memory.html">Memory &amp; Knowledge</a> — Understand truth levels and how memory promotion works.</li>
+      <li><a href="teams.html">Teams &amp; Projects</a> — Manage team slugs, projects, and member roles.</li>
+      <li><a href="billing.html">Plans &amp; Billing</a> — Compare rate limits and API access across plans.</li>
+    </ul>
+
+  </main>
+</div>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer class="xb-footer">
+  <div class="xb-footer__inner">
+    <div class="xb-footer__grid">
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Product</p>
+        <ul class="xb-footer__links">
+          <li><a href="../index.html#features" class="xb-footer__link">Features</a></li>
+          <li><a href="../index.html#pricing" class="xb-footer__link">Pricing</a></li>
+          <li><a href="#" class="xb-footer__link">Changelog</a></li>
+          <li><a href="#" class="xb-footer__link">Roadmap</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Docs</p>
+        <ul class="xb-footer__links">
+          <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
+          <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
+          <li><a href="chrome-ext.html" class="xb-footer__link">Chrome Extension</a></li>
+          <li><a href="teams.html" class="xb-footer__link">Teams &amp; Projects</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Developers</p>
+        <ul class="xb-footer__links">
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Self-hosted version</a></li>
+          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Open Source</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Company</p>
+        <ul class="xb-footer__links">
+          <li><a href="mailto:team@grooveos.app" class="xb-footer__link">Contact</a></li>
+          <li><a href="#" class="xb-footer__link">Privacy</a></li>
+          <li><a href="#" class="xb-footer__link">Terms</a></li>
+        </ul>
+      </div>
+
+    </div>
+    <div class="xb-footer__bottom">
+      <p class="xb-footer__copyright">&copy; 2026 xbrain &middot; Built with care for AI-first teams</p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

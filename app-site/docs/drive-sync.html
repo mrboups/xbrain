@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Connect Google Drive to xbrain and your team's documents become part of shared memory — automatically, without copy-pasting.">
+  <title>Drive Sync — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+<nav class="xb-nav">
+  <div class="xb-nav__inner">
+    <a href="../index.html" class="xb-nav__logo">xbrain</a>
+    <ul class="xb-nav__links">
+      <li><a href="../index.html#features" class="xb-nav__link">Features</a></li>
+      <li><a href="../index.html#pricing" class="xb-nav__link">Pricing</a></li>
+      <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+    </ul>
+    <a href="mailto:team@grooveos.app?subject=xbrain waitlist" class="xb-nav__cta">Join Waitlist</a>
+  </div>
+</nav>
+
+<div class="docs-layout">
+
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <aside class="sidebar">
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Getting Started</div>
+      <a href="index.html" class="sidebar__link">Getting Started</a>
+    </div>
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Features</div>
+      <a href="memory.html" class="sidebar__link">Memory &amp; Knowledge</a>
+      <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
+      <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
+      <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
+      <a href="drive-sync.html" class="sidebar__link active">Drive Sync</a>
+      <a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a>
+    </div>
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Reference</div>
+      <a href="api.html" class="sidebar__link">API Reference</a>
+      <a href="billing.html" class="sidebar__link">Plans &amp; Billing</a>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN CONTENT
+       ============================================================ -->
+  <main class="docs-content">
+
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <span class="breadcrumb__item">
+        <a href="index.html" class="breadcrumb__link">Docs</a>
+        <span class="breadcrumb__separator">/</span>
+      </span>
+      <span class="breadcrumb__current">Drive Sync</span>
+    </nav>
+
+    <h1>Drive Sync</h1>
+
+    <div class="docs-meta">
+      <span class="docs-meta__badge">Feature</span>
+      <span>6 min read</span>
+      <span>Updated May 2026</span>
+    </div>
+
+    <!-- --------------------------------------------------------
+         Overview
+         -------------------------------------------------------- -->
+    <h2>Overview</h2>
+
+    <p>
+      Connect your Google Drive to xbrain and your team's documents become part of your shared
+      memory — automatically, without copy-pasting. When a file is updated in Drive, xbrain
+      syncs it within seconds.
+    </p>
+
+    <p>
+      Drive Sync is available on the <strong>Team</strong> plan and above. Once set up by an
+      admin, the sync runs continuously in the background — your team never needs to think
+      about it.
+    </p>
+
+    <!-- --------------------------------------------------------
+         How it works
+         -------------------------------------------------------- -->
+    <h2>How it works</h2>
+
+    <ol>
+      <li>You map a Drive folder to a project in xbrain settings.</li>
+      <li>xbrain monitors that folder for changes via Google Push Notifications.</li>
+      <li>When a file is added or updated, xbrain extracts its content and indexes it as a memory item with <code>truth_level=WORKING</code>.</li>
+      <li>The document is immediately searchable by your team and your AI.</li>
+    </ol>
+
+    <pre class="code-block">Drive folder updated
+        │
+        ▼ (within seconds)
+xbrain detects change
+        │
+        ▼
+Content extracted + indexed
+truth_level = WORKING
+team_scope  = your team
+project_scope = your project
+        │
+        ▼
+Searchable immediately</pre>
+
+    <p>
+      Documents synced from Drive start at <code>truth_level=WORKING</code>. Your team can
+      promote important facts to <code>VALIDATED</code> or <code>CANONICAL</code> through
+      the memory interface. See <a href="memory.html">Memory &amp; Knowledge</a> for the
+      full truth-level guide.
+    </p>
+
+    <!-- --------------------------------------------------------
+         Setting up Drive Sync
+         -------------------------------------------------------- -->
+    <h2>Setting up Drive Sync (admin only)</h2>
+
+    <p>
+      Drive Sync requires an admin to authorize xbrain's access to your team's Google account.
+      Non-admin members benefit from the sync automatically once it is configured.
+    </p>
+
+    <h3>Step 1 — Authorize Drive access</h3>
+
+    <p>
+      Go to <strong>team Settings &rarr; Integrations &rarr; Google Drive &rarr; Connect</strong>.
+      This redirects to Google's authorization page. Sign in with the Google account that has
+      access to your Drive folders.
+    </p>
+
+    <div class="callout callout--info">
+      <p class="callout__title">Permissions</p>
+      <p>
+        xbrain requests read access to Drive (and write access if you want the AI to write back
+        to Drive). You can revoke access at any time from <strong>Settings &rarr; Integrations</strong>.
+        xbrain never stores your Drive credentials — it uses OAuth tokens that you can revoke
+        from your Google account.
+      </p>
+    </div>
+
+    <h3>Step 2 — Map a folder</h3>
+
+    <p>After authorization, go to <strong>Settings &rarr; Drive &rarr; Add folder mapping</strong>:</p>
+
+    <ul>
+      <li>Select a folder from your Drive</li>
+      <li>Choose the <strong>project scope</strong> (which xbrain project it maps to)</li>
+      <li>Set the <strong>visibility</strong> (<code>team</code> or <code>project</code>)</li>
+      <li>Click <strong>Save</strong></li>
+    </ul>
+
+    <p>xbrain immediately starts syncing the folder's existing contents, then watches for changes.</p>
+
+    <h3>Step 3 — Multiple folders</h3>
+
+    <p>You can map multiple Drive folders to different projects. Each folder's files are tagged
+    with their respective <code>project_scope</code> automatically:</p>
+
+    <table class="docs-table">
+      <thead>
+        <tr>
+          <th>Drive folder</th>
+          <th>xbrain project</th>
+          <th>Visibility</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>/Fundraising Docs</td>
+          <td>fundraising</td>
+          <td>team</td>
+        </tr>
+        <tr>
+          <td>/Engineering / RFCs</td>
+          <td>engineering</td>
+          <td>project</td>
+        </tr>
+        <tr>
+          <td>/Team / Meeting Notes</td>
+          <td>general</td>
+          <td>team</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>Files in each folder are tagged with their respective <code>project_scope</code> automatically.</p>
+
+    <!-- --------------------------------------------------------
+         Supported file types
+         -------------------------------------------------------- -->
+    <h2>Supported file types</h2>
+
+    <table class="docs-table">
+      <thead>
+        <tr>
+          <th>File type</th>
+          <th>How it's processed</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Google Docs</strong></td>
+          <td>Exported as plain text and indexed</td>
+        </tr>
+        <tr>
+          <td><strong>Google Sheets</strong></td>
+          <td>First sheet exported as text</td>
+        </tr>
+        <tr>
+          <td><strong>PDF</strong></td>
+          <td>Text extracted and indexed</td>
+        </tr>
+        <tr>
+          <td><strong>Markdown (.md)</strong></td>
+          <td>Indexed directly</td>
+        </tr>
+        <tr>
+          <td><strong>Text files (.txt)</strong></td>
+          <td>Indexed directly</td>
+        </tr>
+        <tr>
+          <td><strong>Images</strong></td>
+          <td>Not indexed (coming soon)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout--info">
+      <p class="callout__title">Large files</p>
+      <p>
+        Files larger than 10 MB are chunked automatically. Long documents are split into
+        overlapping segments so semantic search can pinpoint specific sections. The full
+        document is still attributed to a single memory item.
+      </p>
+    </div>
+
+    <!-- --------------------------------------------------------
+         AI-powered Drive access
+         -------------------------------------------------------- -->
+    <h2>AI-powered Drive access (MCP Tool)</h2>
+
+    <p>
+      With the Team plan, your AI can also read and write Drive files <em>on demand</em>
+      during a chat — not just at sync time. When your AI needs to check a specific document,
+      update a sheet, or create a new file, it can do so directly through xbrain's MCP
+      integration.
+    </p>
+
+    <p>
+      See <a href="mcp-tools.html">MCP Tools &rarr; Google Drive</a> for setup and available
+      commands.
+    </p>
+
+    <!-- --------------------------------------------------------
+         What's next
+         -------------------------------------------------------- -->
+    <h2>What's next</h2>
+
+    <ul>
+      <li><a href="memory.html">Memory &amp; Knowledge</a> — Promote Drive docs to CANONICAL so your AI always has them in context.</li>
+      <li><a href="mcp-tools.html">MCP Tools</a> — Let your AI read and write Drive files on demand.</li>
+      <li><a href="api.html">API Reference</a> — Query Drive-synced memory items programmatically.</li>
+    </ul>
+
+  </main>
+</div>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer class="xb-footer">
+  <div class="xb-footer__inner">
+    <div class="xb-footer__grid">
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Product</p>
+        <ul class="xb-footer__links">
+          <li><a href="../index.html#features" class="xb-footer__link">Features</a></li>
+          <li><a href="../index.html#pricing" class="xb-footer__link">Pricing</a></li>
+          <li><a href="#" class="xb-footer__link">Changelog</a></li>
+          <li><a href="#" class="xb-footer__link">Roadmap</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Docs</p>
+        <ul class="xb-footer__links">
+          <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
+          <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
+          <li><a href="chrome-ext.html" class="xb-footer__link">Chrome Extension</a></li>
+          <li><a href="teams.html" class="xb-footer__link">Teams &amp; Projects</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Developers</p>
+        <ul class="xb-footer__links">
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Self-hosted version</a></li>
+          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Open Source</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Company</p>
+        <ul class="xb-footer__links">
+          <li><a href="mailto:team@grooveos.app" class="xb-footer__link">Contact</a></li>
+          <li><a href="#" class="xb-footer__link">Privacy</a></li>
+          <li><a href="#" class="xb-footer__link">Terms</a></li>
+        </ul>
+      </div>
+
+    </div>
+    <div class="xb-footer__bottom">
+      <p class="xb-footer__copyright">&copy; 2026 xbrain &middot; Built with care for AI-first teams</p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
