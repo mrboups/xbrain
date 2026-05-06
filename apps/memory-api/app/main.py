@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.neo4j_client import close_driver, init_driver
@@ -66,6 +67,20 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="xbrain memory-api", version="0.1.0", lifespan=lifespan)
+
+# CORS middleware — autorise les requêtes depuis les extensions Chrome
+# Nécessaire car l'extension Chrome appelle api.dejavu.cat directement depuis
+# le browser (cross-origin chrome-extension:// → https://api.dejavu.cat).
+# L'authentification Bearer token reste le vrai contrôle d'accès (T-05-04-03 accepted).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "chrome-extension://*",  # toutes les extensions Chrome (dev + prod)
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "X-Team-Scope", "Content-Type", "Accept"],
+)
 
 app.include_router(health.router, prefix="/v1", tags=["health"])
 app.include_router(me.router, prefix="/v1", tags=["me"])
