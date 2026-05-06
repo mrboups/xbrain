@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Getting Started — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+  <!-- ============================================================
+       NAV
+       ============================================================ -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Deploy
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       DOCS LAYOUT
+       ============================================================ -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" aria-label="Documentation navigation">
+      <nav>
+        <div class="sidebar__section">
+          <p class="sidebar__section-title">Documentation</p>
+          <ul class="sidebar__links">
+            <li><a href="index.html" class="sidebar__link active">Getting Started</a></li>
+            <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+            <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+            <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+            <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+            <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+            <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+            <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+            <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+            <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+            <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+            <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+            <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+            <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="docs-content" id="main-content">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <span class="breadcrumb__item">
+          <a href="../index.html" class="breadcrumb__link">Home</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__current">Getting Started</span>
+      </nav>
+
+      <h1>Getting Started</h1>
+      <div class="docs-meta">
+        <span>Phase 1–5 covered</span>
+        <span>&#183;</span>
+        <span>~10 min read</span>
+        <span class="docs-meta__badge">v1.0</span>
+      </div>
+
+      <!-- ======================================================
+           Introduction
+           ====================================================== -->
+      <h2>Introduction</h2>
+      <p>
+        xbrain is a self-hosted AI memory OS for teams. It gives every conversation, document, and
+        agent output a permanent home — tagged by team, by project, by truth level — and makes it
+        searchable from any AI frontend.
+      </p>
+      <p>
+        Unlike a chatbot workspace, xbrain is a <strong>memory infrastructure layer</strong>. LibreChat,
+        Open WebUI, and custom agents all write to the same shared memory. Every data point carries
+        a mandatory tagging contract: <code>team_scope</code>, <code>truth_level</code>, <code>source</code>,
+        and four other fields — enforced by the API, not by convention.
+      </p>
+
+      <!-- ======================================================
+           Prerequisites
+           ====================================================== -->
+      <h2>Prerequisites</h2>
+
+      <div class="callout callout--info">
+        <p class="callout__title">VM Sizing</p>
+        <p>Phase 1 runs on a 4 GB VM (e2-medium, ~25&euro;/mo). Phase 2 requires 8 GB.
+        See the <a href="deployment.html">Deployment guide</a> for sizing details.</p>
+      </div>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Requirement</th>
+            <th>Version / Notes</th>
+            <th>Required for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Docker Engine</td>
+            <td>24.0+</td>
+            <td>All phases</td>
+          </tr>
+          <tr>
+            <td>Docker Compose</td>
+            <td>v2 (plugin, not standalone)</td>
+            <td>All phases</td>
+          </tr>
+          <tr>
+            <td>Linux VM</td>
+            <td>Ubuntu 24.04 recommended, 4 GB RAM min (Phase 1), 8 GB for Phase 2+</td>
+            <td>All phases</td>
+          </tr>
+          <tr>
+            <td>Google OAuth credentials</td>
+            <td>Client ID + Secret from Google Cloud Console</td>
+            <td>SSO login</td>
+          </tr>
+          <tr>
+            <td>Anthropic API key</td>
+            <td><code>ANTHROPIC_API_KEY</code></td>
+            <td>Claude models</td>
+          </tr>
+          <tr>
+            <td>OpenAI API key</td>
+            <td><code>OPENAI_API_KEY</code></td>
+            <td>GPT models (optional)</td>
+          </tr>
+          <tr>
+            <td>GitHub account</td>
+            <td>Optional — for GitHub Auth feature (Phase 5)</td>
+            <td>GitHub Auth</td>
+          </tr>
+          <tr>
+            <td>Domain name</td>
+            <td>Optional — for HTTPS via Cloudflare</td>
+            <td>Production TLS</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ======================================================
+           Quick Start
+           ====================================================== -->
+      <h2>Quick Start</h2>
+      <p>
+        Four commands to get a running xbrain stack. All services start in Docker containers.
+        No local dependencies to install beyond Docker.
+      </p>
+
+      <h3>Step 1 — Clone the repo</h3>
+      <pre class="code-block"><code><span class="code-block__label">bash</span>git clone https://github.com/mrboups/xbrain.git
+cd xbrain/infrastructure</code></pre>
+
+      <h3>Step 2 — Configure environment</h3>
+      <pre class="code-block"><code><span class="code-block__label">bash</span>cp .env.example .env
+# Edit .env with your values:
+# - POSTGRES_PASSWORD, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+# - BRIDGE_SHARED_SECRET (random 32-char hex)
+# - ANTHROPIC_API_KEY, OPENAI_API_KEY</code></pre>
+
+      <p>
+        Generate a secure random secret for <code>BRIDGE_SHARED_SECRET</code>:
+      </p>
+      <pre class="code-block"><code><span class="code-block__label">bash</span>openssl rand -hex 16</code></pre>
+
+      <h3>Step 3 — Start the stack</h3>
+      <pre class="code-block"><code><span class="code-block__label">bash</span>docker compose up -d
+# Wait ~60 seconds for all healthchecks to pass
+docker compose ps</code></pre>
+
+      <div class="callout callout--info">
+        <p class="callout__title">First boot</p>
+        <p>On first boot, PostgreSQL runs migrations and LibreChat initialises its MongoDB collections.
+        Allow 60–90 seconds before services are fully ready. Watch progress with
+        <code>docker compose logs -f memory-api</code>.</p>
+      </div>
+
+      <h3>Step 4 — Verify</h3>
+      <pre class="code-block"><code><span class="code-block__label">bash</span>curl http://localhost/nginx-health
+curl http://localhost:8000/v1/healthz</code></pre>
+
+      <p>
+        Open LibreChat at <code>http://your-server</code> and sign in with Google.
+        Open WebUI is available at <code>http://your-server/open-webui</code>.
+      </p>
+
+      <!-- ======================================================
+           What's Included
+           ====================================================== -->
+      <h2>What's Included</h2>
+      <p>
+        xbrain ships as a phased stack. Each phase adds capabilities on top of the previous one.
+        You can stop at any phase — the core memory invariant is present from Phase 1.
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th>Services</th>
+            <th>What you get</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Phase 1</strong></td>
+            <td>nginx, postgres, qdrant, memory-api, librechat, open-webui</td>
+            <td>Core chat + memory layer. Google OAuth. Tagging contract enforced.</td>
+          </tr>
+          <tr>
+            <td><strong>Phase 2</strong></td>
+            <td>agent-runtime, langfuse, mem0, redis, minio, clickhouse</td>
+            <td>Intelligent memory (mem0) + LangGraph agents + LLM observability (Langfuse).</td>
+          </tr>
+          <tr>
+            <td><strong>Phase 3</strong></td>
+            <td>neo4j, mcp-gateway, mcp-scraper, mcp-drive-read, mcp-calendar, drive-sync</td>
+            <td>Knowledge graph + integrations. Web scraping, Drive read/write, Calendar access via MCP.</td>
+          </tr>
+          <tr>
+            <td><strong>Phase 4</strong></td>
+            <td>mcp-deck, librechat bridge upgrades</td>
+            <td>PPTX generation MCP tool. Full MCP toolset completed.</td>
+          </tr>
+          <tr>
+            <td><strong>Phase 5</strong></td>
+            <td>graphiti-service, chrome-extension, github-auth, projects-dashboard</td>
+            <td>Temporal fact extraction, Chrome web clipper, GitHub Org auth, team project dashboard.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ======================================================
+           Next Steps
+           ====================================================== -->
+      <h2>Next Steps</h2>
+      <ul>
+        <li>
+          <a href="architecture.html">Understand the full architecture</a> — All 25 containers,
+          the Docker network, data flow for chat messages.
+        </li>
+        <li>
+          <a href="memory.html">Learn about the memory system</a> — The 7-field tagging contract,
+          5 truth levels, and the memory upsert API.
+        </li>
+        <li>
+          <a href="deployment.html">Production deployment guide</a> — TLS with Cloudflare,
+          VM sizing per phase, backup strategy.
+        </li>
+        <li>
+          <a href="configuration.html">Configuration reference</a> — All environment variables
+          documented with defaults and examples.
+        </li>
+        <li>
+          <a href="chat.html">Chat Interfaces</a> — How LibreChat and Open WebUI connect to
+          memory-api and what's different between them.
+        </li>
+      </ul>
+
+    </main>
+  </div>
+
+  <!-- ============================================================
+       FOOTER
+       ============================================================ -->
+  <footer class="xb-footer">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+        <div>
+          <p class="xb-footer__col-title">Product</p>
+          <ul class="xb-footer__links">
+            <li><a href="../index.html" class="xb-footer__link">Home</a></li>
+            <li><a href="index.html" class="xb-footer__link">Documentation</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Deployment</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Docs</p>
+          <ul class="xb-footer__links">
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="memory.html" class="xb-footer__link">Memory System</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Community</p>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">GitHub</a>
+            </li>
+            <li><a href="https://github.com/mrboups/xbrain/issues" target="_blank" rel="noopener noreferrer" class="xb-footer__link">Issues</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="xb-footer__bottom">
+        <span class="xb-footer__copyright">
+          &copy; 2026 xbrain. Open source under MIT License.
+        </span>
+        <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener noreferrer" class="xb-footer__link">
+          GitHub &rarr;
+        </a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
