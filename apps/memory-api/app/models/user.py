@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import BigInteger, DateTime, String, func
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,3 +20,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # Phase 5 plan 05-02 — GitHub account linking (optional, nullable)
+    # Populated via POST /v1/me/link-github or on first GitHub OAuth login.
+    github_username: Mapped[str | None] = mapped_column(String(256), nullable=True, index=True)
+    github_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, unique=True)

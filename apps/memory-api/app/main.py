@@ -19,6 +19,7 @@ from app.routes import (
     graph,
     health,
     me,
+    me_github,
     memory,
     messages,
     promotions,
@@ -67,6 +68,7 @@ app = FastAPI(title="xbrain memory-api", version="0.1.0", lifespan=lifespan)
 
 app.include_router(health.router, prefix="/v1", tags=["health"])
 app.include_router(me.router, prefix="/v1", tags=["me"])
+app.include_router(me_github.router, prefix="/v1", tags=["me"])
 app.include_router(teams.router, prefix="/v1", tags=["teams"])
 app.include_router(conversations.router, prefix="/v1", tags=["conversations"])
 app.include_router(messages.router, prefix="/v1", tags=["messages"])

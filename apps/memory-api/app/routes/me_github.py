@@ -1,0 +1,110 @@
+"""POST /v1/me/link-github — link a GitHub account to the current Google-authenticated user.
+
+Endpoint flow:
+1. Caller must be authenticated with a Google ID token (standard Authorization header).
+2. Caller provides their GitHub OAuth token (gho_... obtained from LibreChat GitHub login).
+3. memory-api verifies the GitHub token via GitHub API and checks org membership.
+4. github_username + github_id are stored on the users row.
+
+Security notes (T-05-02-01):
+- The GitHub API call with the user's own token proves they own that account.
+  An attacker cannot link someone else's GitHub account without possessing their token.
+- The server PAT is used only for org-membership check (read:org scope, never exposed).
+"""
+
+from typing import Any
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth import check_github_org_membership
+from app.config import settings
+from app.deps import get_current_principal, get_session
+from app.models.user import User
+
+router = APIRouter()
+
+
+class LinkGithubBody(BaseModel):
+    github_token: str  # GitHub OAuth token (gho_...) from the user's LibreChat session
+
+
+@router.post("/me/link-github")
+async def link_github(
+    body: LinkGithubBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Link a GitHub account to the currently authenticated user.
+
+    Returns the github_username and whether the account is in the configured org.
+    The caller must already be authenticated (Google ID token in Authorization header).
+    Bridge tokens (service principals) are not allowed to link GitHub accounts.
+    """
+    if principal["kind"] != "user":
+        raise HTTPException(403, "Only user principals can link a GitHub account")
+
+    # Fetch github username + org membership
+    try:
+        gh = await check_github_org_membership(
+            body.github_token,
+            settings.GITHUB_ORG,
+            settings.GITHUB_API_PAT,
+        )
+    except httpx.HTTPStatusError as exc:
+        # GitHub API rejected the token — invalid or expired
+        raise HTTPException(
+            status_code=400,
+            detail=f"GitHub token validation failed: HTTP {exc.response.status_code}",
+        ) from exc
+    except httpx.RequestError as exc:
+        # Network-level error reaching GitHub API
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not reach GitHub API: {exc}",
+        ) from exc
+
+    username: str = gh["login"]
+    # GitHub numeric user IDs: fetch from user endpoint data (stored in cache result)
+    # We need the github_id — make a separate call if not in the cache result.
+    # Note: check_github_org_membership returns from cache on second call — cost-free.
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        user_r = await client.get(
+            "https://api.github.com/user",
+            headers={
+                "Authorization": f"Bearer {body.github_token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        user_r.raise_for_status()
+        github_id: int = user_r.json()["id"]
+
+    user = principal["user"]
+
+    # Check that this github_id is not already linked to a different xbrain user
+    existing = await session.execute(
+        select(User).where(User.github_id == github_id, User.id != user.id)
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="This GitHub account is already linked to another xbrain user",
+        )
+
+    # Update the user row with the GitHub account info
+    await session.execute(
+        update(User)
+        .where(User.id == user.id)
+        .values(github_username=username, github_id=github_id)
+    )
+    await session.commit()
+
+    return {
+        "github_username": username,
+        "github_id": github_id,
+        "is_org_member": gh["is_org_member"],
+    }
