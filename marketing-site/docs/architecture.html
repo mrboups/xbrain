@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Architecture — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+  <!-- ============================================================
+       NAV
+       ============================================================ -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Deploy
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ============================================================
+       DOCS LAYOUT
+       ============================================================ -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" aria-label="Documentation navigation">
+      <nav>
+        <div class="sidebar__section">
+          <p class="sidebar__section-title">Documentation</p>
+          <ul class="sidebar__links">
+            <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+            <li><a href="architecture.html" class="sidebar__link active">Architecture</a></li>
+            <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+            <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+            <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+            <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+            <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+            <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+            <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+            <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+            <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+            <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+            <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+            <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="docs-content" id="main-content">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <span class="breadcrumb__item">
+          <a href="../index.html" class="breadcrumb__link">Home</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__current">Architecture</span>
+      </nav>
+
+      <h1>Architecture</h1>
+      <div class="docs-meta">
+        <span>25 containers</span>
+        <span>&#183;</span>
+        <span>Phases 1–5</span>
+        <span class="docs-meta__badge">v1.0</span>
+      </div>
+
+      <!-- ======================================================
+           Overview
+           ====================================================== -->
+      <h2>Overview</h2>
+      <p>
+        xbrain runs as 25 Docker containers on a single VM, connected via a private Docker network
+        (<code>xbrain_net</code>). All external traffic enters through nginx on port 80/443. Internal
+        services never expose ports to the internet.
+      </p>
+      <p>
+        The central invariant is <strong>memory-api</strong>: every data point from every frontend
+        (LibreChat, Open WebUI, Chrome extension, agents) passes through memory-api before persisting.
+        memory-api enforces the 7-field tagging contract and routes data to the right stores:
+        PostgreSQL (event store), Qdrant (vector search), and Neo4j (knowledge graph).
+      </p>
+
+      <!-- ======================================================
+           Architecture Diagram
+           ====================================================== -->
+      <h2>Architecture Diagram</h2>
+      <pre class="code-block" style="font-size: 12px; line-height: 1.5; overflow-x: auto;" aria-label="Architecture ASCII diagram">
+                    &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
+  Browser &#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x25BA;&#x2502;  nginx (80/443)  &#x2502;
+                    &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x252C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;
+                             &#x2502;
+              &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x253C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
+              &#x2502;              &#x2502;              &#x2502;
+       &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x25BC;&#x2500;&#x2500;&#x2510;   &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x25BC;&#x2500;&#x2500;&#x2510;   &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x25BC;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
+       &#x2502; LibreChat &#x2502;   &#x2502;Open WebUI&#x2502;   &#x2502; memory-api  &#x2502;
+       &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x252C;&#x2500;&#x2500;&#x2518;   &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x252C;&#x2500;&#x2500;&#x2518;   &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x252C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;
+              &#x2502;              &#x2502;              &#x2502;
+       &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x25BC;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x25BC;&#x2500;&#x2500;&#x2510;   &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x25BC;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
+       &#x2502;  librechat-bridge        &#x2502;   &#x2502; PostgreSQL  &#x2502;
+       &#x2502;  openwebui-pipeline      &#x2502;   &#x2502; Qdrant      &#x2502;
+       &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;   &#x2502; Neo4j       &#x2502;
+                                      &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;
+       &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;   &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
+       &#x2502; agent-runtime &#x2502;   &#x2502; MCP Gateway               &#x2502;
+       &#x2502; (LangGraph)   &#x2502;   &#x2502; mcp-scraper               &#x2502;
+       &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x252C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;   &#x2502; mcp-drive-read            &#x2502;
+              &#x2502;            &#x2502; mcp-calendar              &#x2502;
+       &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x25BC;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;   &#x2502; mcp-deck                  &#x2502;
+       &#x2502; graphiti-svc  &#x2502;   &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;
+       &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;
+
+       &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;   &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
+       &#x2502; drive-sync   &#x2502;   &#x2502; Langfuse (observability) &#x2502;
+       &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;   &#x2502; ClickHouse / Redis       &#x2502;
+                          &#x2502; MinIO (Chainguard)       &#x2502;
+                          &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;
+
+  All containers: xbrain_net (Docker bridge network)</pre>
+
+      <!-- ======================================================
+           Container Reference
+           ====================================================== -->
+      <h2>Container Reference</h2>
+      <p>
+        All 25 containers across Phases 1–5. The <strong>Phase</strong> column indicates when
+        each container is first introduced. Containers from earlier phases remain active in later phases.
+      </p>
+
+      <div style="overflow-x: auto;">
+        <table class="docs-table">
+          <thead>
+            <tr>
+              <th>Container</th>
+              <th>Image</th>
+              <th>Phase</th>
+              <th>Purpose</th>
+              <th>RAM (idle)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>nginx</code></td>
+              <td>nginx:1.27-alpine</td>
+              <td>1</td>
+              <td>Reverse proxy, TLS termination, routing to all services</td>
+              <td>64 MB</td>
+            </tr>
+            <tr>
+              <td><code>postgres</code></td>
+              <td>postgres:17</td>
+              <td>1</td>
+              <td>Primary relational DB: event store, audit logs, user/team data</td>
+              <td>256 MB</td>
+            </tr>
+            <tr>
+              <td><code>qdrant</code></td>
+              <td>qdrant/qdrant:v1.17.1</td>
+              <td>1</td>
+              <td>Vector store: semantic search, scoped by team_scope + truth_level</td>
+              <td>300 MB</td>
+            </tr>
+            <tr>
+              <td><code>memory-api</code></td>
+              <td>xbrain/memory-api</td>
+              <td>1</td>
+              <td>Core API: tagging contract enforcer, routes to PostgreSQL + Qdrant + Neo4j</td>
+              <td>384 MB</td>
+            </tr>
+            <tr>
+              <td><code>librechat-mongo</code></td>
+              <td>mongo:7</td>
+              <td>1</td>
+              <td>LibreChat conversation and message storage (MongoDB)</td>
+              <td>300 MB</td>
+            </tr>
+            <tr>
+              <td><code>librechat-meili</code></td>
+              <td>getmeili/meilisearch:v1.10</td>
+              <td>1</td>
+              <td>LibreChat full-text search index</td>
+              <td>192 MB</td>
+            </tr>
+            <tr>
+              <td><code>librechat</code></td>
+              <td>librechat/librechat:v0.8.2-rc2</td>
+              <td>1</td>
+              <td>Primary chat frontend — Claude, GPT, Grok support, MCP-ready</td>
+              <td>400 MB</td>
+            </tr>
+            <tr>
+              <td><code>open-webui</code></td>
+              <td>ghcr.io/open-webui/open-webui:v0.9.0</td>
+              <td>1</td>
+              <td>Secondary chat + admin UI, RAG testing, agent experimentation</td>
+              <td>600 MB</td>
+            </tr>
+            <tr>
+              <td><code>librechat-bridge</code></td>
+              <td>xbrain/librechat-bridge</td>
+              <td>1</td>
+              <td>Listens for LibreChat messages, forwards to memory-api with JWT auth</td>
+              <td>128 MB</td>
+            </tr>
+            <tr>
+              <td><code>openwebui-pipeline</code></td>
+              <td>xbrain/openwebui-pipeline</td>
+              <td>1</td>
+              <td>Open WebUI pipeline plugin: intercepts messages, sends to memory-api</td>
+              <td>192 MB</td>
+            </tr>
+            <tr>
+              <td><code>agent-runtime</code></td>
+              <td>xbrain/agent-runtime</td>
+              <td>2</td>
+              <td>LangGraph agent executor with human-in-the-loop (HITL) support</td>
+              <td>384 MB</td>
+            </tr>
+            <tr>
+              <td><code>langfuse</code></td>
+              <td>langfuse/langfuse:3</td>
+              <td>2</td>
+              <td>LLM observability web UI — traces, scores, evaluations</td>
+              <td>512 MB</td>
+            </tr>
+            <tr>
+              <td><code>langfuse-worker</code></td>
+              <td>langfuse/langfuse-worker:3</td>
+              <td>2</td>
+              <td>Langfuse background processing — async ingestion, exports</td>
+              <td>512 MB</td>
+            </tr>
+            <tr>
+              <td><code>clickhouse</code></td>
+              <td>clickhouse/clickhouse-server</td>
+              <td>2</td>
+              <td>OLAP backend for Langfuse trace storage and analytics</td>
+              <td>1.5 GB</td>
+            </tr>
+            <tr>
+              <td><code>redis</code></td>
+              <td>redis:7</td>
+              <td>2</td>
+              <td>Langfuse cache, job queues, rate limiting</td>
+              <td>50 MB</td>
+            </tr>
+            <tr>
+              <td><code>minio</code></td>
+              <td>cgr.dev/chainguard/minio</td>
+              <td>2</td>
+              <td>S3-compatible object storage: PDFs, images, Langfuse blobs</td>
+              <td>256 MB</td>
+            </tr>
+            <tr>
+              <td><code>neo4j</code></td>
+              <td>neo4j:2026.04.0-community</td>
+              <td>3</td>
+              <td>Knowledge graph: entity nodes, MENTIONS edges, relationship lineage</td>
+              <td>1 GB</td>
+            </tr>
+            <tr>
+              <td><code>mcp-gateway</code></td>
+              <td>xbrain/mcp-gateway</td>
+              <td>3</td>
+              <td>MCP tool registry and proxy — routes LibreChat MCP calls to sidecars</td>
+              <td>256 MB</td>
+            </tr>
+            <tr>
+              <td><code>mcp-scraper</code></td>
+              <td>xbrain/mcp-scraper</td>
+              <td>3</td>
+              <td>Web scraping MCP tool (port 8100) — Playwright-based content extraction</td>
+              <td>128 MB</td>
+            </tr>
+            <tr>
+              <td><code>mcp-drive-read</code></td>
+              <td>xbrain/mcp-drive-read</td>
+              <td>3</td>
+              <td>Google Drive read/write MCP tool (port 8101) — file listing, content fetch</td>
+              <td>128 MB</td>
+            </tr>
+            <tr>
+              <td><code>mcp-calendar</code></td>
+              <td>xbrain/mcp-calendar</td>
+              <td>3</td>
+              <td>Google Calendar read MCP tool (port 8102) — event listing, availability</td>
+              <td>128 MB</td>
+            </tr>
+            <tr>
+              <td><code>drive-sync</code></td>
+              <td>xbrain/drive-sync</td>
+              <td>3</td>
+              <td>Incremental Google Drive sync + Push Notifications (webhooks)</td>
+              <td>128 MB</td>
+            </tr>
+            <tr>
+              <td><code>mcp-deck</code></td>
+              <td>xbrain/mcp-deck</td>
+              <td>4</td>
+              <td>PPTX generation MCP tool — creates slide decks from structured data</td>
+              <td>256 MB</td>
+            </tr>
+            <tr>
+              <td><code>graphiti-service</code></td>
+              <td>xbrain/graphiti-service</td>
+              <td>5</td>
+              <td>Temporal fact extraction (port 8300) — enriches Neo4j graph, fail-soft</td>
+              <td>512 MB</td>
+            </tr>
+            <tr>
+              <td><code>projects-dashboard</code></td>
+              <td>Firebase Hosting (static)</td>
+              <td>5</td>
+              <td>Team project dashboard — React SPA, deployed on Firebase Hosting</td>
+              <td>N/A</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ======================================================
+           Network Architecture
+           ====================================================== -->
+      <h2>Network Architecture</h2>
+      <p>
+        All containers connect on <code>xbrain_net</code>, a Docker bridge network defined in
+        <code>docker-compose.yml</code>. Container-to-container communication uses service names
+        as hostnames (e.g., <code>http://memory-api:8000</code>).
+      </p>
+
+      <h3>Exposed ports</h3>
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Port</th>
+            <th>Service</th>
+            <th>Accessible from</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>80</td>
+            <td>nginx</td>
+            <td>Internet (HTTP → redirects to 443)</td>
+          </tr>
+          <tr>
+            <td>443</td>
+            <td>nginx (with Cloudflare)</td>
+            <td>Internet (HTTPS)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Internal-only ports</h3>
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Port</th>
+            <th>Service</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>8000</td>
+            <td>memory-api</td>
+            <td>FastAPI — all frontends and agents write here</td>
+          </tr>
+          <tr>
+            <td>9100</td>
+            <td>agent-runtime</td>
+            <td>LangGraph HTTP API</td>
+          </tr>
+          <tr>
+            <td>8080</td>
+            <td>mcp-gateway</td>
+            <td>MCP tool registry + proxy</td>
+          </tr>
+          <tr>
+            <td>8100</td>
+            <td>mcp-scraper</td>
+            <td>Web scraping MCP sidecar</td>
+          </tr>
+          <tr>
+            <td>8101</td>
+            <td>mcp-drive-read</td>
+            <td>Google Drive MCP sidecar</td>
+          </tr>
+          <tr>
+            <td>8102</td>
+            <td>mcp-calendar</td>
+            <td>Google Calendar MCP sidecar</td>
+          </tr>
+          <tr>
+            <td>8300</td>
+            <td>graphiti-service</td>
+            <td>Temporal fact extraction service</td>
+          </tr>
+          <tr>
+            <td>6333</td>
+            <td>qdrant</td>
+            <td>Qdrant HTTP + gRPC API</td>
+          </tr>
+          <tr>
+            <td>7687</td>
+            <td>neo4j</td>
+            <td>Neo4j Bolt protocol</td>
+          </tr>
+          <tr>
+            <td>5432</td>
+            <td>postgres</td>
+            <td>PostgreSQL</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout--info">
+        <p class="callout__title">No host networking</p>
+        <p>No container uses <code>network_mode: host</code>. All inter-service communication
+        stays within <code>xbrain_net</code>. Only nginx is bound to host ports 80 and 443.</p>
+      </div>
+
+      <!-- ======================================================
+           Data Flow — Chat Message
+           ====================================================== -->
+      <h2>Data Flow — Chat Message</h2>
+      <p>
+        Here is what happens from the moment a user sends a message in LibreChat
+        to the moment it becomes a searchable memory item:
+      </p>
+      <ol>
+        <li>User sends a message in <strong>LibreChat</strong>.</li>
+        <li>LibreChat saves the message to <strong>MongoDB</strong> (librechat-mongo) — its own conversation history.</li>
+        <li><strong>librechat-bridge</strong> detects the new message via the LibreChat webhook/event.</li>
+        <li>bridge sends <code>POST /v1/messages</code> to <strong>memory-api</strong> with a Bearer JWT.</li>
+        <li>memory-api enforces the <strong>tagging contract</strong> — all 7 mandatory fields must be present or the request returns 422.</li>
+        <li>Message is stored in <strong>PostgreSQL</strong> (event store + audit log) and <strong>Qdrant</strong> (vector embedding for semantic search).</li>
+        <li>If the message payload includes an <code>entities</code> field, the Neo4j outbox is updated by a background worker.</li>
+        <li><strong>graphiti-service</strong> enriches the knowledge graph with temporal facts — this call is fail-soft and async (a graphiti-service outage does not block the memory write).</li>
+        <li>Audit log entry written to <strong>PostgreSQL</strong> with timestamp, source, and team_scope.</li>
+      </ol>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Open WebUI follows the same flow</p>
+        <p>Messages from Open WebUI pass through <strong>openwebui-pipeline</strong> instead of
+        librechat-bridge, but arrive at the same memory-api endpoint with the same tagging contract.</p>
+      </div>
+
+      <!-- ======================================================
+           VM Sizing
+           ====================================================== -->
+      <h2>VM Sizing</h2>
+      <p>
+        xbrain's container count grows with each phase. Plan your VM size before deploying a new phase —
+        attempting Phase 2 on a 4 GB VM will cause OOM kills.
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th>VM</th>
+            <th>RAM</th>
+            <th>Cost / mo</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Phase 1</strong></td>
+            <td>e2-medium</td>
+            <td>4 GB</td>
+            <td>~25&euro;</td>
+            <td>~2.2 GB used. Monitor OOM. Do not add Phase 2 services without upgrade.</td>
+          </tr>
+          <tr>
+            <td><strong>Phase 2</strong></td>
+            <td>e2-standard-2</td>
+            <td>8 GB</td>
+            <td>~49&euro;</td>
+            <td>Upgrade before adding mem0 + LangGraph + ClickHouse.</td>
+          </tr>
+          <tr>
+            <td><strong>Phase 3+</strong></td>
+            <td>e2-standard-4</td>
+            <td>16 GB</td>
+            <td>~98&euro;</td>
+            <td>Or split: xbrain on e2-standard-2 + Langfuse on e2-small (~62&euro;/mo total).</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        See the <a href="deployment.html">Deployment guide</a> for detailed instructions on
+        how to resize a GCP VM without data loss.
+      </p>
+
+    </main>
+  </div>
+
+  <!-- ============================================================
+       FOOTER
+       ============================================================ -->
+  <footer class="xb-footer">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+        <div>
+          <p class="xb-footer__col-title">Product</p>
+          <ul class="xb-footer__links">
+            <li><a href="../index.html" class="xb-footer__link">Home</a></li>
+            <li><a href="index.html" class="xb-footer__link">Documentation</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Deployment</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Docs</p>
+          <ul class="xb-footer__links">
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="memory.html" class="xb-footer__link">Memory System</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Community</p>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">GitHub</a>
+            </li>
+            <li><a href="https://github.com/mrboups/xbrain/issues" target="_blank" rel="noopener noreferrer" class="xb-footer__link">Issues</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="xb-footer__bottom">
+        <span class="xb-footer__copyright">
+          &copy; 2026 xbrain. Open source under MIT License.
+        </span>
+        <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener noreferrer" class="xb-footer__link">
+          GitHub &rarr;
+        </a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
