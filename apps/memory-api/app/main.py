@@ -27,6 +27,7 @@ from app.routes import (
     messages,
     promotions,
     system_prompt,
+    tasks,
     teams,
 )
 
@@ -95,4 +96,5 @@ app.include_router(system_prompt.router, prefix="/v1", tags=["system-prompt"])
 app.include_router(admin_drive.router, prefix="/v1", tags=["admin-drive"])
 app.include_router(admin_projects.router, prefix="/v1/admin", tags=["admin"])
 app.include_router(crm.router, prefix="/v1", tags=["crm"])
+app.include_router(tasks.router, prefix="/v1", tags=["tasks"])
 app.include_router(drive_webhook.router, prefix="/v1", tags=["drive-webhook"])
