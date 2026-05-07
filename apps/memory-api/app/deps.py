@@ -159,6 +159,20 @@ async def require_paid_tier(
     return team_scope
 
 
+def _is_admin(principal: dict[str, Any]) -> bool:
+    """Return True for bridge service JWTs (kind=service/bridge) or listed admin subs.
+
+    Bridge tokens (kind='bridge') are emitted by internal services and implicitly
+    trusted as admin for configuration endpoints. Real-user tokens (kind='user')
+    require the caller's sub to appear in ADMIN_USER_SUBS.
+    """
+    if principal.get("kind") in ("service", "bridge"):
+        return True
+    sub = principal.get("sub", "")
+    admin_subs = [s.strip() for s in (settings.ADMIN_USER_SUBS or "").split(",") if s.strip()]
+    return sub in admin_subs
+
+
 def _user_id_from_principal(principal: dict[str, Any]) -> UUID | None:
     """Extract the user.id from a resolved principal, or None for bridge JWTs."""
     user = principal.get("user")

@@ -33,7 +33,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.deps import get_current_principal, get_session
+from app.deps import _is_admin, get_current_principal, get_session
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
@@ -54,20 +54,6 @@ def _require_fernet():
     from cryptography.fernet import Fernet  # lazy import — cryptography is optional at boot
 
     return Fernet(settings.OAUTH_CREDENTIALS_ENCRYPTION_KEY.encode())
-
-
-def _is_admin(principal: dict[str, Any]) -> bool:
-    """Return True for bridge service JWTs (kind=service/bridge) or listed admin subs.
-
-    Bridge tokens (kind='bridge') are emitted by internal services and implicitly
-    trusted as admin for configuration endpoints. Real-user tokens (kind='user')
-    require the caller's sub to appear in ADMIN_USER_SUBS.
-    """
-    if principal.get("kind") in ("service", "bridge"):
-        return True
-    sub = principal.get("sub", "")
-    admin_subs = [s.strip() for s in (settings.ADMIN_USER_SUBS or "").split(",") if s.strip()]
-    return sub in admin_subs
 
 
 def _build_authorization_url(mapping_id: str) -> str:
