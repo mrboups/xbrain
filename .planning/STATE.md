@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 ## Current Position
 
 Phase: 7 (CRM + Granola + Task Intelligence) — EXECUTING
-Plan: 2 of 9
+Plan: 4 of 9
 Status: Executing Phase 7
-Last activity: 2026-05-07 -- Plan 07-01 complete (3 Alembic migrations: 0008 teams.plan, 0009 contacts+granola_integrations, 0010 tasks)
+Last activity: 2026-05-07 -- Plan 07-03 complete (tasks router /v1/tasks CRUD + paid tier + audit)
 
 Progress: [██████████] 100% — ALL PHASES COMPLETE
 
@@ -84,6 +84,9 @@ Recent decisions affecting current work:
 - 2026-05-07 (07-01): tasks.created_by FK ON DELETE SET NULL (pas RESTRICT) — permet suppression user, tasks conservées avec attribution NULL
 - 2026-05-07 (07-01): contacts table porte les 7 champs du tagging contract complets (visibility + validation_status inclus malgré optionalité v1)
 - 2026-05-07 (07-01): granola_integrations.api_key_enc = Text brut DB — chiffrement Fernet couche applicative (Plan 07-04)
+- 2026-05-07 (07-03): Bridge JWTs rejected 401 at POST /v1/tasks — created_by NOT NULL invariant preserved
+- 2026-05-07 (07-03): PATCH audit differentiates task.status_changed (from/to) vs task.updated
+- 2026-05-07 (07-03): _validate_assignee runs SELECT before INSERT/UPDATE — cross-team assignee returns 422
 
 ### Pending Todos
 
@@ -105,5 +108,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-07
-Stopped at: Plan 07-01 complete — 0008_team_plan.py (b5fd046), 0009_crm_contacts.py (827be41), 0010_tasks.py (e7bf54c).
+Stopped at: Plan 07-03 complete — tasks.py (fa5a523), main.py (4deb8f2).
 Resume file: None
