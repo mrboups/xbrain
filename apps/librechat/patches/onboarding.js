@@ -17,9 +17,23 @@
   // Skip if already completed this session
   if (sessionStorage.getItem(STORAGE_KEY)) return;
 
+  // LibreChat stores its JWT only in axios.defaults (in-memory), never in cookies.
+  // We capture it by intercepting XHR.setRequestHeader — axios uses XHR, not fetch.
+  let _libreToken = null;
+  const _origSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+  XMLHttpRequest.prototype.setRequestHeader = function (name, value) {
+    if (!_libreToken && name.toLowerCase() === 'authorization' && value.startsWith('Bearer ')) {
+      _libreToken = value.slice(7);
+    }
+    return _origSetHeader.apply(this, arguments);
+  };
+
   async function getToken() {
+    if (!_libreToken) return null;
     try {
-      const r = await fetch('/api/xbrain/token', { credentials: 'include' });
+      const r = await fetch('/api/xbrain/token', {
+        headers: { Authorization: 'Bearer ' + _libreToken },
+      });
       if (!r.ok) return null;
       const { token } = await r.json();
       return token;
@@ -403,22 +417,19 @@
       await new Promise(r => document.addEventListener('DOMContentLoaded', r));
     }
 
-    // LibreChat is a React SPA: the initial page load may be the login screen.
-    // After login, React Router navigates client-side (no full reload), so this
-    // IIFE does not re-execute. We poll until we get a valid token (= user is
-    // authenticated), then check team membership once.
+    // Poll for the LibreChat JWT captured by the XHR interceptor above.
+    // LibreChat (axios) fires its first authenticated request within ~1-2s of React
+    // mounting. After SPA login (no full page reload), the next axios call triggers
+    // the interceptor and _libreToken is set. Max wait: ~2 min.
     let retries = 0;
-    const POLL_INTERVAL = 3000; // 3s between checks
-    const MAX_RETRIES = 40;     // ~2 min max wait
-
-    while (retries < MAX_RETRIES) {
-      await new Promise(r => setTimeout(r, retries === 0 ? 1500 : POLL_INTERVAL));
-      token = await getToken();
+    while (retries < 40) {
+      await new Promise(r => setTimeout(r, retries === 0 ? 500 : 2000));
+      token = await getToken(); // returns null while _libreToken is still null
       if (token) break;
       retries++;
     }
 
-    if (!token) return; // User never authenticated in the time window
+    if (!token) return;
 
     const team = await checkTeam(token);
     if (team) {
