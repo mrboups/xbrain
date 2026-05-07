@@ -399,20 +399,31 @@
   // ── Boot ─────────────────────────────────────────────────────────────────
 
   async function boot() {
-    // Wait for DOM
     if (document.readyState === 'loading') {
       await new Promise(r => document.addEventListener('DOMContentLoaded', r));
     }
-    // Small delay to let LibreChat's own auth settle
-    await new Promise(r => setTimeout(r, 1500));
 
-    token = await getToken();
-    if (!token) return; // Not logged in yet — LibreChat will handle redirect
+    // LibreChat is a React SPA: the initial page load may be the login screen.
+    // After login, React Router navigates client-side (no full reload), so this
+    // IIFE does not re-execute. We poll until we get a valid token (= user is
+    // authenticated), then check team membership once.
+    let retries = 0;
+    const POLL_INTERVAL = 3000; // 3s between checks
+    const MAX_RETRIES = 40;     // ~2 min max wait
+
+    while (retries < MAX_RETRIES) {
+      await new Promise(r => setTimeout(r, retries === 0 ? 1500 : POLL_INTERVAL));
+      token = await getToken();
+      if (token) break;
+      retries++;
+    }
+
+    if (!token) return; // User never authenticated in the time window
 
     const team = await checkTeam(token);
     if (team) {
       sessionStorage.setItem(STORAGE_KEY, '1');
-      return; // Already has a team — nothing to do
+      return;
     }
 
     mount();
