@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 ## Current Position
 
 Phase: 6 (Marketing Site + Documentation)
-Plan: 1 of 8 in current phase
-Status: In progress
-Last activity: 2026-05-06 — Plan 06-01 terminé : firebase.json + .firebaserc (xbrain-marketing site), style.css (242 lignes, nav/footer/buttons violet #7C3AED), docs.css (366 lignes, sidebar grid/code blocks/breadcrumbs/callouts)
+Plan: 8 of 8 in current phase
+Status: Complete
+Last activity: 2026-05-07 — Phase 6 entièrement terminée. 15 pages HTML déployées sur https://xbrain-marketing.web.app (1 landing + 14 docs). app-site/index.html = v7 Cortex OS (dejavu-app.web.app).
 
-Progress: [██████████] 100%
+Progress: [██████████] 100% — ALL PHASES COMPLETE
 
 ## Performance Metrics
 
