@@ -11,10 +11,10 @@
       theme: {
         extend: {
           colors: {
-            navy:     '#0D1B3E',
-            'navy-lt':'#1A2F6B',
-            royal:    '#2563EB',
-            'royal-lt':'#3B82F6',
+            navy:     '#060C1F',
+            'navy-lt':'#0D1B3E',
+            royal:    '#1848C8',
+            'royal-lt':'#2563EB',
             slate:    '#64748B',
             'slate-2':'#94A3B8',
             ice:      '#EFF6FF',
@@ -23,7 +23,7 @@
             border:   '#E2E8F0',
           },
           fontFamily: {
-            sans: ['Inter','system-ui','sans-serif'],
+            sans: ['DM Sans','system-ui','sans-serif'],
             mono: ['JetBrains Mono','monospace'],
           },
           boxShadow: {
@@ -38,15 +38,15 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200;0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     html { -webkit-font-smoothing: antialiased; }
-    body { background: #fff; color: #0D1B3E; }
+    body { background: #fff; color: #060C1F; }
 
     /* gradient text */
     .gt {
-      background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 50%, #0EA5E9 100%);
+      background: linear-gradient(135deg, #1848C8 0%, #2563EB 50%, #0EA5E9 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -85,7 +85,7 @@
       font-weight: 600;
       letter-spacing: .04em;
     }
-    .pill-blue   { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
+    .pill-blue   { background: #EFF6FF; color: #1848C8; border: 1px solid #BFDBFE; }
     .pill-amber  { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
     .pill-green  { background: #F0FDF4; color: #166534; border: 1px solid #BBF7D0; }
     .pill-purple { background: #FAF5FF; color: #6B21A8; border: 1px solid #E9D5FF; }
@@ -96,7 +96,7 @@
       width: 2rem; height: 2rem;
       border-radius: .5rem;
       background: #EFF6FF;
-      color: #1D4ED8;
+      color: #1848C8;
       font-weight: 800;
       font-size: .875rem;
       display: flex; align-items: center; justify-content: center;
@@ -106,8 +106,8 @@
     /* pricing */
     .price-card { border-radius: 1.25rem; }
     .price-featured {
-      border: 2px solid #2563EB;
-      box-shadow: 0 0 0 4px rgba(37,99,235,.06), 0 8px 32px rgba(37,99,235,.12);
+      border: 2px solid #1848C8;
+      box-shadow: 0 0 0 4px rgba(24,72,200,.06), 0 8px 32px rgba(24,72,200,.12);
     }
 
     /* toggle */
@@ -148,13 +148,8 @@
   <!-- ─── NAV ─── -->
   <header class="nav fixed top-0 w-full z-50">
     <div class="max-w-5xl mx-auto px-6 h-15 flex items-center justify-between" style="height:3.75rem;">
-      <a href="#" class="flex items-center gap-2">
-        <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:linear-gradient(135deg,#0D1B3E,#2563EB);">
-          <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
-            <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-          </svg>
-        </div>
-        <span class="font-black text-navy tracking-tight">Cortex<span class="text-royal">OS</span></span>
+      <a href="#" class="flex items-center gap-1">
+        <span class="font-light text-navy tracking-widest" style="font-size:1.05rem;letter-spacing:.18em;">CORTEX</span><span class="font-light text-royal tracking-widest" style="font-size:1.05rem;letter-spacing:.18em;">OS</span>
       </a>
 
       <nav class="hidden md:flex items-center gap-7 text-sm font-medium text-slate">
@@ -171,7 +166,7 @@
         </a>
         <a href="mailto:team@grooveos.app?subject=Cortex OS early access"
            class="px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-btn transition-opacity hover:opacity-90"
-           style="background:#2563EB;">
+           style="background:#1848C8;">
           Join waitlist
         </a>
       </div>
@@ -201,7 +196,7 @@
       <div class="flex flex-col sm:flex-row gap-3 justify-center mb-20">
         <a href="mailto:team@grooveos.app?subject=Cortex OS early access"
            class="px-7 py-3.5 rounded-xl font-semibold text-white text-sm shadow-btn hover:opacity-90 transition-opacity"
-           style="background:#2563EB;">
+           style="background:#1848C8;">
           Join the waitlist →
         </a>
         <a href="#how"
@@ -393,7 +388,7 @@
         <div class="grid md:grid-cols-2 gap-8 items-center">
           <div>
             <div class="flex items-center gap-2 mb-3">
-              <div class="px-2.5 py-1 rounded-lg text-xs font-bold text-white" style="background:linear-gradient(135deg,#1D4ED8,#0EA5E9);">Graphiti</div>
+              <div class="px-2.5 py-1 rounded-lg text-xs font-bold text-white" style="background:linear-gradient(135deg,#1848C8,#0EA5E9);">Graphiti</div>
               <span class="text-xs font-medium text-slate">Temporal knowledge graph · under the hood</span>
             </div>
             <h3 class="text-xl font-black text-navy mb-2">The brain that renews itself.</h3>
@@ -480,7 +475,9 @@
       <div class="grid md:grid-cols-2 gap-5">
 
         <div class="card p-7 flex gap-5">
-          <div class="w-10 h-10 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0 text-lg">💻</div>
+          <div class="w-10 h-10 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0">
+              <svg class="w-4.5 h-4.5 text-royal" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            </div>
           <div>
             <div class="flex items-center gap-2 mb-2">
               <h3 class="font-bold text-navy">Dev agents</h3>
@@ -493,7 +490,9 @@
         </div>
 
         <div class="card p-7 flex gap-5">
-          <div class="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0 text-lg">📣</div>
+          <div class="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
+              <svg class="text-amber-600" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46"/></svg>
+            </div>
           <div>
             <div class="flex items-center gap-2 mb-2">
               <h3 class="font-bold text-navy">Marketing agents</h3>
@@ -506,7 +505,9 @@
         </div>
 
         <div class="card p-7 flex gap-5">
-          <div class="w-10 h-10 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center shrink-0 text-lg">⚙️</div>
+          <div class="w-10 h-10 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center shrink-0">
+              <svg class="text-green-700" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </div>
           <div>
             <div class="flex items-center gap-2 mb-2">
               <h3 class="font-bold text-navy">Ops agents</h3>
@@ -519,7 +520,9 @@
         </div>
 
         <div class="card p-7 flex gap-5">
-          <div class="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0 text-lg">🎯</div>
+          <div class="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
+              <svg class="text-purple-700" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z"/></svg>
+            </div>
           <div>
             <div class="flex items-center gap-2 mb-2">
               <h3 class="font-bold text-navy">Team lead</h3>
@@ -562,7 +565,9 @@
 
         <!-- event -->
         <div class="card p-6 flex gap-5 items-start">
-          <div class="w-9 h-9 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0 text-base">💻</div>
+          <div class="w-9 h-9 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0">
+            <svg class="text-royal" style="width:1rem;height:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1.5 flex-wrap">
               <span class="pill pill-blue">Dev agent</span>
@@ -579,7 +584,9 @@
         </div>
 
         <div class="card p-6 flex gap-5 items-start">
-          <div class="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0 text-base">📣</div>
+          <div class="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
+            <svg class="text-amber-600" style="width:1rem;height:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46"/></svg>
+          </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1.5 flex-wrap">
               <span class="pill pill-amber">Marketing agent</span>
@@ -595,7 +602,9 @@
         </div>
 
         <div class="card p-6 flex gap-5 items-start">
-          <div class="w-9 h-9 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center shrink-0 text-base">⚙️</div>
+          <div class="w-9 h-9 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center shrink-0">
+            <svg class="text-green-700" style="width:1rem;height:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1.5 flex-wrap">
               <span class="pill pill-green">Ops agent</span>
@@ -755,10 +764,7 @@
                 <div class="absolute right-0 top-full mt-1 z-10 bg-white rounded-xl shadow-lg border border-border overflow-hidden w-52" style="box-shadow:0 8px 32px rgba(13,27,62,.15);">
                   <div class="px-3 py-2 border-b border-border bg-mist">
                     <div class="text-xs font-semibold text-navy flex items-center gap-1.5">
-                      <div class="w-4 h-4 rounded flex items-center justify-center" style="background:linear-gradient(135deg,#0D1B3E,#2563EB);">
-                        <svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-                      </div>
-                      Save to Cortex OS
+                      <span class="font-light text-navy tracking-widest" style="font-size:.65rem;letter-spacing:.15em;">CORTEX</span><span class="font-light text-royal tracking-widest" style="font-size:.65rem;letter-spacing:.15em;">OS</span>
                     </div>
                   </div>
                   <div class="p-3 space-y-1">
@@ -775,7 +781,7 @@
                         <span class="pill pill-slate text-xs">all</span>
                       </div>
                     </div>
-                    <button class="w-full mt-2 py-2 rounded-lg text-xs font-semibold text-white" style="background:#2563EB;">
+                    <button class="w-full mt-2 py-2 rounded-lg text-xs font-semibold text-white" style="background:#1848C8;">
                       Clip to brain →
                     </button>
                   </div>
@@ -887,7 +893,7 @@
           </ul>
           <a href="mailto:team@grooveos.app?subject=Cortex OS team"
              class="block text-center py-2.5 rounded-xl font-semibold text-white text-sm shadow-btn hover:opacity-90 transition-opacity"
-             style="background:#2563EB;">
+             style="background:#1848C8;">
             Join waitlist →
           </a>
         </div>
@@ -918,7 +924,7 @@
   </section>
 
   <!-- ─── CTA ─── -->
-  <section class="s-lg px-6" style="background:#0D1B3E;">
+  <section class="s-lg px-6" style="background:#060C1F;">
     <div class="max-w-2xl mx-auto text-center">
       <h2 class="text-4xl md:text-5xl font-black text-white leading-tight mb-5">
         Your agentic team<br/>
@@ -930,7 +936,7 @@
       <div class="flex flex-col sm:flex-row gap-3 justify-center">
         <a href="mailto:team@grooveos.app?subject=Cortex OS early access"
            class="px-8 py-3.5 rounded-xl font-semibold text-white text-sm shadow-btn hover:opacity-90 transition-opacity"
-           style="background:#2563EB;">
+           style="background:#1848C8;">
           Join the waitlist →
         </a>
         <a href="mailto:team@grooveos.app?subject=Cortex OS demo"
@@ -946,13 +952,8 @@
   <!-- ─── FOOTER ─── -->
   <footer class="bg-white border-t border-border py-8 px-6">
     <div class="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-      <div class="flex items-center gap-2.5">
-        <div class="w-6 h-6 rounded-md flex items-center justify-center" style="background:linear-gradient(135deg,#0D1B3E,#2563EB);">
-          <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
-            <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-          </svg>
-        </div>
-        <span class="font-black text-sm text-navy">Cortex<span class="text-royal">OS</span></span>
+      <div class="flex items-center gap-1">
+        <span class="font-light text-navy tracking-widest" style="font-size:.85rem;letter-spacing:.18em;">CORTEX</span><span class="font-light text-royal tracking-widest" style="font-size:.85rem;letter-spacing:.18em;">OS</span>
         <span class="text-slate-2 text-sm">Cognitive OS for agentic teams</span>
       </div>
       <div class="flex items-center gap-6 text-sm text-slate">
