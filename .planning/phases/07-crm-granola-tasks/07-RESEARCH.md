@@ -578,15 +578,15 @@ La VM est à 99% disque (STATE.md) et la RAM est serrée. Un nouveau conteneur g
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Plan Granola de l'équipe** — Business ou Enterprise requis pour l'API. Vérifier avant planification Wave 2. Si plan insuffisant, l'intégration Granola est bloquée ; reste du Phase 7 (CRM + tasks) peut avancer sans Granola.
+1. **Plan Granola de l'équipe** — **RESOLVED:** Si plan insuffisant → granola-sync démarre mais ne polle rien (fail-soft). CRM + tasks fonctionnent indépendamment. Plan Business/Enterprise requis pour activer le polling. À vérifier en entrée de phase avant d'exécuter 07-05/07-08.
 
-2. **Dashboard tasks location** — Le `projects-dashboard` Phase 5 est-il déployé sur Firebase ou sur la VM ? Si Firebase, ajouter une page HTML statique est trivial. Si c'est une app React/Vue sur la VM, le build process est différent. Le planner doit vérifier.
+2. **Dashboard tasks location** — **RESOLVED:** HTML statique dans `apps/projects-dashboard/public/` — même pattern que Phase 5. Plan 07-07 implémente `tasks.html` dans ce répertoire.
 
-3. **librechat-bridge extension** — Le déclencheur 3 (mentions LibreChat) nécessite que librechat-bridge soit étendu pour détecter les intentions de tâche dans les messages. La complexité dépend de si on veut une confirmation optionnelle (dialog in LibreChat) ou une création silencieuse. En Phase 7, création silencieuse recommandée pour simplifier.
+3. **librechat-bridge extension** — **RESOLVED:** Implémenté en 07-09 — extension `librechat-bridge` pour chat hook. Détection Claude des intentions de tâche dans les messages ("fais ça", "quelqu'un doit", "@nom fait X") avec création auto-task.
 
-4. **Granola API key management** — L'API key Granola est par-user (Personal) ou par-workspace (Enterprise). Si Personal : chaque user configure sa propre clé dans son profil xbrain. Si Enterprise : une seule clé admin. Le schéma de `granola_integrations` dépend de ce choix. Pour Phase 7, recommander une clé par équipe (Enterprise model) pour simplifier.
+4. **Granola API key management** — **RESOLVED:** Clé par équipe, stockage Fernet (cf. table `granola_integrations` migration 0009), admin endpoint pattern `admin_drive.py` (`_is_admin` + `_require_fernet`).
 
 ---
 

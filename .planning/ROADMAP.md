@@ -144,10 +144,35 @@ Plans:
 - [ ] 06-07-PLAN.md — Deployment + Configuration pages
 - [ ] 06-08-PLAN.md — Firebase deploy + checkpoint human verification
 
+### Phase 7: CRM + Granola + Task Intelligence
+**Goal**: Le brain devient actif. Une équipe peut (1) consulter un CRM populé automatiquement depuis tout ce qui passe par le brain (chats, agents, meetings Granola), (2) voir chaque réunion Granola ingérée comme source de mémoire de premier ordre (résumé + participants + actions + décisions), et (3) gérer un backlog de tâches auto-générées depuis les action items Granola et les outputs agents — chaque tâche assignée à un contact CRM déclenche une notification email.
+**Depends on**: Phase 6
+**Entry gate**: Phases 1-6 SHIPPED. VM disque < 80% (rebuild containers possible). Granola API key (Business/Enterprise) disponible pour au moins une team — sinon System 2 (granola-sync) reste enregistrable mais ne polle rien.
+**Requirements**: D1, D2, D3, D4, D5, D6 (decisions Phase 7 — ce phase est hors scope v1 requirements AUTH/MEM/etc.)
+**Success Criteria** (what must be TRUE):
+  1. Un admin peut créer une team avec `plan='team'` et un user de cette team peut faire CRUD sur `/v1/crm/contacts` ; un user d'une team `starter` reçoit 403
+  2. POST `/v1/admin/granola-integration` enregistre une API key Granola Fernet-chiffrée pour une team ; le container `xbrain-granola-sync` poll Granola et ingère chaque nouvelle note via `/v1/integrations/granola/ingest` (1 memory_item résumé + N contacts + M tasks créées)
+  3. POST `/v1/memory/upsert` avec un content contenant des mentions de personnes déclenche en background l'extraction Claude → upsert dans `contacts` (fail-soft)
+  4. Un memory_item avec `metadata.contains_action=true` (ou regex TODO/à faire/...) déclenche en background la création d'une tâche dans `tasks` avec `source='agent'|'chat'`, `source_ref=memory_item.id`
+  5. Une tâche assignée à un contact avec email déclenche un email via aiosmtplib (skip silencieux si `SMTP_HOST` vide)
+  6. Le dashboard `/tasks.html` (Firebase) liste les tâches d'une team avec filtres status/projet et polling 30s ; bouton "Mark done" → PATCH 200
+  7. `bash infrastructure/scripts/verify-phase7.sh` retourne `PASS: 8 / 8`
+**Plans**: 9 plans
+Plans:
+- [ ] 07-01-PLAN.md — Migrations 0008 (teams.plan) + 0009 (contacts + granola_integrations) + 0010 (tasks, created_by NULLABLE)
+- [ ] 07-02-PLAN.md — require_paid_tier + _user_id_from_principal dans deps.py + router CRM /v1/crm/contacts (CRUD + audit)
+- [ ] 07-03-PLAN.md — Router /v1/tasks (CRUD + filtres + polling since)
+- [ ] 07-04-PLAN.md — Router granola_integration (admin Fernet + ingest atomic memory_item+contacts+tasks, dedup note_id, created_by=NULL)
+- [ ] 07-05-PLAN.md — Squelette apps/granola-sync/ (Dockerfile, pyproject, main, config, memory_client, extractor — pas de poller, pas de docker-compose)
+- [ ] 07-06-PLAN.md — Background tasks memory.py (extract contacts + auto-task via async_session_factory) + service notifications email
+- [ ] 07-07-PLAN.md — Dashboard tasks.html + Nginx routes + verify-phase7.sh + .env.example
+- [ ] 07-08-PLAN.md — Boucle polling granola_poller.py + service granola-sync dans docker-compose.yml (split de 07-05)
+- [ ] 07-09-PLAN.md — D5 Trigger 3 : librechat-bridge task_intent_detector.py + hook mongo_watcher (chat → contains_action → task auto via 07-06)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6
+Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -158,6 +183,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6
 | 4. Consolidation MCP Frontends + Intégrations Avancées | 8/8 | ✅ Complete | 2026-05-05 |
 | 5. Plateforme Projets Équipe | 7/7 | ✅ Complete | 2026-05-06 |
 | 6. Marketing Site + Documentation | 8/8 | ✅ Complete | 2026-05-07 |
+| 7. CRM + Granola + Task Intelligence | 0/7 | 🟡 Planned | — |
 
 ---
 
