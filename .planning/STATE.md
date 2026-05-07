@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Plan 06-01 complet — firebase.json+.firebaserc (c8bae82), style.css (02d17d0), docs.css (dac54da).
-last_updated: "2026-05-07T02:49:37.101Z"
-last_activity: 2026-05-07 -- Phase 7 execution started
+last_updated: "2026-05-07T03:08:00Z"
+last_activity: 2026-05-07 -- Plan 07-04 complete (granola_integration router + config + main.py)
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 59
-  completed_plans: 50
-  percent: 85
+  completed_plans: 51
+  percent: 86
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 ## Current Position
 
 Phase: 7 (CRM + Granola + Task Intelligence) — EXECUTING
-Plan: 4 of 9
+Plan: 5 of 9
 Status: Executing Phase 7
-Last activity: 2026-05-07 -- Plan 07-03 complete (tasks router /v1/tasks CRUD + paid tier + audit)
+Last activity: 2026-05-07 -- Plan 07-04 complete (granola_integration router: admin CRUD + ingest endpoint)
 
 Progress: [██████████] 100% — ALL PHASES COMPLETE
 
@@ -87,6 +87,9 @@ Recent decisions affecting current work:
 - 2026-05-07 (07-03): Bridge JWTs rejected 401 at POST /v1/tasks — created_by NOT NULL invariant preserved
 - 2026-05-07 (07-03): PATCH audit differentiates task.status_changed (from/to) vs task.updated
 - 2026-05-07 (07-03): _validate_assignee runs SELECT before INSERT/UPDATE — cross-team assignee returns 422
+- 2026-05-07 (07-04): FERNET_KEY uses OAUTH_CREDENTIALS_ENCRYPTION_KEY as fallback — single key source for all Fernet encryption
+- 2026-05-07 (07-04): created_by = NULL for system-generated tasks (migration 0010 nullable) — distinguishes auto-generation from user creates
+- 2026-05-07 (07-04): _is_admin moved from admin_drive.py to deps.py — DRY shared helper, imported by both admin_drive.py and granola_integration.py
 
 ### Pending Todos
 
@@ -108,5 +111,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-07
-Stopped at: Plan 07-03 complete — tasks.py (fa5a523), main.py (4deb8f2).
+Stopped at: Plan 07-04 complete — granola_integration.py (b7db467), config.py (bd89c1e), main.py (666d76d).
 Resume file: None
