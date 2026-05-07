@@ -30,6 +30,7 @@ from app.routes import (
     system_prompt,
     tasks,
     teams,
+    waitlist,
 )
 
 logging.basicConfig(level=settings.LOG_LEVEL)
@@ -77,7 +78,7 @@ app = FastAPI(title="xbrain memory-api", version="0.1.0", lifespan=lifespan)
 # L'authentification Bearer token reste le vrai contrôle d'accès (T-05-04-03 accepted).
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"(chrome-extension://.*|https://chat\.grooveos\.app)",  # extensions Chrome + chat.grooveos.app (onboarding modal)
+    allow_origin_regex=r"(chrome-extension://.*|https://chat\.grooveos\.app|https://grooveos\.app|https://grooveos\.web\.app|https://dejavu-app\.web\.app)",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "X-Team-Scope", "Content-Type", "Accept"],
@@ -100,3 +101,4 @@ app.include_router(crm.router, prefix="/v1", tags=["crm"])
 app.include_router(tasks.router, prefix="/v1", tags=["tasks"])
 app.include_router(drive_webhook.router, prefix="/v1", tags=["drive-webhook"])
 app.include_router(granola_integration.router, prefix="/v1", tags=["granola"])
+app.include_router(waitlist.router, prefix="/v1", tags=["waitlist"])

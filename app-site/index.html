@@ -1,985 +1,1055 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cortex OS — The Cognitive OS for Agentic Teams</title>
-  <meta name="description" content="Cortex OS connects every AI agent on a team to one shared cognitive core — so nothing gets lost between dev, marketing, and ops." />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            navy:     '#020B18',
-            'navy-lt':'#061A2E',
-            royal:    '#0F7490',
-            'royal-lt':'#0E9EB5',
-            slate:    '#64748B',
-            'slate-2':'#94A3B8',
-            ice:      '#EFF6FF',
-            'ice-2':  '#DBEAFE',
-            mist:     '#F8FAFC',
-            border:   '#E2E8F0',
-          },
-          fontFamily: {
-            sans: ['DM Sans','system-ui','sans-serif'],
-            mono: ['JetBrains Mono','monospace'],
-          },
-          boxShadow: {
-            'sm':  '0 1px 2px rgba(0,0,0,.05)',
-            'md':  '0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(13,27,62,.06)',
-            'lg':  '0 2px 8px rgba(0,0,0,.06),0 16px 48px rgba(13,27,62,.1)',
-            'btn': '0 1px 2px rgba(37,99,235,.3),0 4px 12px rgba(37,99,235,.2)',
-          }
-        }
-      }
-    }
-  </script>
+  <title>GrooveOS — The shared brain for synthetic teams.</title>
+  <meta name="description" content="The shared brain for synthetic teams. Coding agents, marketing agents, ops agents — all reading from and writing to the same cognitive core. No context lost. No manual handoffs. One team, moving as one." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200;0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
   <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    html { -webkit-font-smoothing: antialiased; }
-    body { background: #fff; color: #020B18; }
-
-    /* gradient text */
-    .gt {
-      background: linear-gradient(135deg, #0F7490 0%, #0E9EB5 50%, #06B6D4 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+    /* ================================================================
+       THEME VARIABLES
+    ================================================================ */
+    :root {
+      --bg:       #0D1117;
+      --bg-2:     #161B22;
+      --bg-3:     #21262D;
+      --text:     #E6EDF3;
+      --muted:    #8B949E;
+      --accent:   #22D3EE;
+      --green:    #3FB950;
+      --amber:    #D29922;
+      --red:      #F85149;
+      --border:   #30363D;
+      --paid-bg:  rgba(248,81,73,.12);
+      --paid-col: #F85149;
+      --tag-bg:   rgba(34,211,238,.12);
+    }
+    [data-theme="light"] {
+      --bg:       #FFFFFF;
+      --bg-2:     #F6F8FA;
+      --bg-3:     #EAEEF2;
+      --text:     #1F2328;
+      --muted:    #57606A;
+      --accent:   #0E7490;
+      --green:    #1A7F37;
+      --amber:    #9A6700;
+      --red:      #CF222E;
+      --border:   #D0D7DE;
+      --paid-bg:  rgba(207,34,46,.08);
+      --paid-col: #CF222E;
+      --tag-bg:   rgba(14,116,144,.08);
     }
 
-    /* nav */
+    /* ================================================================
+       BASE
+    ================================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+    body {
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13.5px;
+      line-height: 1.7;
+      transition: background .15s ease, color .15s ease;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      background: var(--bg-3);
+      color: var(--accent);
+      padding: 1px 6px;
+      font-family: inherit;
+      font-size: .9em;
+    }
+
+    /* ================================================================
+       NAV
+    ================================================================ */
     .nav {
-      background: rgba(255,255,255,.9);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-bottom: 1px solid #E2E8F0;
+      position: sticky; top: 0; z-index: 100;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px; height: 46px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .nav__logo {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      letter-spacing: .14em; white-space: nowrap;
+    }
+    .nav__logo span { color: var(--accent); }
+    .nav__links {
+      display: flex; align-items: center; gap: 20px;
+      flex: 1; justify-content: center;
+    }
+    .nav__link {
+      color: var(--muted); font-size: 12.5px; transition: color .1s;
+    }
+    .nav__link:hover { color: var(--text); text-decoration: none; }
+    .nav__right {
+      display: flex; align-items: center; gap: 10px; white-space: nowrap;
+    }
+    .theme-btn {
+      background: none; border: 1px solid var(--border);
+      color: var(--muted); cursor: pointer; font-family: inherit;
+      font-size: 11.5px; padding: 3px 10px; border-radius: 3px;
+      transition: border-color .15s, color .15s;
+    }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-cta {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--accent); color: var(--bg);
+      padding: 5px 14px; border-radius: 3px;
+      font-size: 12.5px; font-weight: 500;
+      transition: opacity .15s; white-space: nowrap;
+    }
+    .btn-cta:hover { opacity: .85; text-decoration: none; }
+    .btn-outline {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid var(--border); color: var(--muted);
+      padding: 5px 14px; border-radius: 3px; font-size: 12.5px;
+      transition: border-color .15s, color .15s; white-space: nowrap;
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+
+    /* ================================================================
+       LAYOUT
+    ================================================================ */
+    .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+    .sec  { padding: 56px 0; }
+    .sec-sm { padding: 32px 0; }
+
+    /* ================================================================
+       SECTION HEADER
+    ================================================================ */
+    .sh {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 24px; font-size: 11px; font-weight: 700;
+      letter-spacing: .16em; text-transform: uppercase; color: var(--muted);
+    }
+    .sh::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* ================================================================
+       HERO
+    ================================================================ */
+    .hero-box {
+      border: 1px solid var(--border);
+      padding: 32px 28px 28px;
+      position: relative;
+    }
+    .hero-box::before {
+      content: "// grooveos · cognitive OS for agentic teams";
+      position: absolute; top: -9px; left: 20px;
+      background: var(--bg); padding: 0 8px;
+      font-size: 11px; color: var(--muted); letter-spacing: .1em;
+    }
+    .hero-headline {
+      font-size: clamp(22px, 3.8vw, 36px); font-weight: 700;
+      line-height: 1.2; letter-spacing: -.01em;
+      margin-bottom: 16px; color: var(--text);
+    }
+    .hero-headline .hl { color: var(--accent); }
+    .hero-sub {
+      font-size: 13.5px; color: var(--muted);
+      line-height: 1.8; max-width: 600px; margin-bottom: 24px;
+    }
+    .hero-sub strong { color: var(--text); font-weight: 500; }
+    .hero-meta {
+      font-size: 11.5px; color: var(--muted);
+      border-top: 1px solid var(--border);
+      padding-top: 16px; margin-top: 24px;
+      display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center;
+    }
+    .badge {
+      display: inline-flex; align-items: center;
+      font-size: 10.5px; font-weight: 600; letter-spacing: .05em;
+      padding: 2px 8px; border: 1px solid var(--border);
+      color: var(--muted); border-radius: 2px;
+    }
+    .badge-green { border-color: var(--green); color: var(--green); background: rgba(63,185,80,.08); }
+    .badge-accent { border-color: var(--accent); color: var(--accent); background: var(--tag-bg); }
+    .dot-live {
+      display: inline-block; width: 7px; height: 7px;
+      border-radius: 50%; background: var(--green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .4; }
     }
 
-    /* cards */
-    .card {
-      background: #fff;
-      border: 1px solid #E2E8F0;
-      border-radius: 1rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,.05), 0 4px 16px rgba(13,27,62,.05);
-      transition: box-shadow .2s ease, border-color .2s ease, transform .2s ease;
+    /* ================================================================
+       STATS
+    ================================================================ */
+    .stats-row {
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      border: 1px solid var(--border);
     }
-    .card:hover {
-      box-shadow: 0 2px 8px rgba(0,0,0,.07), 0 16px 48px rgba(13,27,62,.1);
-      border-color: #BFDBFE;
-      transform: translateY(-2px);
+    @media (max-width: 640px) { .stats-row { grid-template-columns: repeat(3, 1fr); } }
+    .stat {
+      padding: 18px 16px; border-right: 1px solid var(--border); text-align: center;
     }
+    .stat:last-child { border-right: none; }
+    .stat__val { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1; margin-bottom: 4px; }
+    .stat__val .a { color: var(--accent); }
+    .stat__label { font-size: 10.5px; color: var(--muted); letter-spacing: .06em; }
 
-    /* pill tags */
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: .35rem;
-      padding: .2rem .7rem;
-      border-radius: 9999px;
-      font-size: .7rem;
-      font-weight: 600;
-      letter-spacing: .04em;
+    /* ================================================================
+       TERMINAL
+    ================================================================ */
+    .term { background: var(--bg-2); border: 1px solid var(--border); overflow-x: auto; }
+    .term-bar {
+      display: flex; align-items: center; gap: 7px;
+      padding: 10px 16px; border-bottom: 1px solid var(--border);
     }
-    .pill-blue   { background: #ECFEFF; color: #0F7490; border: 1px solid #A5F3FC; }
-    .pill-amber  { background: #ECFEFF; color: #0F7490; border: 1px solid #A5F3FC; }
-    .pill-green  { background: #ECFEFF; color: #0F7490; border: 1px solid #A5F3FC; }
-    .pill-purple { background: #ECFEFF; color: #0F7490; border: 1px solid #A5F3FC; }
-    .pill-slate  { background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; }
+    .term-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+    .term-label { font-size: 11px; color: var(--muted); margin-left: auto; letter-spacing: .06em; }
+    .term-body { padding: 18px 20px; }
+    .tl { font-size: 12.5px; line-height: 2; white-space: pre; display: block; }
+    .tl .p  { color: var(--green); }
+    .tl .c  { color: var(--text); }
+    .tl .ok { color: var(--green); }
+    .tl .w  { color: var(--amber); }
+    .tl .er { color: var(--red); }
+    .tl .cm { color: var(--muted); font-style: italic; }
+    .tl .ac { color: var(--accent); }
 
-    /* step number */
-    .step-num {
-      width: 2rem; height: 2rem;
-      border-radius: .5rem;
-      background: #ECFEFF;
-      color: #0F7490;
-      font-weight: 800;
-      font-size: .875rem;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
+    /* ================================================================
+       INFO BOX
+    ================================================================ */
+    .info-box {
+      border: 1px solid var(--border);
+      padding: 20px 22px; font-size: 13px;
+      line-height: 1.8; color: var(--muted); position: relative;
     }
-
-    /* pricing */
-    .price-card { border-radius: 1.25rem; }
-    .price-featured {
-      border: 2px solid #0F7490;
-      box-shadow: 0 0 0 4px rgba(15,116,144,.06), 0 8px 32px rgba(15,116,144,.12);
+    .info-box::before {
+      content: attr(data-label);
+      position: absolute; top: -9px; left: 16px;
+      background: var(--bg); padding: 0 6px;
+      font-size: 10.5px; color: var(--muted); letter-spacing: .1em;
     }
+    .info-box strong { color: var(--text); font-weight: 500; }
+    .info-box .hl { color: var(--accent); }
+    .info-box .ok { color: var(--green); }
 
-    /* toggle */
+    /* ================================================================
+       3-LAYER GRID
+    ================================================================ */
+    .layer-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--border); border-right: none; margin-bottom: 20px;
+    }
+    @media (max-width: 640px) { .layer-grid { grid-template-columns: 1fr; border-right: 1px solid var(--border); } }
+    .layer-col { border-right: 1px solid var(--border); padding: 20px; }
+    .layer-name {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
+    }
+    .layer-name .marker { color: var(--accent); font-weight: 400; }
+    .layer-desc { font-size: 12px; color: var(--muted); line-height: 1.7; }
+
+    /* ================================================================
+       SETUP STEPS
+    ================================================================ */
+    .steps { border: 1px solid var(--border); }
+    .step {
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      display: flex; gap: 14px; align-items: flex-start;
+    }
+    .step:last-child { border-bottom: none; }
+    .step-n { color: var(--accent); font-weight: 700; font-size: 12.5px; flex-shrink: 0; width: 20px; }
+    .step-title { font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .step-desc { font-size: 12px; color: var(--muted); line-height: 1.7; }
+
+    /* ================================================================
+       FEATURES GRID
+    ================================================================ */
+    .feat-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--border); border-bottom: none; border-right: none;
+    }
+    @media (max-width: 640px) { .feat-grid { grid-template-columns: 1fr; } }
+    .feat-cell {
+      background: var(--bg); padding: 20px;
+      border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      transition: background .1s;
+    }
+    .feat-cell:hover { background: var(--bg-2); }
+    .feat-name {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .feat-name .marker { color: var(--accent); font-weight: 400; }
+    .tag-paid {
+      font-size: 9.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+      background: var(--paid-bg); color: var(--paid-col);
+      padding: 1px 6px; border-radius: 2px;
+    }
+    .feat-desc { font-size: 12px; color: var(--muted); line-height: 1.7; }
+
+    /* ================================================================
+       ASCII TABLE
+    ================================================================ */
+    .atable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .atable th {
+      background: var(--bg-2); color: var(--muted); font-weight: 600;
+      font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+      padding: 10px 14px; text-align: left; border: 1px solid var(--border);
+    }
+    .atable td {
+      padding: 10px 14px; border: 1px solid var(--border);
+      color: var(--text); vertical-align: top;
+    }
+    .atable tr:hover td { background: var(--bg-2); }
+    .atable .dim { color: var(--muted); }
+    .atable .ok  { color: var(--green); }
+
+    /* ================================================================
+       BROWSER EXTENSION
+    ================================================================ */
+    .ext-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start;
+    }
+    @media (max-width: 640px) { .ext-grid { grid-template-columns: 1fr; } }
+    .ext-list { list-style: none; margin: 16px 0; display: flex; flex-direction: column; gap: 10px; }
+    .ext-list li { font-size: 12.5px; color: var(--muted); padding-left: 20px; position: relative; }
+    .ext-list li::before { content: '✓'; position: absolute; left: 0; color: var(--green); }
+    .ext-list strong { color: var(--text); font-weight: 500; }
+
+    /* ================================================================
+       PRICING
+    ================================================================ */
+    .tog-wrap { display: flex; justify-content: flex-start; margin-bottom: 20px; }
+    .tog-inner { border: 1px solid var(--border); display: inline-flex; padding: 3px; gap: 2px; }
     .tog-btn {
-      padding: .4rem 1.1rem;
-      border-radius: .6rem;
-      font-weight: 500;
-      font-size: .875rem;
-      transition: all .15s;
-      cursor: pointer;
+      background: none; border: 1px solid transparent;
+      color: var(--muted); cursor: pointer; font-family: inherit;
+      font-size: 12px; padding: 4px 14px; transition: all .15s;
     }
-    .tog-btn.on  { background: #0D1B3E; color: #fff; }
-    .tog-btn.off { color: #64748B; }
-    .tog-btn.off:hover { color: #0D1B3E; }
+    .tog-btn.on { border-color: var(--accent); color: var(--accent); background: var(--tag-bg); }
+    .tog-btn .disc { font-size: 10px; color: var(--green); margin-left: 6px; }
 
-    /* flow connector */
-    .flow-line { width:1px; background: linear-gradient(#DBEAFE, #BFDBFE); flex-shrink:0; }
+    .price-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--border); border-right: none;
+    }
+    @media (max-width: 640px) { .price-grid { grid-template-columns: 1fr; border-right: 1px solid var(--border); } }
+    .price-col {
+      border-right: 1px solid var(--border);
+      padding: 24px 20px; display: flex; flex-direction: column;
+    }
+    .price-col.featured { background: var(--bg-2); }
+    .price-col.featured .price-tier-name { color: var(--accent); }
+    .price-tier-name {
+      font-size: 10.5px; font-weight: 700; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .price-popular {
+      font-size: 10px; font-weight: 700; letter-spacing: .06em;
+      background: var(--tag-bg); color: var(--accent);
+      padding: 1px 6px; border-radius: 2px;
+    }
+    .price-val { font-size: 28px; font-weight: 700; color: var(--text); line-height: 1; margin-bottom: 4px; }
+    .price-period { font-size: 11.5px; color: var(--muted); margin-bottom: 20px; }
+    .price-list { list-style: none; flex: 1; margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
+    .price-list li { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: flex-start; line-height: 1.5; }
+    .price-list .ok { color: var(--green); flex-shrink: 0; }
+    .price-list .no { color: var(--border); flex-shrink: 0; }
+    .price-list strong { color: var(--text); font-weight: 500; }
+    .price-save { font-size: 10px; color: var(--green); margin-left: 8px; }
 
-    /* check icon */
-    .chk { width:1rem; height:1rem; border-radius:50%; background:#ECFEFF; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:.1rem; }
-    .chk svg { width:.6rem; height:.6rem; color:#0F7490; }
+    /* ================================================================
+       CTA BOX
+    ================================================================ */
+    .cta-box {
+      border: 1px solid var(--border); padding: 40px 32px;
+      position: relative; background: var(--bg-2); text-align: center;
+    }
+    .cta-box::before {
+      content: "// join the waitlist";
+      position: absolute; top: -9px; left: 24px;
+      background: var(--bg-2); padding: 0 8px;
+      font-size: 11px; color: var(--accent); letter-spacing: .1em;
+    }
+    [data-theme="light"] .cta-box::before { background: var(--bg-2); }
 
-    /* section spacings */
-    .s-lg { padding-top:7rem; padding-bottom:7rem; }
-    .s-md { padding-top:5rem; padding-bottom:5rem; }
+    /* ================================================================
+       DIVIDER
+    ================================================================ */
+    hr { border: none; border-top: 1px solid var(--border); margin: 0; }
 
-    /* divider */
-    hr { border: none; border-top: 1px solid #E2E8F0; }
+    /* ================================================================
+       FOOTER
+    ================================================================ */
+    .footer { border-top: 1px solid var(--border); padding: 28px 24px 20px; }
+    .footer-inner { max-width: 900px; margin: 0 auto; }
+    .footer-main {
+      display: flex; flex-wrap: wrap; justify-content: space-between;
+      align-items: center; gap: 16px;
+    }
+    .footer-logo { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: .12em; }
+    .footer-logo span { color: var(--accent); }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+    .flink { font-size: 12px; color: var(--muted); }
+    .flink:hover { color: var(--accent); text-decoration: none; }
+    .footer-oss {
+      margin-top: 14px; padding-top: 14px;
+      border-top: 1px solid var(--border);
+      font-size: 11px; color: var(--muted);
+    }
+    .footer-oss a { color: var(--muted); }
+    .footer-oss a:hover { color: var(--accent); text-decoration: none; }
 
-    /* status dot */
-    .dot-on  { width:.5rem;height:.5rem;border-radius:50%;background:#0F7490; }
-    .dot-busy{ width:.5rem;height:.5rem;border-radius:50%;background:#0E9EB5;opacity:.6; }
-    .dot-off { width:.5rem;height:.5rem;border-radius:50%;background:#CBD5E1; }
+    /* ================================================================
+       MOBILE
+    ================================================================ */
+    @media (max-width: 640px) {
+      .nav__links { display: none; }
+      .stats-row { grid-template-columns: repeat(3, 1fr); }
+      .stat { padding: 14px 10px; }
+      .stat__val { font-size: 20px; }
+    }
   </style>
 </head>
 <body>
 
-  <!-- ─── NAV ─── -->
-  <header class="nav fixed top-0 w-full z-50">
-    <div class="max-w-5xl mx-auto px-6 h-15 flex items-center justify-between" style="height:3.75rem;">
-      <a href="#" class="flex items-center gap-1">
-        <span class="font-light text-navy tracking-widest" style="font-size:1.05rem;letter-spacing:.18em;">CORTEX</span><span class="font-light text-royal tracking-widest" style="font-size:1.05rem;letter-spacing:.18em;">OS</span>
-      </a>
+  <!-- ═══════════════════════════════════════════════════
+       NAV
+  ═══════════════════════════════════════════════════ -->
+  <header class="nav">
+    <a href="#" class="nav__logo">GROOVE<span>OS</span></a>
 
-      <nav class="hidden md:flex items-center gap-7 text-sm font-medium text-slate">
-        <a href="#how"      class="hover:text-navy transition-colors">How it works</a>
-        <a href="#agents"   class="hover:text-navy transition-colors">Agent types</a>
-        <a href="#flow"     class="hover:text-navy transition-colors">In action</a>
-        <a href="#pricing"  class="hover:text-navy transition-colors">Pricing</a>
-      </nav>
+    <nav class="nav__links">
+      <a href="#how"      class="nav__link">how it works</a>
+      <a href="#agents"   class="nav__link">agent types</a>
+      <a href="#flow"     class="nav__link">in action</a>
+      <a href="#pricing"  class="nav__link">pricing</a>
+      <a href="docs/index.html" class="nav__link">docs</a>
+    </nav>
 
-      <div class="flex items-center gap-3">
-        <a href="mailto:team@grooveos.app?subject=Cortex OS demo"
-           class="hidden md:block text-sm font-medium text-slate hover:text-navy transition-colors">
-          Request demo
-        </a>
-        <a href="mailto:team@grooveos.app?subject=Cortex OS early access"
-           class="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:text-white"
-           style="color:#0F7490;border:1.5px solid #0F7490;background:transparent;" onmouseover="this.style.background='#0F7490'" onmouseout="this.style.background='transparent'">
-          Join waitlist
-        </a>
-      </div>
+    <div class="nav__right">
+      <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">◑ light</button>
+      <a href="#" onclick="openWaitlist('Early Access');return false;" class="btn-cta">→ join waitlist</a>
     </div>
   </header>
 
-  <!-- ─── HERO ─── -->
-  <section class="pt-36 pb-24 px-6">
-    <div class="max-w-4xl mx-auto text-center">
-
-      <h1 class="text-6xl md:text-[6rem] text-navy leading-[1.05] mb-6" style="letter-spacing:-.02em;">
-        <span style="font-weight:200;">Your agentic team.</span><br/>
-        <span class="gt" style="font-weight:300;">One shared brain.</span>
-      </h1>
-
-      <p class="text-xl text-slate max-w-xl mx-auto mb-10 leading-relaxed font-light">
+  <!-- ═══════════════════════════════════════════════════
+       HERO
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec">
+    <div class="hero-box">
+      <div class="hero-headline">
+        The shared brain for<br/>
+        <span class="hl">synthetic teams.</span>
+      </div>
+      <p class="hero-sub">
         Coding agents, marketing agents, ops agents —
         all reading from and writing to the same cognitive core.
-        No context lost. No manual handoffs. One team, moving as one.
+        No context lost. No manual handoffs.
+        One team, moving as one.
       </p>
-
-      <p class="text-xs text-slate mb-4 flex items-center justify-center gap-1.5">
-        <span class="dot-on animate-pulse"></span>
-        Private beta — early access open
-      </p>
-
-      <div class="flex flex-col sm:flex-row gap-3 justify-center mb-20">
-        <a href="mailto:team@grooveos.app?subject=Cortex OS early access"
-           class="px-7 py-3.5 rounded-xl font-semibold text-sm transition-all hover:text-white"
-           style="color:#0F7490;border:1.5px solid #0F7490;background:transparent;" onmouseover="this.style.background='#0F7490'" onmouseout="this.style.background='transparent'">
-          Join the waitlist →
-        </a>
-        <a href="#how"
-           class="px-7 py-3.5 rounded-xl font-semibold text-navy text-sm bg-white border border-border hover:border-ice-2 hover:shadow-md transition-all">
-          See how it works
-        </a>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+        <a href="#" onclick="openWaitlist('Early Access');return false;" class="btn-cta">→ join the waitlist</a>
+        <a href="#how" class="btn-outline">see how it works</a>
+        <a href="docs/index.html" class="btn-outline">docs ↗</a>
       </div>
 
-      <!-- ─── dashboard ─── -->
-      <div class="max-w-2xl mx-auto card rounded-2xl overflow-hidden text-left">
-
-        <!-- title bar -->
-        <div class="flex items-center justify-between px-5 py-3.5 border-b border-border bg-mist">
-          <div class="flex items-center gap-2.5">
-            <div class="flex gap-1.5">
-              <div class="w-2.5 h-2.5 rounded-full bg-red-400 opacity-60"></div>
-              <div class="w-2.5 h-2.5 rounded-full bg-amber-400 opacity-60"></div>
-              <div class="w-2.5 h-2.5 rounded-full bg-green-400 opacity-60"></div>
-            </div>
-            <span class="text-xs text-slate font-mono ml-1">Cortex OS · team: acme</span>
-          </div>
-          <span class="text-xs text-slate flex items-center gap-1.5">
-            <span class="dot-on"></span>4 agents connected
-          </span>
+      <!-- status terminal -->
+      <div class="term" style="margin-top:28px;">
+        <div class="term-bar">
+          <div class="term-dot" style="background:#FF5F57;"></div>
+          <div class="term-dot" style="background:#FEBC2E;"></div>
+          <div class="term-dot" style="background:#28C840;"></div>
+          <span class="term-label">grooveos · team: acme · 4 agents connected</span>
         </div>
-
-        <!-- agent rows -->
-        <div class="divide-y divide-border">
-          <div class="flex items-center gap-4 px-5 py-3.5">
-            <div class="dot-on shrink-0"></div>
-            <div class="flex-1 min-w-0">
-              <span class="text-sm font-medium text-navy">Lea · dev agent</span>
-              <span class="text-xs text-slate ml-2 font-mono">claude-code</span>
-            </div>
-            <span class="text-xs text-slate truncate max-w-[180px]">Shipped <span class="text-royal font-medium">auth-v2</span> → brain updated</span>
-          </div>
-          <div class="flex items-center gap-4 px-5 py-3.5">
-            <div class="dot-busy shrink-0"></div>
-            <div class="flex-1 min-w-0">
-              <span class="text-sm font-medium text-navy">Tom · mkt agent</span>
-              <span class="text-xs text-slate ml-2 font-mono">gpt-4o</span>
-            </div>
-            <span class="text-xs text-slate truncate max-w-[180px]">Drafting launch copy from <span class="text-royal font-medium">auth-v2</span> spec</span>
-          </div>
-          <div class="flex items-center gap-4 px-5 py-3.5">
-            <div class="dot-on shrink-0"></div>
-            <div class="flex-1 min-w-0">
-              <span class="text-sm font-medium text-navy">Alex · ops agent</span>
-              <span class="text-xs text-slate ml-2 font-mono">claude-opus</span>
-            </div>
-            <span class="text-xs text-slate truncate max-w-[180px]">Runbook auto-synced from brain delta</span>
-          </div>
-          <div class="flex items-center gap-4 px-5 py-3.5">
-            <div class="dot-on shrink-0"></div>
-            <div class="flex-1 min-w-0">
-              <span class="text-sm font-medium text-royal">Cortex OS kernel</span>
-              <span class="text-xs text-slate ml-2 font-mono">cognitive core</span>
-            </div>
-            <span class="text-xs text-slate truncate max-w-[180px]">284 memories · 6 truths promoted today</span>
-          </div>
-        </div>
-
-        <!-- footer bar -->
-        <div class="flex items-center justify-between px-5 py-3 border-t border-border bg-mist">
-          <span class="text-xs text-slate-2">Last sync: just now</span>
-          <span class="text-xs font-medium text-royal flex items-center gap-1.5">
-            <span class="dot-on"></span>All agents in sync
-          </span>
+        <div class="term-body">
+          <span class="tl"><span class="ok">  ●</span> <span class="ac">Lea · dev-agent    </span><span class="cm"> claude-code      </span>  <span class="c">Shipped auth-v2 → brain updated</span></span>
+          <span class="tl"><span class="w">  ◌</span> <span class="ac">Tom · mkt-agent    </span><span class="cm"> gpt-4o           </span>  <span class="c">Drafting launch copy from auth-v2 spec</span></span>
+          <span class="tl"><span class="ok">  ●</span> <span class="ac">Alex · ops-agent   </span><span class="cm"> claude-opus       </span>  <span class="c">Runbook auto-synced from brain delta</span></span>
+          <span class="tl"><span class="ok">  ●</span> <span class="ac">cognitive-core     </span><span class="cm"> memory kernel     </span>  <span class="c">284 memories · 6 truths promoted today</span></span>
+          <span class="tl"> </span>
+          <span class="tl"><span class="cm">  last sync: just now · all agents in sync</span></span>
         </div>
       </div>
 
-    </div>
-  </section>
-
-  <!-- ─── PROBLEM ─── -->
-  <section class="py-20 px-6 bg-mist">
-    <div class="max-w-5xl mx-auto">
-      <div class="max-w-2xl mb-14">
-        <p class="text-xs font-semibold text-royal uppercase tracking-widest mb-3">The problem</p>
-        <h2 class="text-3xl md:text-4xl font-black text-navy leading-tight">
-          Agentic teams run agents.<br/>
-          They don't run together.
-        </h2>
-        <p class="text-slate text-lg mt-4 leading-relaxed font-light">
-          Every developer, marketer, and ops person has their own AI — and their own isolated context bubble. The more agents get added, the more context disappears between them.
-        </p>
-      </div>
-
-      <div class="grid md:grid-cols-3 gap-5">
-
-        <div class="card p-6">
-          <div class="w-9 h-9 rounded-lg bg-ice border border-ice-2 flex items-center justify-center mb-4">
-            <svg class="w-4 h-4 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
-            </svg>
-          </div>
-          <h3 class="font-bold text-navy mb-2">Agents start blind</h3>
-          <p class="text-sm text-slate leading-relaxed">
-            A dev agent builds something. The marketing agent has never heard of it. Each new AI session resets to zero — no matter what the team already knows.
-          </p>
-        </div>
-
-        <div class="card p-6">
-          <div class="w-9 h-9 rounded-lg bg-ice border border-ice-2 flex items-center justify-center mb-4">
-            <svg class="w-4 h-4 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
-            </svg>
-          </div>
-          <h3 class="font-bold text-navy mb-2">Humans become the middleware</h3>
-          <p class="text-sm text-slate leading-relaxed">
-            Dev finishes. Someone copies context to marketing. Marketing finishes. Someone briefs ops. Human time is spent being the connector between agents that should connect automatically.
-          </p>
-        </div>
-
-        <div class="card p-6">
-          <div class="w-9 h-9 rounded-lg bg-ice border border-ice-2 flex items-center justify-center mb-4">
-            <svg class="w-4 h-4 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/>
-            </svg>
-          </div>
-          <h3 class="font-bold text-navy mb-2">Adding agents adds chaos</h3>
-          <p class="text-sm text-slate leading-relaxed">
-            More agents means more isolated context. Coordination overhead grows faster than output. Adding agents was supposed to accelerate things — but something's still missing.
-          </p>
-        </div>
-
+      <div class="hero-meta">
+        <span><span class="dot-live"></span>&nbsp; private beta — early access open</span>
+        <span class="badge badge-accent">claude · gpt · grok</span>
+        <span class="badge">any MCP client</span>
+        <span class="badge badge-green">hosted</span>
       </div>
     </div>
   </section>
 
-  <!-- ─── HOW IT WORKS ─── -->
-  <section id="how" class="s-lg px-6 bg-white">
-    <div class="max-w-5xl mx-auto">
-
-      <div class="text-center max-w-2xl mx-auto mb-16">
-        <p class="text-xs font-semibold text-royal uppercase tracking-widest mb-3">The solution</p>
-        <h2 class="text-3xl md:text-4xl font-black text-navy leading-tight">
-          Cortex OS is the cognitive layer<br/>agents share.
-        </h2>
-        <p class="text-slate text-lg mt-4 font-light leading-relaxed">
-          Every agent reads from the same brain. Every output feeds back into it.
-          The team moves as one — automatically.
-        </p>
+  <!-- ═══════════════════════════════════════════════════
+       STATS
+  ═══════════════════════════════════════════════════ -->
+  <div class="wrap sec-sm">
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat__val">4<span class="a">+</span></div>
+        <div class="stat__label">agent types</div>
       </div>
-
-      <!-- 3-layer architecture -->
-      <div class="grid md:grid-cols-3 gap-px bg-border rounded-2xl overflow-hidden shadow-md mb-16">
-
-        <div class="bg-white p-8">
-          <div class="w-10 h-10 rounded-xl bg-ice flex items-center justify-center mb-5">
-            <svg class="w-5 h-5 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
-            </svg>
-          </div>
-          <h3 class="font-bold text-navy text-lg mb-2">Cognitive Core</h3>
-          <p class="text-sm text-slate leading-relaxed">
-            The shared memory layer. Vector, graph, and relational storage for every decision, output, and fact the team produces. Scoped by team, searchable by all agents.
-          </p>
-        </div>
-
-        <div class="bg-white p-8">
-          <div class="w-10 h-10 rounded-xl bg-ice flex items-center justify-center mb-5">
-            <svg class="w-5 h-5 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
-            </svg>
-          </div>
-          <h3 class="font-bold text-navy text-lg mb-2">Agent Bus</h3>
-          <p class="text-sm text-slate leading-relaxed">
-            MCP-native integration layer. Claude Code, Cursor, ChatGPT, Grok — any agent in the stack connects via the Agent Bus and instantly reads shared context.
-          </p>
-        </div>
-
-        <div class="bg-white p-8">
-          <div class="w-10 h-10 rounded-xl bg-ice flex items-center justify-center mb-5">
-            <svg class="w-5 h-5 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/>
-            </svg>
-          </div>
-          <h3 class="font-bold text-navy text-lg mb-2">Truth Engine</h3>
-          <p class="text-sm text-slate leading-relaxed">
-            Five truth levels — Ephemeral to Canonical. Agents act on validated context, not drafts. Decisions get promoted automatically as the team validates them.
-          </p>
-        </div>
-
+      <div class="stat">
+        <div class="stat__val">5</div>
+        <div class="stat__label">truth levels</div>
       </div>
-
-      <!-- Graphiti callout -->
-      <div class="rounded-2xl border border-ice-2 bg-ice p-6 md:p-8 mb-16" style="background:linear-gradient(135deg,#F0F7FF,#EFF6FF);">
-        <div class="grid md:grid-cols-2 gap-8 items-center">
-          <div>
-            <div class="flex items-center gap-2 mb-3">
-              <div class="px-2.5 py-1 rounded-lg text-xs font-bold text-white" style="background:linear-gradient(135deg,#0F7490,#0E9EB5);">Graphiti</div>
-              <span class="text-xs font-medium text-slate">Temporal knowledge graph · under the hood</span>
-            </div>
-            <h3 class="text-xl font-black text-navy mb-2">A brain that renews itself.</h3>
-            <p class="text-sm text-slate leading-relaxed">
-              Most memory systems just accumulate — they pile new facts on top of old ones until context becomes noise. Cortex OS uses Graphiti to build a <strong class="text-navy">temporal knowledge graph</strong>: when new information arrives, it automatically updates entity relationships, deprecates what's no longer true, and resolves contradictions. The brain stays current, not just larger.
-            </p>
-          </div>
-          <div class="grid grid-cols-1 gap-3">
-            <div class="flex gap-3 items-start bg-white rounded-xl p-4 border border-border shadow-sm">
-              <div class="w-8 h-8 rounded-lg bg-ice border border-ice-2 flex items-center justify-center shrink-0">
-                <svg class="w-4 h-4 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-              </div>
-              <div>
-                <div class="text-sm font-semibold text-navy mb-0.5">Time-aware facts</div>
-                <p class="text-xs text-slate leading-relaxed">When <code class="font-mono bg-ice px-1 rounded">auth-v2</code> ships, Graphiti marks <code class="font-mono bg-ice px-1 rounded">auth-v1</code> as superseded. Agents retrieve what's true <em>now</em>, not what was true six months ago.</p>
-              </div>
-            </div>
-            <div class="flex gap-3 items-start bg-white rounded-xl p-4 border border-border shadow-sm">
-              <div class="w-8 h-8 rounded-lg bg-ice border border-ice-2 flex items-center justify-center shrink-0">
-                <svg class="w-4 h-4 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                </svg>
-              </div>
-              <div>
-                <div class="text-sm font-semibold text-navy mb-0.5">Automatic contradiction resolution</div>
-                <p class="text-xs text-slate leading-relaxed">A decision changes. Graphiti reconciles the conflict across the graph — no duplicate truths, no stale context quietly misleading agents.</p>
-              </div>
-            </div>
-            <div class="flex gap-3 items-start bg-white rounded-xl p-4 border border-border shadow-sm">
-              <div class="w-8 h-8 rounded-lg bg-ice border border-ice-2 flex items-center justify-center shrink-0">
-                <svg class="w-4 h-4 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
-                </svg>
-              </div>
-              <div>
-                <div class="text-sm font-semibold text-navy mb-0.5">Entity &amp; relationship tracking</div>
-                <p class="text-xs text-slate leading-relaxed">Every concept the team produces — features, decisions, people, services — becomes a node in a live graph that agents can traverse and reason over.</p>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div class="stat">
+        <div class="stat__val">7</div>
+        <div class="stat__label">tag fields</div>
       </div>
-
-      <!-- 3 steps -->
-      <div class="grid md:grid-cols-3 gap-8">
-        <div class="flex gap-4">
-          <div class="step-num shrink-0">1</div>
-          <div>
-            <h3 class="font-semibold text-navy mb-1.5">Set up the team</h3>
-            <p class="text-sm text-slate leading-relaxed">Create an org, define the team structure — dev, marketing, ops, or any combination — and set visibility rules. Done in minutes.</p>
-          </div>
-        </div>
-        <div class="flex gap-4">
-          <div class="step-num shrink-0">2</div>
-          <div>
-            <h3 class="font-semibold text-navy mb-1.5">Connect the agents</h3>
-            <p class="text-sm text-slate leading-relaxed">Add the Cortex OS MCP endpoint to each AI tool. Claude Code, Cursor, ChatGPT — each agent is on the shared cognitive core in under 5 minutes.</p>
-          </div>
-        </div>
-        <div class="flex gap-4">
-          <div class="step-num shrink-0">3</div>
-          <div>
-            <h3 class="font-semibold text-navy mb-1.5">Ship normally</h3>
-            <p class="text-sm text-slate leading-relaxed">Agents work as they always do. Every output indexes automatically. Handoffs happen without a brief. The brain grows with the team.</p>
-          </div>
-        </div>
+      <div class="stat">
+        <div class="stat__val">0</div>
+        <div class="stat__label">manual handoffs</div>
       </div>
-
+      <div class="stat">
+        <div class="stat__val">1</div>
+        <div class="stat__label">shared brain</div>
+      </div>
     </div>
-  </section>
+  </div>
 
-  <!-- ─── AGENT TYPES ─── -->
-  <section id="agents" class="s-lg px-6 bg-mist">
-    <div class="max-w-5xl mx-auto">
-      <div class="max-w-2xl mb-14">
-        <p class="text-xs font-semibold text-royal uppercase tracking-widest mb-3">Agent types</p>
-        <h2 class="text-3xl md:text-4xl font-black text-navy leading-tight">
-          Every function. Every agent.<br/>One shared brain.
-        </h2>
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       THE PROBLEM
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="problem">
+    <div class="sh">// the problem</div>
+
+    <div class="term">
+      <div class="term-bar">
+        <div class="term-dot" style="background:#FF5F57;"></div>
+        <div class="term-dot" style="background:#FEBC2E;"></div>
+        <div class="term-dot" style="background:#28C840;"></div>
+        <span class="term-label">agentic team · no shared memory</span>
       </div>
-
-      <div class="grid md:grid-cols-2 gap-5">
-
-        <div class="card p-7 flex gap-5">
-          <div class="w-10 h-10 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0">
-              <svg class="w-4.5 h-4.5 text-royal" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-            </div>
-          <div>
-            <div class="flex items-center gap-2 mb-2">
-              <h3 class="font-bold text-navy">Dev agents</h3>
-              <span class="pill pill-blue">Claude Code · Cursor</span>
-            </div>
-            <p class="text-sm text-slate leading-relaxed">
-              Architecture decisions, code patterns, and shipped features auto-index into the shared brain. New sessions start with full project context — no re-explaining the stack.
-            </p>
-          </div>
-        </div>
-
-        <div class="card p-7 flex gap-5">
-          <div class="w-10 h-10 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0">
-              <svg class="text-royal" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46"/></svg>
-            </div>
-          <div>
-            <div class="flex items-center gap-2 mb-2">
-              <h3 class="font-bold text-navy">Marketing agents</h3>
-              <span class="pill pill-amber">GPT-4o · Grok</span>
-            </div>
-            <p class="text-sm text-slate leading-relaxed">
-              The marketing AI always knows what shipped last. It reads the real product spec, not a brief copy-pasted three days late. Launch copy writes itself from the source of truth.
-            </p>
-          </div>
-        </div>
-
-        <div class="card p-7 flex gap-5">
-          <div class="w-10 h-10 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0">
-              <svg class="text-royal" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-            </div>
-          <div>
-            <div class="flex items-center gap-2 mb-2">
-              <h3 class="font-bold text-navy">Ops agents</h3>
-              <span class="pill pill-green">Claude Opus · n8n</span>
-            </div>
-            <p class="text-sm text-slate leading-relaxed">
-              Runbooks update when features ship. Incident response has full system context. Configs stay in sync with what was actually built — because ops reads the same brain as dev.
-            </p>
-          </div>
-        </div>
-
-        <div class="card p-7 flex gap-5">
-          <div class="w-10 h-10 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0">
-              <svg class="text-royal" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z"/></svg>
-            </div>
-          <div>
-            <div class="flex items-center gap-2 mb-2">
-              <h3 class="font-bold text-navy">Team lead</h3>
-              <span class="pill pill-purple">Full visibility</span>
-            </div>
-            <p class="text-sm text-slate leading-relaxed">
-              Full visibility into what every agent knows. Query the entire org context. Strategic decisions propagate immediately — every agent on the team inherits the new direction.
-            </p>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- compatible tools -->
-      <div class="mt-10 flex flex-wrap gap-2 items-center">
-        <span class="text-xs text-slate-2 font-medium mr-2">Works with</span>
-        <span class="pill pill-slate">Claude Code</span>
-        <span class="pill pill-slate">Cursor</span>
-        <span class="pill pill-slate">Windsurf</span>
-        <span class="pill pill-slate">ChatGPT</span>
-        <span class="pill pill-slate">Grok</span>
-        <span class="pill pill-slate">n8n</span>
-        <span class="pill pill-slate">Any MCP client</span>
+      <div class="term-body">
+        <span class="tl"><span class="p">dev-agent $</span> <span class="c">ship feature payment-v2 — Stripe, 3DS auth, fraud detection</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">shipped. memory stored: 0 items.</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="p">mktg-agent $</span> <span class="c">write launch post for payment-v2</span></span>
+        <span class="tl"><span class="w">  !</span> <span class="c">no context found for "payment-v2"</span></span>
+        <span class="tl"><span class="w">  !</span> <span class="c">starting from zero. what is payment-v2?</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="p">ops-agent  $</span> <span class="c">add monitoring for Stripe webhook failures</span></span>
+        <span class="tl"><span class="er">  ✗</span> <span class="c">no shared context. cannot answer.</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  # three agents. three isolated silos.</span></span>
+        <span class="tl"><span class="cm">  # every session starts at zero.</span></span>
+        <span class="tl"><span class="cm">  # handoffs = manual. context = lost. decisions = repeated.</span></span>
       </div>
     </div>
   </section>
 
-  <!-- ─── IN ACTION ─── -->
-  <section id="flow" class="s-lg px-6 bg-white">
-    <div class="max-w-4xl mx-auto">
-      <div class="text-center max-w-2xl mx-auto mb-14">
-        <p class="text-xs font-semibold text-royal uppercase tracking-widest mb-3">In action</p>
-        <h2 class="text-3xl md:text-4xl font-black text-navy leading-tight">
-          One ship. Three agents.<br/>Zero manual handoffs.
-        </h2>
-        <p class="text-slate mt-3 font-light">Here's what happens when a dev agent ships — while the rest of the team keeps working.</p>
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       HOW IT WORKS
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="how">
+    <div class="sh">// how grooveos works</div>
+
+    <div class="layer-grid">
+      <div class="layer-col">
+        <div class="layer-name"><span class="marker">01</span> Cognitive Core</div>
+        <div class="layer-desc">The shared memory layer. Vector, graph, and relational storage for every decision, output, and fact the team produces. Scoped by team, searchable by all agents.</div>
       </div>
-
-      <div class="space-y-3">
-
-        <!-- event -->
-        <div class="card p-6 flex gap-5 items-start">
-          <div class="w-9 h-9 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0">
-            <svg class="text-royal" style="width:1rem;height:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span class="pill pill-blue">Dev agent</span>
-              <span class="text-xs text-slate-2 font-mono">09:14</span>
-            </div>
-            <p class="text-sm text-navy font-medium mb-1">Shipped <code class="bg-ice text-royal px-1.5 py-0.5 rounded text-xs font-mono">payment-v2</code> — Stripe, 3DS auth, fraud detection</p>
-            <p class="text-xs text-slate">Cortex OS indexed 31 memory nodes. Truth Engine promoted status to <span class="font-mono text-royal">VALIDATED</span>. Auto-handoff triggered.</p>
-          </div>
-        </div>
-
-        <!-- connector -->
-        <div class="flex justify-center">
-          <div class="w-px h-5 bg-ice-2"></div>
-        </div>
-
-        <div class="card p-6 flex gap-5 items-start">
-          <div class="w-9 h-9 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0">
-            <svg class="text-royal" style="width:1rem;height:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46"/></svg>
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span class="pill pill-amber">Marketing agent</span>
-              <span class="text-xs text-slate-2 font-mono">09:15</span>
-            </div>
-            <p class="text-sm text-navy font-medium mb-1">Auto-drafted launch tweet, Product Hunt copy, and blog intro — without a brief</p>
-            <p class="text-xs text-slate">Pulled payment-v2 spec and fraud rationale from Cognitive Core. All three assets accurate and ready.</p>
-          </div>
-        </div>
-
-        <div class="flex justify-center">
-          <div class="w-px h-5 bg-ice-2"></div>
-        </div>
-
-        <div class="card p-6 flex gap-5 items-start">
-          <div class="w-9 h-9 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0">
-            <svg class="text-royal" style="width:1rem;height:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span class="pill pill-green">Ops agent</span>
-              <span class="text-xs text-slate-2 font-mono">09:16</span>
-            </div>
-            <p class="text-sm text-navy font-medium mb-1">Runbook updated, monitoring rules added for Stripe webhooks</p>
-            <p class="text-xs text-slate">Read the webhook handler spec directly from the Cognitive Core. Infrastructure in sync with what was shipped.</p>
-          </div>
-        </div>
-
-        <div class="flex justify-center">
-          <div class="w-px h-5 bg-ice-2"></div>
-        </div>
-
-        <!-- result -->
-        <div class="rounded-xl border border-ice-2 bg-ice px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <p class="font-semibold text-navy text-sm">Three agents updated. Two minutes. Zero messages sent.</p>
-            <p class="text-xs text-slate mt-0.5">This is what an agentic team looks like on a shared cognitive core.</p>
-          </div>
-          <span class="text-xs font-medium text-royal flex items-center gap-1.5 whitespace-nowrap">
-            <span class="dot-on"></span>All agents in sync
-          </span>
-        </div>
-
+      <div class="layer-col">
+        <div class="layer-name"><span class="marker">02</span> Agent Bus</div>
+        <div class="layer-desc">MCP-native integration layer. Claude Code, Cursor, ChatGPT, Grok — any agent connects via the Agent Bus and instantly reads shared context. No custom wiring.</div>
+      </div>
+      <div class="layer-col">
+        <div class="layer-name"><span class="marker">03</span> Truth Engine</div>
+        <div class="layer-desc">Five truth levels — Ephemeral to Canonical. Agents act on validated context, not drafts. Decisions get promoted automatically as the team validates them.</div>
       </div>
     </div>
-  </section>
 
-  <!-- ─── FEATURES ─── -->
-  <section class="s-lg px-6 bg-mist">
-    <div class="max-w-5xl mx-auto">
-      <div class="text-center max-w-xl mx-auto mb-14">
-        <p class="text-xs font-semibold text-royal uppercase tracking-widest mb-3">Features</p>
-        <h2 class="text-3xl md:text-4xl font-black text-navy">
-          Everything an agentic team needs.
-        </h2>
-      </div>
-
-      <div class="grid md:grid-cols-3 gap-5">
-        <div class="card p-6">
-          <div class="font-semibold text-navy mb-2 flex items-center gap-2">
-            <span class="text-royal">—</span> Shared memory
-          </div>
-          <p class="text-sm text-slate leading-relaxed">All team outputs tagged, stored, and searchable. Every agent reads the same truth.</p>
-        </div>
-        <div class="card p-6">
-          <div class="font-semibold text-navy mb-2 flex items-center gap-2">
-            <span class="text-royal">—</span> Agent Bus
-          </div>
-          <p class="text-sm text-slate leading-relaxed">MCP-native. Any agent connects in minutes. No custom integrations.</p>
-        </div>
-        <div class="card p-6">
-          <div class="font-semibold text-navy mb-2 flex items-center gap-2">
-            <span class="text-royal">—</span> Truth Engine
-          </div>
-          <p class="text-sm text-slate leading-relaxed">Five levels from ephemeral to canonical. Agents act on validated context, never stale drafts.</p>
-        </div>
-        <div class="card p-6">
-          <div class="font-semibold text-navy mb-2 flex items-center gap-2">
-            <span class="text-royal">—</span> Team scoping
-          </div>
-          <p class="text-sm text-slate leading-relaxed">Dev context stays with dev. Marketing with marketing. Cross-team visibility exactly where it's needed.</p>
-        </div>
-        <div class="card p-6">
-          <div class="font-semibold text-navy mb-2 flex items-center gap-2">
-            <span class="text-royal">—</span> Drive Sync
-          </div>
-          <p class="text-sm text-slate leading-relaxed">Google Drive docs auto-indexed. Every spec, brief, and decision stored there becomes agent memory.</p>
-        </div>
-        <div class="card p-6">
-          <div class="font-semibold text-navy mb-2 flex items-center gap-2">
-            <span class="text-royal">—</span> Chrome Clipper
-          </div>
-          <p class="text-sm text-slate leading-relaxed">Right-click anything on the web to clip it into the team brain. Research, competitor pages, references.</p>
-        </div>
-      </div>
+    <div class="info-box" data-label="// graphiti · temporal knowledge graph" style="margin-bottom:20px;">
+      <strong>A brain that renews itself.</strong> Most memory systems accumulate — they pile new facts
+      on old ones until context becomes noise. GrooveOS uses Graphiti to build a
+      <span class="hl">temporal knowledge graph</span>: when new information arrives, it automatically
+      updates entity relationships, deprecates what's no longer true, and resolves contradictions.
+      When <code>auth-v2</code> ships, Graphiti marks <code>auth-v1</code> as superseded.
+      Agents retrieve what's true <em>now</em>, not what was true six months ago.
     </div>
-  </section>
 
-  <!-- ─── BROWSER EXTENSION ─── -->
-  <section class="s-lg px-6 bg-white">
-    <div class="max-w-5xl mx-auto">
-      <div class="grid md:grid-cols-2 gap-16 items-center">
-
-        <!-- copy -->
+    <div class="steps">
+      <div class="step">
+        <span class="step-n">1.</span>
         <div>
-          <p class="text-xs font-semibold text-royal uppercase tracking-widest mb-3">Browser extension</p>
-          <h2 class="text-3xl md:text-4xl font-black text-navy leading-tight mb-5">
-            Clip anything.<br/>It lands in the brain.
-          </h2>
-          <p class="text-lg text-slate font-light leading-relaxed mb-6">
-            The Cortex OS Chrome extension turns the entire web into a source for the team's shared memory. Right-click any page, paragraph, or selection — it's indexed and searchable by every agent on the team instantly.
-          </p>
-          <ul class="space-y-4 mb-8">
-            <li class="flex gap-3 items-start">
-              <div class="chk mt-0.5"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>
-              <div>
-                <span class="font-semibold text-navy text-sm">Competitor pages, articles, research</span>
-                <p class="text-sm text-slate mt-0.5">Select any text or clip a full page — it enters the brain with source, date, and team scope automatically.</p>
-              </div>
-            </li>
-            <li class="flex gap-3 items-start">
-              <div class="chk mt-0.5"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>
-              <div>
-                <span class="font-semibold text-navy text-sm">Choose the truth level before saving</span>
-                <p class="text-sm text-slate mt-0.5">Tag it as Ephemeral, Working, or Validated. Agents treat it accordingly — no noise in canonical context.</p>
-              </div>
-            </li>
-            <li class="flex gap-3 items-start">
-              <div class="chk mt-0.5"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>
-              <div>
-                <span class="font-semibold text-navy text-sm">Available to every agent, immediately</span>
-                <p class="text-sm text-slate mt-0.5">Dev, marketing, and ops agents can all search and retrieve anything clipped by any team member.</p>
-              </div>
-            </li>
-          </ul>
-          <div class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-mist border border-border text-xs font-mono text-slate">
-            <svg class="w-3.5 h-3.5 text-royal" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-            Chrome MV3 · Works on any website
-          </div>
+          <div class="step-title">Set up the team</div>
+          <div class="step-desc">Create an org, define the team structure — dev, marketing, ops — and set visibility rules. Done in minutes.</div>
         </div>
-
-        <!-- visual: right-click popup mockup -->
-        <div class="relative">
-
-          <!-- browser chrome -->
-          <div class="card rounded-2xl overflow-hidden">
-            <!-- browser bar -->
-            <div class="bg-mist border-b border-border px-4 py-3 flex items-center gap-3">
-              <div class="flex gap-1.5">
-                <div class="w-2.5 h-2.5 rounded-full bg-red-400 opacity-60"></div>
-                <div class="w-2.5 h-2.5 rounded-full bg-amber-400 opacity-60"></div>
-                <div class="w-2.5 h-2.5 rounded-full bg-green-400 opacity-60"></div>
-              </div>
-              <div class="flex-1 bg-white rounded-md px-3 py-1 text-xs text-slate-2 font-mono border border-border">
-                techcrunch.com/2026/ai-agents-market-report
-              </div>
-            </div>
-
-            <!-- page content (blurred text lines) -->
-            <div class="p-6 bg-white relative select-none">
-              <div class="space-y-2 mb-4">
-                <div class="h-3 bg-gray-100 rounded-full w-full"></div>
-                <div class="h-3 bg-gray-100 rounded-full w-5/6"></div>
-                <div class="h-3 bg-gray-100 rounded-full w-full"></div>
-              </div>
-
-              <!-- highlighted text -->
-              <div class="relative">
-                <p class="text-sm text-navy leading-relaxed py-1 px-1 rounded" style="background:#DBEAFE;">
-                  "Agentic teams that share a unified memory layer ship 4× faster and maintain
-                  significantly higher context coherence across functions than teams using isolated AI tools."
-                </p>
-
-                <!-- right-click context menu -->
-                <div class="absolute right-0 top-full mt-1 z-10 bg-white rounded-xl shadow-lg border border-border overflow-hidden w-52" style="box-shadow:0 8px 32px rgba(13,27,62,.15);">
-                  <div class="px-3 py-2 border-b border-border bg-mist">
-                    <div class="text-xs font-semibold text-navy flex items-center gap-1.5">
-                      <span class="font-light text-navy tracking-widest" style="font-size:.65rem;letter-spacing:.15em;">CORTEX</span><span class="font-light text-royal tracking-widest" style="font-size:.65rem;letter-spacing:.15em;">OS</span>
-                    </div>
-                  </div>
-                  <div class="p-3 space-y-1">
-                    <div class="text-xs text-slate mb-2">Truth level</div>
-                    <div class="flex gap-1.5 flex-wrap">
-                      <span class="px-2 py-1 rounded-lg text-xs font-medium border border-border text-slate hover:border-royal cursor-pointer">Ephemeral</span>
-                      <span class="px-2 py-1 rounded-lg text-xs font-medium border-2 border-royal text-royal bg-ice cursor-pointer">Working ✓</span>
-                      <span class="px-2 py-1 rounded-lg text-xs font-medium border border-border text-slate cursor-pointer">Validated</span>
-                    </div>
-                    <div class="pt-2">
-                      <div class="text-xs text-slate mb-1.5">Team scope</div>
-                      <div class="flex gap-1.5">
-                        <span class="pill pill-slate text-xs">marketing</span>
-                        <span class="pill pill-slate text-xs">all</span>
-                      </div>
-                    </div>
-                    <button class="w-full mt-2 py-2 rounded-lg text-xs font-semibold text-white" style="background:#0F7490;">
-                      Clip to brain →
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="mt-14 space-y-2">
-                <div class="h-3 bg-gray-100 rounded-full w-4/5"></div>
-                <div class="h-3 bg-gray-100 rounded-full w-full"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- confirmation badge -->
-          <div class="absolute -bottom-4 left-6 flex items-center gap-2.5 bg-white border border-border rounded-xl px-4 py-2.5 shadow-md">
-            <span class="dot-on animate-pulse"></span>
-            <div>
-              <div class="text-xs font-semibold text-navy">Clipped to Cortex OS</div>
-              <div class="text-xs text-slate">Visible to marketing · truth: Working</div>
-            </div>
-          </div>
-
+      </div>
+      <div class="step">
+        <span class="step-n">2.</span>
+        <div>
+          <div class="step-title">Connect the agents</div>
+          <div class="step-desc">Add the GrooveOS MCP endpoint to each AI tool. Claude Code, Cursor, ChatGPT — each agent is on the shared cognitive core in under 5 minutes.</div>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">3.</span>
+        <div>
+          <div class="step-title">Ship normally</div>
+          <div class="step-desc">Agents work as they always do. Every output indexes automatically. Handoffs happen without a brief. The brain grows with the team.</div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ─── PRICING ─── -->
-  <section id="pricing" class="s-lg px-6 bg-white">
-    <div class="max-w-4xl mx-auto">
-      <div class="text-center mb-10">
-        <p class="text-xs font-semibold text-royal uppercase tracking-widest mb-3">Pricing</p>
-        <h2 class="text-3xl md:text-4xl font-black text-navy">Simple. Scales with the team.</h2>
-        <p class="text-slate mt-2 text-sm">One flat price. No per-agent fees.</p>
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       IN ACTION
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="flow">
+    <div class="sh">// in action · one ship. three agents. zero handoffs.</div>
+
+    <div class="term">
+      <div class="term-bar">
+        <div class="term-dot" style="background:#FF5F57;"></div>
+        <div class="term-dot" style="background:#FEBC2E;"></div>
+        <div class="term-dot" style="background:#28C840;"></div>
+        <span class="term-label">grooveos · watch --team=acme --live</span>
       </div>
-
-      <!-- toggle -->
-      <div class="flex justify-center mb-10">
-        <div class="inline-flex items-center rounded-xl border border-border bg-mist p-1.5 gap-1">
-          <button id="btn-monthly" onclick="setPricing('monthly')" class="tog-btn on">Monthly</button>
-          <button id="btn-annual"  onclick="setPricing('annual')"  class="tog-btn off">
-            Annual
-            <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-ice-2 text-royal">–45%</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="grid md:grid-cols-3 gap-5 items-stretch">
-
-        <!-- Starter -->
-        <div class="card price-card p-7 flex flex-col">
-          <div class="mb-6">
-            <div class="text-xs font-semibold text-slate uppercase tracking-widest mb-3">Starter</div>
-            <div class="text-4xl font-black text-navy">$0</div>
-            <div class="text-slate text-sm mt-1">Forever · 1 agent operator</div>
-          </div>
-          <ul class="space-y-2.5 text-sm text-slate flex-1 mb-7">
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>1 user · personal cognitive core</li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>Claude + ChatGPT via Agent Bus</li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>100 memories / day</li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>Basic truth levels</li>
-            <li class="flex gap-2 items-start"><div class="w-4 h-4 flex items-center justify-center mt-0.5 shrink-0"><svg class="w-3 h-3 text-slate-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M6 18L18 6M6 6l12 12"/></svg></div><span class="text-slate-2">Team scoping</span></li>
-            <li class="flex gap-2 items-start"><div class="w-4 h-4 flex items-center justify-center mt-0.5 shrink-0"><svg class="w-3 h-3 text-slate-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M6 18L18 6M6 6l12 12"/></svg></div><span class="text-slate-2">Auto-handoffs</span></li>
-          </ul>
-          <a href="mailto:team@grooveos.app?subject=Cortex OS starter"
-             class="block text-center py-2.5 rounded-xl border border-border text-slate text-sm font-semibold hover:border-royal-lt hover:text-navy transition-all">
-            Join waitlist
-          </a>
-        </div>
-
-        <!-- Team (featured) -->
-        <div class="price-card price-featured p-7 flex flex-col" style="background:#FAFBFF;">
-          <div class="mb-6">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="text-xs font-semibold text-royal uppercase tracking-widest">Team</div>
-              <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-royal text-white">Most popular</span>
-            </div>
-
-            <div id="price-monthly">
-              <div class="flex items-end gap-1.5">
-                <span class="text-4xl font-black text-navy">$45</span>
-                <span class="text-slate text-sm pb-1">/month · 3 operators</span>
-              </div>
-              <p class="text-xs text-slate mt-1">$15/operator · +$15/operator beyond 3</p>
-            </div>
-
-            <div id="price-annual" class="hidden">
-              <div class="flex items-end gap-1.5">
-                <span class="text-4xl font-black text-navy">$299</span>
-                <span class="text-slate text-sm pb-1">/year · 3 operators</span>
-              </div>
-              <div class="flex items-center gap-2 mt-1">
-                <span class="text-slate-2 text-sm line-through">$540</span>
-                <span class="px-1.5 py-0.5 rounded-full text-xs font-bold bg-ice-2 text-royal">Save 45%</span>
-              </div>
-              <p class="text-xs text-slate mt-1">+$99/operator/year beyond 3</p>
-            </div>
-          </div>
-
-          <ul class="space-y-2.5 text-sm text-slate flex-1 mb-7">
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>Everything in Starter</li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div><strong class="text-navy">3 agent operators minimum</strong></li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>Full team + project scoping</li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>Auto-handoffs across agents</li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>All MCP tools on Agent Bus</li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>Google Drive Sync</li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>Chrome Clipper extension</li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>Unlimited memories · Full Truth Engine</li>
-          </ul>
-          <a href="mailto:team@grooveos.app?subject=Cortex OS team"
-             class="block text-center py-2.5 rounded-xl font-semibold text-white text-sm shadow-btn hover:opacity-90 transition-opacity"
-             style="background:#0F7490;">
-            Join waitlist →
-          </a>
-        </div>
-
-        <!-- Enterprise -->
-        <div class="card price-card p-7 flex flex-col">
-          <div class="mb-6">
-            <div class="text-xs font-semibold text-slate uppercase tracking-widest mb-3">Enterprise</div>
-            <div class="text-4xl font-black text-navy">Custom</div>
-            <div class="text-slate text-sm mt-1">10+ operators · SLA · SSO</div>
-          </div>
-          <ul class="space-y-2.5 text-sm text-slate flex-1 mb-7">
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>Everything in Team</li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>SSO / SAML</li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>Custom agent policies</li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>Full audit logs</li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>On-prem deployment</li>
-            <li class="flex gap-2"><div class="chk"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div>Dedicated support &amp; SLA</li>
-          </ul>
-          <a href="mailto:team@grooveos.app?subject=Cortex OS enterprise"
-             class="block text-center py-2.5 rounded-xl border border-border text-slate text-sm font-semibold hover:border-royal-lt hover:text-navy transition-all">
-            Contact us
-          </a>
-        </div>
-
+      <div class="term-body">
+        <span class="tl"><span class="cm">  09:14  dev-agent ·</span> <span class="c">shipped "payment-v2" — Stripe, 3DS, fraud detection</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">GrooveOS indexed 31 memory nodes</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">truth_level promoted: WORKING → VALIDATED</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">auto-handoff triggered: mktg-agent, ops-agent notified</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  09:15  mktg-agent ·</span> <span class="c">write launch content for payment-v2</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">context loaded — 31 items from dev-agent, 4 CANONICAL facts</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">tweet + Product Hunt copy + blog intro — ready. no brief sent.</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  09:16  ops-agent ·</span>  <span class="c">runbook updated, monitoring rules added for Stripe webhooks</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">read webhook spec directly from Cognitive Core</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">infrastructure in sync with what was shipped</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  ──── three agents updated. two minutes. zero messages sent. ────</span></span>
       </div>
     </div>
   </section>
 
-  <!-- ─── CTA ─── -->
-  <section class="s-lg px-6" style="background:#020B18;">
-    <div class="max-w-2xl mx-auto text-center">
-      <h2 class="text-4xl md:text-5xl font-black text-white leading-tight mb-5">
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       AGENT TYPES
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="agents">
+    <div class="sh">// agent types · every function. one shared brain.</div>
+
+    <table class="atable">
+      <thead>
+        <tr>
+          <th>Function</th>
+          <th>Compatible tools</th>
+          <th>What it gets from GrooveOS</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Dev agents</strong></td>
+          <td class="dim">Claude Code · Cursor · Windsurf</td>
+          <td class="dim">Architecture decisions, code patterns, and shipped features auto-indexed. New sessions start with full project context — no re-explaining the stack.</td>
+        </tr>
+        <tr>
+          <td><strong>Marketing agents</strong></td>
+          <td class="dim">GPT-4o · Grok</td>
+          <td class="dim">Always knows what shipped last. Reads the real product spec, not a copy-pasted brief. Launch copy writes itself from the source of truth.</td>
+        </tr>
+        <tr>
+          <td><strong>Ops agents</strong></td>
+          <td class="dim">Claude Opus · n8n</td>
+          <td class="dim">Runbooks update when features ship. Incident response has full system context. Configs stay in sync with what was actually built.</td>
+        </tr>
+        <tr>
+          <td><strong>Team leads</strong></td>
+          <td class="dim">Full visibility — any model</td>
+          <td class="dim">Full visibility into what every agent knows. Strategic decisions propagate immediately — every agent on the team inherits the new direction.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p style="margin-top:10px;font-size:11px;color:var(--muted);">
+      Compatible with any agent that speaks MCP or HTTP — Claude Code, Cursor, Windsurf, ChatGPT, Grok, n8n, and custom agents.
+    </p>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       FEATURES
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="features">
+    <div class="sh">// features · everything an agentic team needs.</div>
+
+    <div class="feat-grid">
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Shared Memory</div>
+        <div class="feat-desc">All team outputs tagged, stored, and searchable. Every agent reads the same truth, scoped by team and project.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Agent Bus</div>
+        <div class="feat-desc">MCP-native. Any agent connects in minutes. Claude Code, Cursor, ChatGPT, Grok — no custom wiring.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Truth Engine</div>
+        <div class="feat-desc">Five levels: EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC. Agents act on validated context, never stale drafts.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Team Scoping</div>
+        <div class="feat-desc">Dev context stays with dev. Marketing with marketing. Cross-team visibility exactly where it's needed.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Drive Sync</div>
+        <div class="feat-desc">Google Drive docs auto-indexed on change. Every spec, brief, and decision in Drive becomes agent memory instantly.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Chrome Clipper</div>
+        <div class="feat-desc">Right-click any page or selection — it enters the brain tagged by team and project. Instantly searchable by all agents.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> CRM &amp; Contacts <span class="tag-paid">team</span></div>
+        <div class="feat-desc">Every meeting and conversation automatically extracts contacts into a team CRM. No manual entry.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Task Tracking <span class="tag-paid">team</span></div>
+        <div class="feat-desc">Action items generated automatically from meetings and chats. Tracked, assigned, and surfaced to every agent.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Meeting Intelligence <span class="tag-paid">team</span></div>
+        <div class="feat-desc">Granola meeting notes auto-ingested every 5 minutes. Summaries, participants, and action items flow into the team brain.</div>
+      </div>
+    </div>
+    <p style="margin-top:10px;font-size:11px;color:var(--muted);">
+      <span style="color:var(--paid-col);font-weight:600;">team</span> — available on Team &amp; Enterprise plans only.
+    </p>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       BROWSER EXTENSION
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="extension">
+    <div class="sh">// browser extension · clip anything. it lands in the brain.</div>
+
+    <div class="ext-grid">
+      <div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:16px;">
+          The GrooveOS Chrome extension turns the entire web into a source for the team's
+          shared memory. Right-click any page, paragraph, or selection — it's indexed and
+          searchable by every agent on the team instantly.
+        </p>
+        <ul class="ext-list">
+          <li><strong>Competitor pages, articles, research</strong> — select text or clip a full page, enters the brain with source, date, and team scope automatically.</li>
+          <li><strong>Choose the truth level before saving</strong> — tag it Ephemeral, Working, or Validated. Agents treat it accordingly.</li>
+          <li><strong>Available to every agent, immediately</strong> — dev, marketing, and ops agents can all search and retrieve anything clipped by any team member.</li>
+        </ul>
+        <span class="badge">Chrome MV3 · Works on any website</span>
+      </div>
+
+      <div class="term">
+        <div class="term-bar">
+          <div class="term-dot" style="background:#FF5F57;"></div>
+          <div class="term-dot" style="background:#FEBC2E;"></div>
+          <div class="term-dot" style="background:#28C840;"></div>
+          <span class="term-label">grooveos / clipper</span>
+        </div>
+        <div class="term-body">
+          <span class="tl"><span class="cm">  # right-click → "Clip to GrooveOS"</span></span>
+          <span class="tl"> </span>
+          <span class="tl"><span class="p">  clip $</span> <span class="c">capture --text selected</span></span>
+          <span class="tl"><span class="ok">  ✓</span>  <span class="c">source:      techcrunch.com/2026/ai-agents</span></span>
+          <span class="tl"><span class="ok">  ✓</span>  <span class="c">team_scope:  marketing</span></span>
+          <span class="tl"><span class="ok">  ✓</span>  <span class="c">truth_level: WORKING</span></span>
+          <span class="tl"><span class="ok">  ✓</span>  <span class="ac">indexed — mem_4f2a9d · visible to all agents</span></span>
+          <span class="tl"> </span>
+          <span class="tl"><span class="cm">  # mktg-agent can now retrieve this</span></span>
+          <span class="tl"><span class="cm">  # dev-agent can now retrieve this</span></span>
+          <span class="tl"><span class="cm">  # ops-agent can now retrieve this</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       PRICING
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="pricing">
+    <div class="sh">// pricing · simple. scales with the team.</div>
+
+    <div class="tog-wrap">
+      <div class="tog-inner">
+        <button id="btn-monthly" onclick="setPricing('monthly')" class="tog-btn on">monthly</button>
+        <button id="btn-annual"  onclick="setPricing('annual')"  class="tog-btn off">annual <span class="disc">–45%</span></button>
+      </div>
+    </div>
+
+    <div class="price-grid">
+
+      <!-- Starter -->
+      <div class="price-col">
+        <div class="price-tier-name">Starter</div>
+        <div class="price-val">$0</div>
+        <div class="price-period">forever · 1 agent operator</div>
+        <ul class="price-list">
+          <li><span class="ok">✓</span> 1 user · personal cognitive core</li>
+          <li><span class="ok">✓</span> Claude + ChatGPT via Agent Bus</li>
+          <li><span class="ok">✓</span> 100 memories / day</li>
+          <li><span class="ok">✓</span> Basic truth levels</li>
+          <li><span class="no">✗</span> <span style="opacity:.5">Team scoping</span></li>
+          <li><span class="no">✗</span> <span style="opacity:.5">Auto-handoffs</span></li>
+          <li><span class="no">✗</span> <span style="opacity:.5">CRM &amp; contacts</span></li>
+          <li><span class="no">✗</span> <span style="opacity:.5">Task tracking</span></li>
+          <li><span class="no">✗</span> <span style="opacity:.5">Meeting Intelligence</span></li>
+        </ul>
+        <a href="#" onclick="openWaitlist('Starter');return false;" class="btn-outline" style="text-align:center;justify-content:center;">join waitlist</a>
+      </div>
+
+      <!-- Team -->
+      <div class="price-col featured">
+        <div class="price-tier-name">Team <span class="price-popular">most popular</span></div>
+        <div id="price-monthly-val">
+          <div class="price-val">$15<span style="font-size:14px;font-weight:400;color:var(--muted);">/operator/mo</span></div>
+          <div class="price-period">minimum 3 operators · billed monthly</div>
+        </div>
+        <div id="price-annual-val" style="display:none;">
+          <div class="price-val">$99<span style="font-size:14px;font-weight:400;color:var(--muted);">/operator/yr</span></div>
+          <div class="price-period">minimum 3 operators · billed annually <span class="price-save">save 45%</span></div>
+        </div>
+        <ul class="price-list">
+          <li><span class="ok">✓</span> Everything in Starter</li>
+          <li><span class="ok">✓</span> <strong>3 agent operators minimum</strong></li>
+          <li><span class="ok">✓</span> Full team + project scoping</li>
+          <li><span class="ok">✓</span> Auto-handoffs across agents</li>
+          <li><span class="ok">✓</span> All MCP tools on Agent Bus</li>
+          <li><span class="ok">✓</span> CRM &amp; contact auto-extraction</li>
+          <li><span class="ok">✓</span> Task tracking &amp; auto-generation</li>
+          <li><span class="ok">✓</span> Meeting Intelligence (Granola sync)</li>
+          <li><span class="ok">✓</span> Google Drive Sync</li>
+          <li><span class="ok">✓</span> Chrome Clipper extension</li>
+          <li><span class="ok">✓</span> Unlimited memories · Full Truth Engine</li>
+        </ul>
+        <a href="#" onclick="openWaitlist('Team');return false;" class="btn-cta" style="justify-content:center;">join waitlist →</a>
+      </div>
+
+      <!-- Enterprise -->
+      <div class="price-col">
+        <div class="price-tier-name">Enterprise</div>
+        <div class="price-val">Custom</div>
+        <div class="price-period">10+ operators · SLA · SSO</div>
+        <ul class="price-list">
+          <li><span class="ok">✓</span> Everything in Team</li>
+          <li><span class="ok">✓</span> SSO / SAML</li>
+          <li><span class="ok">✓</span> Custom agent policies</li>
+          <li><span class="ok">✓</span> Full audit logs</li>
+          <li><span class="ok">✓</span> On-prem deployment</li>
+          <li><span class="ok">✓</span> Dedicated support &amp; SLA</li>
+        </ul>
+        <a href="#" onclick="openWaitlist('Enterprise');return false;" class="btn-outline" style="text-align:center;justify-content:center;">contact us</a>
+      </div>
+
+    </div>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       CTA
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec">
+    <div class="cta-box">
+      <div class="hero-headline" style="margin-bottom:12px;">
         Agentic teams<br/>
-        <span class="gt">start here.</span>
-      </h2>
-      <p class="text-lg mb-10 font-light leading-relaxed" style="color:rgba(255,255,255,.55);">
+        <span class="hl">start here.</span>
+      </div>
+      <p style="font-size:13.5px;color:var(--muted);margin-bottom:28px;max-width:400px;margin-left:auto;margin-right:auto;">
         Connect agents. Share one brain.<br/>Build as one team.
       </p>
-      <div class="flex flex-col sm:flex-row gap-3 justify-center">
-        <a href="mailto:team@grooveos.app?subject=Cortex OS early access"
-           class="px-8 py-3.5 rounded-xl font-semibold text-white text-sm shadow-btn hover:opacity-90 transition-opacity"
-           style="background:#0F7490;">
-          Join the waitlist →
-        </a>
-        <a href="mailto:team@grooveos.app?subject=Cortex OS demo"
-           class="px-8 py-3.5 rounded-xl font-semibold text-sm transition-all hover:bg-white hover:text-navy"
-           style="color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.15);">
-          Request a demo
-        </a>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:20px;">
+        <a href="#" onclick="openWaitlist('Early Access');return false;" class="btn-cta">→ join the waitlist</a>
+        <a href="#" onclick="openWaitlist('Demo Request');return false;" class="btn-outline">request a demo</a>
       </div>
-      <p class="text-xs mt-6" style="color:rgba(255,255,255,.25);">team@grooveos.app</p>
+      <p style="font-size:11.5px;color:var(--muted);">team@grooveos.app</p>
     </div>
   </section>
 
-  <!-- ─── FOOTER ─── -->
-  <footer class="bg-white border-t border-border py-8 px-6">
-    <div class="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-      <div class="flex items-center gap-1">
-        <span class="font-light text-navy tracking-widest" style="font-size:.85rem;letter-spacing:.18em;">CORTEX</span><span class="font-light text-royal tracking-widest" style="font-size:.85rem;letter-spacing:.18em;">OS</span>
-        <span class="text-slate-2 text-sm ml-2">Cognitive OS for agentic teams</span>
+  <!-- ═══════════════════════════════════════════════════
+       FOOTER
+  ═══════════════════════════════════════════════════ -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-main">
+        <span class="footer-logo">GROOVE<span>OS</span></span>
+        <div class="footer-links">
+          <a href="docs/index.html" class="flink">docs</a>
+          <a href="docs/api.html" class="flink">api</a>
+          <a href="#pricing" class="flink">pricing</a>
+          <a href="docs/billing.html" class="flink">plans</a>
+          <a href="mailto:team@grooveos.app" class="flink">contact</a>
+        </div>
+        <span style="font-size:11px;color:var(--muted);">© 2026 GrooveOS</span>
       </div>
-      <div class="flex items-center gap-6 text-sm text-slate">
-        <a href="/docs/index.html" class="hover:text-navy transition-colors">Docs</a>
-        <a href="/docs/api.html"   class="hover:text-navy transition-colors">API</a>
-        <a href="#pricing"         class="hover:text-navy transition-colors">Pricing</a>
-        <a href="https://xbrain-marketing.web.app" class="hover:text-navy transition-colors">Self-host →</a>
-        <a href="mailto:team@grooveos.app" class="hover:text-navy transition-colors">Contact</a>
+      <div class="footer-oss">
+        open-source engine: <a href="https://xbrain-marketing.web.app" target="_blank" rel="noopener">xbrain (MIT)</a> ·
+        self-host on your own machine · <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener">github ↗</a>
       </div>
-      <p class="text-xs text-slate-2">© 2026 Cortex OS</p>
     </div>
   </footer>
 
+  <!-- ═══════════════════════════════════════════════════
+       SCRIPTS
+  ═══════════════════════════════════════════════════ -->
   <script>
+    /* ── theme toggle ── */
+    const btn  = document.getElementById('theme-toggle');
+    const html = document.documentElement;
+    function setTheme(t) {
+      html.setAttribute('data-theme', t);
+      btn.textContent = t === 'dark' ? '◑ light' : '◐ dark';
+      try { localStorage.setItem('xb-theme', t); } catch(e) {}
+    }
+    btn.addEventListener('click', () => {
+      setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+    try {
+      const saved = localStorage.getItem('xb-theme');
+      if (saved === 'light' || saved === 'dark') setTheme(saved);
+    } catch(e) {}
+
+    /* ── pricing toggle ── */
     function setPricing(mode) {
-      const M = document.getElementById('price-monthly');
-      const A = document.getElementById('price-annual');
+      const mv = document.getElementById('price-monthly-val');
+      const av = document.getElementById('price-annual-val');
       const bM = document.getElementById('btn-monthly');
       const bA = document.getElementById('btn-annual');
       if (mode === 'monthly') {
-        M.classList.remove('hidden'); A.classList.add('hidden');
+        mv.style.display = ''; av.style.display = 'none';
         bM.className = 'tog-btn on'; bA.className = 'tog-btn off';
-        bA.innerHTML = 'Annual <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-ice-2 text-royal">–45%</span>';
       } else {
-        A.classList.remove('hidden'); M.classList.add('hidden');
+        av.style.display = ''; mv.style.display = 'none';
         bA.className = 'tog-btn on'; bM.className = 'tog-btn off';
+      }
+    }
+  </script>
+
+  <!-- ═══════════════ WAITLIST MODAL ═══════════════ -->
+  <style>
+    #wl-overlay {
+      display: none; position: fixed; inset: 0; z-index: 9999;
+      background: rgba(0,0,0,.72); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center;
+    }
+    #wl-overlay.open { display: flex; }
+    #wl-box {
+      background: var(--bg-2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 36px 32px; width: 100%; max-width: 420px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.6); position: relative;
+    }
+    #wl-title { font-size: 1.15rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    #wl-sub   { font-size: 0.8rem; color: var(--muted); margin-bottom: 24px; }
+    #wl-box label { display: block; font-size: .78rem; color: var(--muted); margin-bottom: 5px; }
+    #wl-box input {
+      width: 100%; box-sizing: border-box;
+      background: var(--bg-3); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 9px 12px;
+      font-family: inherit; font-size: .875rem; margin-bottom: 14px; outline: none;
+    }
+    #wl-box input:focus { border-color: var(--accent); }
+    #wl-submit {
+      width: 100%; padding: 10px; border-radius: 6px; border: none; cursor: pointer;
+      background: var(--accent); color: #0D1117; font-weight: 700;
+      font-family: inherit; font-size: .875rem; transition: opacity .15s;
+    }
+    #wl-submit:hover { opacity: .85; }
+    #wl-submit:disabled { opacity: .5; cursor: default; }
+    #wl-close {
+      position: absolute; top: 14px; right: 16px; background: none; border: none;
+      color: var(--muted); font-size: 1.2rem; cursor: pointer; line-height: 1;
+    }
+    #wl-close:hover { color: var(--text); }
+    #wl-msg { font-size: .8rem; margin-top: 10px; min-height: 18px; }
+    #wl-msg.ok  { color: var(--green); }
+    #wl-msg.err { color: var(--red); }
+  </style>
+
+  <div id="wl-overlay" onclick="if(event.target===this)closeWaitlist()">
+    <div id="wl-box">
+      <button id="wl-close" onclick="closeWaitlist()" aria-label="Close">✕</button>
+      <div id="wl-title">Join the waitlist</div>
+      <div id="wl-sub">We'll reach out as soon as your spot opens.</div>
+      <form id="wl-form" onsubmit="submitWaitlist(event)">
+        <label for="wl-name">Name</label>
+        <input id="wl-name" type="text" placeholder="Your name" required autocomplete="name" />
+        <label for="wl-email">Email</label>
+        <input id="wl-email" type="email" placeholder="you@company.com" required autocomplete="email" />
+        <input id="wl-plan" type="hidden" value="" />
+        <button id="wl-submit" type="submit">Request early access →</button>
+        <div id="wl-msg"></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function openWaitlist(plan) {
+      document.getElementById('wl-plan').value = plan || '';
+      document.getElementById('wl-msg').textContent = '';
+      document.getElementById('wl-msg').className = '';
+      document.getElementById('wl-form').reset();
+      document.getElementById('wl-overlay').classList.add('open');
+      setTimeout(function(){ document.getElementById('wl-name').focus(); }, 80);
+    }
+    function closeWaitlist() {
+      document.getElementById('wl-overlay').classList.remove('open');
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeWaitlist();
+    });
+    async function submitWaitlist(e) {
+      e.preventDefault();
+      var name  = document.getElementById('wl-name').value.trim();
+      var email = document.getElementById('wl-email').value.trim();
+      var plan  = document.getElementById('wl-plan').value || 'Early Access';
+      var btn   = document.getElementById('wl-submit');
+      var msg   = document.getElementById('wl-msg');
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      msg.textContent = '';
+      msg.className = '';
+      try {
+        var res = await fetch('https://api.grooveos.app/v1/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, email: email, plan: plan })
+        });
+        var data = await res.json().catch(function(){ return {}; });
+        if (res.ok) {
+          msg.textContent = "You're on the list! We'll be in touch.";
+          msg.className = 'ok';
+          btn.textContent = '✓ Done';
+          setTimeout(closeWaitlist, 2200);
+        } else {
+          var errMsg = data.detail || data.message || ('HTTP ' + res.status);
+          msg.textContent = 'Error: ' + errMsg;
+          msg.className = 'err';
+          btn.disabled = false;
+          btn.textContent = 'Try again →';
+        }
+      } catch(err) {
+        msg.textContent = 'Network error: ' + err.message;
+        msg.className = 'err';
+        btn.disabled = false;
+        btn.textContent = 'Try again →';
       }
     }
   </script>
