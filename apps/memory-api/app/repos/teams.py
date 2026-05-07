@@ -2,6 +2,7 @@
 
 from uuid import UUID
 
+import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -83,5 +84,97 @@ async def get_membership(
 async def list_teams_for_user(session: AsyncSession, *, user_id: UUID) -> list[Team]:
     result = await session.execute(
         select(Team).join(TeamMember, TeamMember.team_id == Team.id).where(TeamMember.user_id == user_id)
+    )
+    return list(result.scalars().all())
+
+
+async def search_teams(session: AsyncSession, *, query: str, limit: int = 10) -> list[Team]:
+    """Case-insensitive search on slug and display_name. Returns up to `limit` results."""
+    pattern = f"%{query.lower()}%"
+    result = await session.execute(
+        select(Team)
+        .where(
+            sa.or_(
+                sa.func.lower(Team.slug).like(pattern),
+                sa.func.lower(Team.display_name).like(pattern),
+            )
+        )
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def get_first_team_for_user(session: AsyncSession, *, user_id: UUID) -> Team | None:
+    """Return the first team the user belongs to, or None."""
+    result = await session.execute(
+        select(Team)
+        .join(TeamMember, TeamMember.team_id == Team.id)
+        .where(TeamMember.user_id == user_id)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_teams_with_github_org(session: AsyncSession) -> list[Team]:
+    """Return all teams that have a github_org set."""
+    result = await session.execute(
+        select(Team).where(Team.github_org.isnot(None))
+    )
+    return list(result.scalars().all())
+
+
+async def create_join_request(
+    session: AsyncSession,
+    *,
+    team_id: UUID,
+    user_id: UUID,
+) -> "TeamJoinRequest":
+    """Create a join request, or return existing one (idempotent)."""
+    from app.models.team import TeamJoinRequest
+
+    result = await session.execute(
+        select(TeamJoinRequest).where(
+            (TeamJoinRequest.team_id == team_id) & (TeamJoinRequest.user_id == user_id)
+        )
+    )
+    existing = result.scalar_one_or_none()
+    if existing is not None:
+        return existing
+    req = TeamJoinRequest(team_id=team_id, user_id=user_id, status="pending")
+    session.add(req)
+    await session.flush()
+    return req
+
+
+async def upsert_team_api_key(
+    session: AsyncSession,
+    *,
+    team_id: UUID,
+    provider: str,
+    key_enc: str,
+) -> "TeamApiKey":
+    """Insert or replace an encrypted API key for (team_id, provider)."""
+    from app.models.team import TeamApiKey
+
+    result = await session.execute(
+        select(TeamApiKey).where(
+            (TeamApiKey.team_id == team_id) & (TeamApiKey.provider == provider)
+        )
+    )
+    existing = result.scalar_one_or_none()
+    if existing is not None:
+        existing.key_enc = key_enc
+        return existing
+    key = TeamApiKey(team_id=team_id, provider=provider, key_enc=key_enc)
+    session.add(key)
+    await session.flush()
+    return key
+
+
+async def list_team_api_keys(session: AsyncSession, *, team_id: UUID) -> list["TeamApiKey"]:
+    from app.models.team import TeamApiKey
+
+    result = await session.execute(
+        select(TeamApiKey).where(TeamApiKey.team_id == team_id)
     )
     return list(result.scalars().all())
