@@ -72,12 +72,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="xbrain memory-api", version="0.1.0", lifespan=lifespan)
 
 # CORS middleware — autorise les requêtes depuis les extensions Chrome
-# Nécessaire car l'extension Chrome appelle api.dejavu.cat directement depuis
-# le browser (cross-origin chrome-extension:// → https://api.dejavu.cat).
+# Nécessaire car l'extension Chrome appelle api.grooveos.app directement depuis
+# le browser (cross-origin chrome-extension:// → https://api.grooveos.app).
 # L'authentification Bearer token reste le vrai contrôle d'accès (T-05-04-03 accepted).
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"chrome-extension://.*",  # toutes les extensions Chrome (Starlette utilise regex, pas fnmatch)
+    allow_origin_regex=r"(chrome-extension://.*|https://chat\.grooveos\.app)",  # extensions Chrome + chat.grooveos.app (onboarding modal)
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "X-Team-Scope", "Content-Type", "Accept"],
