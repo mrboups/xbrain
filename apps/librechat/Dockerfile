@@ -18,7 +18,8 @@ FROM ghcr.io/danny-avila/librechat:v0.8.5
 COPY patches/socialLogin.js /app/api/strategies/socialLogin.js
 
 # Patch 2: xbrain token endpoint
-COPY patches/xbrain-routes.js /app/api/server/routes/xbrain-routes.js
+# Note: placed directly in /app/api/server/ so patch-server.js can require('./xbrain-routes')
+COPY patches/xbrain-routes.js /app/api/server/xbrain-routes.js
 
 # Patch 3: Register xbrain routes in server index
 COPY patches/patch-server.js /tmp/patch-server.js
