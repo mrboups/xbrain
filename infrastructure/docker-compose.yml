@@ -676,13 +676,15 @@ services:
       LLM_MODEL: ${GRAPHITI_LLM_MODEL:-claude-haiku-4-5-20251001}
       SEMAPHORE_LIMIT: ${GRAPHITI_SEMAPHORE_LIMIT:-3}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8300:8300"
     networks: [xbrain_net]
     mem_limit: 512m
     depends_on:
       neo4j: { condition: service_healthy }
       memory-api: { condition: service_healthy }
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8300/v1/healthz 2>/dev/null | grep -q ok"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8300/v1/healthz')"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -720,6 +722,37 @@ services:
       agent-runtime: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "test -f /tmp/drive-sync-alive && [ $(($(date +%s) - $(stat -c %Y /tmp/drive-sync-alive))) -lt 600 ] || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # === granola-sync (plan 07-08) — incremental Granola notes sync sidecar ===
+  granola-sync:
+    build:
+      context: ..
+      dockerfile: apps/granola-sync/Dockerfile
+    image: xbrain/granola-sync:phase7
+    container_name: xbrain-granola-sync
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      MEMORY_API_URL: http://memory-api:8000
+      BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-3-5-haiku-20241022}
+      FERNET_KEY: ${FERNET_KEY:-${OAUTH_CREDENTIALS_ENCRYPTION_KEY}}
+      GRANOLA_POLL_INTERVAL_SECONDS: ${GRANOLA_POLL_INTERVAL_SECONDS:-300}
+      GRANOLA_API_BASE: ${GRANOLA_API_BASE:-https://api.granola.ai}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks: [xbrain_net]
+    mem_limit: 192m
+    depends_on:
+      postgres: { condition: service_healthy }
+      memory-api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/granola-sync-alive && [ $$(($$(date +%s) - $$(stat -c %Y /tmp/granola-sync-alive))) -lt 600 ] || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3
