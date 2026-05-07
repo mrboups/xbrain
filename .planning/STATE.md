@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Plan 07-07 complete — tasks.html (3118750), nginx routes (907b046), verify-phase7.sh (5cbb4dc), .env.example (8df6823).
-last_updated: "2026-05-07T03:21:18Z"
-last_activity: 2026-05-07 -- Plan 07-07 complete (tasks dashboard + nginx + verify script + env config) — Phase 7 COMPLETE
+stopped_at: Plan 07-09 complete — task_intent_detector.py (3628d38), mongo_watcher hook (b866c99), docker-compose env vars (01c26f9).
+last_updated: "2026-05-07T03:27:23Z"
+last_activity: 2026-05-07 -- Plan 07-09 complete (D5 trigger 3 librechat-bridge task intent detection) — Phase 7 Wave 7 COMPLETE
 progress:
   total_phases: 7
   completed_phases: 7
   total_plans: 59
-  completed_plans: 52
-  percent: 88
+  completed_plans: 53
+  percent: 90
 ---
 
 # Project State
@@ -97,6 +97,9 @@ Recent decisions affecting current work:
 - 2026-05-07 (07-07): Nginx Phase 7 blocks placed in x.dejavu.cat server block (port 80) alongside existing /memapi/ routes
 - 2026-05-07 (07-07): location /v1/tasks (no trailing slash) — nginx prefix match captures both /v1/tasks and /v1/tasks/{id}
 - 2026-05-07 (07-07): verify-phase7.sh uses set -uo pipefail (not -e) — all 8 tests run independently
+- 2026-05-07 (07-09): Bridge sets metadata.contains_action=true rather than calling /v1/tasks directly — 07-03 rejects bridge JWT
+- 2026-05-07 (07-09): TASK_INTENT_DETECTION=false default — opt-in kill-switch for D5 trigger 3
+- 2026-05-07 (07-09): Lazy anthropic import in _get_client() — module loads without package installed
 
 ### Pending Todos
 
@@ -118,5 +121,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-07
-Stopped at: Plan 07-07 complete — tasks.html (3118750), nginx routes (907b046), verify-phase7.sh (5cbb4dc), .env.example (8df6823). Phase 7 COMPLETE.
+Stopped at: Plan 07-09 complete — task_intent_detector.py (3628d38), mongo_watcher hook + config + deps (b866c99), docker-compose librechat-bridge env vars (01c26f9). Phase 7 Wave 7 COMPLETE.
 Resume file: None
