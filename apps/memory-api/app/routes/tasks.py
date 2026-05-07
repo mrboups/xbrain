@@ -1,5 +1,6 @@
 """/v1/tasks — task tracking CRUD (paid tier only — D4, D6)."""
 
+import asyncio
 from datetime import date, datetime
 from typing import Any
 from uuid import UUID
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import write_audit
 from app.deps import _user_id_from_principal, get_current_principal, get_session, require_paid_tier
+from app.services.notifications import send_task_notification_email
 
 router = APIRouter()
 
@@ -172,6 +174,26 @@ async def create_task(
         },
     )
     await session.commit()
+
+    # Phase 7 — notify assignee (D6, fail-soft via asyncio.create_task)
+    if body.assigned_to:
+        contact = (
+            await session.execute(
+                sa.text("SELECT email FROM contacts WHERE id = :id AND team_scope = :ts"),
+                {"id": str(body.assigned_to), "ts": team_scope},
+            )
+        ).fetchone()
+        if contact and contact.email:
+            asyncio.create_task(
+                send_task_notification_email(
+                    recipient_email=contact.email,
+                    task_title=body.title,
+                    task_id=str(result["id"]),
+                    team_scope=team_scope,
+                    dashboard_url=None,
+                )
+            )
+
     return TaskOut(**dict(result))
 
 
@@ -187,9 +209,9 @@ async def update_task(
     if not fields:
         raise HTTPException(400, "no fields to update")
 
-    # Read current to compare status
+    # Read current to compare status and assigned_to
     current = (await session.execute(
-        sa.text("SELECT status FROM tasks WHERE id = :id AND team_scope = :ts"),
+        sa.text("SELECT status, assigned_to FROM tasks WHERE id = :id AND team_scope = :ts"),
         {"id": str(task_id), "ts": team_scope},
     )).fetchone()
     if current is None:
@@ -229,6 +251,27 @@ async def update_task(
         },
     )
     await session.commit()
+
+    # Phase 7 — notify new assignee if assigned_to changed (D6, fail-soft)
+    body_assigned = body.model_dump(exclude_unset=True).get("assigned_to")
+    if body_assigned is not None and str(body_assigned) != str(current.assigned_to or ""):
+        contact = (
+            await session.execute(
+                sa.text("SELECT email FROM contacts WHERE id = :id AND team_scope = :ts"),
+                {"id": str(body_assigned), "ts": team_scope},
+            )
+        ).fetchone()
+        if contact and contact.email:
+            asyncio.create_task(
+                send_task_notification_email(
+                    recipient_email=contact.email,
+                    task_title=result["title"],
+                    task_id=str(task_id),
+                    team_scope=team_scope,
+                    dashboard_url=None,
+                )
+            )
+
     return TaskOut(**dict(result))
 
 
