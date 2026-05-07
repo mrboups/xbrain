@@ -32,25 +32,20 @@
     if (name.toLowerCase() === 'authorization' && value.startsWith('Bearer ')) {
       _libreToken = value.slice(7);
       _libreTokenUrl = this._xbrainReqUrl || '?';
-      console.log('[xbrain] captured Bearer from', _libreTokenUrl, '→', _libreToken.slice(0, 20) + '…');
     }
     return _origSetHeader.apply(this, arguments);
   };
 
   async function getToken() {
     if (!_libreToken) return null;
-    console.error('[xbrain] getToken: captured from', _libreTokenUrl, '| token prefix:', _libreToken.slice(0, 20));
     try {
       const r = await fetch('/api/xbrain/token', {
         headers: { Authorization: 'Bearer ' + _libreToken },
       });
-      const bodyText = !r.ok ? await r.text().catch(() => '') : '';
-      console.error('[xbrain] /api/xbrain/token status:', r.status, '|', bodyText || '(no body)');
       if (!r.ok) return null;
       const { token } = await r.json();
       return token;
     } catch (e) {
-      console.log('[xbrain] getToken error:', e);
       return null;
     }
   }
@@ -77,50 +72,83 @@
   const CSS = `
     #xbrain-onboarding-overlay {
       position: fixed; inset: 0; z-index: 9999;
-      background: rgba(0,0,0,0.7);
+      background: #212121;
       display: flex; align-items: center; justify-content: center;
-      font-family: system-ui, sans-serif;
+      font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+      color: #ececec;
     }
     #xbrain-onboarding-modal {
-      background: #1e1e2e; color: #cdd6f4;
-      border-radius: 12px; padding: 32px; width: 480px; max-width: 95vw;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      background: #2a2b2e;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 48px 48px 40px;
+      width: min(540px, calc(100vw - 32px));
+      max-height: calc(100vh - 48px);
+      overflow-y: auto;
     }
-    #xbrain-onboarding-modal h2 { margin: 0 0 8px; font-size: 20px; color: #89b4fa; }
-    #xbrain-onboarding-modal p  { margin: 0 0 20px; font-size: 14px; color: #a6adc8; }
+    #xbrain-onboarding-modal h2 {
+      margin: 0 0 10px; font-size: 22px; font-weight: 600;
+      color: #ececec; letter-spacing: -0.01em;
+    }
+    .xb-desc {
+      margin: 0 0 24px; font-size: 14px;
+      color: rgba(236,236,236,0.55); line-height: 1.6;
+    }
     .xb-input {
-      width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #45475a;
-      background: #313244; color: #cdd6f4; font-size: 14px; box-sizing: border-box;
-      margin-bottom: 12px;
+      width: 100%; padding: 11px 14px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: #353537; color: #ececec; font-size: 14px;
+      box-sizing: border-box; margin-bottom: 12px;
+      transition: border-color 0.15s;
     }
-    .xb-input:focus { outline: none; border-color: #89b4fa; }
+    .xb-input::placeholder { color: rgba(236,236,236,0.3); }
+    .xb-input:focus { outline: none; border-color: #60a5fa; background: #3a3b3e; }
     .xb-select {
-      width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #45475a;
-      background: #313244; color: #cdd6f4; font-size: 14px; box-sizing: border-box;
-      margin-bottom: 12px;
+      width: 100%; padding: 11px 14px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: #353537; color: #ececec; font-size: 14px;
+      box-sizing: border-box; margin-bottom: 12px;
     }
     .xb-btn {
-      padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px;
-      cursor: pointer; font-weight: 600;
+      padding: 10px 22px; border-radius: 8px; border: none;
+      font-size: 14px; cursor: pointer; font-weight: 500;
+      transition: opacity 0.15s, background 0.15s;
     }
-    .xb-btn-primary { background: #89b4fa; color: #1e1e2e; }
+    .xb-btn-primary { background: #3b82f6; color: #fff; }
+    .xb-btn-primary:hover { background: #2563eb; }
     .xb-btn-secondary {
-      background: transparent; color: #a6adc8; border: 1px solid #45475a; margin-left: 8px;
+      background: rgba(255,255,255,0.06); color: rgba(236,236,236,0.7);
+      border: 1px solid rgba(255,255,255,0.12); margin-left: 8px;
     }
-    .xb-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .xb-btn-secondary:hover { background: rgba(255,255,255,0.1); }
+    .xb-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .xb-key-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
     .xb-key-row select, .xb-key-row input { flex: 1; }
-    .xb-key-row button { background: none; border: none; color: #f38ba8; cursor: pointer; font-size: 16px; }
-    .xb-error { color: #f38ba8; font-size: 13px; margin-bottom: 12px; }
-    .xb-team-btn {
-      display: block; width: 100%; text-align: left; padding: 12px 16px; margin-bottom: 8px;
-      border-radius: 8px; border: 1px solid #45475a; background: #313244;
-      color: #cdd6f4; cursor: pointer; font-size: 14px;
+    .xb-key-row button {
+      background: none; border: none; color: rgba(248,113,113,0.8);
+      cursor: pointer; font-size: 16px; padding: 4px 8px;
     }
-    .xb-team-btn:hover { border-color: #89b4fa; }
-    .xb-step-indicator { font-size: 12px; color: #6c7086; margin-bottom: 20px; }
-    .xb-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #45475a;
-      border-top-color: #89b4fa; border-radius: 50%; animation: xb-spin 0.7s linear infinite; margin-right: 8px; }
+    .xb-error { color: #f87171; font-size: 13px; margin-bottom: 12px; }
+    .xb-team-btn {
+      display: block; width: 100%; text-align: left; padding: 13px 16px;
+      margin-bottom: 8px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1); background: #353537;
+      color: #ececec; cursor: pointer; font-size: 14px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .xb-team-btn:hover { border-color: #60a5fa; background: #3a3b3e; }
+    .xb-step-indicator {
+      font-size: 12px; color: rgba(236,236,236,0.4);
+      margin-bottom: 24px; font-weight: 500; letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .xb-spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.15);
+      border-top-color: #60a5fa; border-radius: 50%;
+      animation: xb-spin 0.7s linear infinite; margin-right: 8px;
+      vertical-align: middle;
+    }
     @keyframes xb-spin { to { transform: rotate(360deg); } }
   `;
 
@@ -158,12 +186,12 @@
   // ── Render steps ─────────────────────────────────────────────────────────
 
   function renderStep1(body) {
-    const indicator = el('p', { class: 'xb-step-indicator' }, 'Étape 1 sur 4');
-    const title = el('h2', {}, 'Rejoindre ou créer une équipe');
-    const desc = el('p', {}, 'xbrain organise la mémoire par équipe. Rejoignez la vôtre pour commencer.');
+    const indicator = el('p', { class: 'xb-step-indicator' }, 'Step 1 of 4');
+    const title = el('h2', {}, 'Join or create a team');
+    const desc = el('p', { class: 'xb-desc' }, 'xbrain organizes memory by team. Join yours to get started.');
 
     const nameInput = el('input', {
-      class: 'xb-input', type: 'text', placeholder: 'Nom ou slug de l\'équipe...',
+      class: 'xb-input', type: 'text', placeholder: 'Team name or slug...',
     });
     const errorDiv = el('p', { class: 'xb-error', style: 'display:none' });
     const resultDiv = el('div', {});
@@ -177,30 +205,31 @@
     };
 
     const hasGithub = false; // TODO: check if user has github linked via /v1/me
-    const githubHint = hasGithub
-      ? el('p', { style: 'font-size:13px;color:#a6adc8;margin-bottom:12px' },
-          'Vos équipes GitHub sont listées ci-dessous.')
-      : el('p', { style: 'font-size:13px;color:#a6adc8;margin-bottom:12px' },
-          'Tapez le nom de votre équipe, ou créez-en une nouvelle.');
+    const hint = hasGithub
+      ? el('p', { class: 'xb-desc', style: 'margin-bottom:12px' },
+          'Your GitHub organizations are listed below.')
+      : el('p', { class: 'xb-desc', style: 'margin-bottom:12px' },
+          'Type your team name to search, or create a new one.');
 
     const createBtn = el('button', {
       class: 'xb-btn xb-btn-secondary',
+      style: 'margin-left:0',
       onclick: () => { selectedTeam = null; goStep(2); },
-    }, '+ Créer une nouvelle équipe');
+    }, '+ Create a new team');
 
-    setHtml(body, indicator, title, desc, githubHint, errorDiv, nameInput, resultDiv, createBtn);
+    setHtml(body, indicator, title, desc, hint, errorDiv, nameInput, resultDiv, createBtn);
   }
 
   async function doSearch(q, resultDiv, errorDiv) {
-    resultDiv.innerHTML = '<span class="xb-spinner"></span> Recherche...';
+    resultDiv.innerHTML = '<span class="xb-spinner"></span> Searching...';
     try {
       const r = await apiCall('GET', `/v1/teams/search?name=${encodeURIComponent(q)}`, null, token);
       if (!r.ok) throw new Error('search failed');
       searchResults = await r.json();
       resultDiv.innerHTML = '';
       if (searchResults.length === 0) {
-        resultDiv.appendChild(el('p', { style: 'color:#a6adc8;font-size:13px' },
-          'Aucune équipe trouvée. Vous pouvez en créer une.'));
+        resultDiv.appendChild(el('p', { class: 'xb-desc', style: 'margin-bottom:0' },
+          'No team found. You can create one below.'));
         return;
       }
       searchResults.forEach(t => {
@@ -209,33 +238,33 @@
           onclick: () => { selectedTeam = t; goStep(2); },
         },
           el('strong', {}, t.display_name),
-          document.createTextNode(` — ${t.visibility === 'open' ? '🔓 Ouverte' : '🔒 Fermée'}`),
+          document.createTextNode(` — ${t.visibility === 'open' ? '🔓 Open' : '🔒 Private'}`),
         );
         resultDiv.appendChild(btn);
       });
     } catch {
-      errorDiv.textContent = 'Erreur lors de la recherche. Réessayez.';
+      errorDiv.textContent = 'Search failed. Please try again.';
       errorDiv.style.display = 'block';
       resultDiv.innerHTML = '';
     }
   }
 
   function renderStep2(body) {
-    const indicator = el('p', { class: 'xb-step-indicator' }, 'Étape 2 sur 4');
+    const indicator = el('p', { class: 'xb-step-indicator' }, 'Step 2 of 4');
 
     if (selectedTeam) {
       // Join flow
-      const title = el('h2', {}, `Rejoindre "${selectedTeam.display_name}" ?`);
-      const desc = el('p', {},
+      const title = el('h2', {}, `Join "${selectedTeam.display_name}"?`);
+      const desc = el('p', { class: 'xb-desc' },
         selectedTeam.visibility === 'open'
-          ? 'Cette équipe est ouverte. Vous pouvez rejoindre directement.'
-          : 'Cette équipe est privée. Votre demande sera examinée par un admin.',
+          ? 'This team is open. You can join directly.'
+          : 'This team is private. Your request will be reviewed by an admin.',
       );
       const errorDiv = el('p', { class: 'xb-error', style: 'display:none' });
       const joinBtn = el('button', { class: 'xb-btn xb-btn-primary' },
-        selectedTeam.visibility === 'open' ? 'Rejoindre' : 'Demander l\'accès',
+        selectedTeam.visibility === 'open' ? 'Join team' : 'Request access',
       );
-      const backBtn = el('button', { class: 'xb-btn xb-btn-secondary', onclick: () => goStep(1) }, '← Retour');
+      const backBtn = el('button', { class: 'xb-btn xb-btn-secondary', onclick: () => goStep(1) }, '← Back');
       joinBtn.onclick = async () => {
         joinBtn.disabled = true;
         errorDiv.style.display = 'none';
@@ -247,11 +276,10 @@
           } else {
             const r = await apiCall('POST', `/v1/teams/${selectedTeam.id}/join-request`, null, token);
             if (!r.ok) throw new Error('request failed');
-            // Show pending state — jump to step 4 with special message
             showPendingConfirmation(selectedTeam.display_name);
           }
         } catch {
-          errorDiv.textContent = 'Erreur — réessayez.';
+          errorDiv.textContent = 'Something went wrong. Please try again.';
           errorDiv.style.display = 'block';
           joinBtn.disabled = false;
         }
@@ -259,33 +287,33 @@
       setHtml(body, indicator, title, desc, errorDiv, joinBtn, backBtn);
     } else {
       // Create flow
-      const title = el('h2', {}, 'Créer votre équipe');
-      const desc = el('p', {}, 'Vous deviendrez l\'administrateur fondateur de cette équipe.');
+      const title = el('h2', {}, 'Create your team');
+      const desc = el('p', { class: 'xb-desc' }, 'You will become the founding admin of this team.');
       const nameInput = el('input', {
-        class: 'xb-input', type: 'text', placeholder: 'Nom de l\'équipe (ex: Acme)',
+        class: 'xb-input', type: 'text', placeholder: 'Team name (e.g. Acme)',
       });
       const slugInput = el('input', {
-        class: 'xb-input', type: 'text', placeholder: 'Identifiant (ex: acme)',
+        class: 'xb-input', type: 'text', placeholder: 'Team slug (e.g. acme)',
       });
       nameInput.oninput = () => {
         slugInput.value = nameInput.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
       };
       const visSelect = el('select', { class: 'xb-select' },
-        el('option', { value: 'closed' }, '🔒 Fermée (approbation requise)'),
-        el('option', { value: 'open' }, '🔓 Ouverte (rejoindre librement)'),
+        el('option', { value: 'closed' }, '🔒 Private (requires approval)'),
+        el('option', { value: 'open' }, '🔓 Open (anyone can join)'),
       );
       const orgInput = el('input', {
-        class: 'xb-input', type: 'text', placeholder: 'Organisation GitHub (optionnel, ex: your-github-org)',
+        class: 'xb-input', type: 'text', placeholder: 'GitHub organization (optional, e.g. your-github-org)',
       });
       const errorDiv = el('p', { class: 'xb-error', style: 'display:none' });
-      const createBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Créer l\'équipe');
-      const backBtn = el('button', { class: 'xb-btn xb-btn-secondary', onclick: () => goStep(1) }, '← Retour');
+      const createBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Create team');
+      const backBtn = el('button', { class: 'xb-btn xb-btn-secondary', onclick: () => goStep(1) }, '← Back');
 
       createBtn.onclick = async () => {
         const slug = slugInput.value.trim();
         const display = nameInput.value.trim();
         if (!slug || !display) {
-          errorDiv.textContent = 'Nom et identifiant requis.';
+          errorDiv.textContent = 'Name and slug are required.';
           errorDiv.style.display = 'block';
           return;
         }
@@ -305,7 +333,7 @@
           selectedTeam = await r.json();
           goStep(3);
         } catch (e) {
-          errorDiv.textContent = e.message || 'Erreur — réessayez.';
+          errorDiv.textContent = e.message || 'Something went wrong. Please try again.';
           errorDiv.style.display = 'block';
           createBtn.disabled = false;
         }
@@ -316,9 +344,9 @@
   }
 
   function renderStep3(body) {
-    const indicator = el('p', { class: 'xb-step-indicator' }, 'Étape 3 sur 4');
-    const title = el('h2', {}, 'Clés API de l\'équipe (optionnel)');
-    const desc = el('p', {}, 'Définissez des clés partagées pour les membres de l\'équipe. Vous pourrez en ajouter plus tard.');
+    const indicator = el('p', { class: 'xb-step-indicator' }, 'Step 3 of 4');
+    const title = el('h2', {}, 'Team API keys (optional)');
+    const desc = el('p', { class: 'xb-desc' }, 'Set shared API keys for your team members. You can add more later.');
 
     const keysList = el('div', {});
 
@@ -344,12 +372,12 @@
     }
     renderKeys();
 
-    const addBtn = el('button', { class: 'xb-btn xb-btn-secondary', style: 'margin-bottom:16px' }, '+ Ajouter une clé');
+    const addBtn = el('button', { class: 'xb-btn xb-btn-secondary', style: 'margin-left:0;margin-bottom:16px' }, '+ Add a key');
     addBtn.onclick = () => { apiKeys.push({ provider: 'openai', key: '' }); renderKeys(); };
 
     const errorDiv = el('p', { class: 'xb-error', style: 'display:none' });
-    const saveBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Enregistrer et continuer');
-    const skipBtn = el('button', { class: 'xb-btn xb-btn-secondary', onclick: () => goStep(4) }, 'Passer →');
+    const saveBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Save and continue');
+    const skipBtn = el('button', { class: 'xb-btn xb-btn-secondary', onclick: () => goStep(4) }, 'Skip →');
 
     saveBtn.onclick = async () => {
       const filled = apiKeys.filter(k => k.key.trim());
@@ -363,7 +391,7 @@
         if (!r.ok) throw new Error('save failed');
         goStep(4);
       } catch {
-        errorDiv.textContent = 'Erreur — réessayez ou passez cette étape.';
+        errorDiv.textContent = 'Failed to save. Try again or skip this step.';
         errorDiv.style.display = 'block';
         saveBtn.disabled = false;
       }
@@ -373,9 +401,9 @@
   }
 
   function renderStep4(body) {
-    const title = el('h2', {}, `🎉 Bienvenue dans "${selectedTeam?.display_name || 'votre équipe'}" !`);
-    const desc = el('p', {}, 'Votre équipe est configurée. Vous pouvez maintenant utiliser xbrain avec vos collègues.');
-    const startBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Commencer →');
+    const title = el('h2', {}, `Welcome to "${selectedTeam?.display_name || 'your team'}"! 🎉`);
+    const desc = el('p', { class: 'xb-desc' }, 'Your team is set up. You can now use xbrain with your teammates.');
+    const startBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Get started →');
     startBtn.onclick = () => {
       sessionStorage.setItem(STORAGE_KEY, '1');
       document.getElementById('xbrain-onboarding-overlay').remove();
@@ -386,9 +414,9 @@
   function showPendingConfirmation(teamName) {
     const modal = document.getElementById('xbrain-onboarding-modal');
     const body = modal.querySelector('.xb-body');
-    const title = el('h2', {}, 'Demande envoyée');
-    const desc = el('p', {}, `Votre demande pour rejoindre "${teamName}" a été soumise. Un administrateur l'examinera prochainement.`);
-    const okBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Compris');
+    const title = el('h2', {}, 'Request sent');
+    const desc = el('p', { class: 'xb-desc' }, `Your request to join "${teamName}" has been submitted. An admin will review it shortly.`);
+    const okBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Got it');
     okBtn.onclick = () => {
       sessionStorage.setItem(STORAGE_KEY, '1');
       document.getElementById('xbrain-onboarding-overlay').remove();
