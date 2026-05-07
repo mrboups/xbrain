@@ -388,6 +388,57 @@
 
       </div>
 
+      <!-- Graphiti callout -->
+      <div class="rounded-2xl border border-ice-2 bg-ice p-6 md:p-8 mb-16" style="background:linear-gradient(135deg,#F0F7FF,#EFF6FF);">
+        <div class="grid md:grid-cols-2 gap-8 items-center">
+          <div>
+            <div class="flex items-center gap-2 mb-3">
+              <div class="px-2.5 py-1 rounded-lg text-xs font-bold text-white" style="background:linear-gradient(135deg,#1D4ED8,#0EA5E9);">Graphiti</div>
+              <span class="text-xs font-medium text-slate">Temporal knowledge graph · under the hood</span>
+            </div>
+            <h3 class="text-xl font-black text-navy mb-2">The brain that renews itself.</h3>
+            <p class="text-sm text-slate leading-relaxed">
+              Most memory systems just accumulate — they add new facts on top of old ones until context becomes noise. Cortex OS uses Graphiti to build a <strong class="text-navy">temporal knowledge graph</strong>: when new information arrives, it automatically updates entity relationships, deprecates what's no longer true, and resolves contradictions. The brain stays current, not just larger.
+            </p>
+          </div>
+          <div class="grid grid-cols-1 gap-3">
+            <div class="flex gap-3 items-start bg-white rounded-xl p-4 border border-border shadow-sm">
+              <div class="w-8 h-8 rounded-lg bg-ice border border-ice-2 flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+              <div>
+                <div class="text-sm font-semibold text-navy mb-0.5">Time-aware facts</div>
+                <p class="text-xs text-slate leading-relaxed">When <code class="font-mono bg-ice px-1 rounded">auth-v2</code> ships, Graphiti marks <code class="font-mono bg-ice px-1 rounded">auth-v1</code> as superseded. Agents retrieve what's true <em>now</em>, not what was true six months ago.</p>
+              </div>
+            </div>
+            <div class="flex gap-3 items-start bg-white rounded-xl p-4 border border-border shadow-sm">
+              <div class="w-8 h-8 rounded-lg bg-ice border border-ice-2 flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+              </div>
+              <div>
+                <div class="text-sm font-semibold text-navy mb-0.5">Automatic contradiction resolution</div>
+                <p class="text-xs text-slate leading-relaxed">A decision changes. Graphiti reconciles the conflict across the graph — no duplicate truths, no stale context quietly misleading your agents.</p>
+              </div>
+            </div>
+            <div class="flex gap-3 items-start bg-white rounded-xl p-4 border border-border shadow-sm">
+              <div class="w-8 h-8 rounded-lg bg-ice border border-ice-2 flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                </svg>
+              </div>
+              <div>
+                <div class="text-sm font-semibold text-navy mb-0.5">Entity &amp; relationship tracking</div>
+                <p class="text-xs text-slate leading-relaxed">Every concept your team produces — features, decisions, people, services — becomes a node in a live graph your agents can traverse and reason over.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 3 steps -->
       <div class="grid md:grid-cols-3 gap-8">
         <div class="flex gap-4">
