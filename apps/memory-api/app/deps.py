@@ -2,7 +2,9 @@
 
 from collections.abc import AsyncGenerator
 from typing import Any
+from uuid import UUID
 
+import sqlalchemy as sa
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -134,6 +136,35 @@ async def get_team_scope(
     if membership is None:
         raise HTTPException(403, f"Not a member of team {x_team_scope}")
     return x_team_scope
+
+
+async def require_paid_tier(
+    session: AsyncSession = Depends(get_session),
+    team_scope: str = Depends(get_team_scope),
+) -> str:
+    """Raises 403 if the team's plan is 'starter'. Used for /v1/crm/* and /v1/tasks/* (D2).
+
+    The dependency chain (require_paid_tier → get_team_scope → get_current_principal)
+    means membership and authentication are already validated. This adds the plan check.
+    """
+    row = (await session.execute(
+        sa.text("SELECT plan FROM teams WHERE slug = :slug"),
+        {"slug": team_scope},
+    )).fetchone()
+    if row is None or row.plan == "starter":
+        raise HTTPException(
+            status_code=403,
+            detail="CRM and task tracking require a Team or Enterprise plan",
+        )
+    return team_scope
+
+
+def _user_id_from_principal(principal: dict[str, Any]) -> UUID | None:
+    """Extract the user.id from a resolved principal, or None for bridge JWTs."""
+    user = principal.get("user")
+    if user is None:
+        return None
+    return user.id
 
 
 # === Memory provider singleton (lazy-loaded based on env MEMORY_BACKEND) ===
