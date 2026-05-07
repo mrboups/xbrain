@@ -96,7 +96,7 @@ services:
       # Phase 3 plan 03-10: Drive OAuth config
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       OAUTH_CREDENTIALS_ENCRYPTION_KEY: ${OAUTH_CREDENTIALS_ENCRYPTION_KEY:-}
-      MEMORY_API_EXTERNAL_URL: ${MEMORY_API_EXTERNAL_URL:-https://x.dejavu.cat}
+      MEMORY_API_EXTERNAL_URL: ${MEMORY_API_EXTERNAL_URL:-https://chat.grooveos.app}
       # Phase 5 plan 05-01: Graphiti enrichment (fail-soft if not set)
       GRAPHITI_SERVICE_URL: ${GRAPHITI_SERVICE_URL:-http://graphiti-service:8300}
       # Phase 5 plan 05-02: GitHub OAuth membership verification
@@ -252,7 +252,10 @@ services:
       retries: 5
 
   librechat:
-    image: ghcr.io/danny-avila/librechat:v0.8.5
+    build:
+      context: ../apps/librechat
+      dockerfile: Dockerfile
+    image: xbrain/librechat:phase8
     container_name: xbrain-librechat
     restart: unless-stopped
     environment:
@@ -316,7 +319,7 @@ services:
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
       OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL}
       OPENAI_API_KEY: ${PIPELINE_API_KEY}
-      WEBUI_URL: https://ai.dejavu.cat
+      WEBUI_URL: https://adm.grooveos.app
     volumes:
       - openwebui_data:/app/backend/data
     networks: [xbrain_net]
@@ -458,7 +461,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: ${LANGFUSE_POSTGRES_URL}
-      NEXTAUTH_URL: ${LANGFUSE_HOST:-https://lang.dejavu.cat}
+      NEXTAUTH_URL: ${LANGFUSE_HOST:-https://lang.grooveos.app}
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET}
       SALT: ${LANGFUSE_SALT}
       ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
