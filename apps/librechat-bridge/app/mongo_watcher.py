@@ -17,6 +17,7 @@ from app.config import settings
 from app.conv_enricher import enrich_new_conversation
 from app.memory_api_client import MemoryApiClient
 from app.state_store import load_resume_token, save_resume_token
+from app.task_intent_detector import detect_task_intent
 
 log = structlog.get_logger()
 
@@ -98,6 +99,30 @@ async def messages_watch_loop(db, mem: MemoryApiClient) -> None:
                 doc = change["fullDocument"]
                 payload = await map_message(doc, db)
                 if payload:
+                    # Phase 7 plan 07-09 — Task intent detection (D5 trigger 3)
+                    # Only consider user-authored messages (assistant outputs go through
+                    # agent path / 07-06 trigger 2). Fail-soft: None return = no-op.
+                    if payload.get("role") == "user" and payload.get("content"):
+                        intent = await detect_task_intent(payload["content"])
+                        if intent and intent.get("has_task"):
+                            # Flag the memory_item so memory-api's
+                            # _maybe_create_task_from_action (07-06) creates the task.
+                            # We don't call /v1/tasks directly — bridge JWT is rejected
+                            # there (07-03 requires user identity, not bridge principal).
+                            payload.setdefault("metadata", {})
+                            payload["metadata"]["contains_action"] = True
+                            if intent.get("title"):
+                                payload["metadata"]["task_intent_title"] = intent["title"]
+                            if intent.get("assignee_email"):
+                                payload["metadata"]["task_intent_assignee_email"] = intent[
+                                    "assignee_email"
+                                ]
+                            log.info(
+                                "task_intent.detected",
+                                sub=payload.get("sub"),
+                                conv=payload.get("conversation_id"),
+                                title=intent.get("title"),
+                            )
                     team_scope = await resolve_team_scope(mem, payload["sub"])
                     await mem.post_message(team_scope=team_scope, **payload)
                     log.info(
