@@ -19,6 +19,7 @@ from app.routes import (
     conversations,
     crm,
     drive_webhook,
+    granola_integration,
     graph,
     health,
     me,
@@ -98,3 +99,4 @@ app.include_router(admin_projects.router, prefix="/v1/admin", tags=["admin"])
 app.include_router(crm.router, prefix="/v1", tags=["crm"])
 app.include_router(tasks.router, prefix="/v1", tags=["tasks"])
 app.include_router(drive_webhook.router, prefix="/v1", tags=["drive-webhook"])
+app.include_router(granola_integration.router, prefix="/v1", tags=["granola"])
