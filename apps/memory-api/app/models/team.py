@@ -12,6 +12,9 @@ from app.db.base import Base
 
 class Team(Base):
     __tablename__ = "teams"
+    __table_args__ = (
+        CheckConstraint("visibility IN ('open', 'closed')", name="teams_visibility_check"),
+    )
 
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     slug: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
@@ -22,6 +25,10 @@ class Team(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+    def __init__(self, **kwargs: object) -> None:
+        kwargs.setdefault("visibility", "closed")
+        super().__init__(**kwargs)
 
 
 class TeamMember(Base):
@@ -76,3 +83,7 @@ class TeamJoinRequest(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+    def __init__(self, **kwargs: object) -> None:
+        kwargs.setdefault("status", "pending")
+        super().__init__(**kwargs)
