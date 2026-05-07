@@ -5,7 +5,7 @@ milestone_name: milestone
 status: executing
 stopped_at: Plan 06-01 complet — firebase.json+.firebaserc (c8bae82), style.css (02d17d0), docs.css (dac54da).
 last_updated: "2026-05-07T03:08:00Z"
-last_activity: 2026-05-07 -- Plan 07-04 complete (granola_integration router + config + main.py)
+last_activity: 2026-05-07 -- Plan 07-08 complete (granola_poller.py + docker-compose granola-sync service)
 progress:
   total_phases: 7
   completed_phases: 6
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 Phase: 7 (CRM + Granola + Task Intelligence) — EXECUTING
 Plan: 5 of 9
 Status: Executing Phase 7
-Last activity: 2026-05-07 -- Plan 07-04 complete (granola_integration router: admin CRUD + ingest endpoint)
+Last activity: 2026-05-07 -- Plan 07-08 complete (granola polling loop + docker-compose service registration)
 
 Progress: [██████████] 100% — ALL PHASES COMPLETE
 
@@ -90,6 +90,9 @@ Recent decisions affecting current work:
 - 2026-05-07 (07-04): FERNET_KEY uses OAUTH_CREDENTIALS_ENCRYPTION_KEY as fallback — single key source for all Fernet encryption
 - 2026-05-07 (07-04): created_by = NULL for system-generated tasks (migration 0010 nullable) — distinguishes auto-generation from user creates
 - 2026-05-07 (07-04): _is_admin moved from admin_drive.py to deps.py — DRY shared helper, imported by both admin_drive.py and granola_integration.py
+- 2026-05-07 (07-08): UPDATE last_polled_at BEFORE _fetch_notes — at-most-once delivery + note-level dedup in 07-04 = exactly-once-effective
+- 2026-05-07 (07-08): FERNET_KEY fallback to OAUTH_CREDENTIALS_ENCRYPTION_KEY in granola-sync compose env — single Fernet key source
+- 2026-05-07 (07-08): 401/403 Granola = log.warning only (plan insuffisant fail-soft), not log.error
 
 ### Pending Todos
 
