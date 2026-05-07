@@ -42,6 +42,20 @@ class Settings(BaseSettings):
     # Fine-grained PAT with scope read:org — required to see private org members (pitfall Q3)
     GITHUB_API_PAT: str = ""
 
+    # Phase 7 — CRM + Granola + Tasks
+    ANTHROPIC_API_KEY: str = ""
+    # FERNET_KEY: réutilise la même clé que OAUTH_CREDENTIALS_ENCRYPTION_KEY
+    # mais explicitement nommée pour l'usage Granola. Si FERNET_KEY vide,
+    # fall-back sur OAUTH_CREDENTIALS_ENCRYPTION_KEY.
+    FERNET_KEY: str = ""
+    # SMTP for task notifications (fail-soft when SMTP_HOST not set)
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = "noreply@dejavu.cat"
+    SMTP_TLS: bool = True
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}
