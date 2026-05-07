@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Plan 06-01 complet — firebase.json+.firebaserc (c8bae82), style.css (02d17d0), docs.css (dac54da).
-last_updated: "2026-05-07T03:08:00Z"
-last_activity: 2026-05-07 -- Plan 07-08 complete (granola_poller.py + docker-compose granola-sync service)
+stopped_at: Plan 07-07 complete — tasks.html (3118750), nginx routes (907b046), verify-phase7.sh (5cbb4dc), .env.example (8df6823).
+last_updated: "2026-05-07T03:21:18Z"
+last_activity: 2026-05-07 -- Plan 07-07 complete (tasks dashboard + nginx + verify script + env config) — Phase 7 COMPLETE
 progress:
   total_phases: 7
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 59
-  completed_plans: 51
-  percent: 86
+  completed_plans: 52
+  percent: 88
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 
 ## Current Position
 
-Phase: 7 (CRM + Granola + Task Intelligence) — EXECUTING
-Plan: 5 of 9
-Status: Executing Phase 7
-Last activity: 2026-05-07 -- Plan 07-08 complete (granola polling loop + docker-compose service registration)
+Phase: 7 (CRM + Granola + Task Intelligence) — COMPLETE
+Plan: 7 of 7 (wave 6 — final plan)
+Status: Phase 7 complete — all phases 1-7 done
+Last activity: 2026-05-07 -- Plan 07-07 complete (tasks dashboard + nginx routes + verify script + env config)
 
 Progress: [██████████] 100% — ALL PHASES COMPLETE
 
@@ -93,6 +93,10 @@ Recent decisions affecting current work:
 - 2026-05-07 (07-08): UPDATE last_polled_at BEFORE _fetch_notes — at-most-once delivery + note-level dedup in 07-04 = exactly-once-effective
 - 2026-05-07 (07-08): FERNET_KEY fallback to OAUTH_CREDENTIALS_ENCRYPTION_KEY in granola-sync compose env — single Fernet key source
 - 2026-05-07 (07-08): 401/403 Granola = log.warning only (plan insuffisant fail-soft), not log.error
+- 2026-05-07 (07-07): ANTHROPIC_API_KEY not duplicated in .env.example — comment reference to existing var at line 20
+- 2026-05-07 (07-07): Nginx Phase 7 blocks placed in x.dejavu.cat server block (port 80) alongside existing /memapi/ routes
+- 2026-05-07 (07-07): location /v1/tasks (no trailing slash) — nginx prefix match captures both /v1/tasks and /v1/tasks/{id}
+- 2026-05-07 (07-07): verify-phase7.sh uses set -uo pipefail (not -e) — all 8 tests run independently
 
 ### Pending Todos
 
@@ -114,5 +118,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-07
-Stopped at: Plan 07-04 complete — granola_integration.py (b7db467), config.py (bd89c1e), main.py (666d76d).
+Stopped at: Plan 07-07 complete — tasks.html (3118750), nginx routes (907b046), verify-phase7.sh (5cbb4dc), .env.example (8df6823). Phase 7 COMPLETE.
 Resume file: None
