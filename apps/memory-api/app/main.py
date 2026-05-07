@@ -17,6 +17,7 @@ from app.routes import (
     admin_projects,
     audit,
     conversations,
+    crm,
     drive_webhook,
     graph,
     health,
@@ -74,9 +75,7 @@ app = FastAPI(title="xbrain memory-api", version="0.1.0", lifespan=lifespan)
 # L'authentification Bearer token reste le vrai contrôle d'accès (T-05-04-03 accepted).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "chrome-extension://*",  # toutes les extensions Chrome (dev + prod)
-    ],
+    allow_origin_regex=r"chrome-extension://.*",  # toutes les extensions Chrome (Starlette utilise regex, pas fnmatch)
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "X-Team-Scope", "Content-Type", "Accept"],
@@ -95,4 +94,5 @@ app.include_router(graph.router, prefix="/v1", tags=["graph"])
 app.include_router(system_prompt.router, prefix="/v1", tags=["system-prompt"])
 app.include_router(admin_drive.router, prefix="/v1", tags=["admin-drive"])
 app.include_router(admin_projects.router, prefix="/v1/admin", tags=["admin"])
+app.include_router(crm.router, prefix="/v1", tags=["crm"])
 app.include_router(drive_webhook.router, prefix="/v1", tags=["drive-webhook"])
