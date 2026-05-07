@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import re
 from typing import Any
 from uuid import UUID
 
@@ -14,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from xbrain_memory import MemoryItem, MemoryProvider, SearchHit, TruthLevel
 
 from app.audit import write_audit
+from app.config import settings
+from app.db.session import async_session_factory
 from app.deps import (
     get_current_principal,
     get_memory_provider,
@@ -48,6 +51,215 @@ async def _enrich_with_graphiti(content: str, group_id: str) -> None:
             r.raise_for_status()
     except Exception as exc:
         log.warning("graphiti.enrich_skipped", error=str(exc), group_id=group_id)
+
+
+# ── Phase 7 — auto contact extraction (D1) ──────────────────────────────
+
+from anthropic import AsyncAnthropic  # noqa: E402 — placed here after stdlib imports
+
+_anthropic_client: AsyncAnthropic | None = None
+_ACTION_RE = re.compile(
+    r"\b(TODO|à faire|action required|action requise|to do)\b", re.IGNORECASE
+)
+
+
+def _get_anthropic() -> AsyncAnthropic | None:
+    global _anthropic_client
+    if _anthropic_client is not None:
+        return _anthropic_client
+    if not settings.ANTHROPIC_API_KEY:
+        return None
+    _anthropic_client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    return _anthropic_client
+
+
+async def _extract_crm_contacts(content: str, team_scope: str, source: str) -> None:
+    """Extract person mentions from content, upsert into contacts. Fail-soft."""
+    try:
+        if not content or len(content) < 50:
+            return
+        client = _get_anthropic()
+        if client is None:
+            log.warning("crm.extract.no_anthropic_key", team_scope=team_scope)
+            return
+
+        msg = await client.messages.create(
+            model="claude-3-5-haiku-20241022",
+            max_tokens=1024,
+            system=(
+                "Extract distinct person mentions from the text. "
+                "Return STRICT JSON array (no prose, no markdown fence): "
+                '[{"name": "...", "email": "...-or-null"}]. '
+                "If no people, return []."
+            ),
+            messages=[{"role": "user", "content": content[:10000]}],
+        )
+        text = msg.content[0].text.strip() if msg.content else "[]"
+        if text.startswith("```"):
+            text = text.split("```", 2)[1].lstrip("json").strip()
+        import json as _json
+
+        people = _json.loads(text)
+        if not isinstance(people, list):
+            return
+
+        import sqlalchemy as sa
+
+        # Use a fresh DB connection (the request session is gone)
+        async with async_session_factory() as session:
+            for person in people[:20]:  # cap to 20 per item
+                if not isinstance(person, dict):
+                    continue
+                name = person.get("name")
+                email = person.get("email")
+                if not (name or email):
+                    continue
+                contact_source = "agent" if source.startswith("agent") else "chat"
+                if email:
+                    await session.execute(
+                        sa.text("""
+                            INSERT INTO contacts (
+                                team_scope, contact_type, full_name, email, source,
+                                truth_level, confidence, interaction_count, last_interaction_at
+                            ) VALUES (
+                                :ts, 'direct', :fn, :em, :sr, 'EPHEMERAL', 0.6, 1, now()
+                            )
+                            ON CONFLICT (team_scope, email) WHERE email IS NOT NULL DO UPDATE
+                            SET interaction_count = contacts.interaction_count + 1,
+                                last_interaction_at = now(),
+                                full_name = COALESCE(EXCLUDED.full_name, contacts.full_name),
+                                updated_at = now()
+                        """),
+                        {"ts": team_scope, "fn": name, "em": email, "sr": contact_source},
+                    )
+                else:
+                    await session.execute(
+                        sa.text("""
+                            INSERT INTO contacts (
+                                team_scope, contact_type, full_name, email, source,
+                                truth_level, confidence, interaction_count, last_interaction_at
+                            ) VALUES (
+                                :ts, 'direct', :fn, NULL, :sr, 'EPHEMERAL', 0.4, 1, now()
+                            )
+                        """),
+                        {"ts": team_scope, "fn": name, "sr": contact_source},
+                    )
+            await session.commit()
+        log.info("crm.extract.done", team_scope=team_scope, count=len(people))
+    except Exception as exc:
+        log.warning("crm.extract_skipped", error=str(exc), team_scope=team_scope)
+
+
+# ── Phase 7 — auto task creation (D5 trigger 2) ─────────────────────────
+
+
+async def _maybe_create_task_from_action(item: MemoryItem, team_scope: str) -> None:
+    """Auto-create a task if memory_item flags an action (metadata or regex). Fail-soft."""
+    try:
+        content = item.content or ""
+        meta = item.metadata or {}
+        flagged = (meta.get("contains_action") is True) or bool(_ACTION_RE.search(content))
+        if not flagged:
+            return
+        client = _get_anthropic()
+        if client is None:
+            log.warning("tasks.auto.no_anthropic_key", team_scope=team_scope)
+            return
+
+        msg = await client.messages.create(
+            model="claude-3-5-haiku-20241022",
+            max_tokens=512,
+            system=(
+                "Extract a single task definition from the text. Return STRICT JSON "
+                '(no markdown): {"title": "<concise title <80 chars>", '
+                '"description": "<details or null>", "assignee_email": "<email or null>"}. '
+                'If no clear actionable task, return {"title": null}.'
+            ),
+            messages=[{"role": "user", "content": content[:8000]}],
+        )
+        text = msg.content[0].text.strip() if msg.content else "{}"
+        if text.startswith("```"):
+            text = text.split("```", 2)[1].lstrip("json").strip()
+        import json as _json
+
+        parsed = _json.loads(text)
+        title = parsed.get("title")
+        if not title:
+            return
+        description = parsed.get("description")
+        assignee_email = parsed.get("assignee_email")
+
+        source_kind = "agent" if (item.source or "").startswith("agent") else "chat"
+
+        import sqlalchemy as sa
+
+        async with async_session_factory() as session:
+            # Auto-generated tasks: created_by = NULL (system-attribution, migration 0010 nullable).
+            # NULL distinguishes system-generated tasks (agent, chat extraction) from user creates.
+            assigned_to = None
+            assignee_email_resolved = None
+            if assignee_email:
+                contact_row = (
+                    await session.execute(
+                        sa.text(
+                            "SELECT id, email FROM contacts "
+                            "WHERE team_scope = :ts AND email = :em"
+                        ),
+                        {"ts": team_scope, "em": assignee_email},
+                    )
+                ).fetchone()
+                if contact_row:
+                    assigned_to = contact_row.id
+                    assignee_email_resolved = contact_row.email
+
+            item_id_str = str(item.id) if hasattr(item, "id") and item.id else None
+            row = (
+                await session.execute(
+                    sa.text("""
+                        INSERT INTO tasks (
+                            team_scope, title, description, status, priority,
+                            assigned_to, created_by, source, source_ref
+                        ) VALUES (
+                            :ts, :ti, :de, 'todo', 'normal',
+                            :at, NULL, :src, :sref
+                        )
+                        RETURNING id
+                    """),
+                    {
+                        "ts": team_scope,
+                        "ti": title[:512],
+                        "de": description,
+                        "at": str(assigned_to) if assigned_to else None,
+                        "src": source_kind,
+                        "sref": item_id_str,
+                    },
+                )
+            ).fetchone()
+            await session.commit()
+
+        log.info(
+            "tasks.auto_created",
+            team_scope=team_scope,
+            task_id=str(row.id),
+            source=source_kind,
+            assignee=assignee_email_resolved,
+        )
+
+        # Send notification email if assignee resolved
+        if assignee_email_resolved:
+            from app.services.notifications import send_task_notification_email
+
+            asyncio.create_task(
+                send_task_notification_email(
+                    recipient_email=assignee_email_resolved,
+                    task_title=title,
+                    task_id=str(row.id),
+                    team_scope=team_scope,
+                    dashboard_url=None,
+                )
+            )
+    except Exception as exc:
+        log.warning("tasks.auto_skipped", error=str(exc), team_scope=team_scope)
 
 
 router = APIRouter()
@@ -128,6 +340,14 @@ async def upsert_item(
     if body.item.content:
         asyncio.create_task(
             _enrich_with_graphiti(body.item.content, team_scope)
+        )
+        # Phase 7 — auto-extract contacts from text (D1)
+        asyncio.create_task(
+            _extract_crm_contacts(body.item.content, team_scope, body.item.source or "memory")
+        )
+        # Phase 7 — auto-create task from action items (D5 trigger 2)
+        asyncio.create_task(
+            _maybe_create_task_from_action(body.item, team_scope)
         )
 
     return UpsertOut(id=item_id)
