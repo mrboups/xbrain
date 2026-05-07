@@ -164,6 +164,7 @@ async def upsert_team_api_key(
     existing = result.scalar_one_or_none()
     if existing is not None:
         existing.key_enc = key_enc
+        await session.flush()
         return existing
     key = TeamApiKey(team_id=team_id, provider=provider, key_enc=key_enc)
     session.add(key)
