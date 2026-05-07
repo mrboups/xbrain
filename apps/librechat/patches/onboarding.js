@@ -19,25 +19,38 @@
 
   // LibreChat stores its JWT only in axios.defaults (in-memory), never in cookies.
   // We capture it by intercepting XHR.setRequestHeader — axios uses XHR, not fetch.
+  // Always update _libreToken so we pick up refreshed tokens.
   let _libreToken = null;
+  let _libreTokenUrl = null;
+  const _origOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (method, url) {
+    this._xbrainReqUrl = String(url);
+    return _origOpen.apply(this, arguments);
+  };
   const _origSetHeader = XMLHttpRequest.prototype.setRequestHeader;
   XMLHttpRequest.prototype.setRequestHeader = function (name, value) {
-    if (!_libreToken && name.toLowerCase() === 'authorization' && value.startsWith('Bearer ')) {
+    if (name.toLowerCase() === 'authorization' && value.startsWith('Bearer ')) {
       _libreToken = value.slice(7);
+      _libreTokenUrl = this._xbrainReqUrl || '?';
+      console.log('[xbrain] captured Bearer from', _libreTokenUrl, '→', _libreToken.slice(0, 20) + '…');
     }
     return _origSetHeader.apply(this, arguments);
   };
 
   async function getToken() {
     if (!_libreToken) return null;
+    console.error('[xbrain] getToken: captured from', _libreTokenUrl, '| token prefix:', _libreToken.slice(0, 20));
     try {
       const r = await fetch('/api/xbrain/token', {
         headers: { Authorization: 'Bearer ' + _libreToken },
       });
+      const bodyText = !r.ok ? await r.text().catch(() => '') : '';
+      console.error('[xbrain] /api/xbrain/token status:', r.status, '|', bodyText || '(no body)');
       if (!r.ok) return null;
       const { token } = await r.json();
       return token;
-    } catch {
+    } catch (e) {
+      console.log('[xbrain] getToken error:', e);
       return null;
     }
   }

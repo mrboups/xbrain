@@ -27,10 +27,10 @@ RUN node /tmp/patch-server.js
 
 # Patch 4 + 5: Onboarding modal
 COPY patches/onboarding.js /app/client/dist/onboarding.js
-RUN sed -i 's|</head>|<script defer src="/onboarding.js"></script></head>|' \
+RUN sed -i 's|</head>|<script defer src="/onboarding.js?v=3"></script></head>|' \
     /app/client/dist/index.html
 
 # Verify all patches applied
 RUN grep -q "xbrain-routes" /app/api/server/index.js && \
-    grep -q "onboarding.js" /app/client/dist/index.html && \
+    grep -q "onboarding.js?v=3" /app/client/dist/index.html && \
     echo "All patches verified OK"
