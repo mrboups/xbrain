@@ -11,10 +11,10 @@
       theme: {
         extend: {
           colors: {
-            navy:     '#060C1F',
-            'navy-lt':'#0D1B3E',
-            royal:    '#1848C8',
-            'royal-lt':'#2563EB',
+            navy:     '#020B18',
+            'navy-lt':'#061A2E',
+            royal:    '#0F7490',
+            'royal-lt':'#0E9EB5',
             slate:    '#64748B',
             'slate-2':'#94A3B8',
             ice:      '#EFF6FF',
@@ -42,11 +42,11 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     html { -webkit-font-smoothing: antialiased; }
-    body { background: #fff; color: #060C1F; }
+    body { background: #fff; color: #020B18; }
 
     /* gradient text */
     .gt {
-      background: linear-gradient(135deg, #1848C8 0%, #2563EB 50%, #0EA5E9 100%);
+      background: linear-gradient(135deg, #0F7490 0%, #0E9EB5 50%, #06B6D4 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -85,18 +85,18 @@
       font-weight: 600;
       letter-spacing: .04em;
     }
-    .pill-blue   { background: #EFF6FF; color: #1848C8; border: 1px solid #BFDBFE; }
-    .pill-amber  { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
-    .pill-green  { background: #F0FDF4; color: #166534; border: 1px solid #BBF7D0; }
-    .pill-purple { background: #FAF5FF; color: #6B21A8; border: 1px solid #E9D5FF; }
+    .pill-blue   { background: #ECFEFF; color: #0F7490; border: 1px solid #A5F3FC; }
+    .pill-amber  { background: #ECFEFF; color: #0F7490; border: 1px solid #A5F3FC; }
+    .pill-green  { background: #ECFEFF; color: #0F7490; border: 1px solid #A5F3FC; }
+    .pill-purple { background: #ECFEFF; color: #0F7490; border: 1px solid #A5F3FC; }
     .pill-slate  { background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; }
 
     /* step number */
     .step-num {
       width: 2rem; height: 2rem;
       border-radius: .5rem;
-      background: #EFF6FF;
-      color: #1848C8;
+      background: #ECFEFF;
+      color: #0F7490;
       font-weight: 800;
       font-size: .875rem;
       display: flex; align-items: center; justify-content: center;
@@ -106,8 +106,8 @@
     /* pricing */
     .price-card { border-radius: 1.25rem; }
     .price-featured {
-      border: 2px solid #1848C8;
-      box-shadow: 0 0 0 4px rgba(24,72,200,.06), 0 8px 32px rgba(24,72,200,.12);
+      border: 2px solid #0F7490;
+      box-shadow: 0 0 0 4px rgba(15,116,144,.06), 0 8px 32px rgba(15,116,144,.12);
     }
 
     /* toggle */
@@ -127,8 +127,8 @@
     .flow-line { width:1px; background: linear-gradient(#DBEAFE, #BFDBFE); flex-shrink:0; }
 
     /* check icon */
-    .chk { width:1rem; height:1rem; border-radius:50%; background:#EFF6FF; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:.1rem; }
-    .chk svg { width:.6rem; height:.6rem; color:#2563EB; }
+    .chk { width:1rem; height:1rem; border-radius:50%; background:#ECFEFF; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:.1rem; }
+    .chk svg { width:.6rem; height:.6rem; color:#0F7490; }
 
     /* section spacings */
     .s-lg { padding-top:7rem; padding-bottom:7rem; }
@@ -138,8 +138,8 @@
     hr { border: none; border-top: 1px solid #E2E8F0; }
 
     /* status dot */
-    .dot-on  { width:.5rem;height:.5rem;border-radius:50%;background:#22C55E; }
-    .dot-busy{ width:.5rem;height:.5rem;border-radius:50%;background:#F59E0B; }
+    .dot-on  { width:.5rem;height:.5rem;border-radius:50%;background:#0F7490; }
+    .dot-busy{ width:.5rem;height:.5rem;border-radius:50%;background:#0E9EB5;opacity:.6; }
     .dot-off { width:.5rem;height:.5rem;border-radius:50%;background:#CBD5E1; }
   </style>
 </head>
@@ -165,8 +165,8 @@
           Request demo
         </a>
         <a href="mailto:team@grooveos.app?subject=Cortex OS early access"
-           class="px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-btn transition-opacity hover:opacity-90"
-           style="background:#1848C8;">
+           class="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:text-white"
+           style="color:#0F7490;border:1.5px solid #0F7490;background:transparent;" onmouseover="this.style.background='#0F7490'" onmouseout="this.style.background='transparent'">
           Join waitlist
         </a>
       </div>
@@ -196,7 +196,7 @@
       <div class="flex flex-col sm:flex-row gap-3 justify-center mb-20">
         <a href="mailto:team@grooveos.app?subject=Cortex OS early access"
            class="px-7 py-3.5 rounded-xl font-semibold text-white text-sm shadow-btn hover:opacity-90 transition-opacity"
-           style="background:#1848C8;">
+           style="background:#0F7490;">
           Join the waitlist →
         </a>
         <a href="#how"
@@ -239,7 +239,7 @@
               <span class="text-sm font-medium text-navy">Tom · mkt agent</span>
               <span class="text-xs text-slate ml-2 font-mono">gpt-4o</span>
             </div>
-            <span class="text-xs text-slate truncate max-w-[180px]">Drafting launch copy from <span class="text-amber-600 font-medium">auth-v2</span> spec</span>
+            <span class="text-xs text-slate truncate max-w-[180px]">Drafting launch copy from <span class="text-royal font-medium">auth-v2</span> spec</span>
           </div>
           <div class="flex items-center gap-4 px-5 py-3.5">
             <div class="dot-on shrink-0"></div>
@@ -262,7 +262,7 @@
         <!-- footer bar -->
         <div class="flex items-center justify-between px-5 py-3 border-t border-border bg-mist">
           <span class="text-xs text-slate-2">Last sync: just now</span>
-          <span class="text-xs font-medium text-green-600 flex items-center gap-1.5">
+          <span class="text-xs font-medium text-royal flex items-center gap-1.5">
             <span class="dot-on"></span>All agents in sync
           </span>
         </div>
@@ -288,8 +288,8 @@
       <div class="grid md:grid-cols-3 gap-5">
 
         <div class="card p-6">
-          <div class="w-9 h-9 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center mb-4">
-            <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <div class="w-9 h-9 rounded-lg bg-ice border border-ice-2 flex items-center justify-center mb-4">
+            <svg class="w-4 h-4 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
             </svg>
           </div>
@@ -300,8 +300,8 @@
         </div>
 
         <div class="card p-6">
-          <div class="w-9 h-9 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center mb-4">
-            <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <div class="w-9 h-9 rounded-lg bg-ice border border-ice-2 flex items-center justify-center mb-4">
+            <svg class="w-4 h-4 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
             </svg>
           </div>
@@ -312,8 +312,8 @@
         </div>
 
         <div class="card p-6">
-          <div class="w-9 h-9 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center mb-4">
-            <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <div class="w-9 h-9 rounded-lg bg-ice border border-ice-2 flex items-center justify-center mb-4">
+            <svg class="w-4 h-4 text-royal" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/>
             </svg>
           </div>
@@ -490,8 +490,8 @@
         </div>
 
         <div class="card p-7 flex gap-5">
-          <div class="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
-              <svg class="text-amber-600" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46"/></svg>
+          <div class="w-10 h-10 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0">
+              <svg class="text-royal" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46"/></svg>
             </div>
           <div>
             <div class="flex items-center gap-2 mb-2">
@@ -505,8 +505,8 @@
         </div>
 
         <div class="card p-7 flex gap-5">
-          <div class="w-10 h-10 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center shrink-0">
-              <svg class="text-green-700" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <div class="w-10 h-10 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0">
+              <svg class="text-royal" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
             </div>
           <div>
             <div class="flex items-center gap-2 mb-2">
@@ -520,8 +520,8 @@
         </div>
 
         <div class="card p-7 flex gap-5">
-          <div class="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
-              <svg class="text-purple-700" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z"/></svg>
+          <div class="w-10 h-10 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0">
+              <svg class="text-royal" style="width:1.1rem;height:1.1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z"/></svg>
             </div>
           <div>
             <div class="flex items-center gap-2 mb-2">
@@ -584,8 +584,8 @@
         </div>
 
         <div class="card p-6 flex gap-5 items-start">
-          <div class="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
-            <svg class="text-amber-600" style="width:1rem;height:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46"/></svg>
+          <div class="w-9 h-9 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0">
+            <svg class="text-royal" style="width:1rem;height:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46"/></svg>
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -602,8 +602,8 @@
         </div>
 
         <div class="card p-6 flex gap-5 items-start">
-          <div class="w-9 h-9 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center shrink-0">
-            <svg class="text-green-700" style="width:1rem;height:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <div class="w-9 h-9 rounded-xl bg-ice border border-ice-2 flex items-center justify-center shrink-0">
+            <svg class="text-royal" style="width:1rem;height:1rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -625,7 +625,7 @@
             <p class="font-semibold text-navy text-sm">Three agents updated. Two minutes. Zero messages sent.</p>
             <p class="text-xs text-slate mt-0.5">This is what an agentic team looks like on a shared cognitive core.</p>
           </div>
-          <span class="text-xs font-medium text-green-600 flex items-center gap-1.5 whitespace-nowrap">
+          <span class="text-xs font-medium text-royal flex items-center gap-1.5 whitespace-nowrap">
             <span class="dot-on"></span>All agents in sync
           </span>
         </div>
@@ -781,7 +781,7 @@
                         <span class="pill pill-slate text-xs">all</span>
                       </div>
                     </div>
-                    <button class="w-full mt-2 py-2 rounded-lg text-xs font-semibold text-white" style="background:#1848C8;">
+                    <button class="w-full mt-2 py-2 rounded-lg text-xs font-semibold text-white" style="background:#0F7490;">
                       Clip to brain →
                     </button>
                   </div>
@@ -824,7 +824,7 @@
           <button id="btn-monthly" onclick="setPricing('monthly')" class="tog-btn on">Monthly</button>
           <button id="btn-annual"  onclick="setPricing('annual')"  class="tog-btn off">
             Annual
-            <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">–45%</span>
+            <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-ice-2 text-royal">–45%</span>
           </button>
         </div>
       </div>
@@ -875,7 +875,7 @@
               </div>
               <div class="flex items-center gap-2 mt-1">
                 <span class="text-slate-2 text-sm line-through">$540</span>
-                <span class="px-1.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">Save 45%</span>
+                <span class="px-1.5 py-0.5 rounded-full text-xs font-bold bg-ice-2 text-royal">Save 45%</span>
               </div>
               <p class="text-xs text-slate mt-1">+$99/operator/year beyond 3</p>
             </div>
@@ -893,7 +893,7 @@
           </ul>
           <a href="mailto:team@grooveos.app?subject=Cortex OS team"
              class="block text-center py-2.5 rounded-xl font-semibold text-white text-sm shadow-btn hover:opacity-90 transition-opacity"
-             style="background:#1848C8;">
+             style="background:#0F7490;">
             Join waitlist →
           </a>
         </div>
@@ -924,7 +924,7 @@
   </section>
 
   <!-- ─── CTA ─── -->
-  <section class="s-lg px-6" style="background:#060C1F;">
+  <section class="s-lg px-6" style="background:#020B18;">
     <div class="max-w-2xl mx-auto text-center">
       <h2 class="text-4xl md:text-5xl font-black text-white leading-tight mb-5">
         Your agentic team<br/>
@@ -936,7 +936,7 @@
       <div class="flex flex-col sm:flex-row gap-3 justify-center">
         <a href="mailto:team@grooveos.app?subject=Cortex OS early access"
            class="px-8 py-3.5 rounded-xl font-semibold text-white text-sm shadow-btn hover:opacity-90 transition-opacity"
-           style="background:#1848C8;">
+           style="background:#0F7490;">
           Join the waitlist →
         </a>
         <a href="mailto:team@grooveos.app?subject=Cortex OS demo"
@@ -976,7 +976,7 @@
       if (mode === 'monthly') {
         M.classList.remove('hidden'); A.classList.add('hidden');
         bM.className = 'tog-btn on'; bA.className = 'tog-btn off';
-        bA.innerHTML = 'Annual <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">–45%</span>';
+        bA.innerHTML = 'Annual <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-ice-2 text-royal">–45%</span>';
       } else {
         A.classList.remove('hidden'); M.classList.add('hidden');
         bA.className = 'tog-btn on'; bM.className = 'tog-btn off';
