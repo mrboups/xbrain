@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Plan 06-01 complet — firebase.json+.firebaserc (c8bae82), style.css (02d17d0), docs.css (dac54da).
-last_updated: "2026-05-07T02:48:43.313Z"
-last_activity: 2026-05-07 -- Phase 7 planning complete
+last_updated: "2026-05-07T02:49:37.101Z"
+last_activity: 2026-05-07 -- Phase 7 execution started
 progress:
   total_phases: 7
   completed_phases: 6
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 1 — Socle Infra + Frontends + memory-api
+**Current focus:** Phase 7 — CRM + Granola + Task Intelligence
 
 ## Current Position
 
-Phase: 6 (Marketing Site + Documentation)
-Plan: 8 of 8 in current phase
-Status: Ready to execute
-Last activity: 2026-05-07 -- Phase 7 planning complete
+Phase: 7 (CRM + Granola + Task Intelligence) — EXECUTING
+Plan: 2 of 9
+Status: Executing Phase 7
+Last activity: 2026-05-07 -- Plan 07-01 complete (3 Alembic migrations: 0008 teams.plan, 0009 contacts+granola_integrations, 0010 tasks)
 
 Progress: [██████████] 100% — ALL PHASES COMPLETE
 
@@ -81,6 +81,9 @@ Recent decisions affecting current work:
 - 2026-05-06 (06-01): Firebase multi-site — site ID xbrain-marketing dans firebase.json, targets dans .firebaserc, projet xbrain-495115
 - 2026-05-06 (06-01): Two-CSS architecture — style.css (global, chargé par toutes les pages) + docs.css (docs-only, chargé uniquement par docs/*.html)
 - 2026-05-06 (06-01): public: "." dans firebase.json — firebase.json est à la racine de marketing-site/, pas de build step
+- 2026-05-07 (07-01): tasks.created_by FK ON DELETE SET NULL (pas RESTRICT) — permet suppression user, tasks conservées avec attribution NULL
+- 2026-05-07 (07-01): contacts table porte les 7 champs du tagging contract complets (visibility + validation_status inclus malgré optionalité v1)
+- 2026-05-07 (07-01): granola_integrations.api_key_enc = Text brut DB — chiffrement Fernet couche applicative (Plan 07-04)
 
 ### Pending Todos
 
@@ -101,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-06
-Stopped at: Plan 06-01 complet — firebase.json+.firebaserc (c8bae82), style.css (02d17d0), docs.css (dac54da).
+Last session: 2026-05-07
+Stopped at: Plan 07-01 complete — 0008_team_plan.py (b5fd046), 0009_crm_contacts.py (827be41), 0010_tasks.py (e7bf54c).
 Resume file: None

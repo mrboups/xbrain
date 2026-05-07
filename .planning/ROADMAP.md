@@ -159,7 +159,7 @@ Plans:
   7. `bash infrastructure/scripts/verify-phase7.sh` retourne `PASS: 8 / 8`
 **Plans**: 9 plans
 Plans:
-- [ ] 07-01-PLAN.md — Migrations 0008 (teams.plan) + 0009 (contacts + granola_integrations) + 0010 (tasks, created_by NULLABLE)
+- [x] 07-01-PLAN.md — Migrations 0008 (teams.plan) + 0009 (contacts + granola_integrations) + 0010 (tasks, created_by NULLABLE)
 - [ ] 07-02-PLAN.md — require_paid_tier + _user_id_from_principal dans deps.py + router CRM /v1/crm/contacts (CRUD + audit)
 - [ ] 07-03-PLAN.md — Router /v1/tasks (CRUD + filtres + polling since)
 - [ ] 07-04-PLAN.md — Router granola_integration (admin Fernet + ingest atomic memory_item+contacts+tasks, dedup note_id, created_by=NULL)
