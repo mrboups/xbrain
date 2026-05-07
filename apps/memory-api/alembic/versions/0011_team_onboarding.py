@@ -20,7 +20,7 @@ def upgrade() -> None:
     # --- Extend teams table ---
     op.add_column(
         "teams",
-        sa.Column("visibility", sa.Text, nullable=False, server_default="closed"),
+        sa.Column("visibility", sa.String(16), nullable=False, server_default="closed"),
     )
     op.create_check_constraint(
         "teams_visibility_check",
@@ -29,7 +29,7 @@ def upgrade() -> None:
     )
     op.add_column(
         "teams",
-        sa.Column("github_org", sa.Text, nullable=True),
+        sa.Column("github_org", sa.String(256), nullable=True),
     )
     op.add_column(
         "teams",
@@ -51,7 +51,7 @@ def upgrade() -> None:
             sa.ForeignKey("teams.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column("provider", sa.Text, nullable=False),
+        sa.Column("provider", sa.String(64), nullable=False),
         sa.Column("key_enc", sa.Text, nullable=False),
         sa.Column(
             "created_at",
@@ -92,7 +92,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "status",
-            sa.Text,
+            sa.String(16),
             nullable=False,
             server_default="pending",
         ),
@@ -109,10 +109,12 @@ def upgrade() -> None:
         sa.UniqueConstraint("team_id", "user_id", name="join_requests_team_user_uniq"),
     )
     op.create_index("idx_join_requests_user", "team_join_requests", ["user_id"])
+    op.create_index("idx_join_requests_team_status", "team_join_requests", ["team_id", "status"])
 
 
 def downgrade() -> None:
     # Indexes
+    op.drop_index("idx_join_requests_team_status", table_name="team_join_requests")
     op.drop_index("idx_join_requests_user", table_name="team_join_requests")
     op.drop_index("idx_team_api_keys_team", table_name="team_api_keys")
 
