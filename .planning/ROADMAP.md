@@ -18,6 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3.5: MCP Gateway Fix + Corrections Phase 3** (INSERTED) - Réécriture mcp-gateway client MCP stateful (Bug 1 critique : tool-call E2E cassé), fix verify-phase3.sh parser (Bug 2 cosmetic) — **DONE 2026-05-05**
 - [x] **Phase 4: Consolidation MCP Frontends + Intégrations Avancées** - LibreChat & agent-runtime branchés sur la gateway MCP (MCP-05/06 réellement câblés), fix logging Open WebUI conversations (MEM-04 résiduel), Drive push webhooks + multi-folder mapping, deck-service MCP tool (MCP-07 déféré) — **DONE 2026-05-05**
 - [x] **Phase 5: Plateforme Projets Équipe** - Pipeline GitOps (GitHub Actions → Cloud Run + Firebase), Graphiti extraction temporelle, extension Chrome truth-level, auth GitHub Org + Google + account linking, dashboard projets déployés — **DONE 2026-05-06**
+- [ ] **Phase 7: CRM + Granola + Task Intelligence** - CRM auto-populé depuis le brain (contacts extraits automatiquement), intégration Granola → mémoire (notes de réunion → faits taguées), task tracking automatique (tout output brain qui implique une action génère une tâche assignée + notification team)
 - [x] **Phase 6: Marketing Site + Documentation** - Site marketing statique en anglais (fond blanc, cible startup teams), documentation complète de toutes les features, déploiement Firebase Hosting — **DONE 2026-05-07** (https://xbrain-marketing.web.app)
 
 ## Phase Details
