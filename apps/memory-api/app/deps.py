@@ -105,6 +105,21 @@ async def get_current_principal(
                 "claims": claims,
                 "sub": acting_sub,
             }
+        # LibreChat onboarding tokens: iss=librechat-onboarding, email=user email
+        if claims.get("iss") == "librechat-onboarding" and claims.get("email"):
+            user = await get_or_create_user(
+                session,
+                source_user_id=f"email:{claims['email']}",
+                email=claims["email"],
+                display_name=None,
+            )
+            await session.commit()
+            return {
+                "kind": "user",
+                "user": user,
+                "claims": claims,
+                "sub": f"email:{claims['email']}",
+            }
         return {
             "kind": "bridge",
             "claims": claims,

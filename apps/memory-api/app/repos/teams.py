@@ -15,9 +15,18 @@ async def create_team(
     slug: str,
     display_name: str,
     creator_user_id: UUID,
+    description: str | None = None,
+    visibility: str = "closed",
+    github_org: str | None = None,
 ) -> Team:
     """Create a team and add the creator as admin (atomic)."""
-    team = Team(slug=slug, display_name=display_name)
+    team = Team(
+        slug=slug,
+        display_name=display_name,
+        description=description,
+        visibility=visibility,
+        github_org=github_org,
+    )
     session.add(team)
     await session.flush()
     membership = TeamMember(team_id=team.id, user_id=creator_user_id, role="admin")

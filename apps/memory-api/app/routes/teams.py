@@ -3,12 +3,15 @@
 from typing import Any
 from uuid import UUID
 
+import httpx
+from cryptography.fernet import Fernet
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import write_audit
 from app.auth import is_admin
+from app.config import settings
 from app.deps import get_current_principal, get_session
 from app.repos import teams as teams_repo
 from app.repos import users as users_repo
@@ -27,6 +30,13 @@ def _require_admin_user(principal: dict[str, Any]):
     if not is_admin(user.source_user_id):
         raise HTTPException(403, "admin-only endpoint")
     return user
+
+
+def _get_fernet() -> Fernet:
+    key = settings.FERNET_KEY or settings.OAUTH_CREDENTIALS_ENCRYPTION_KEY
+    if not key:
+        raise HTTPException(500, "FERNET_KEY not configured")
+    return Fernet(key.encode())
 
 
 class TeamCreateBody(BaseModel):
@@ -54,6 +64,42 @@ class MemberOut(BaseModel):
     role: str
 
 
+class TeamSelfCreateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    slug: str = Field(..., min_length=1, max_length=64, pattern=r"^[a-z][a-z0-9-]*$")
+    display_name: str = Field(..., min_length=1, max_length=256)
+    description: str | None = None
+    visibility: str = Field(default="closed", pattern=r"^(open|closed)$")
+    github_org: str | None = None
+
+
+class TeamSearchOut(BaseModel):
+    id: str
+    slug: str
+    display_name: str
+    visibility: str
+    github_org: str | None = None
+
+
+class ApiKeyIn(BaseModel):
+    provider: str = Field(..., min_length=1, max_length=64)
+    api_key: str = Field(..., min_length=1)
+
+
+class ApiKeysBulkBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    keys: list[ApiKeyIn]
+
+
+class ApiKeyOut(BaseModel):
+    provider: str
+
+
+class JoinRequestOut(BaseModel):
+    status: str
+    team_id: str
+
+
 @router.post("/teams", response_model=TeamOut, status_code=201)
 async def create_team(
     body: TeamCreateBody,
@@ -76,6 +122,127 @@ async def create_team(
     )
     await session.commit()
     return TeamOut(id=str(team.id), slug=team.slug, display_name=team.display_name)
+
+
+# ── Static-path routes MUST come before /{team_id} routes ──────────────────────
+
+
+@router.get("/teams/my-team")
+async def get_my_team(
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Return the caller's first team, or 204 if they belong to none."""
+    from fastapi.responses import Response
+    user = _require_user(principal)
+    team = await teams_repo.get_first_team_for_user(session, user_id=user.id)
+    if team is None:
+        return Response(status_code=204)
+    return TeamSearchOut(
+        id=str(team.id),
+        slug=team.slug,
+        display_name=team.display_name,
+        visibility=team.visibility,
+        github_org=team.github_org,
+    )
+
+
+@router.get("/teams/search", response_model=list[TeamSearchOut])
+async def search_teams(
+    name: str,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    _require_user(principal)
+    if not name or len(name) < 2:
+        raise HTTPException(400, "name query must be at least 2 characters")
+    teams = await teams_repo.search_teams(session, query=name)
+    return [
+        TeamSearchOut(
+            id=str(t.id),
+            slug=t.slug,
+            display_name=t.display_name,
+            visibility=t.visibility,
+            github_org=t.github_org,
+        )
+        for t in teams
+    ]
+
+
+@router.get("/teams/github-matches", response_model=list[TeamSearchOut])
+async def github_matches(
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Return xbrain teams whose github_org matches any org the user is a member of."""
+    user = _require_user(principal)
+    if not user.github_username or not settings.GITHUB_API_PAT:
+        return []
+
+    all_teams = await teams_repo.get_teams_with_github_org(session)
+    matches = []
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        for team in all_teams:
+            url = f"https://api.github.com/orgs/{team.github_org}/members/{user.github_username}"
+            r = await client.get(
+                url,
+                headers={
+                    "Authorization": f"Bearer {settings.GITHUB_API_PAT}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            if r.status_code == 204:
+                matches.append(
+                    TeamSearchOut(
+                        id=str(team.id),
+                        slug=team.slug,
+                        display_name=team.display_name,
+                        visibility=team.visibility,
+                        github_org=team.github_org,
+                    )
+                )
+    return matches
+
+
+@router.post("/teams/self", response_model=TeamSearchOut, status_code=201)
+async def self_create_team(
+    body: TeamSelfCreateBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Any authenticated user can create a team and become its admin (founder)."""
+    user = _require_user(principal)
+    if await teams_repo.get_team_by_slug(session, body.slug) is not None:
+        raise HTTPException(409, f"team slug '{body.slug}' already exists")
+    team = await teams_repo.create_team(
+        session,
+        slug=body.slug,
+        display_name=body.display_name,
+        creator_user_id=user.id,
+        description=body.description,
+        visibility=body.visibility,
+        github_org=body.github_org,
+    )
+    await write_audit(
+        session,
+        actor_user_id=user.id,
+        team_scope=team.slug,
+        action="teams.self_create",
+        target_id=str(team.id),
+        payload={"slug": team.slug, "visibility": team.visibility},
+    )
+    await session.commit()
+    return TeamSearchOut(
+        id=str(team.id),
+        slug=team.slug,
+        display_name=team.display_name,
+        visibility=team.visibility,
+        github_org=team.github_org,
+    )
+
+
+# ── Parameterized routes /{team_id}/... ────────────────────────────────────────
 
 
 @router.post("/teams/{team_id}/members", response_model=MemberOut, status_code=201)
@@ -153,3 +320,93 @@ async def remove_member(
         payload={},
     )
     await session.commit()
+
+
+@router.post("/teams/{team_id}/join", status_code=204)
+async def join_team(
+    team_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Join an open team directly. Returns 403 for closed teams."""
+    from fastapi.responses import Response
+    user = _require_user(principal)
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    if team.visibility != "open":
+        raise HTTPException(403, "team is closed — use join-request instead")
+    existing = await teams_repo.get_membership(session, user_id=user.id, team_slug=team.slug)
+    if existing is not None:
+        return Response(status_code=204)
+    await teams_repo.add_member(session, team_id=team.id, user_id=user.id, role="member")
+    await write_audit(
+        session,
+        actor_user_id=user.id,
+        team_scope=team.slug,
+        action="teams.join",
+        target_id=str(team.id),
+        payload={},
+    )
+    await session.commit()
+    return Response(status_code=204)
+
+
+@router.post("/teams/{team_id}/join-request", response_model=JoinRequestOut, status_code=201)
+async def request_join_team(
+    team_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Submit a join request for a closed team. Idempotent."""
+    user = _require_user(principal)
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    req = await teams_repo.create_join_request(session, team_id=team.id, user_id=user.id)
+    await session.commit()
+    return JoinRequestOut(status=req.status, team_id=str(req.team_id))
+
+
+@router.get("/teams/{team_id}/api-keys", response_model=list[ApiKeyOut])
+async def list_api_keys(
+    team_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """List provider names for which the team has an API key. Never returns plaintext keys."""
+    user = _require_user(principal)
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    membership = await teams_repo.get_membership(session, user_id=user.id, team_slug=team.slug)
+    if membership is None:
+        raise HTTPException(403, "not a member")
+    keys = await teams_repo.list_team_api_keys(session, team_id=team_id)
+    return [ApiKeyOut(provider=k.provider) for k in keys]
+
+
+@router.put("/teams/{team_id}/api-keys", status_code=204)
+async def upsert_api_keys(
+    team_id: UUID,
+    body: ApiKeysBulkBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Upsert team API keys. Caller must be a team admin. Keys Fernet-encrypted at rest."""
+    from fastapi.responses import Response
+    user = _require_user(principal)
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    membership = await teams_repo.get_membership(session, user_id=user.id, team_slug=team.slug)
+    if membership is None or membership.role != "admin":
+        raise HTTPException(403, "team admin required")
+    fernet = _get_fernet()
+    for item in body.keys:
+        encrypted = fernet.encrypt(item.api_key.encode()).decode()
+        await teams_repo.upsert_team_api_key(
+            session, team_id=team_id, provider=item.provider, key_enc=encrypted
+        )
+    await session.commit()
+    return Response(status_code=204)
