@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tasks — xbrain</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .priority-urgent { color: #dc2626; font-weight: 700; }
+    .priority-high { color: #f59e0b; font-weight: 600; }
+    .priority-normal { color: #4b5563; }
+    .priority-low { color: #9ca3af; }
+  </style>
+</head>
+<body class="bg-white text-gray-900 min-h-screen">
+  <header class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-6">
+      <a href="/" class="text-xl font-bold text-purple-600">xbrain</a>
+      <nav class="flex gap-4 text-sm">
+        <a href="/" class="text-gray-600 hover:text-purple-600">Projects</a>
+        <a href="/tasks.html" class="text-purple-600 font-semibold">Tasks</a>
+      </nav>
+    </div>
+    <div class="text-sm text-gray-600" id="user-info">—</div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-8">
+    <h1 class="text-3xl font-bold mb-2">Tasks</h1>
+    <p class="text-gray-600 mb-6">Auto-tracked from meetings, agents, and chats.</p>
+
+    <div class="flex flex-wrap gap-3 mb-6">
+      <select id="filter-status" class="border rounded px-3 py-2 text-sm">
+        <option value="">All statuses</option>
+        <option value="todo" selected>To do</option>
+        <option value="in_progress">In progress</option>
+        <option value="done">Done</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      <select id="filter-project" class="border rounded px-3 py-2 text-sm">
+        <option value="">All projects</option>
+      </select>
+      <input id="filter-team" placeholder="X-Team-Scope" class="border rounded px-3 py-2 text-sm" />
+      <input id="auth-token" placeholder="Bearer token" type="password" class="border rounded px-3 py-2 text-sm flex-1 min-w-[200px]" />
+      <button id="refresh-btn" class="bg-purple-600 text-white px-4 py-2 rounded text-sm hover:bg-purple-700">Refresh</button>
+    </div>
+
+    <div id="status-line" class="text-sm text-gray-500 mb-3">Enter team + token then click Refresh.</div>
+
+    <div class="border rounded-lg divide-y" id="task-list"></div>
+  </main>
+
+  <script>
+    const API_BASE = window.location.origin.includes('localhost')
+      ? 'http://localhost:8000'
+      : 'https://api.dejavu.cat';
+    const POLL_INTERVAL_MS = 30000;
+    let pollTimer = null;
+
+    function $(id) { return document.getElementById(id); }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, function(c) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+      });
+    }
+
+    function getAuthHeaders() {
+      const token = $('auth-token').value.trim();
+      const team = $('filter-team').value.trim();
+      if (!token || !team) return null;
+      try {
+        localStorage.setItem('xbrain_token', token);
+        localStorage.setItem('xbrain_team', team);
+      } catch(_) {}
+      return {
+        'Authorization': 'Bearer ' + token,
+        'X-Team-Scope': team,
+      };
+    }
+
+    function badgeFor(status) {
+      var cls = {
+        'todo': 'bg-gray-200 text-gray-800',
+        'in_progress': 'bg-blue-200 text-blue-800',
+        'done': 'bg-green-200 text-green-800',
+        'cancelled': 'bg-red-200 text-red-800',
+      }[status] || 'bg-gray-200 text-gray-800';
+      return '<span class="text-xs px-2 py-0.5 rounded ' + cls + '">' + escapeHtml(status) + '</span>';
+    }
+
+    function priorityClass(p) {
+      return 'priority-' + (p || 'normal');
+    }
+
+    function renderTasks(tasks) {
+      var root = $('task-list');
+      if (tasks.length === 0) {
+        root.innerHTML = '<div class="px-4 py-6 text-gray-400 text-sm text-center">No tasks match.</div>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < tasks.length; i++) {
+        var t = tasks[i];
+        var dueHtml = t.due_date ? '<span class="text-xs text-gray-500">due ' + escapeHtml(t.due_date) + '</span>' : '';
+        var descHtml = t.description ? '<div class="text-sm text-gray-600 mt-1">' + escapeHtml(String(t.description).slice(0, 200)) + '</div>' : '';
+        var metaProject = t.project_scope ? 'project: ' + escapeHtml(t.project_scope) : '';
+        var metaAssigned = t.assigned_to ? ' &bull; assigned to: ' + escapeHtml(String(t.assigned_to).slice(0, 8)) : '';
+        var metaCreated = ' &bull; created ' + escapeHtml(new Date(t.created_at).toLocaleString());
+        var actionDone = t.status !== 'done' ? '<button data-id="' + escapeHtml(String(t.id)) + '" data-action="done" class="task-action text-xs bg-green-600 text-white px-2 py-1 rounded">Mark done</button>' : '';
+        var actionStart = t.status === 'todo' ? '<button data-id="' + escapeHtml(String(t.id)) + '" data-action="in_progress" class="task-action text-xs bg-blue-600 text-white px-2 py-1 rounded">Start</button>' : '';
+        html += '<div class="px-4 py-3 flex items-start gap-3 hover:bg-gray-50">'
+          + '<div class="flex-1">'
+          + '<div class="flex items-center gap-2 mb-1">'
+          + badgeFor(t.status)
+          + '<span class="' + priorityClass(t.priority) + ' text-xs uppercase">' + escapeHtml(t.priority || 'normal') + '</span>'
+          + '<span class="text-xs text-gray-400">source: ' + escapeHtml(t.source || '') + '</span>'
+          + dueHtml
+          + '</div>'
+          + '<div class="font-medium">' + escapeHtml(t.title) + '</div>'
+          + descHtml
+          + '<div class="text-xs text-gray-400 mt-1">' + metaProject + metaAssigned + metaCreated + '</div>'
+          + '</div>'
+          + '<div class="flex flex-col gap-1">' + actionDone + actionStart + '</div>'
+          + '</div>';
+      }
+      root.innerHTML = html;
+
+      root.querySelectorAll('.task-action').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var id = btn.dataset.id;
+          var newStatus = btn.dataset.action;
+          patchStatus(id, newStatus).then(function() { loadTasks(); });
+        });
+      });
+    }
+
+    async function loadTasks() {
+      var headers = getAuthHeaders();
+      if (!headers) {
+        $('status-line').textContent = 'Enter team + token then click Refresh.';
+        return;
+      }
+      var status = $('filter-status').value;
+      var project = $('filter-project').value;
+      var params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (project) params.set('project_scope', project);
+      params.set('limit', '100');
+      try {
+        $('status-line').textContent = 'Loading…';
+        var r = await fetch(API_BASE + '/v1/tasks?' + params.toString(), { headers: headers });
+        if (!r.ok) {
+          var errText = await r.text();
+          $('status-line').textContent = 'Error ' + r.status + ': ' + errText.slice(0, 200);
+          return;
+        }
+        var tasks = await r.json();
+        renderTasks(tasks);
+        $('status-line').textContent = tasks.length + ' task(s) — last updated ' + new Date().toLocaleTimeString();
+        // Populate project filter dynamically
+        var ps = $('filter-project');
+        var seen = new Set(Array.from(ps.options).map(function(o) { return o.value; }));
+        tasks.forEach(function(t) {
+          if (t.project_scope && !seen.has(t.project_scope)) {
+            var opt = document.createElement('option');
+            opt.value = t.project_scope;
+            opt.textContent = t.project_scope;
+            ps.appendChild(opt);
+            seen.add(t.project_scope);
+          }
+        });
+      } catch (e) {
+        $('status-line').textContent = 'Network error: ' + e.message;
+      }
+    }
+
+    async function patchStatus(taskId, status) {
+      var headers = getAuthHeaders();
+      if (!headers) return;
+      headers['Content-Type'] = 'application/json';
+      await fetch(API_BASE + '/v1/tasks/' + taskId, {
+        method: 'PATCH',
+        headers: headers,
+        body: JSON.stringify({ status: status }),
+      });
+    }
+
+    function startPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(loadTasks, POLL_INTERVAL_MS);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        $('auth-token').value = localStorage.getItem('xbrain_token') || '';
+        $('filter-team').value = localStorage.getItem('xbrain_team') || '';
+      } catch(_) {}
+      $('refresh-btn').addEventListener('click', loadTasks);
+      $('filter-status').addEventListener('change', loadTasks);
+      $('filter-project').addEventListener('change', loadTasks);
+      if ($('auth-token').value && $('filter-team').value) {
+        loadTasks();
+        startPolling();
+      }
+    });
+  </script>
+</body>
+</html>
