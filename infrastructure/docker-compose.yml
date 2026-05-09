@@ -106,6 +106,9 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       WAITLIST_TO: ${WAITLIST_TO:-team@grooveos.app}
       WAITLIST_FROM: ${WAITLIST_FROM:-GrooveOS <waitlist@grooveos.app>}
+      # Phase 8: Granola per-user key encryption + GitHub repos proxy
+      FERNET_KEY: ${FERNET_KEY:-${OAUTH_CREDENTIALS_ENCRYPTION_KEY}}
+      LIBRECHAT_INTERNAL_URL: ${LIBRECHAT_INTERNAL_URL:-http://librechat:3080}
     networks: [xbrain_net]
     mem_limit: 384m
     depends_on:
