@@ -161,7 +161,7 @@ Plans:
   8. `bash infrastructure/scripts/verify-phase8.sh` retourne `PASS: 7 / 7`
 **Plans**: 8 plans
 Plans:
-- [ ] 08-01-PLAN.md — Migration Alembic 0012 (granola_user_connections + agent_definitions + seed meeting-recap) + alembic upgrade head
+- [x] 08-01-PLAN.md — Migration Alembic 0012 (granola_user_connections + agent_definitions + seed meeting-recap) + alembic upgrade head
 - [ ] 08-02-PLAN.md — memory-api: routes agents.py (CRUD admin /v1/admin/agents + /v1/agents/{id}/invoke synchrone Anthropic)
 - [ ] 08-03-PLAN.md — memory-api: routes /v1/me/granola-key (POST/GET/DELETE) + Fernet encryption
 - [ ] 08-04-PLAN.md — granola-sync: deuxième boucle per-user dans granola_poller.py + auto-trigger meeting-recap (D5)
@@ -210,7 +210,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 5. Plateforme Projets Équipe | 7/7 | ✅ Complete | 2026-05-06 |
 | 6. Marketing Site + Documentation | 8/8 | ✅ Complete | 2026-05-07 |
 | 7. CRM + Granola + Task Intelligence | 9/9 | ✅ Complete | 2026-05-07 |
-| 8. Granola Per-User + Universal Extraction + Platform Agents | partial (onboarding) | 🟡 In Progress | — |
+| 8. Granola Per-User + Universal Extraction + Platform Agents | 1/8 (plan 08-01 done, VM migration pending) | 🟡 In Progress | — |
 
 ---
 

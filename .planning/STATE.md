@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: active
-stopped_at: Phase 8 partial — onboarding + github-orgs + solo-team shipped (05-09). Phase 7 fully complete.
+stopped_at: Phase 8 — plan 08-01 complete (migration 0012 créée, VM migration pending). Plans 08-02..08-08 bloqués sur application migration.
 last_updated: "2026-05-09T12:00:00.000Z"
 last_activity: 2026-05-09 -- Phase 8 onboarding (xbrain-routes.js, socialLogin.js, githubStrategy.js, onboarding.js, teams.py), domain migration grooveos.app, dashboard bridge JWT fixed
 progress:
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 ## Current Position
 
 Phase: 8 — IN PROGRESS (partial)
-Plan: 0/8 formal plans — onboarding code shipped as quick tasks
+Plan: 1/8 formal plans — 08-01 (migration 0012) complete
 Status: Phases 1-7 complete. Phase 8 onboarding partially implemented.
-Last activity: 2026-05-09 -- Phase 8 onboarding shipped; domain migration dejavu.cat → grooveos.app complete
+Last activity: 2026-05-09 -- Phase 8 plan 08-01 complete: migration 0012 (granola_user_connections + agent_definitions + meeting-recap seed). VM migration marker created.
 
 Progress: [██████████] 100% — ALL v1.0 PHASES COMPLETE — Phase 8 post-v1 in progress
 
@@ -109,6 +109,9 @@ Recent decisions affecting current work:
 - 2026-05-09 (08-partial): Bridge JWT requires scope="bridge" field — authlib HS256, iss=librechat-onboarding; missing scope raises ValueError
 - 2026-05-09 (08-partial): XBRAIN_BRIDGE_JWT secret + XBRAIN_TEAM_SCOPE=dejavudev set in GitHub Actions — dashboard now partial=False
 - 2026-05-09 (08-partial): generate_dashboard.py uses requests.Session() with User-Agent to bypass Cloudflare bot detection
+- 2026-05-09 (08-01): Migration 0012 — granola_user_connections FK CASCADE (RGPD-friendly) + agent_definitions FK SET NULL (cohérent 0010 tasks)
+- 2026-05-09 (08-01): UNIQUE(user_id) sur granola_user_connections — un user = au plus une clé Granola active
+- 2026-05-09 (08-01): Seed meeting-recap via bindparams + ON CONFLICT (name) DO NOTHING — idempotent, safe re-run
 
 ### Pending Todos
 
@@ -135,7 +138,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-09
-Stopped at: Phase 8 partial — onboarding flow shipped (xbrain-routes.js, socialLogin.js, githubStrategy.js, onboarding.js, teams.py), domain migration done, dashboard JWT fixed. 26 containers healthy. Remaining Phase 8 plans (08-01..08-08 formal) not yet planned.
+Stopped at: Phase 8 plan 08-01 complete. Migration 0012 file created and committed. Marker .MIGRATE_0012_REQUIRED created for VM application. Plans 08-02..08-08 require alembic_version=0012 on VM before execution.
 Resume file: None
 
 ### Quick Tasks Completed
