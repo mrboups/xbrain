@@ -60,7 +60,7 @@ except ImportError:
 # Configuration depuis l'environnement
 # ---------------------------------------------------------------------------
 
-GITHUB_ORG = os.environ.get("GITHUB_ORG", "your-github-org")
+GITHUB_ORG = os.environ.get("GITHUB_ORG", "dejavudev")
 GITHUB_USER = os.environ.get("GITHUB_USER", "mrboups")
 GITHUB_API_PAT = os.environ.get("GITHUB_API_PAT", "")
 XBRAIN_MEMORY_API_URL = os.environ.get("XBRAIN_MEMORY_API_URL", "https://api.grooveos.app")
@@ -117,9 +117,13 @@ def fetch_github_collaborators(owner: str, repo_name: str) -> list[str]:
 # Récupération des projets xbrain
 # ---------------------------------------------------------------------------
 
+XBRAIN_TEAM_SCOPE = os.environ.get("XBRAIN_TEAM_SCOPE", "")
+
+
 def fetch_xbrain_projects() -> tuple[list[dict], bool]:
     """Retourne (projets, ok)."""
-    url = f"{XBRAIN_MEMORY_API_URL}/v1/admin/projects?team_scope=acme"
+    qs = f"?team_scope={XBRAIN_TEAM_SCOPE}" if XBRAIN_TEAM_SCOPE else ""
+    url = f"{XBRAIN_MEMORY_API_URL}/v1/admin/projects{qs}"
     headers = {"Content-Type": "application/json"}
     if XBRAIN_BRIDGE_JWT:
         headers["Authorization"] = f"Bearer {XBRAIN_BRIDGE_JWT}"
