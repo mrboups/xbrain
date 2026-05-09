@@ -4,12 +4,13 @@ generate_dashboard.py — Génère public/index.html depuis GitHub API + memory-
 
 Variables d'environnement requises :
   GITHUB_ORG            — Org GitHub (défaut: your-github-org)
+  GITHUB_USER           — Compte GitHub perso (défaut: mrboups)
   GITHUB_API_PAT        — Fine-grained PAT read:org read:repo
-  XBRAIN_MEMORY_API_URL — URL de l'API xbrain (défaut: https://api.dejavu.cat)
+  XBRAIN_MEMORY_API_URL — URL de l'API xbrain (défaut: https://api.grooveos.app)
   XBRAIN_BRIDGE_JWT     — JWT de service pour memory-api
 
 Comportement :
-  - Interroge GitHub API pour la liste des repos et leurs membres.
+  - Interroge GitHub API pour l'org ET le compte perso.
   - Interroge memory-api /v1/admin/projects pour les métadonnées.
   - Génère public/index.html (HTML+CSS vanilla, auto-suffisant, offline-ready).
   - En cas d'erreur partielle (rate limit, réseau), génère la page avec les données
@@ -60,8 +61,9 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 GITHUB_ORG = os.environ.get("GITHUB_ORG", "your-github-org")
+GITHUB_USER = os.environ.get("GITHUB_USER", "mrboups")
 GITHUB_API_PAT = os.environ.get("GITHUB_API_PAT", "")
-XBRAIN_MEMORY_API_URL = os.environ.get("XBRAIN_MEMORY_API_URL", "https://api.dejavu.cat")
+XBRAIN_MEMORY_API_URL = os.environ.get("XBRAIN_MEMORY_API_URL", "https://api.grooveos.app")
 XBRAIN_BRIDGE_JWT = os.environ.get("XBRAIN_BRIDGE_JWT", "")
 
 OUTPUT_DIR = Path(__file__).parent.parent / "public"
@@ -83,18 +85,28 @@ def gh_headers() -> dict:
 # ---------------------------------------------------------------------------
 
 def fetch_github_repos() -> tuple[list[dict], bool]:
-    """Retourne (repos, ok)."""
+    """Retourne (repos org, ok)."""
     url = f"https://api.github.com/orgs/{GITHUB_ORG}/repos?per_page=100&sort=updated"
     status, data = _get(url, gh_headers())
     if status == 200 and isinstance(data, list):
         return data, True
-    print(f"[generate_dashboard] WARN GitHub repos API: HTTP {status}", file=sys.stderr)
+    print(f"[generate_dashboard] WARN GitHub org repos API: HTTP {status}", file=sys.stderr)
     return [], False
 
 
-def fetch_github_collaborators(repo_name: str) -> list[str]:
+def fetch_github_user_repos() -> tuple[list[dict], bool]:
+    """Retourne (repos perso du GITHUB_USER, ok) — exclut les forks."""
+    url = f"https://api.github.com/users/{GITHUB_USER}/repos?per_page=100&sort=updated&type=owner"
+    status, data = _get(url, gh_headers())
+    if status == 200 and isinstance(data, list):
+        return [r for r in data if not r.get("fork")], True
+    print(f"[generate_dashboard] WARN GitHub user repos API: HTTP {status}", file=sys.stderr)
+    return [], False
+
+
+def fetch_github_collaborators(owner: str, repo_name: str) -> list[str]:
     """Retourne la liste de logins des collaborateurs d'un repo."""
-    url = f"https://api.github.com/repos/{GITHUB_ORG}/{repo_name}/collaborators?per_page=100"
+    url = f"https://api.github.com/repos/{owner}/{repo_name}/collaborators?per_page=100"
     status, data = _get(url, gh_headers())
     if status == 200 and isinstance(data, list):
         return [m.get("login", "") for m in data if m.get("login")]
@@ -127,93 +139,82 @@ def fetch_xbrain_projects() -> tuple[list[dict], bool]:
 # Jointure et enrichissement
 # ---------------------------------------------------------------------------
 
+def _resolve_deploy_target(raw: str) -> str:
+    raw = raw.lower()
+    if "firebase" in raw:
+        return "Firebase"
+    if "cloudrun" in raw or "cloud_run" in raw or "cloud-run" in raw:
+        return "Cloud Run"
+    return raw.upper() or "VM"
+
+
 def build_project_cards(
     github_repos: list[dict],
+    github_user_repos: list[dict],
     xbrain_projects: list[dict],
-) -> list[dict]:
-    """Construit la liste des cards en joignant repos GitHub et projets xbrain."""
-    # Index xbrain par slug
+) -> tuple[list[dict], list[dict]]:
+    """Retourne (cards_org, cards_user)."""
+    # Index xbrain par slug et par nom
     xbrain_by_slug: dict[str, dict] = {}
+    xbrain_by_name: dict[str, dict] = {}
     for proj in xbrain_projects:
         slug = proj.get("slug") or proj.get("project_scope") or ""
         if slug:
             xbrain_by_slug[slug] = proj
-
-    # Index xbrain par nom (fallback si le slug ne matche pas)
-    xbrain_by_name: dict[str, dict] = {}
-    for proj in xbrain_projects:
         name = (proj.get("name") or "").lower().replace(" ", "-")
         if name:
             xbrain_by_name[name] = proj
 
-    cards: list[dict] = []
-
-    # Repos GitHub
-    seen_slugs: set[str] = set()
-    for repo in github_repos:
+    def _build_card(repo: dict, owner: str) -> dict:
         repo_name = repo.get("name", "")
         repo_slug = repo_name.lower().replace("_", "-")
-
-        # Chercher la correspondance xbrain
         xbrain_info = xbrain_by_slug.get(repo_slug) or xbrain_by_name.get(repo_slug)
-
-        # Récupérer les membres (limiter aux 10 premiers pour performance)
-        members = fetch_github_collaborators(repo_name) if GITHUB_API_PAT else []
-
+        members = fetch_github_collaborators(owner, repo_name) if GITHUB_API_PAT else []
         deploy_target = "VM"
         project_url = ""
         project_scope = ""
         team_scope = ""
         is_indexed = False
-
         if xbrain_info:
-            deploy_target_raw = xbrain_info.get("deploy_target", "").lower()
-            if "firebase" in deploy_target_raw:
-                deploy_target = "Firebase"
-            elif "cloudrun" in deploy_target_raw or "cloud_run" in deploy_target_raw or "cloud-run" in deploy_target_raw:
-                deploy_target = "Cloud Run"
-            else:
-                deploy_target = deploy_target_raw.upper() or "VM"
-
+            deploy_target = _resolve_deploy_target(xbrain_info.get("deploy_target", ""))
             project_url = xbrain_info.get("url", "")
             project_scope = xbrain_info.get("project_scope", "")
             team_scope = xbrain_info.get("team_scope", "")
             is_indexed = True
-            seen_slugs.add(repo_slug)
-
-        cards.append({
+        return {
             "name": repo_name,
             "slug": repo_slug,
             "description": repo.get("description") or "",
-            "html_url": repo.get("html_url", f"https://github.com/{GITHUB_ORG}/{repo_name}"),
+            "html_url": repo.get("html_url", f"https://github.com/{owner}/{repo_name}"),
             "project_url": project_url,
             "deploy_target": deploy_target,
             "is_indexed": is_indexed,
-            "members": members[:10],  # limiter à 10 avatars
+            "members": members[:10],
             "project_scope": project_scope,
             "team_scope": team_scope,
             "updated_at": repo.get("updated_at", ""),
-        })
+        }
 
-    # Projets xbrain sans repo GitHub correspondant
+    # Cards org
+    seen_slugs: set[str] = set()
+    org_cards: list[dict] = []
+    for repo in github_repos:
+        card = _build_card(repo, GITHUB_ORG)
+        org_cards.append(card)
+        if card["is_indexed"]:
+            seen_slugs.add(card["slug"])
+
+    # Projets xbrain sans repo GitHub org correspondant → ajoutés à org_cards
     for proj in xbrain_projects:
         slug = proj.get("slug") or proj.get("project_scope") or ""
         if slug and slug not in seen_slugs:
-            deploy_target_raw = proj.get("deploy_target", "").lower()
-            if "firebase" in deploy_target_raw:
-                deploy_target = "Firebase"
-            elif "cloudrun" in deploy_target_raw or "cloud_run" in deploy_target_raw or "cloud-run" in deploy_target_raw:
-                deploy_target = "Cloud Run"
-            else:
-                deploy_target = deploy_target_raw.upper() or "VM"
-
-            cards.append({
+            org_cards.append({
                 "name": proj.get("name", slug),
                 "slug": slug,
                 "description": "",
                 "html_url": f"https://github.com/{GITHUB_ORG}/{slug}",
                 "project_url": proj.get("url", ""),
-                "deploy_target": deploy_target,
+                "deploy_target": _resolve_deploy_target(proj.get("deploy_target", "")),
                 "is_indexed": True,
                 "members": [],
                 "project_scope": proj.get("project_scope", ""),
@@ -221,7 +222,14 @@ def build_project_cards(
                 "updated_at": "",
             })
 
-    return cards
+    # Cards compte perso (exclure les repos déjà présents dans l'org)
+    org_names = {r.get("name", "").lower() for r in github_repos}
+    user_cards: list[dict] = []
+    for repo in github_user_repos:
+        if repo.get("name", "").lower() not in org_names:
+            user_cards.append(_build_card(repo, GITHUB_USER))
+
+    return org_cards, user_cards
 
 
 # ---------------------------------------------------------------------------
@@ -432,6 +440,24 @@ footer {
   background: #fff;
   margin-top: 1rem;
 }
+section { margin-bottom: 2rem; }
+.section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 1rem 2rem 0.25rem;
+  border-bottom: 2px solid #e9ecef;
+  margin: 0 2rem 0;
+}
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+.section-meta {
+  font-size: 0.82rem;
+  color: #868e96;
+}
 """
 
 JS = """
@@ -464,8 +490,28 @@ document.addEventListener('DOMContentLoaded', function() {
 """
 
 
+def _section_html(title: str, subtitle: str, cards: list[dict], section_id: str) -> str:
+    cards_html = "\n".join(_card_html(c) for c in cards)
+    if not cards_html:
+        cards_html = '<div class="empty-state">Aucun projet trouvé.</div>'
+    else:
+        cards_html += f'\n    <div class="empty-state" id="empty-{section_id}" style="display:none">Aucun résultat pour ces filtres.</div>'
+    indexed = sum(1 for c in cards if c["is_indexed"])
+    return f"""
+  <section>
+    <div class="section-header">
+      <h2 class="section-title">{html.escape(title)}</h2>
+      <span class="section-meta">{html.escape(subtitle)} &middot; {indexed} indexés</span>
+    </div>
+    <div class="grid" data-section="{section_id}">
+      {cards_html}
+    </div>
+  </section>"""
+
+
 def generate_html(
-    cards: list[dict],
+    org_cards: list[dict],
+    user_cards: list[dict],
     generated_at: str,
     partial: bool,
 ) -> str:
@@ -477,22 +523,19 @@ def generate_html(
             "</div>"
         )
 
-    cards_html = "\n".join(_card_html(c) for c in cards)
-    if not cards_html:
-        cards_html = (
-            '<div class="empty-state" id="empty-state">'
-            "Aucun projet trouvé."
-            "</div>"
-        )
-    else:
-        cards_html += (
-            '\n    <div class="empty-state" id="empty-state" style="display:none">'
-            "Aucun résultat pour ces filtres."
-            "</div>"
-        )
-
-    total = len(cards)
-    indexed = sum(1 for c in cards if c["is_indexed"])
+    total = len(org_cards) + len(user_cards)
+    org_section = _section_html(
+        f"Org · {GITHUB_ORG}",
+        f"{len(org_cards)} projets",
+        org_cards,
+        "org",
+    )
+    user_section = _section_html(
+        f"Compte · {GITHUB_USER}",
+        f"{len(user_cards)} repos",
+        user_cards,
+        "user",
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="fr">
@@ -508,7 +551,7 @@ def generate_html(
   <header>
     <div>
       <h1>xbrain Projects</h1>
-      <div class="subtitle">{total} projets &middot; {indexed} indexés &middot; org: {html.escape(GITHUB_ORG)}</div>
+      <div class="subtitle">{total} projets au total</div>
     </div>
     <div class="subtitle">Généré le {html.escape(generated_at)}</div>
   </header>
@@ -517,9 +560,8 @@ def generate_html(
     <input id="filter-member" type="text" placeholder="Filtrer par membre..." aria-label="Filtrer par membre">
     <input id="filter-project" type="text" placeholder="Filtrer par projet..." aria-label="Filtrer par projet">
   </div>
-  <div class="grid">
-    {cards_html}
-  </div>
+  {org_section}
+  {user_section}
   <footer>Généré le {html.escape(generated_at)} — xbrain v5</footer>
   <script>
 {JS}
@@ -540,23 +582,26 @@ def main() -> None:
     github_repos, github_ok = fetch_github_repos()
     if not github_ok:
         partial = True
-        print("[generate_dashboard] WARN Using empty GitHub repos list (partial data)")
+
+    print(f"[generate_dashboard] Fetching GitHub repos for user: {GITHUB_USER}")
+    github_user_repos, user_ok = fetch_github_user_repos()
+    if not user_ok:
+        partial = True
 
     print(f"[generate_dashboard] Fetching xbrain projects from {XBRAIN_MEMORY_API_URL}")
     xbrain_projects, xbrain_ok = fetch_xbrain_projects()
     if not xbrain_ok:
         partial = True
-        print("[generate_dashboard] WARN Using empty xbrain projects list (partial data)")
 
-    print(f"[generate_dashboard] Building cards ({len(github_repos)} repos, {len(xbrain_projects)} xbrain projects)")
-    cards = build_project_cards(github_repos, xbrain_projects)
+    print(f"[generate_dashboard] Building cards ({len(github_repos)} org repos, {len(github_user_repos)} user repos, {len(xbrain_projects)} xbrain projects)")
+    org_cards, user_cards = build_project_cards(github_repos, github_user_repos, xbrain_projects)
 
-    html_content = generate_html(cards, generated_at, partial)
+    html_content = generate_html(org_cards, user_cards, generated_at, partial)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_FILE.write_text(html_content, encoding="utf-8")
 
-    print(f"[generate_dashboard] Generated {OUTPUT_FILE} ({len(cards)} cards, partial={partial})")
+    print(f"[generate_dashboard] Generated {OUTPUT_FILE} ({len(org_cards)} org cards, {len(user_cards)} user cards, partial={partial})")
 
 
 if __name__ == "__main__":
