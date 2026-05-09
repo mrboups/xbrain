@@ -1,5 +1,8 @@
 """FastAPI dependencies: DB session, current user, team scope guard, memory provider."""
 
+import asyncio
+import hashlib
+import types
 from collections.abc import AsyncGenerator
 from typing import Any
 from uuid import UUID
@@ -15,6 +18,19 @@ from app.config import settings
 from app.db.session import async_session_factory
 from app.repos.teams import get_membership
 from app.repos.users import get_or_create_user
+
+
+async def _touch_token(token_id: str) -> None:
+    """Fire-and-forget update of last_used_at for an API token."""
+    try:
+        async with async_session_factory() as s:
+            await s.execute(
+                sa.text("UPDATE user_api_tokens SET last_used_at = now() WHERE id = :id"),
+                {"id": token_id},
+            )
+            await s.commit()
+    except Exception:
+        pass
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
@@ -83,6 +99,33 @@ async def get_current_principal(
             # Fall through to bridge JWT attempt
             pass
 
+    # Try personal API token (tokens start with "xbt_" prefix).
+    if token.startswith("xbt_"):
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        row = (await session.execute(sa.text("""
+            SELECT t.id, t.user_id, t.team_scope, u.source_user_id, u.email, u.display_name
+            FROM user_api_tokens t
+            JOIN users u ON u.id = t.user_id
+            WHERE t.token_hash = :hash AND t.revoked_at IS NULL
+        """), {"hash": token_hash})).mappings().fetchone()
+        if row is None:
+            raise HTTPException(401, "Invalid or revoked API token")
+        # Update last_used_at async (fire-and-forget — non-blocking)
+        asyncio.create_task(_touch_token(str(row["id"])))
+        user = types.SimpleNamespace(
+            id=row["user_id"],
+            source_user_id=row["source_user_id"],
+            email=row["email"],
+            display_name=row["display_name"],
+        )
+        return {
+            "kind": "user_api_token",
+            "user": user,
+            "sub": row["source_user_id"],
+            "api_token_team_scope": row["team_scope"],
+            "github_is_org_member": None,
+        }
+
     # Try bridge service JWT.
     try:
         claims = verify_bridge_jwt(token, settings.BRIDGE_SHARED_SECRET)
@@ -142,6 +185,12 @@ async def get_team_scope(
     if principal["kind"] == "bridge":
         if principal["team_scope"] != x_team_scope:
             raise HTTPException(403, "Bridge JWT team_scope mismatch with header")
+        return x_team_scope
+
+    # API tokens are scoped to exactly one team — validate that the requested scope matches.
+    if principal["kind"] == "user_api_token":
+        if principal.get("api_token_team_scope") != x_team_scope:
+            raise HTTPException(403, "API token team_scope mismatch with X-Team-Scope header")
         return x_team_scope
 
     # T-05-02-02: GitHub users who are not org members cannot access team-scoped routes.

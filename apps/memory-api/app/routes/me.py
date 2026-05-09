@@ -1,7 +1,10 @@
 """/v1/me — current authenticated principal + per-user Granola API key management (D1 Phase 8)."""
 
+import hashlib
+import secrets
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 import sqlalchemy as sa
 import structlog
@@ -17,11 +20,21 @@ log = structlog.get_logger(__name__)
 router = APIRouter()
 
 
-# ── /v1/me — existing endpoint (unchanged) ──────────────────────────────────
+# ── /v1/me — existing endpoint (extended for API token kind) ────────────────
 
 
 @router.get("/me")
 async def me(principal: dict[str, Any] = Depends(get_current_principal)) -> dict[str, Any]:
+    if principal.get("kind") == "user_api_token":
+        u = principal["user"]
+        return {
+            "kind": "user_api_token",
+            "id": str(u.id),
+            "source_user_id": u.source_user_id,
+            "email": u.email,
+            "display_name": u.display_name,
+            "api_token_team_scope": principal.get("api_token_team_scope"),
+        }
     if principal["kind"] == "user":
         u = principal["user"]
         return {
@@ -175,4 +188,123 @@ async def delete_my_granola_key(
     )
     await session.commit()
     log.info("me.granola_key.disabled", user_id=str(user.id))
+    return None
+
+
+# ── /v1/me/api-token — personal API token CRUD ──────────────────────────────
+
+
+class ApiTokenCreateBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    team_scope: str = Field(..., min_length=1, max_length=64)
+    name: str = Field(default="default", min_length=1, max_length=128)
+
+
+class ApiTokenCreated(BaseModel):
+    id: str
+    token: str  # plaintext — returned ONCE only
+    team_scope: str
+    name: str
+    created_at: datetime
+
+
+class ApiTokenInfo(BaseModel):
+    id: str
+    team_scope: str
+    name: str
+    created_at: datetime
+    last_used_at: datetime | None
+
+
+@router.post("/me/api-token", response_model=ApiTokenCreated, status_code=201)
+async def create_api_token(
+    body: ApiTokenCreateBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Generate a personal API token (xbt_ prefix) for the authenticated user.
+
+    The plaintext token is returned ONCE. Store it immediately — it cannot be retrieved again.
+    Auth: user JWT only (Google OIDC or GitHub OAuth).
+    """
+    user = _require_user(principal)
+    raw_token = "xbt_" + secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    row = (await session.execute(sa.text("""
+        INSERT INTO user_api_tokens (user_id, token_hash, team_scope, name)
+        VALUES (:uid, :hash, :ts, :name)
+        RETURNING id, team_scope, name, created_at
+    """), {
+        "uid": str(user.id),
+        "hash": token_hash,
+        "ts": body.team_scope,
+        "name": body.name,
+    })).mappings().fetchone()
+
+    await session.commit()
+    log.info("me.api_token.created", user_id=str(user.id), team_scope=body.team_scope, name=body.name)
+
+    return ApiTokenCreated(
+        id=str(row["id"]),
+        token=raw_token,
+        team_scope=row["team_scope"],
+        name=row["name"],
+        created_at=row["created_at"],
+    )
+
+
+@router.get("/me/api-token", response_model=list[ApiTokenInfo])
+async def list_api_tokens(
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """List non-revoked personal API tokens for the authenticated user.
+
+    Never returns plaintext tokens.
+    Auth: user JWT only.
+    """
+    user = _require_user(principal)
+    rows = (await session.execute(sa.text("""
+        SELECT id, team_scope, name, created_at, last_used_at
+        FROM user_api_tokens
+        WHERE user_id = :uid AND revoked_at IS NULL
+        ORDER BY created_at DESC
+    """), {"uid": str(user.id)})).mappings().all()
+
+    return [
+        ApiTokenInfo(
+            id=str(r["id"]),
+            team_scope=r["team_scope"],
+            name=r["name"],
+            created_at=r["created_at"],
+            last_used_at=r["last_used_at"],
+        )
+        for r in rows
+    ]
+
+
+@router.delete("/me/api-token/{token_id}", status_code=204)
+async def revoke_api_token(
+    token_id: str,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Soft-revoke a personal API token (sets revoked_at=now()).
+
+    The token immediately becomes invalid for authentication.
+    Auth: user JWT only.
+    """
+    user = _require_user(principal)
+    result = await session.execute(sa.text("""
+        UPDATE user_api_tokens
+        SET revoked_at = now()
+        WHERE id = :tid AND user_id = :uid AND revoked_at IS NULL
+    """), {"tid": token_id, "uid": str(user.id)})
+
+    await session.commit()
+    if result.rowcount == 0:
+        raise HTTPException(404, "Token not found or already revoked")
+
+    log.info("me.api_token.revoked", user_id=str(user.id), token_id=token_id)
     return None
