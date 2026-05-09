@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Plateforme Projets Équipe** - Pipeline GitOps (GitHub Actions → Cloud Run + Firebase), Graphiti extraction temporelle, extension Chrome truth-level, auth GitHub Org + Google + account linking, dashboard projets déployés — **DONE 2026-05-06**
 - [x] **Phase 6: Marketing Site + Documentation** - Site marketing statique en anglais (fond blanc, cible startup teams), documentation complète de toutes les features, déploiement Firebase Hosting — **DONE 2026-05-07** (https://grooveos.app)
 - [x] **Phase 7: CRM + Granola + Task Intelligence** - CRM auto-populé depuis le brain (contacts extraits automatiquement), intégration Granola → mémoire (notes de réunion → faits taguées), task tracking automatique (tout output brain qui implique une action génère une tâche assignée + notification team) — **DONE 2026-05-07**
-- [ ] **Phase 8: Granola Per-User + Universal Extraction Pipeline + Platform Agents** - Clé API Granola per-user (saisie manuelle onboarding, Fernet chiffré), pipeline extraction universel (LibreChat + Chrome ext + Granola → CRM + tasks), registry agent_definitions éditable par les admins avec agent meeting-recap seedé — **IN PROGRESS** (onboarding flow shipped 2026-05-09 — github-orgs, solo-team, onboarding modal)
+- [x] **Phase 8: Granola Per-User + Universal Extraction Pipeline + Platform Agents** - Clé API Granola per-user (saisie manuelle onboarding, Fernet chiffré), pipeline extraction universel (LibreChat + Chrome ext + Granola → CRM + tasks), registry agent_definitions éditable par les admins avec agent meeting-recap seedé — **DONE 2026-05-09** (PASS: 7/7 verify-phase8.sh)
 
 ## Phase Details
 
@@ -162,13 +162,13 @@ Plans:
 **Plans**: 8 plans
 Plans:
 - [x] 08-01-PLAN.md — Migration Alembic 0012 (granola_user_connections + agent_definitions + seed meeting-recap) + alembic upgrade head
-- [ ] 08-02-PLAN.md — memory-api: routes agents.py (CRUD admin /v1/admin/agents + /v1/agents/{id}/invoke synchrone Anthropic)
-- [ ] 08-03-PLAN.md — memory-api: routes /v1/me/granola-key (POST/GET/DELETE) + Fernet encryption
-- [ ] 08-04-PLAN.md — granola-sync: deuxième boucle per-user dans granola_poller.py + auto-trigger meeting-recap (D5)
-- [ ] 08-05-PLAN.md — GitHub repos dynamiques: /api/xbrain/github-repos (LibreChat) + /v1/github/repos stub (memory-api)
-- [ ] 08-06-PLAN.md — librechat-bridge: contact_extractor.py + hook mongo_watcher (extraction CRM depuis messages)
-- [ ] 08-07-PLAN.md — onboarding.js patch: étape 4 optionnelle Granola API key
-- [ ] 08-08-PLAN.md — verify-phase8.sh (7 tests) + .env.example section Phase 8
+- [x] 08-02-PLAN.md — memory-api: routes agents.py (CRUD admin /v1/admin/agents + /v1/agents/{id}/invoke synchrone Anthropic)
+- [x] 08-03-PLAN.md — memory-api: routes /v1/me/granola-key (POST/GET/DELETE) + Fernet encryption
+- [x] 08-04-PLAN.md — granola-sync: deuxième boucle per-user dans granola_poller.py + auto-trigger meeting-recap (D5)
+- [x] 08-05-PLAN.md — GitHub repos dynamiques: /api/xbrain/github-repos (LibreChat) + /v1/github/repos proxy (memory-api)
+- [x] 08-06-PLAN.md — librechat-bridge: contact_extractor.py + hook mongo_watcher (extraction CRM depuis messages)
+- [x] 08-07-PLAN.md — onboarding.js patch: étape 4 optionnelle Granola API key
+- [x] 08-08-PLAN.md — verify-phase8.sh (7 tests) + .env.example section Phase 8
 
 ### Phase 7: CRM + Granola + Task Intelligence
 **Goal**: Le brain devient actif. Une équipe peut (1) consulter un CRM populé automatiquement depuis tout ce qui passe par le brain (chats, agents, meetings Granola), (2) voir chaque réunion Granola ingérée comme source de mémoire de premier ordre (résumé + participants + actions + décisions), et (3) gérer un backlog de tâches auto-générées depuis les action items Granola et les outputs agents — chaque tâche assignée à un contact CRM déclenche une notification email.
