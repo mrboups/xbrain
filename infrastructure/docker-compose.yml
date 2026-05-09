@@ -677,6 +677,32 @@ services:
       retries: 5
       start_period: 20s
 
+  # === mcp-brain (Phase 8 remote) — MCP server for Claude.ai + ChatGPT web ===
+  mcp-brain:
+    build:
+      context: ../apps/mcp-brain
+      dockerfile: Dockerfile
+    image: xbrain/mcp-brain:phase8
+    container_name: xbrain-mcp-brain
+    restart: unless-stopped
+    environment:
+      MEMORY_API_URL: http://memory-api:8000
+      FASTMCP_HOST: "0.0.0.0"
+      FASTMCP_PORT: "8104"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    expose:
+      - "8104"
+    networks: [xbrain_net]
+    mem_limit: 128m
+    depends_on:
+      memory-api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8104 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
   # === graphiti-service (plan 05-01) — temporal fact extraction + contradiction detection ===
   graphiti-service:
     build:

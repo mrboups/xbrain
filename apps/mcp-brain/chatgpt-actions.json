@@ -1,0 +1,136 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "xbrain Team Memory API",
+    "version": "1.0.0",
+    "description": "Access your team's persistent memory, tasks, and CRM contacts on xbrain. Get your personal API token at POST /v1/me/api-token using your Google or GitHub account."
+  },
+  "servers": [{"url": "https://api.grooveos.app"}],
+  "security": [{"bearerAuth": []}],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Personal API token (xbt_...) — create at POST /v1/me/api-token"
+      }
+    },
+    "schemas": {
+      "MemoryItem": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "content": {"type": "string"},
+          "truth_level": {"type": "string", "enum": ["EPHEMERAL","WORKING","VALIDATED","CANONICAL","PUBLIC"]},
+          "source": {"type": "string"},
+          "score": {"type": "number"}
+        }
+      },
+      "Task": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "title": {"type": "string"},
+          "status": {"type": "string", "enum": ["todo","in_progress","done","cancelled"]},
+          "priority": {"type": "string"},
+          "description": {"type": "string", "nullable": true}
+        }
+      },
+      "Contact": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "full_name": {"type": "string", "nullable": true},
+          "email": {"type": "string", "nullable": true},
+          "company_name": {"type": "string", "nullable": true},
+          "role": {"type": "string", "nullable": true}
+        }
+      }
+    }
+  },
+  "paths": {
+    "/v1/memory/search": {
+      "get": {
+        "operationId": "memorySearch",
+        "summary": "Search team memory",
+        "parameters": [
+          {"name": "q", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Search query"},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 10, "maximum": 100}},
+          {"name": "project_scope", "in": "query", "schema": {"type": "string"}},
+          {"name": "X-Team-Scope", "in": "header", "required": true, "schema": {"type": "string"}, "description": "Team slug"}
+        ],
+        "responses": {
+          "200": {"description": "Search results", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/MemoryItem"}}}}}
+        }
+      }
+    },
+    "/v1/memory/upsert": {
+      "post": {
+        "operationId": "memoryAdd",
+        "summary": "Add a memory item",
+        "parameters": [
+          {"name": "X-Team-Scope", "in": "header", "required": true, "schema": {"type": "string"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["item"], "properties": {"item": {"type": "object", "required": ["team_scope","content","source","truth_level","confidence","visibility","validation_status"], "properties": {"team_scope": {"type": "string"}, "content": {"type": "string"}, "source": {"type": "string", "default": "chatgpt"}, "truth_level": {"type": "string", "default": "WORKING"}, "confidence": {"type": "number", "default": 0.8}, "visibility": {"type": "string", "default": "team"}, "validation_status": {"type": "string", "default": "pending"}, "project_scope": {"type": "string"}}}}}}
+        },
+        "responses": {
+          "201": {"description": "Created", "content": {"application/json": {"schema": {"type": "object", "properties": {"id": {"type": "string"}}}}}}
+        }
+      }
+    },
+    "/v1/tasks": {
+      "get": {
+        "operationId": "tasksList",
+        "summary": "List team tasks",
+        "parameters": [
+          {"name": "X-Team-Scope", "in": "header", "required": true, "schema": {"type": "string"}},
+          {"name": "status", "in": "query", "schema": {"type": "string", "enum": ["todo","in_progress","done","cancelled"]}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 20}}
+        ],
+        "responses": {
+          "200": {"description": "Tasks list", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Task"}}}}}
+        }
+      },
+      "post": {
+        "operationId": "taskCreate",
+        "summary": "Create a task",
+        "parameters": [
+          {"name": "X-Team-Scope", "in": "header", "required": true, "schema": {"type": "string"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["title"], "properties": {"title": {"type": "string"}, "description": {"type": "string"}, "assignee_email": {"type": "string"}}}}}
+        },
+        "responses": {
+          "201": {"description": "Created task", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Task"}}}}
+        }
+      }
+    },
+    "/v1/crm/contacts": {
+      "get": {
+        "operationId": "contactsSearch",
+        "summary": "Search CRM contacts",
+        "parameters": [
+          {"name": "X-Team-Scope", "in": "header", "required": true, "schema": {"type": "string"}},
+          {"name": "q", "in": "query", "schema": {"type": "string"}},
+          {"name": "company", "in": "query", "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 20}}
+        ],
+        "responses": {
+          "200": {"description": "Contacts", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Contact"}}}}}
+        }
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "operationId": "getMe",
+        "summary": "Get current user info and team scope",
+        "responses": {
+          "200": {"description": "User info", "content": {"application/json": {"schema": {"type": "object", "properties": {"kind": {"type": "string"}, "email": {"type": "string"}, "api_token_team_scope": {"type": "string"}}}}}}
+        }
+      }
+    }
+  }
+}
