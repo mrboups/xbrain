@@ -161,33 +161,43 @@ async def _maybe_create_task_from_action(item: MemoryItem, team_scope: str) -> N
         flagged = (meta.get("contains_action") is True) or bool(_ACTION_RE.search(content))
         if not flagged:
             return
-        client = _get_anthropic()
-        if client is None:
-            log.warning("tasks.auto.no_anthropic_key", team_scope=team_scope)
-            return
 
-        msg = await client.messages.create(
-            model="claude-3-5-haiku-20241022",
-            max_tokens=512,
-            system=(
-                "Extract a single task definition from the text. Return STRICT JSON "
-                '(no markdown): {"title": "<concise title <80 chars>", '
-                '"description": "<details or null>", "assignee_email": "<email or null>"}. '
-                'If no clear actionable task, return {"title": null}.'
-            ),
-            messages=[{"role": "user", "content": content[:8000]}],
-        )
-        text = msg.content[0].text.strip() if msg.content else "{}"
-        if text.startswith("```"):
-            text = text.split("```", 2)[1].lstrip("json").strip()
-        import json as _json
+        # Short-circuit: bridge task_intent_detector already called Claude and stored
+        # the extracted fields in metadata — reuse them to avoid a redundant second call.
+        pre_title = meta.get("task_intent_title")
+        pre_assignee = meta.get("task_intent_assignee_email")
+        if pre_title:
+            title = str(pre_title)[:512]
+            description = None
+            assignee_email = pre_assignee or None
+        else:
+            client = _get_anthropic()
+            if client is None:
+                log.warning("tasks.auto.no_anthropic_key", team_scope=team_scope)
+                return
 
-        parsed = _json.loads(text)
-        title = parsed.get("title")
-        if not title:
-            return
-        description = parsed.get("description")
-        assignee_email = parsed.get("assignee_email")
+            msg = await client.messages.create(
+                model="claude-3-5-haiku-20241022",
+                max_tokens=512,
+                system=(
+                    "Extract a single task definition from the text. Return STRICT JSON "
+                    '(no markdown): {"title": "<concise title <80 chars>", '
+                    '"description": "<details or null>", "assignee_email": "<email or null>"}. '
+                    'If no clear actionable task, return {"title": null}.'
+                ),
+                messages=[{"role": "user", "content": content[:8000]}],
+            )
+            text = msg.content[0].text.strip() if msg.content else "{}"
+            if text.startswith("```"):
+                text = text.split("```", 2)[1].lstrip("json").strip()
+            import json as _json
+
+            parsed = _json.loads(text)
+            title = parsed.get("title")
+            if not title:
+                return
+            description = parsed.get("description")
+            assignee_email = parsed.get("assignee_email")
 
         source_kind = "agent" if (item.source or "").startswith("agent") else "chat"
 

@@ -14,7 +14,9 @@ Notes:
   - L'invocation accepte user OU bridge — granola-sync (bridge) auto-déclenche meeting-recap (D5).
 """
 
+import asyncio
 import json
+import types
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -337,6 +339,10 @@ async def invoke_agent(
         "agent_name": agent_row["name"],
         "agent_model": agent_row["model"],
     }
+    if agent_row.get("auto_trigger"):
+        # auto_trigger agents (e.g. meeting-recap) produce structured output with
+        # action items — flag so _maybe_create_task_from_action picks them up.
+        metadata_payload["contains_action"] = True
     await session.execute(sa.text("""
         INSERT INTO memory_items (
             id, team_scope, project_scope, content, source, source_ref,
@@ -368,6 +374,19 @@ async def invoke_agent(
         },
     )
     await session.commit()
+
+    # Fire background hooks on agent output — same as memory/upsert does after a write.
+    # Lazy import avoids a module-level circular dependency (memory imports nothing from agents).
+    if recap_text:
+        from app.routes.memory import _extract_crm_contacts, _maybe_create_task_from_action  # noqa: PLC0415
+        _item = types.SimpleNamespace(
+            content=recap_text,
+            metadata=metadata_payload,
+            source="agent",
+            id=memory_item_id,
+        )
+        asyncio.create_task(_extract_crm_contacts(recap_text, body.team_scope, "agent"))
+        asyncio.create_task(_maybe_create_task_from_action(_item, body.team_scope))
 
     log.info(
         "agent.invoked",
