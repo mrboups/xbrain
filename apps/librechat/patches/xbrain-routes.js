@@ -28,6 +28,31 @@ module.exports = function mountXbrainRoutes(app) {
     }
   }
 
+  app.get('/api/xbrain/github-orgs', requireJwtAuth, async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const mongoose = require('mongoose');
+      const userId = req.user._id || req.user.id;
+      const user = await mongoose.connection.collection('users').findOne({ _id: userId });
+      const ghToken = user?.github_access_token;
+      if (!ghToken) return res.json([]);
+      const r = await fetch('https://api.github.com/user/orgs?per_page=100', {
+        headers: {
+          Authorization: `Bearer ${ghToken}`,
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent': 'xbrain-librechat',
+        },
+      });
+      if (!r.ok) return res.json([]);
+      const orgs = await r.json();
+      res.json(Array.isArray(orgs) ? orgs.map(o => ({ login: o.login, description: o.description || null })) : []);
+    } catch (err) {
+      console.warn('[xbrain] github-orgs error:', err?.message);
+      res.json([]);
+    }
+  });
+
   app.get('/api/xbrain/token', requireJwtAuth, (req, res) => {
     if (!secret) return res.status(503).json({ error: 'BRIDGE_SHARED_SECRET not configured' });
 
@@ -37,11 +62,13 @@ module.exports = function mountXbrainRoutes(app) {
     }
 
     const now = Math.floor(Date.now() / 1000);
+    const githubId = user.githubId || user.github_id || null;
     const token = jwt.sign(
       {
         iss: 'librechat-onboarding',
         sub: String(user._id || user.id),
         email: user.email,
+        ...(githubId ? { github_id: String(githubId) } : {}),
         scope: 'bridge',
         iat: now,
         exp: now + 300,

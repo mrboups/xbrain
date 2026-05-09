@@ -2,11 +2,12 @@
 # Custom LibreChat image — bakes xbrain patches into v0.8.5.
 #
 # Patches:
-#   1. api/strategies/socialLogin.js   — OAuth cross-provider account linking
-#   2. api/server/routes/xbrain-routes.js — /api/xbrain/token endpoint
-#   3. api/server/index.js             — patched via patch-server.js at build time
-#   4. client/dist/index.html          — <script defer> tag injected
-#   5. client/dist/onboarding.js       — 4-step team onboarding modal
+#   1a. api/strategies/socialLogin.js   — OAuth cross-provider account linking
+#   1b. api/strategies/githubStrategy.js — adds read:org scope to GitHub OAuth
+#   2.  api/server/routes/xbrain-routes.js — /api/xbrain/token endpoint
+#   3.  api/server/index.js             — patched via patch-server.js at build time
+#   4.  client/dist/index.html          — <script defer> tag injected
+#   5.  client/dist/onboarding.js       — 4-step team onboarding modal
 #
 # Paths verified against running container on VM __VM_HOST__ (2026-05-07):
 #   - /app/client/dist/index.html
@@ -14,8 +15,14 @@
 
 FROM ghcr.io/danny-avila/librechat:v0.8.5
 
-# Patch 1: OAuth cross-provider account linking
+# Patch 1a: OAuth cross-provider account linking
 COPY patches/socialLogin.js /app/api/strategies/socialLogin.js
+
+# Patch 1b: Add read:org scope to GitHub OAuth (required for /api/xbrain/github-orgs)
+# oauth.js hardcodes scope in passport.authenticate() calls, overriding githubStrategy.js
+COPY patches/githubStrategy.js /app/api/strategies/githubStrategy.js
+RUN sed -i "s/scope: \['user:email', 'read:user'\]/scope: ['user:email', 'read:user', 'read:org']/g" \
+    /app/api/server/routes/oauth.js
 
 # Patch 2: xbrain token endpoint
 # Note: placed directly in /app/api/server/ so patch-server.js can require('./xbrain-routes')
@@ -27,10 +34,10 @@ RUN node /tmp/patch-server.js
 
 # Patch 4 + 5: Onboarding modal
 COPY patches/onboarding.js /app/client/dist/onboarding.js
-RUN sed -i 's|</head>|<script defer src="/onboarding.js?v=4"></script></head>|' \
+RUN sed -i 's|</head>|<script defer src="/onboarding.js?v=9"></script></head>|' \
     /app/client/dist/index.html
 
 # Verify all patches applied
 RUN grep -q "xbrain-routes" /app/api/server/index.js && \
-    grep -q "onboarding.js?v=4" /app/client/dist/index.html && \
+    grep -q "onboarding.js?v=9" /app/client/dist/index.html && \
     echo "All patches verified OK"

@@ -5,6 +5,17 @@ const { createSocialUser, handleExistingUser } = require('./process');
 const { getAppConfig } = require('~/server/services/Config');
 const { findUser, updateUser } = require('~/models');
 
+// Bypass Mongoose strict mode to persist github_access_token (not in schema).
+function saveGithubToken(userId, token) {
+  try {
+    const mongoose = require('mongoose');
+    mongoose.connection.collection('users').updateOne(
+      { _id: userId },
+      { $set: { github_access_token: token } },
+    ).catch(() => {});
+  } catch (_) {}
+}
+
 const socialLogin =
   (provider, getProfileDetails, options = {}) =>
   async (accessToken, refreshToken, idToken, profile, cb) => {
@@ -57,6 +68,9 @@ const socialLogin =
 
       if (existingUser?.provider === provider) {
         await handleExistingUser(existingUser, avatarUrl, appConfig, email);
+        if (provider === 'github' && accessToken) {
+          saveGithubToken(existingUser._id, accessToken);
+        }
         return cb(null, existingUser);
       } else if (existingUser) {
         // Account linking: user exists via a different provider — link the new provider ID
@@ -69,6 +83,9 @@ const socialLogin =
           );
         }
         await handleExistingUser(existingUser, avatarUrl, appConfig, email);
+        if (provider === 'github' && accessToken) {
+          saveGithubToken(existingUser._id, accessToken);
+        }
         return cb(null, existingUser);
       }
 
@@ -101,6 +118,9 @@ const socialLogin =
         emailVerified,
         appConfig,
       });
+      if (provider === 'github' && accessToken) {
+        saveGithubToken(newUser._id, accessToken);
+      }
       return cb(null, newUser);
     } catch (err) {
       logger.error(`[${provider}Login]`, err);
