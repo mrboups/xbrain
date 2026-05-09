@@ -15,6 +15,7 @@ from app.qdrant_setup import ensure_collections
 from app.routes import (
     admin_drive,
     admin_projects,
+    agents,
     audit,
     conversations,
     crm,
@@ -102,3 +103,4 @@ app.include_router(tasks.router, prefix="/v1", tags=["tasks"])
 app.include_router(drive_webhook.router, prefix="/v1", tags=["drive-webhook"])
 app.include_router(granola_integration.router, prefix="/v1", tags=["granola"])
 app.include_router(waitlist.router, prefix="/v1", tags=["waitlist"])
+app.include_router(agents.router, prefix="/v1", tags=["agents"])
