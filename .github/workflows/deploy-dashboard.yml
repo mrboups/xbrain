@@ -38,4 +38,4 @@ jobs:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: |
           cd projects-dashboard
-          firebase deploy --only hosting:projects --project xbrain-495115 --debug 2>&1 || true
+          firebase deploy --only hosting:projects --project xbrain-495115
