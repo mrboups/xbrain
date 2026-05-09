@@ -38,10 +38,9 @@ jobs:
         with:
           workload_identity_provider: projects/50097563098/locations/global/workloadIdentityPools/github-actions/providers/github
           service_account: firebase-adminsdk-fbsvc@xbrain-495115.iam.gserviceaccount.com
-      - uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          projectId: xbrain-495115
-          target: projects
-          channelId: live
-          entryPoint: ./projects-dashboard
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+      - name: Deploy to Firebase Hosting
+        run: |
+          cd projects-dashboard
+          firebase deploy --only hosting:projects --project xbrain-495115
