@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     SMTP_FROM: str = "noreply@grooveos.app"
     SMTP_TLS: bool = True
 
+    # Phase 8 — GitHub repos proxy (plan 08-05)
+    # Internal Docker network URL to LibreChat. Used by /v1/github/repos to proxy
+    # the caller's Bearer token to /api/xbrain/github-repos on LibreChat.
+    # Set to http://librechat:3080 in .env on the VM. Without it, /v1/github/repos returns 503.
+    LIBRECHAT_INTERNAL_URL: str = ""
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}
