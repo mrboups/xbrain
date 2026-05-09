@@ -223,7 +223,149 @@
     const desc = el('p', { class: 'xb-desc' }, 'Your team is set up. You\'re ready to use xbrain.');
     const startBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Get started →');
     startBtn.onclick = dismiss;
-    setHtml(body, title, desc, startBtn);
+
+    // Phase 8 plan 08-07 — optional Granola connect step
+    const granolaBtn = el('button', { class: 'xb-btn xb-btn-secondary' }, 'Connect Granola (optional)');
+    granolaBtn.onclick = renderGranolaStep;
+
+    setHtml(body, title, desc, startBtn, granolaBtn);
+  }
+
+  // Phase 8 plan 08-07 — D1 RESEARCH.md: per-user Granola key submission.
+  async function renderGranolaStep() {
+    const body = getBody();
+
+    setHtml(body, el('p', { class: 'xb-desc' }, 'Loading Granola status…'));
+
+    const freshToken = await getToken();
+    if (freshToken) {
+      try {
+        const r = await apiCall('GET', '/v1/me/granola-key', null, freshToken);
+        if (r.ok) {
+          const data = await r.json();
+          if (data && data.connected === true) {
+            return renderGranolaConnected(data);
+          }
+        }
+      } catch (_e) {
+        // fail-soft: fall through to connect mode
+      }
+    }
+
+    const title = el('h2', {}, 'Connect Granola');
+    const desc = el('p', { class: 'xb-desc' },
+      'Paste your personal Granola API key. We\'ll poll your meetings privately and feed them into your team\'s memory. ' +
+      'You can disconnect anytime. Your key is encrypted at rest.');
+    const stepLabel = el('p', { class: 'xb-step-indicator' }, 'STEP 4 OF 4 — OPTIONAL');
+    const keyInput = el('input', {
+      class: 'xb-input',
+      type: 'password',
+      placeholder: 'Granola API key (gnlk_...)',
+      autocomplete: 'off',
+    });
+    const errorDiv = el('p', { class: 'xb-error', style: 'display:none' });
+
+    const saveBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Save & continue');
+    const skipBtn = el('button', { class: 'xb-btn xb-btn-secondary' }, 'Skip for now');
+
+    saveBtn.onclick = async () => {
+      errorDiv.style.display = 'none';
+      const apiKey = (keyInput.value || '').trim();
+      if (apiKey.length < 8) {
+        errorDiv.textContent = 'Please paste a valid Granola API key.';
+        errorDiv.style.display = 'block';
+        return;
+      }
+      saveBtn.disabled = true;
+      skipBtn.disabled = true;
+      // Pitfall 7 RESEARCH.md: refresh token just before submit.
+      const submitToken = await getToken();
+      if (!submitToken) {
+        errorDiv.textContent = 'Authentication expired. Please refresh the page and try again.';
+        errorDiv.style.display = 'block';
+        saveBtn.disabled = false;
+        skipBtn.disabled = false;
+        return;
+      }
+      try {
+        const r = await apiCall('POST', '/v1/me/granola-key', {
+          api_key: apiKey,
+          team_scope: selectedTeam?.slug || selectedTeam?.team_scope || '',
+        }, submitToken);
+        if (!r.ok) {
+          const errBody = await r.json().catch(() => ({}));
+          throw new Error(errBody.detail || `HTTP ${r.status}`);
+        }
+        dismiss();
+      } catch (e) {
+        errorDiv.textContent = `Could not save key: ${e.message || 'unknown error'}`;
+        errorDiv.style.display = 'block';
+        saveBtn.disabled = false;
+        skipBtn.disabled = false;
+      }
+    };
+
+    skipBtn.onclick = dismiss;
+
+    setHtml(body, stepLabel, title, desc, keyInput, errorDiv, saveBtn, skipBtn);
+  }
+
+  // Phase 8 plan 08-07 Task 2 — Mode "already connected": allows key revocation.
+  // Criterion 1 ROADMAP: the connection is revocable.
+  function renderGranolaConnected(statusData) {
+    const body = getBody();
+    const stepLabel = el('p', { class: 'xb-step-indicator' }, 'GRANOLA CONNECTION');
+    const title = el('h2', {}, '✓ Granola connecté');
+
+    const teamScope = (statusData && statusData.team_scope) || (selectedTeam?.slug) || '';
+    const desc = el('p', { class: 'xb-desc' },
+      `Your Granola key is active${teamScope ? ' for team "' + teamScope + '"' : ''}. ` +
+      'New meetings will be polled and added to your team\'s memory automatically. ' +
+      'You can disconnect at any time — your existing meetings will remain in memory.');
+
+    const errorDiv = el('p', { class: 'xb-error', style: 'display:none' });
+    const successDiv = el('p', { class: 'xb-desc', style: 'color:#7fc08f;display:none' });
+
+    const closeBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Close');
+    closeBtn.onclick = dismiss;
+
+    const disconnectBtn = el('button', { class: 'xb-btn xb-btn-secondary' }, 'Déconnecter');
+    disconnectBtn.onclick = async () => {
+      errorDiv.style.display = 'none';
+      disconnectBtn.disabled = true;
+      closeBtn.disabled = true;
+      const freshToken = await getToken();
+      if (!freshToken) {
+        errorDiv.textContent = 'Authentication expired. Please refresh and try again.';
+        errorDiv.style.display = 'block';
+        disconnectBtn.disabled = false;
+        closeBtn.disabled = false;
+        return;
+      }
+      try {
+        const r = await apiCall('DELETE', '/v1/me/granola-key', null, freshToken);
+        if (!r.ok && r.status !== 204) {
+          const errBody = await r.json().catch(() => ({}));
+          throw new Error(errBody.detail || `HTTP ${r.status}`);
+        }
+        successDiv.textContent = 'Granola déconnecté.';
+        successDiv.style.display = 'block';
+        title.textContent = 'Granola déconnecté';
+        desc.textContent = 'Your Granola key has been removed. You can reconnect at any time.';
+        disconnectBtn.style.display = 'none';
+        const reconnectBtn = el('button', { class: 'xb-btn xb-btn-secondary' }, 'Reconnect');
+        reconnectBtn.onclick = renderGranolaStep;
+        body.appendChild(reconnectBtn);
+        closeBtn.disabled = false;
+      } catch (e) {
+        errorDiv.textContent = `Could not disconnect: ${e.message || 'unknown error'}`;
+        errorDiv.style.display = 'block';
+        disconnectBtn.disabled = false;
+        closeBtn.disabled = false;
+      }
+    };
+
+    setHtml(body, stepLabel, title, desc, errorDiv, successDiv, closeBtn, disconnectBtn);
   }
 
   function renderPending(teamName) {
