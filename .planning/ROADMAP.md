@@ -18,8 +18,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3.5: MCP Gateway Fix + Corrections Phase 3** (INSERTED) - Réécriture mcp-gateway client MCP stateful (Bug 1 critique : tool-call E2E cassé), fix verify-phase3.sh parser (Bug 2 cosmetic) — **DONE 2026-05-05**
 - [x] **Phase 4: Consolidation MCP Frontends + Intégrations Avancées** - LibreChat & agent-runtime branchés sur la gateway MCP (MCP-05/06 réellement câblés), fix logging Open WebUI conversations (MEM-04 résiduel), Drive push webhooks + multi-folder mapping, deck-service MCP tool (MCP-07 déféré) — **DONE 2026-05-05**
 - [x] **Phase 5: Plateforme Projets Équipe** - Pipeline GitOps (GitHub Actions → Cloud Run + Firebase), Graphiti extraction temporelle, extension Chrome truth-level, auth GitHub Org + Google + account linking, dashboard projets déployés — **DONE 2026-05-06**
-- [ ] **Phase 7: CRM + Granola + Task Intelligence** - CRM auto-populé depuis le brain (contacts extraits automatiquement), intégration Granola → mémoire (notes de réunion → faits taguées), task tracking automatique (tout output brain qui implique une action génère une tâche assignée + notification team)
 - [x] **Phase 6: Marketing Site + Documentation** - Site marketing statique en anglais (fond blanc, cible startup teams), documentation complète de toutes les features, déploiement Firebase Hosting — **DONE 2026-05-07** (https://xbrain-marketing.web.app)
+- [ ] **Phase 7: CRM + Granola + Task Intelligence** - CRM auto-populé depuis le brain (contacts extraits automatiquement), intégration Granola → mémoire (notes de réunion → faits taguées), task tracking automatique (tout output brain qui implique une action génère une tâche assignée + notification team)
+- [ ] **Phase 8: Granola OAuth Per-User + Universal Extraction Pipeline + Platform Agents** - Granola OAuth 2.0 PKCE per-user (popup self-service), pipeline extraction universel (LibreChat + Chrome ext + Granola → CRM + tasks), registry agent_definitions éditable par les admins avec agent meeting-recap seedé
 
 ## Phase Details
 
@@ -144,6 +145,31 @@ Plans:
 - [ ] 06-07-PLAN.md — Deployment + Configuration pages
 - [ ] 06-08-PLAN.md — Firebase deploy + checkpoint human verification
 
+### Phase 8: Granola OAuth Per-User + Universal Extraction Pipeline + Platform Agents
+**Goal**: Chaque utilisateur connecte Granola en OAuth self-service (popup PKCE, pas de clé API admin), toutes les sorties applicatives (LibreChat, Chrome extension, Granola meetings) alimentent automatiquement le CRM et les tâches, et les admins peuvent créer/éditer des agents de plateforme configurables (registry `agent_definitions`) accessibles depuis la plateforme.
+**Depends on**: Phase 7
+**Entry gate**: Phase 7 SHIPPED. Tables `contacts`, `tasks`, `granola_integrations` présentes. Granola OAuth 2.0 endpoint accessible (scope `meetings:read`).
+**Requirements**: (phase post-v1 — nouvelles capacités hors scope 73 REQ-IDs v1)
+**Success Criteria** (what must be TRUE):
+  1. Un utilisateur clique "Connect Granola" dans l'onboarding ou son profil → popup OAuth 2.0 PKCE Granola → token stocké dans `granola_user_connections` (chiffré Fernet, lié à `user_id`) ; la connexion est visible dans son profil et révocable
+  2. Après connexion OAuth, granola-sync poll per-user et ingère les meetings → contacts + tasks (même pipeline Phase 7 mais déclenché par `user_id`, non team-API-key)
+  3. Tout output LibreChat (message assistant) contenant des patterns contact (nom/email/entreprise) déclenche l'extraction contact → CRM (pipeline robuste, fail-soft, idempotent)
+  4. Tout clip Chrome extension → extraction contact + task si action item détecté (via background worker)
+  5. Table `agent_definitions` : admin peut CRUD via `POST/GET/PATCH/DELETE /v1/admin/agents` ; chaque agent a `name`, `description`, `system_prompt`, `model`, `tools_json`, `enabled`, `created_by` ; l'agent `meeting-recap` est seedé au déploiement
+  6. L'agent `meeting-recap` seedé peut être invoqué via `POST /v1/agents/{id}/invoke` avec un transcript et retourne un recap structuré (format docs/meeting-recap.md)
+  7. Dashboard GitHub dynamique : un user authentifié voit ses repos privés + ceux de son org GitHub liée — le dashboard appelle `GET /v1/github/repos` (memory-api) qui utilise le `github_access_token` stocké en MongoDB ; le scope OAuth GitHub inclut `repo` ; les repos privés sont visibles uniquement par le user concerné
+  8. `bash infrastructure/scripts/verify-phase8.sh` retourne `PASS: 7 / 7`
+**Plans**: 8 plans
+Plans:
+- [ ] 08-01-PLAN.md — Migration Alembic 0012 (granola_user_connections + agent_definitions + seed meeting-recap) + alembic upgrade head
+- [ ] 08-02-PLAN.md — memory-api: routes agents.py (CRUD admin /v1/admin/agents + /v1/agents/{id}/invoke synchrone Anthropic)
+- [ ] 08-03-PLAN.md — memory-api: routes /v1/me/granola-key (POST/GET/DELETE) + Fernet encryption
+- [ ] 08-04-PLAN.md — granola-sync: deuxième boucle per-user dans granola_poller.py + auto-trigger meeting-recap (D5)
+- [ ] 08-05-PLAN.md — GitHub repos dynamiques: /api/xbrain/github-repos (LibreChat) + /v1/github/repos stub (memory-api)
+- [ ] 08-06-PLAN.md — librechat-bridge: contact_extractor.py + hook mongo_watcher (extraction CRM depuis messages)
+- [ ] 08-07-PLAN.md — onboarding.js patch: étape 4 optionnelle Granola API key
+- [ ] 08-08-PLAN.md — verify-phase8.sh (7 tests) + .env.example section Phase 8
+
 ### Phase 7: CRM + Granola + Task Intelligence
 **Goal**: Le brain devient actif. Une équipe peut (1) consulter un CRM populé automatiquement depuis tout ce qui passe par le brain (chats, agents, meetings Granola), (2) voir chaque réunion Granola ingérée comme source de mémoire de premier ordre (résumé + participants + actions + décisions), et (3) gérer un backlog de tâches auto-générées depuis les action items Granola et les outputs agents — chaque tâche assignée à un contact CRM déclenche une notification email.
 **Depends on**: Phase 6
@@ -184,6 +210,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7
 | 5. Plateforme Projets Équipe | 7/7 | ✅ Complete | 2026-05-06 |
 | 6. Marketing Site + Documentation | 8/8 | ✅ Complete | 2026-05-07 |
 | 7. CRM + Granola + Task Intelligence | 0/7 | 🟡 Planned | — |
+| 8. Granola OAuth Per-User + Universal Extraction + Platform Agents | 0/TBD | ⚪ Not started | — |
 
 ---
 
