@@ -1,5 +1,14 @@
 {
   "projects": {
     "default": "xbrain-495115"
+  },
+  "targets": {
+    "xbrain-495115": {
+      "hosting": {
+        "projects": [
+          "projects-grooveos"
+        ]
+      }
+    }
   }
 }

@@ -1,16 +1,27 @@
 {
-  "hosting": {
-    "public": "public",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [],
-    "headers": [
-      {
-        "source": "**",
-        "headers": [
-          {"key": "Cache-Control", "value": "no-cache, must-revalidate"},
-          {"key": "X-Frame-Options", "value": "DENY"}
-        ]
-      }
-    ]
-  }
+  "hosting": [
+    {
+      "target": "projects",
+      "public": "public",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {"key": "Cache-Control", "value": "no-cache, must-revalidate"},
+            {"key": "X-Frame-Options", "value": "DENY"},
+            {"key": "X-Content-Type-Options", "value": "nosniff"},
+            {"key": "Referrer-Policy", "value": "strict-origin-when-cross-origin"}
+          ]
+        },
+        {
+          "source": "**/*.@(css|js)",
+          "headers": [
+            {"key": "Cache-Control", "value": "public, max-age=3600"}
+          ]
+        }
+      ]
+    }
+  ]
 }

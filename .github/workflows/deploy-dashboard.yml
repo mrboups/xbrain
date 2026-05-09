@@ -23,7 +23,7 @@ jobs:
           GITHUB_ORG: ${{ vars.GITHUB_ORG || 'your-github-org' }}
           GITHUB_API_PAT: ${{ secrets.GITHUB_API_PAT }}
           XBRAIN_BRIDGE_JWT: ${{ secrets.XBRAIN_BRIDGE_JWT }}
-          XBRAIN_MEMORY_API_URL: https://api.dejavu.cat
+          XBRAIN_MEMORY_API_URL: https://api.grooveos.app
         run: |
           cd projects-dashboard
           python3 scripts/generate_dashboard.py
@@ -32,5 +32,6 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_XBRAIN }}
           projectId: xbrain-495115
+          target: projects
           channelId: live
           entryPoint: ./projects-dashboard
