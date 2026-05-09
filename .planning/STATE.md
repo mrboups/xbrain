@@ -138,11 +138,12 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-09
-Stopped at: Phase 8 COMPLETE. All 8 plans executed, all 4 containers rebuilt on VM, verify-phase8.sh PASS: 7/7.
+Stopped at: mcp-brain remote MCP server shipped (260509-a1b). 9 tools, API token auth, nginx vhost, ChatGPT Actions spec. Verified 9/9.
 Resume file: None
 
 ### Quick Tasks Completed
 
-| Slug | Date | Description |
-|------|------|-------------|
-| global-audit | 2026-05-09 | Global features audit + STATE.md/ROADMAP.md docs update |
+| Slug | Date | Commit | Status | Description |
+|------|------|--------|--------|-------------|
+| global-audit | 2026-05-09 | — | — | Global features audit + STATE.md/ROADMAP.md docs update |
+| 260509-a1b-mcp-brain-remote-server | 2026-05-09 | 9f21d52 | Verified | mcp-brain remote MCP server for Claude.ai + ChatGPT web access to team brain |
