@@ -18,5 +18,9 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_TASK_INTENT_MODEL: str = "claude-3-5-haiku-20241022"
 
+    # Phase 8 plan 08-06 — Contact extraction from LibreChat messages (D3 RESEARCH.md)
+    CONTACT_EXTRACTION: bool = False  # opt-in — set CONTACT_EXTRACTION=true to enable
+    ANTHROPIC_CONTACT_MODEL: str = "claude-3-5-haiku-20241022"
+
 
 settings = Settings()  # type: ignore[call-arg]
