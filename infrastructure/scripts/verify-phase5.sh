@@ -56,13 +56,14 @@ assert 'background' in d
 assert 'identity' in d.get('permissions', [])
 \""
 
-# Test 7 — projects.dejavu.cat Firebase config
+# Test 7 — projects.grooveos.app Firebase config
 run_test "projects-dashboard/firebase.json existe et est valide JSON" \
     "python3 -c \"import json; d=json.load(open('projects-dashboard/firebase.json')); assert 'hosting' in d\""
 
-# Test 8 — memory-api CORS headers incluent chrome-extension
+# Test 8 — memory-api CORS headers incluent chrome-extension (via docker exec)
 run_test "memory-api CORS: Access-Control-Allow-Origin pour chrome-extension" \
-    "curl -sI -X OPTIONS http://localhost:8000/v1/healthz \
+    "docker compose -f infrastructure/docker-compose.yml exec -T memory-api \
+        curl -sI -X OPTIONS http://127.0.0.1:8000/v1/healthz \
         -H 'Origin: chrome-extension://testextension' \
         -H 'Access-Control-Request-Method: GET' \
         2>/dev/null | grep -i 'access-control-allow-origin'"

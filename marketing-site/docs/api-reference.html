@@ -49,8 +49,11 @@
           <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
           <li><a href="agents.html" class="sidebar__link">Agents</a></li>
           <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+          <li><a href="crm.html" class="sidebar__link">CRM &amp; Contacts</a></li>
+          <li><a href="tasks.html" class="sidebar__link">Task Tracking</a></li>
+          <li><a href="meetings.html" class="sidebar__link">Meeting Integration</a></li>
           <li><a href="api-reference.html" class="sidebar__link active">API Reference</a></li>
-          <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+          <li><a href="deployment.html" class="sidebar__link">Open Source Deploy</a></li>
           <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
         </ul>
       </nav>
@@ -72,7 +75,7 @@
 
       <div class="docs-meta">
         <span class="docs-meta__badge">memory-api</span>
-        <span>FastAPI &bull; port 8000 &bull; 15 route modules</span>
+        <span>FastAPI &bull; port 8000 &bull; 18 route modules</span>
       </div>
 
       <!-- ============================================================
@@ -112,7 +115,7 @@
         </tbody>
       </table>
 
-      <p><strong>Base URL:</strong> <code>https://api.dejavu.cat</code> (replace with your domain)</p>
+      <p><strong>Base URL:</strong> <code>https://api.grooveos.app</code> (replace with your domain)</p>
 
       <!-- ============================================================
            Authentication
@@ -140,12 +143,12 @@
       </ul>
 
       <pre class="code-block"><span class="code-block__label">bash — authenticating requests</span># Google ID token (from frontend after OAuth flow)
-curl https://api.dejavu.cat/v1/me \
+curl https://api.grooveos.app/v1/me \
   -H "Authorization: Bearer $GOOGLE_ID_TOKEN" \
   -H "X-Team-Scope: acme"
 
 # GitHub token (after GitHub OAuth)
-curl https://api.dejavu.cat/v1/me/github \
+curl https://api.grooveos.app/v1/me/github \
   -H "Authorization: Bearer $GITHUB_TOKEN" \
   -H "X-Team-Scope: acme"</pre>
 
@@ -169,7 +172,7 @@ curl https://api.dejavu.cat/v1/me/github \
         </tbody>
       </table>
 
-      <pre class="code-block"><span class="code-block__label">bash — health check</span>curl https://api.dejavu.cat/v1/healthz
+      <pre class="code-block"><span class="code-block__label">bash — health check</span>curl https://api.grooveos.app/v1/healthz
 
 # Response:
 {
@@ -197,7 +200,7 @@ curl https://api.dejavu.cat/v1/me/github \
         </tbody>
       </table>
 
-      <pre class="code-block"><span class="code-block__label">bash — get user profile</span>curl https://api.dejavu.cat/v1/me \
+      <pre class="code-block"><span class="code-block__label">bash — get user profile</span>curl https://api.grooveos.app/v1/me \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme"
 
@@ -215,7 +218,7 @@ curl https://api.dejavu.cat/v1/me/github \
       <p>Returns GitHub profile information if the user authenticated via GitHub OAuth.
       Includes org membership verification result.</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — get GitHub profile</span>curl https://api.dejavu.cat/v1/me/github \
+      <pre class="code-block"><span class="code-block__label">bash — get GitHub profile</span>curl https://api.grooveos.app/v1/me/github \
   -H "Authorization: Bearer $GITHUB_TOKEN" \
   -H "X-Team-Scope: acme"
 
@@ -260,7 +263,7 @@ curl https://api.dejavu.cat/v1/me/github \
         </tbody>
       </table>
 
-      <pre class="code-block"><span class="code-block__label">bash — upsert a memory item (all 7 required fields)</span>curl -X POST https://api.dejavu.cat/v1/memory/upsert \
+      <pre class="code-block"><span class="code-block__label">bash — upsert a memory item (all 7 required fields)</span>curl -X POST https://api.grooveos.app/v1/memory/upsert \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme" \
   -H "Content-Type: application/json" \
@@ -317,7 +320,7 @@ curl https://api.dejavu.cat/v1/me/github \
         </tbody>
       </table>
 
-      <pre class="code-block"><span class="code-block__label">bash — semantic memory search</span>curl "https://api.dejavu.cat/v1/memory/search?q=fundraising+target&truth_level_min=WORKING&limit=5" \
+      <pre class="code-block"><span class="code-block__label">bash — semantic memory search</span>curl "https://api.grooveos.app/v1/memory/search?q=fundraising+target&truth_level_min=WORKING&limit=5" \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme"
 
@@ -340,7 +343,7 @@ curl https://api.dejavu.cat/v1/me/github \
       <p>Retrieve a single memory item by ID. Returns 404 if the item is not in the requesting
       team's scope.</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — get a single memory item</span>curl https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
+      <pre class="code-block"><span class="code-block__label">bash — get a single memory item</span>curl https://api.grooveos.app/v1/memory/mem_f7a3b1c9d2e4 \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme"</pre>
 
@@ -362,7 +365,7 @@ curl https://api.dejavu.cat/v1/me/github \
         </p>
       </div>
 
-      <pre class="code-block"><span class="code-block__label">bash — update confidence and validation_status</span>curl -X PATCH https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
+      <pre class="code-block"><span class="code-block__label">bash — update confidence and validation_status</span>curl -X PATCH https://api.grooveos.app/v1/memory/mem_f7a3b1c9d2e4 \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme" \
   -H "Content-Type: application/json" \
@@ -378,7 +381,7 @@ curl https://api.dejavu.cat/v1/me/github \
 }
 
 # Attempting to patch truth_level:
-curl -X PATCH https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
+curl -X PATCH https://api.grooveos.app/v1/memory/mem_f7a3b1c9d2e4 \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme" \
   -H "Content-Type: application/json" \
@@ -394,7 +397,7 @@ curl -X PATCH https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
       <p>Delete a memory item. Removes from both Qdrant (vector) and PostgreSQL (metadata).
       Returns 204 No Content on success.</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — delete a memory item</span>curl -X DELETE https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
+      <pre class="code-block"><span class="code-block__label">bash — delete a memory item</span>curl -X DELETE https://api.grooveos.app/v1/memory/mem_f7a3b1c9d2e4 \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme"
 
@@ -410,7 +413,7 @@ curl -X PATCH https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
       <p>Create a new conversation record. Conversations are the organizational unit for
       messages — every message belongs to a conversation.</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — create a conversation</span>curl -X POST https://api.dejavu.cat/v1/conversations \
+      <pre class="code-block"><span class="code-block__label">bash — create a conversation</span>curl -X POST https://api.grooveos.app/v1/conversations \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme" \
   -H "Content-Type: application/json" \
@@ -436,7 +439,7 @@ curl -X PATCH https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
       <code>X-Team-Scope</code>. Query params: <code>project_scope</code>, <code>limit</code>
       (default 20), <code>offset</code>.</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — list team conversations</span>curl "https://api.dejavu.cat/v1/conversations?project_scope=fundraising&limit=10" \
+      <pre class="code-block"><span class="code-block__label">bash — list team conversations</span>curl "https://api.grooveos.app/v1/conversations?project_scope=fundraising&limit=10" \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme"</pre>
 
@@ -445,7 +448,7 @@ curl -X PATCH https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
       <p>Retrieve a single conversation with its metadata. Does not include messages —
       use <code>GET /v1/messages?conversation_id=</code> for messages.</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — get conversation by ID</span>curl https://api.dejavu.cat/v1/conversations/conv_uuid_123 \
+      <pre class="code-block"><span class="code-block__label">bash — get conversation by ID</span>curl https://api.grooveos.app/v1/conversations/conv_uuid_123 \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme"</pre>
 
@@ -462,7 +465,7 @@ curl -X PATCH https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
         to stream conversation content into xbrain.
       </p>
 
-      <pre class="code-block"><span class="code-block__label">bash — log a message (bridge usage)</span>curl -X POST https://api.dejavu.cat/v1/messages \
+      <pre class="code-block"><span class="code-block__label">bash — log a message (bridge usage)</span>curl -X POST https://api.grooveos.app/v1/messages \
   -H "Authorization: Bearer $BRIDGE_JWT" \
   -H "X-Team-Scope: acme" \
   -H "Content-Type: application/json" \
@@ -495,7 +498,7 @@ curl -X PATCH https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
 
       <p>Submit a promotion request for a memory item.</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — request promotion to VALIDATED</span>curl -X POST https://api.dejavu.cat/v1/promotions \
+      <pre class="code-block"><span class="code-block__label">bash — request promotion to VALIDATED</span>curl -X POST https://api.grooveos.app/v1/promotions \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme" \
   -H "Content-Type: application/json" \
@@ -520,7 +523,7 @@ curl -X PATCH https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
       <code>ADMIN_USER_SUBS</code>. Supports query params: <code>status</code> (pending, approved,
       rejected), <code>item_id</code>.</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — list pending promotions (admin)</span>curl "https://api.dejavu.cat/v1/promotions?status=pending" \
+      <pre class="code-block"><span class="code-block__label">bash — list pending promotions (admin)</span>curl "https://api.grooveos.app/v1/promotions?status=pending" \
   -H "Authorization: Bearer $ADMIN_JWT" \
   -H "X-Team-Scope: acme"</pre>
 
@@ -529,7 +532,7 @@ curl -X PATCH https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
       <p>Approve or reject a pending promotion. Admin only. On approval, the memory item's
       <code>truth_level</code> is updated atomically.</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — approve a promotion (admin)</span>curl -X PATCH https://api.dejavu.cat/v1/promotions/promo_uuid_123 \
+      <pre class="code-block"><span class="code-block__label">bash — approve a promotion (admin)</span>curl -X PATCH https://api.grooveos.app/v1/promotions/promo_uuid_123 \
   -H "Authorization: Bearer $ADMIN_JWT" \
   -H "X-Team-Scope: acme" \
   -H "Content-Type: application/json" \
@@ -560,7 +563,7 @@ curl -X PATCH https://api.dejavu.cat/v1/memory/mem_f7a3b1c9d2e4 \
         call with verified team knowledge.
       </p>
 
-      <pre class="code-block"><span class="code-block__label">bash — fetch team CANONICAL facts for system prompt</span>curl https://api.dejavu.cat/v1/system-prompt \
+      <pre class="code-block"><span class="code-block__label">bash — fetch team CANONICAL facts for system prompt</span>curl https://api.grooveos.app/v1/system-prompt \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme"
 
@@ -592,7 +595,7 @@ Team knowledge (CANONICAL, acme):
         </tbody>
       </table>
 
-      <pre class="code-block"><span class="code-block__label">bash — get graph neighbors for an entity</span>curl "https://api.dejavu.cat/v1/graph/neighbors?entity=Alice&team_scope=acme" \
+      <pre class="code-block"><span class="code-block__label">bash — get graph neighbors for an entity</span>curl "https://api.grooveos.app/v1/graph/neighbors?entity=Alice&team_scope=acme" \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme"
 
@@ -647,7 +650,7 @@ Team knowledge (CANONICAL, acme):
         </tbody>
       </table>
 
-      <pre class="code-block"><span class="code-block__label">bash — fetch audit log for a team</span>curl "https://api.dejavu.cat/v1/audit?team_scope=acme&action=promote&limit=20" \
+      <pre class="code-block"><span class="code-block__label">bash — fetch audit log for a team</span>curl "https://api.grooveos.app/v1/audit?team_scope=acme&action=promote&limit=20" \
   -H "Authorization: Bearer $ADMIN_JWT" \
   -H "X-Team-Scope: acme"
 
@@ -677,7 +680,7 @@ Team knowledge (CANONICAL, acme):
 
       <p>List teams the authenticated user belongs to.</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — list user teams</span>curl https://api.dejavu.cat/v1/teams \
+      <pre class="code-block"><span class="code-block__label">bash — list user teams</span>curl https://api.grooveos.app/v1/teams \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme"
 
@@ -692,7 +695,7 @@ Team knowledge (CANONICAL, acme):
       <p>Create a new team. Admin only. The team scope must be a unique slug (lowercase,
       hyphens allowed).</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — create a team (admin)</span>curl -X POST https://api.dejavu.cat/v1/admin/teams \
+      <pre class="code-block"><span class="code-block__label">bash — create a team (admin)</span>curl -X POST https://api.grooveos.app/v1/admin/teams \
   -H "Authorization: Bearer $ADMIN_JWT" \
   -H "X-Team-Scope: acme" \
   -H "Content-Type: application/json" \
@@ -721,7 +724,7 @@ Team knowledge (CANONICAL, acme):
       which drive-sync exchanges for tokens.</p>
 
       <pre class="code-block"><span class="code-block__label">bash — initiate Drive OAuth (redirect in browser)</span># This endpoint redirects — open in browser, not curl
-GET https://api.dejavu.cat/v1/admin/drive/auth
+GET https://api.grooveos.app/v1/admin/drive/auth
   ?team_scope=acme
   &Authorization=Bearer+{admin_jwt}</pre>
 
@@ -730,7 +733,7 @@ GET https://api.dejavu.cat/v1/admin/drive/auth
       <p>Map a Google Drive folder to a team scope and project. Once mapped, drive-sync
       will watch the folder for changes and upsert new/modified files into memory-api.</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — map a Drive folder to a project</span>curl -X POST https://api.dejavu.cat/v1/admin/drive/mappings \
+      <pre class="code-block"><span class="code-block__label">bash — map a Drive folder to a project</span>curl -X POST https://api.grooveos.app/v1/admin/drive/mappings \
   -H "Authorization: Bearer $ADMIN_JWT" \
   -H "X-Team-Scope: acme" \
   -H "Content-Type: application/json" \
@@ -756,7 +759,7 @@ GET https://api.dejavu.cat/v1/admin/drive/auth
 
       <p>List all active Drive folder mappings for the team.</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — list Drive mappings</span>curl https://api.dejavu.cat/v1/admin/drive/mappings \
+      <pre class="code-block"><span class="code-block__label">bash — list Drive mappings</span>curl https://api.grooveos.app/v1/admin/drive/mappings \
   -H "Authorization: Bearer $ADMIN_JWT" \
   -H "X-Team-Scope: acme"</pre>
 
@@ -787,7 +790,7 @@ GET https://api.dejavu.cat/v1/admin/drive/auth
       <p>Create a new project within a team. Projects are used as the <code>project_scope</code>
       for memory items, conversations, and Drive mappings.</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — create a project (admin)</span>curl -X POST https://api.dejavu.cat/v1/admin/projects \
+      <pre class="code-block"><span class="code-block__label">bash — create a project (admin)</span>curl -X POST https://api.grooveos.app/v1/admin/projects \
   -H "Authorization: Bearer $ADMIN_JWT" \
   -H "X-Team-Scope: acme" \
   -H "Content-Type: application/json" \
@@ -812,9 +815,152 @@ GET https://api.dejavu.cat/v1/admin/drive/auth
 
       <p>List all projects for the team. Admin only.</p>
 
-      <pre class="code-block"><span class="code-block__label">bash — list team projects</span>curl https://api.dejavu.cat/v1/admin/projects \
+      <pre class="code-block"><span class="code-block__label">bash — list team projects</span>curl https://api.grooveos.app/v1/admin/projects \
   -H "Authorization: Bearer $ADMIN_JWT" \
   -H "X-Team-Scope: acme"</pre>
+
+      <!-- ============================================================
+           CRM & CONTACTS
+           ============================================================ -->
+      <h2>CRM &amp; Contacts <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:9999px;background:#ECFEFF;color:#0F7490;font-size:12px;font-weight:700;letter-spacing:.04em;border:1px solid #A5F3FC;margin-left:8px;vertical-align:middle;">Team &amp; Enterprise</span></h2>
+
+      <p>
+        Contact management with automatic extraction from memory items and meeting notes.
+        All endpoints require Team or Enterprise plan — Starter returns <strong>403</strong>.
+        See <a href="crm.html">CRM &amp; Contacts</a> for full documentation.
+      </p>
+
+      <h3>GET /v1/crm/contacts</h3>
+      <p>List contacts for the authenticated team with pagination.</p>
+      <pre class="code-block"><span class="code-block__label">bash</span>curl "https://api.grooveos.app/v1/crm/contacts?limit=50&offset=0" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"</pre>
+
+      <h3>POST /v1/crm/contacts</h3>
+      <p>Create a new contact. Email must be unique within the team.</p>
+      <pre class="code-block"><span class="code-block__label">bash</span>curl -X POST "https://api.grooveos.app/v1/crm/contacts" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"alice@example.com","name":"Alice Martin","company":"Acme"}'</pre>
+
+      <h3>PUT /v1/crm/contacts</h3>
+      <p>Upsert a contact by <code>(team_scope, email)</code>. Safe to call repeatedly — idempotent.</p>
+      <pre class="code-block"><span class="code-block__label">bash</span>curl -X PUT "https://api.grooveos.app/v1/crm/contacts" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"alice@example.com","role":"VP Engineering"}'</pre>
+
+      <h3>PATCH /v1/crm/contacts/{contact_id}</h3>
+      <p>Update fields of an existing contact.</p>
+
+      <h3>DELETE /v1/crm/contacts/{contact_id}</h3>
+      <p>Delete a contact. Logged to audit trail.</p>
+
+      <!-- ============================================================
+           TASKS
+           ============================================================ -->
+      <h2>Tasks <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:9999px;background:#ECFEFF;color:#0F7490;font-size:12px;font-weight:700;letter-spacing:.04em;border:1px solid #A5F3FC;margin-left:8px;vertical-align:middle;">Team &amp; Enterprise</span></h2>
+
+      <p>
+        Task management with automatic generation from meeting notes and chat messages.
+        All endpoints require Team or Enterprise plan — Starter returns <strong>403</strong>.
+        See <a href="tasks.html">Task Tracking</a> for full documentation including polling and
+        chat-based task detection.
+      </p>
+
+      <h3>GET /v1/tasks</h3>
+      <p>List tasks with optional filters. Supports <code>since</code> timestamp for polling.</p>
+      <pre class="code-block"><span class="code-block__label">bash</span># All tasks for the team
+curl "https://api.grooveos.app/v1/tasks" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"
+
+# Filter by status + poll for new tasks
+curl "https://api.grooveos.app/v1/tasks?status=todo&since=2026-05-07T00:00:00Z" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme"</pre>
+
+      <h3>POST /v1/tasks</h3>
+      <p>Create a task manually. <code>created_by</code> is set to the authenticated user's ID.
+      Bridge JWTs are rejected (401) — this endpoint requires a real user identity.</p>
+      <pre class="code-block"><span class="code-block__label">bash</span>curl -X POST "https://api.grooveos.app/v1/tasks" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Send deck to investor",
+    "project_scope": "fundraising",
+    "due_date": "2026-05-14",
+    "visibility": "team",
+    "confidence": 1.0,
+    "truth_level": "WORKING",
+    "validation_status": "pending"
+  }'</pre>
+
+      <h3>GET /v1/tasks/{task_id}</h3>
+      <p>Retrieve a single task by ID.</p>
+
+      <h3>PATCH /v1/tasks/{task_id}</h3>
+      <p>Update a task. Status changes generate a differentiated audit entry:
+      <code>task.status_changed</code> (with <code>from</code>/<code>to</code> fields)
+      vs <code>task.updated</code> for non-status changes.</p>
+      <pre class="code-block"><span class="code-block__label">bash</span>curl -X PATCH "https://api.grooveos.app/v1/tasks/t1a2b3c4..." \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "done"}'</pre>
+
+      <h3>DELETE /v1/tasks/{task_id}</h3>
+      <p>Delete a task. Logged to audit trail.</p>
+
+      <!-- ============================================================
+           GRANOLA MEETING INTEGRATION
+           ============================================================ -->
+      <h2>Meeting Integration (Granola) <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:9999px;background:#ECFEFF;color:#0F7490;font-size:12px;font-weight:700;letter-spacing:.04em;border:1px solid #A5F3FC;margin-left:8px;vertical-align:middle;">Team &amp; Enterprise</span></h2>
+
+      <p>
+        Granola meeting notes are automatically polled every 5 minutes and ingested as memory
+        items + contacts + tasks. See <a href="meetings.html">Meeting Integration</a> for
+        setup instructions and the full processing pipeline.
+      </p>
+
+      <h3>POST /v1/admin/granola-integration</h3>
+      <p>Register a Granola API key for the team. Admin only. The key is Fernet-encrypted at rest.</p>
+      <pre class="code-block"><span class="code-block__label">bash</span>curl -X POST "https://api.grooveos.app/v1/admin/granola-integration" \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{"api_key":"grn_live_...","default_project_scope":"general"}'</pre>
+
+      <h3>GET /v1/admin/granola-integration</h3>
+      <p>Get the current Granola integration config for the team. API key is not returned (write-only).</p>
+
+      <h3>PATCH /v1/admin/granola-integration</h3>
+      <p>Update the integration (e.g. rotate the API key).</p>
+
+      <h3>DELETE /v1/admin/granola-integration</h3>
+      <p>Remove the Granola integration. The <code>granola-sync</code> service stops polling this team.</p>
+
+      <h3>POST /v1/integrations/granola/ingest</h3>
+      <p>
+        Push a Granola note directly without waiting for the 5-minute poll cycle.
+        Atomically writes: memory item + contacts + tasks. Note-level idempotency via
+        <code>source_ref</code> — pushing the same note twice is a no-op.
+      </p>
+      <pre class="code-block"><span class="code-block__label">bash</span>curl -X POST "https://api.grooveos.app/v1/integrations/granola/ingest" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Team-Scope: acme" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "note_id": "grn_note_abc123",
+    "title": "Investor call — Series A",
+    "summary": "Discussed Q2 targets. Alice will send deck by Friday.",
+    "participants": [{"email":"alice@example.com","name":"Alice Martin"}],
+    "action_items": [{"title":"Send deck","due_date":"2026-05-09"}],
+    "created_at": "2026-05-07T10:00:00Z"
+  }'</pre>
 
       <!-- ============================================================
            ERROR CODES

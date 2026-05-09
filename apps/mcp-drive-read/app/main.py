@@ -25,7 +25,7 @@ log = structlog.get_logger(__name__)
 
 # Single FastMCP instance — tools are registered as module-level async functions.
 # The gateway discovers tools via GET /mcp (tool list endpoint, MCP protocol).
-mcp = FastMCP("xbrain-drive-read")
+mcp = FastMCP("xbrain-drive-read", host="0.0.0.0", port=8101)
 
 
 @mcp.tool()
@@ -78,4 +78,4 @@ async def write_drive_file(file_id: str, content: str, user_consent: bool) -> st
 
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8101)
+    mcp.run(transport="streamable-http")

@@ -12,7 +12,7 @@ from mcp.server.fastmcp import FastMCP
 from app.calendar_client import list_user_events
 
 log = structlog.get_logger(__name__)
-mcp = FastMCP("xbrain-calendar")
+mcp = FastMCP("xbrain-calendar", host="0.0.0.0", port=8102)
 
 
 @mcp.tool()
@@ -39,4 +39,4 @@ async def list_events(date_range: str = "today+7days") -> str:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8102)
+    mcp.run(transport="streamable-http")

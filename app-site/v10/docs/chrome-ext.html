@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="The xbrain Chrome extension is a web clipper — send selected text, URLs, or full page content to your team's shared memory in one click.">
+  <title>Chrome Extension — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+<nav class="xb-nav">
+  <div class="xb-nav__inner">
+    <a href="../index.html" class="xb-nav__logo">xbrain</a>
+    <ul class="xb-nav__links">
+      <li><a href="../index.html#features" class="xb-nav__link">Features</a></li>
+      <li><a href="../index.html#pricing" class="xb-nav__link">Pricing</a></li>
+      <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+    </ul>
+    <a href="mailto:team@grooveos.app?subject=xbrain waitlist" class="xb-nav__cta">Join Waitlist</a>
+  </div>
+</nav>
+
+<div class="docs-layout">
+
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <aside class="sidebar">
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Getting Started</div>
+      <a href="index.html" class="sidebar__link">Getting Started</a>
+    </div>
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Features</div>
+      <a href="memory.html" class="sidebar__link">Memory &amp; Knowledge</a>
+      <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
+      <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
+      <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
+      <a href="drive-sync.html" class="sidebar__link">Drive Sync</a>
+      <a href="chrome-ext.html" class="sidebar__link active">Chrome Extension</a>
+    </div>
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Reference</div>
+      <a href="api.html" class="sidebar__link">API Reference</a>
+      <a href="billing.html" class="sidebar__link">Plans &amp; Billing</a>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN CONTENT
+       ============================================================ -->
+  <main class="docs-content">
+
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <span class="breadcrumb__item">
+        <a href="index.html" class="breadcrumb__link">Docs</a>
+        <span class="breadcrumb__separator">/</span>
+      </span>
+      <span class="breadcrumb__current">Chrome Extension</span>
+    </nav>
+
+    <h1>Chrome Extension</h1>
+
+    <div class="docs-meta">
+      <span class="docs-meta__badge">Feature</span>
+      <span>5 min read</span>
+      <span>Updated May 2026</span>
+    </div>
+
+    <!-- --------------------------------------------------------
+         What is it
+         -------------------------------------------------------- -->
+    <h2>What is the xbrain Chrome Extension?</h2>
+
+    <p>
+      The xbrain Chrome extension is a web clipper — it lets you send selected text, URLs,
+      or full page content to your team's xbrain memory in one click, from any website.
+    </p>
+
+    <p>
+      You choose the truth level before saving. A competitor's pricing page? Save as
+      <code>WORKING</code>. A confirmed client requirement? Save as <code>VALIDATED</code>.
+      It takes 5 seconds.
+    </p>
+
+    <p>
+      Clips are tagged with your team scope and project automatically, so they appear
+      alongside Drive documents and chat conversations in your team's shared memory — no
+      manual filing needed.
+    </p>
+
+    <!-- --------------------------------------------------------
+         Installing
+         -------------------------------------------------------- -->
+    <h2>Installing the extension</h2>
+
+    <p>
+      The extension is currently in developer mode only. A Chrome Web Store listing is
+      coming soon.
+    </p>
+
+    <ol>
+      <li>Make sure you have access to the xbrain repo, or ask your admin for the <code>chrome-extension/</code> folder.</li>
+      <li>Open Chrome and navigate to <code>chrome://extensions</code> in the address bar.</li>
+      <li>Enable the <strong>Developer mode</strong> toggle (top right corner).</li>
+      <li>Click <strong>Load unpacked</strong> and select the <code>chrome-extension/</code> folder.</li>
+      <li>The xbrain icon appears in your Chrome toolbar.</li>
+    </ol>
+
+    <div class="callout callout--info">
+      <p class="callout__title">Distributing to your team</p>
+      <p>
+        Your admin can distribute the extension folder to your team via a shared Drive folder
+        or Slack. Each member follows the same steps above to install from the local folder.
+      </p>
+    </div>
+
+    <!-- --------------------------------------------------------
+         First use
+         -------------------------------------------------------- -->
+    <h2>First use — Sign in</h2>
+
+    <p>Click the xbrain icon in your toolbar. On first use:</p>
+
+    <ol>
+      <li>Click <strong>Sign in with Google</strong>.</li>
+      <li>Authorize xbrain to read your identity (email and name — nothing else).</li>
+      <li>Your team scope is set automatically based on your Google account.</li>
+    </ol>
+
+    <p>
+      You will only need to sign in once — your credentials are stored securely in Chrome's
+      local storage. Signing out of xbrain does not affect your Google account.
+    </p>
+
+    <div class="callout callout--info">
+      <p class="callout__title">Already signed in?</p>
+      <p>
+        If your Google account is already authorized for xbrain (for example, you use
+        <a href="https://chat.grooveos.app" target="_blank" rel="noopener">chat.grooveos.app</a>),
+        the extension signs you in automatically on first click.
+      </p>
+    </div>
+
+    <!-- --------------------------------------------------------
+         Clipping content
+         -------------------------------------------------------- -->
+    <h2>Clipping content</h2>
+
+    <p>There are two ways to clip content from any page:</p>
+
+    <h3>Right-click menu (fastest)</h3>
+
+    <p>
+      Select text on any page &rarr; right-click &rarr; <strong>Send to xbrain</strong>.
+      The clip is saved immediately with your team's default settings.
+    </p>
+
+    <h3>Popup (full control)</h3>
+
+    <ol>
+      <li>Click the xbrain icon in the toolbar.</li>
+      <li>The current page title and URL are pre-filled in the popup.</li>
+      <li>Add or edit the content you want to save.</li>
+      <li>Choose the <strong>truth level</strong>: <code>EPHEMERAL</code> / <code>WORKING</code> / <code>VALIDATED</code> / <code>CANONICAL</code>.</li>
+      <li>Optionally choose a <strong>project scope</strong> (defaults to your team's default project).</li>
+      <li>Click <strong>Send to Brain</strong>.</li>
+    </ol>
+
+    <p>
+      A green confirmation appears. The clip is immediately searchable by your team.
+    </p>
+
+    <div class="callout callout--tip">
+      <p class="callout__title">Choosing a truth level</p>
+      <p>
+        Use <code>WORKING</code> for anything you found but haven't verified. Use
+        <code>VALIDATED</code> for facts your team has confirmed. Reserve <code>CANONICAL</code>
+        for ground-truth information that should always appear in AI context. When in doubt,
+        use <code>WORKING</code> — you can promote it later.
+      </p>
+    </div>
+
+    <!-- --------------------------------------------------------
+         What gets saved
+         -------------------------------------------------------- -->
+    <h2>What gets saved</h2>
+
+    <p>Each clip becomes a memory item tagged with:</p>
+
+    <table class="docs-table">
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>content</code></td>
+          <td>Selected text, or page title + URL if nothing is selected</td>
+        </tr>
+        <tr>
+          <td><code>source</code></td>
+          <td><code>chrome-extension</code> + the page URL</td>
+        </tr>
+        <tr>
+          <td><code>truth_level</code></td>
+          <td>What you chose in the popup</td>
+        </tr>
+        <tr>
+          <td><code>team_scope</code></td>
+          <td>Your team (set at login, cannot be changed per clip)</td>
+        </tr>
+        <tr>
+          <td><code>project_scope</code></td>
+          <td>What you selected, or your team's default project</td>
+        </tr>
+        <tr>
+          <td><code>visibility</code></td>
+          <td><code>team</code> (default — visible to all team members)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- --------------------------------------------------------
+         Managing clips
+         -------------------------------------------------------- -->
+    <h2>Managing clips</h2>
+
+    <p>
+      Clips appear in your team's memory alongside Drive documents and chat conversations.
+      Search for them from LibreChat, Open WebUI, or the API just like any other memory item.
+    </p>
+
+    <p>
+      To delete a clip: search for it in xbrain &rarr; open the memory item detail page
+      &rarr; click <strong>Delete</strong>. Deletion is permanent and cannot be undone.
+    </p>
+
+    <p>
+      To promote a clip to a higher truth level: open the memory item &rarr; click
+      <strong>Promote</strong> &rarr; select the new level &rarr; confirm. Promotions
+      are logged in the item's audit trail.
+    </p>
+
+    <!-- --------------------------------------------------------
+         What's next
+         -------------------------------------------------------- -->
+    <h2>What's next</h2>
+
+    <ul>
+      <li><a href="memory.html">Memory &amp; Knowledge</a> — Understand truth levels and how to promote clips over time.</li>
+      <li><a href="drive-sync.html">Drive Sync</a> — Automatically index whole folders from Google Drive.</li>
+      <li><a href="api.html">API Reference</a> — Query clips and all other memory items programmatically.</li>
+    </ul>
+
+  </main>
+</div>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer class="xb-footer">
+  <div class="xb-footer__inner">
+    <div class="xb-footer__grid">
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Product</p>
+        <ul class="xb-footer__links">
+          <li><a href="../index.html#features" class="xb-footer__link">Features</a></li>
+          <li><a href="../index.html#pricing" class="xb-footer__link">Pricing</a></li>
+          <li><a href="#" class="xb-footer__link">Changelog</a></li>
+          <li><a href="#" class="xb-footer__link">Roadmap</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Docs</p>
+        <ul class="xb-footer__links">
+          <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
+          <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
+          <li><a href="chrome-ext.html" class="xb-footer__link">Chrome Extension</a></li>
+          <li><a href="teams.html" class="xb-footer__link">Teams &amp; Projects</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Developers</p>
+        <ul class="xb-footer__links">
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Self-hosted version</a></li>
+          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Open Source</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Company</p>
+        <ul class="xb-footer__links">
+          <li><a href="mailto:team@grooveos.app" class="xb-footer__link">Contact</a></li>
+          <li><a href="#" class="xb-footer__link">Privacy</a></li>
+          <li><a href="#" class="xb-footer__link">Terms</a></li>
+        </ul>
+      </div>
+
+    </div>
+    <div class="xb-footer__bottom">
+      <p class="xb-footer__copyright">&copy; 2026 xbrain &middot; Built with care for AI-first teams</p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

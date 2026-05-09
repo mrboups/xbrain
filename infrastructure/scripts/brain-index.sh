@@ -8,7 +8,7 @@
 #   XBRAIN_BRIDGE_JWT    — JWT de service signé avec BRIDGE_SHARED_SECRET
 #
 # Variables optionnelles :
-#   MEMORY_API_URL       — URL de l'API xbrain (défaut: https://api.dejavu.cat)
+#   MEMORY_API_URL       — URL de l'API xbrain (défaut: https://api.grooveos.app)
 #   GITHUB_REPOSITORY    — Owner/repo (ex: your-github-org/my-project, auto-détecté en CI)
 #
 # Dépendances : bash, curl, python3 (avec pyyaml — disponible dans ubuntu-latest)
@@ -19,7 +19,7 @@
 
 set -uo pipefail
 
-MEMORY_API_URL="${MEMORY_API_URL:-https://api.dejavu.cat}"
+MEMORY_API_URL="${MEMORY_API_URL:-https://api.grooveos.app}"
 XBRAIN_BRIDGE_JWT="${XBRAIN_BRIDGE_JWT:-}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-}"
 
@@ -153,7 +153,7 @@ import json
 print(json.dumps({
     'slug': '${BRAIN_SLUG}',
     'name': '${BRAIN_NAME}',
-    'url': 'https://${BRAIN_SLUG}.dejavu.cat',
+    'url': 'https://${BRAIN_SLUG}.grooveos.app',
     'team_scope': '${BRAIN_TEAM}',
     'project_scope': '${BRAIN_PROJECT}',
     'deploy_target': '${DEPLOY_TARGET}',

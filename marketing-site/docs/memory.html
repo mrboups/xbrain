@@ -55,8 +55,11 @@
             <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
             <li><a href="agents.html" class="sidebar__link">Agents</a></li>
             <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+            <li><a href="crm.html" class="sidebar__link">CRM &amp; Contacts</a></li>
+            <li><a href="tasks.html" class="sidebar__link">Task Tracking</a></li>
+            <li><a href="meetings.html" class="sidebar__link">Meeting Integration</a></li>
             <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
-            <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+            <li><a href="deployment.html" class="sidebar__link">Open Source Deploy</a></li>
             <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
           </ul>
         </div>
@@ -287,7 +290,7 @@ PATCH /v1/promotions/{promotion_id}
         it is updated in-place.
       </p>
 
-      <pre class="code-block"><code><span class="code-block__label">bash</span>curl -X POST https://api.dejavu.cat/v1/memory/upsert \
+      <pre class="code-block"><code><span class="code-block__label">bash</span>curl -X POST https://api.grooveos.app/v1/memory/upsert \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme" \
   -H "Content-Type: application/json" \
@@ -341,7 +344,7 @@ PATCH /v1/promotions/{promotion_id}
         Use <code>truth_level_min</code> to restrict results to a minimum epistemic level.
       </p>
 
-      <pre class="code-block"><code><span class="code-block__label">bash</span>curl "https://api.dejavu.cat/v1/memory/search?q=fundraising+target&truth_level_min=WORKING&limit=5" \
+      <pre class="code-block"><code><span class="code-block__label">bash</span>curl "https://api.grooveos.app/v1/memory/search?q=fundraising+target&truth_level_min=WORKING&limit=5" \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme"</code></pre>
 
@@ -402,7 +405,7 @@ PATCH /v1/promotions/{promotion_id}
       <p>
         Query relationships after they've been built:
       </p>
-      <pre class="code-block"><code><span class="code-block__label">bash</span>curl "https://api.dejavu.cat/v1/graph/neighbors?entity=Alice" \
+      <pre class="code-block"><code><span class="code-block__label">bash</span>curl "https://api.grooveos.app/v1/graph/neighbors?entity=Alice" \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme"
 

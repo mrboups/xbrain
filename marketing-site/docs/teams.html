@@ -55,8 +55,11 @@
           <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
           <li><a href="agents.html" class="sidebar__link">Agents</a></li>
           <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+          <li><a href="crm.html" class="sidebar__link">CRM &amp; Contacts</a></li>
+          <li><a href="tasks.html" class="sidebar__link">Task Tracking</a></li>
+          <li><a href="meetings.html" class="sidebar__link">Meeting Integration</a></li>
           <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
-          <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+          <li><a href="deployment.html" class="sidebar__link">Open Source Deploy</a></li>
           <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
         </ul>
       </div>
@@ -129,7 +132,7 @@
       </p>
 
       <pre class="code-block"><code class="code-block__label">bash</code><code># This works — team_scope matches header
-curl -X POST https://api.dejavu.cat/v1/memory/upsert \
+curl -X POST https://api.grooveos.app/v1/memory/upsert \
   -H "X-Team-Scope: acme" \
   -H "Authorization: Bearer $JWT" \
   -H "Content-Type: application/json" \
@@ -143,7 +146,7 @@ curl -X POST https://api.dejavu.cat/v1/memory/upsert \
   }'
 
 # This fails — team_scope mismatch
-curl -X POST https://api.dejavu.cat/v1/memory/upsert \
+curl -X POST https://api.grooveos.app/v1/memory/upsert \
   -H "X-Team-Scope: acme" \
   -H "Authorization: Bearer $JWT" \
   -H "Content-Type: application/json" \
@@ -256,7 +259,7 @@ curl -X POST https://api.dejavu.cat/v1/memory/upsert \
         <code>engineering</code>, <code>growth</code>).
       </p>
 
-      <pre class="code-block"><code class="code-block__label">bash — create a new team</code><code>curl -X POST https://api.dejavu.cat/v1/admin/teams \
+      <pre class="code-block"><code class="code-block__label">bash — create a new team</code><code>curl -X POST https://api.grooveos.app/v1/admin/teams \
   -H "Authorization: Bearer $ADMIN_JWT" \
   -H "Content-Type: application/json" \
   -d '{
@@ -276,7 +279,7 @@ curl -X POST https://api.dejavu.cat/v1/memory/upsert \
         After creating the team, add users to it via the team membership endpoint:
       </p>
 
-      <pre class="code-block"><code class="code-block__label">bash — add a user to a team</code><code>curl -X POST https://api.dejavu.cat/v1/admin/teams/engineering/members \
+      <pre class="code-block"><code class="code-block__label">bash — add a user to a team</code><code>curl -X POST https://api.grooveos.app/v1/admin/teams/engineering/members \
   -H "Authorization: Bearer $ADMIN_JWT" \
   -H "Content-Type: application/json" \
   -d '{
@@ -296,7 +299,7 @@ curl -X POST https://api.dejavu.cat/v1/memory/upsert \
         a <code>project_scope</code>.
       </p>
 
-      <pre class="code-block"><code class="code-block__label">bash — map a Drive folder to a team</code><code>curl -X POST https://api.dejavu.cat/v1/admin/drive/mappings \
+      <pre class="code-block"><code class="code-block__label">bash — map a Drive folder to a team</code><code>curl -X POST https://api.grooveos.app/v1/admin/drive/mappings \
   -H "Authorization: Bearer $ADMIN_JWT" \
   -H "Content-Type: application/json" \
   -d '{

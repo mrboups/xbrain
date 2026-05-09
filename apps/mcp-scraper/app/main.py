@@ -17,7 +17,7 @@ log = structlog.get_logger(__name__)
 
 MAX_BYTES = 50_000  # Match agent-runtime document_loader (~50KB bounds LLM input cost)
 
-mcp = FastMCP("xbrain-scraper")
+mcp = FastMCP("xbrain-scraper", host="0.0.0.0", port=8100)
 
 
 async def _load_url(url: str) -> str:
@@ -64,4 +64,4 @@ if __name__ == "__main__":
     # Single worker — critical: FastMCP session state is in-memory per process.
     # Multi-worker mode causes session 404s (issue #658).
     # Transport streamable-http binds to /mcp endpoint on the specified port.
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8100)
+    mcp.run(transport="streamable-http")

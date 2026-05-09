@@ -5,4 +5,4 @@ RUN pip install --no-cache-dir -e .
 COPY app/ ./app/
 EXPOSE 8102
 # Single worker — FastMCP session state must not be split across processes
-CMD ["python", "app/main.py"]
+CMD ["python", "-m", "app.main"]

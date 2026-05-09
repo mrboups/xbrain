@@ -5,7 +5,7 @@ import os
 
 import httpx
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -17,7 +17,7 @@ WAITLIST_FROM = os.getenv("WAITLIST_FROM", "GrooveOS <waitlist@grooveos.app>")
 
 class WaitlistRequest(BaseModel):
     name: str
-    email: EmailStr
+    email: str
     plan: str = "Early Access"
 
 

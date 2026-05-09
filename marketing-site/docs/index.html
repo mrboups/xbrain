@@ -55,8 +55,11 @@
             <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
             <li><a href="agents.html" class="sidebar__link">Agents</a></li>
             <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+            <li><a href="crm.html" class="sidebar__link">CRM &amp; Contacts</a></li>
+            <li><a href="tasks.html" class="sidebar__link">Task Tracking</a></li>
+            <li><a href="meetings.html" class="sidebar__link">Meeting Integration</a></li>
             <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
-            <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+            <li><a href="deployment.html" class="sidebar__link">Open Source Deploy</a></li>
             <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
           </ul>
         </div>
@@ -81,7 +84,7 @@
 
       <h1>Getting Started</h1>
       <div class="docs-meta">
-        <span>Phase 1–5 covered</span>
+        <span>Phase 1–7 covered</span>
         <span>&#183;</span>
         <span>~10 min read</span>
         <span class="docs-meta__badge">v1.0</span>
@@ -92,15 +95,24 @@
            ====================================================== -->
       <h2>Introduction</h2>
       <p>
-        xbrain is a self-hosted AI memory OS for teams. It gives every conversation, document, and
-        agent output a permanent home — tagged by team, by project, by truth level — and makes it
-        searchable from any AI frontend.
+        xbrain is the open-source infrastructure layer behind
+        <a href="https://grooveos.app" target="_blank" rel="noopener noreferrer">Cortex OS</a> —
+        a shared cognitive memory system for agentic teams. Every AI agent on your team
+        (coding agent, marketing agent, ops agent) reads from and writes to the same brain.
+        Context never gets lost between them. Handoffs happen automatically.
       </p>
       <p>
         Unlike a chatbot workspace, xbrain is a <strong>memory infrastructure layer</strong>. LibreChat,
-        Open WebUI, and custom agents all write to the same shared memory. Every data point carries
-        a mandatory tagging contract: <code>team_scope</code>, <code>truth_level</code>, <code>source</code>,
-        and four other fields — enforced by the API, not by convention.
+        Open WebUI, and custom LangGraph agents all write to the same shared memory. Every data point
+        carries a mandatory tagging contract: <code>team_scope</code>, <code>truth_level</code>,
+        <code>source</code>, and four other fields — enforced by the API, not by convention.
+      </p>
+      <p>
+        Phase 7 (v1.0) adds three intelligence layers on top of the memory core, available on
+        Team and Enterprise tiers: <a href="crm.html"><strong>CRM &amp; contact auto-extraction</strong></a>,
+        <a href="tasks.html"><strong>task tracking with automatic generation</strong></a>, and
+        <a href="meetings.html"><strong>Meeting Intelligence</strong></a> (Granola meeting notes
+        → memory + contacts + tasks in one atomic write).
       </p>
 
       <!-- ======================================================
@@ -255,6 +267,16 @@ curl http://localhost:8000/v1/healthz</code></pre>
             <td>graphiti-service, chrome-extension, github-auth, projects-dashboard</td>
             <td>Temporal fact extraction, Chrome web clipper, GitHub Org auth, team project dashboard.</td>
           </tr>
+          <tr>
+            <td><strong>Phase 6</strong></td>
+            <td>marketing-site, app-site</td>
+            <td>Public marketing site and documentation. Firebase Hosting (two sites).</td>
+          </tr>
+          <tr>
+            <td><strong>Phase 7</strong></td>
+            <td>crm router, tasks router, granola-sync, librechat-bridge updates</td>
+            <td>CRM &amp; contact auto-extraction, task tracking with auto-generation, Granola meeting integration. Team &amp; Enterprise tiers only.</td>
+          </tr>
         </tbody>
       </table>
 
@@ -264,12 +286,24 @@ curl http://localhost:8000/v1/healthz</code></pre>
       <h2>Next Steps</h2>
       <ul>
         <li>
-          <a href="architecture.html">Understand the full architecture</a> — All 25 containers,
-          the Docker network, data flow for chat messages.
+          <a href="architecture.html">Understand the full architecture</a> — All containers,
+          the Docker network, data flow for chat messages and agentic writes.
         </li>
         <li>
           <a href="memory.html">Learn about the memory system</a> — The 7-field tagging contract,
           5 truth levels, and the memory upsert API.
+        </li>
+        <li>
+          <a href="crm.html">CRM &amp; Contact Intelligence</a> — Auto-extracted contacts from
+          meetings and chats. Team &amp; Enterprise only.
+        </li>
+        <li>
+          <a href="tasks.html">Task Tracking &amp; Auto-generation</a> — Tasks from meetings,
+          chat intent detection, and manual creation. Team &amp; Enterprise only.
+        </li>
+        <li>
+          <a href="meetings.html">Meeting Integration</a> — Connect Granola to ingest meeting
+          notes as memory + contacts + tasks every 5 minutes.
         </li>
         <li>
           <a href="deployment.html">Production deployment guide</a> — TLS with Cloudflare,
@@ -278,10 +312,6 @@ curl http://localhost:8000/v1/healthz</code></pre>
         <li>
           <a href="configuration.html">Configuration reference</a> — All environment variables
           documented with defaults and examples.
-        </li>
-        <li>
-          <a href="chat.html">Chat Interfaces</a> — How LibreChat and Open WebUI connect to
-          memory-api and what's different between them.
         </li>
       </ul>
 

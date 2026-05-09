@@ -70,7 +70,7 @@ jobs:
       - name: Brain indexing
         env:
           XBRAIN_BRIDGE_JWT: ${{ secrets.XBRAIN_BRIDGE_JWT }}
-          MEMORY_API_URL: https://api.dejavu.cat
+          MEMORY_API_URL: https://api.grooveos.app
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           bash infrastructure/scripts/brain-index.sh || true

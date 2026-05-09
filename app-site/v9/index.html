@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>xbrain — open-source AI memory OS for agentic teams</title>
+  <meta name="description" content="Free, open-source, self-hosted AI memory OS. Every agent on your team reads from and writes to the same shared brain." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    /* ===================================================================
+       THEME VARIABLES
+    =================================================================== */
+    :root {
+      --bg:        #0D1117;
+      --bg-2:      #161B22;
+      --bg-3:      #21262D;
+      --text:      #E6EDF3;
+      --muted:     #8B949E;
+      --accent:    #58A6FF;
+      --green:     #3FB950;
+      --amber:     #D29922;
+      --red:       #F85149;
+      --border:    #30363D;
+      --paid-bg:   rgba(248,81,73,.12);
+      --paid-col:  #F85149;
+      --tag-bg:    rgba(88,166,255,.12);
+    }
+    [data-theme="light"] {
+      --bg:        #FFFFFF;
+      --bg-2:      #F6F8FA;
+      --bg-3:      #EAEEF2;
+      --text:      #1F2328;
+      --muted:     #57606A;
+      --accent:    #0969DA;
+      --green:     #1A7F37;
+      --amber:     #9A6700;
+      --red:       #CF222E;
+      --border:    #D0D7DE;
+      --paid-bg:   rgba(207,34,46,.08);
+      --paid-col:  #CF222E;
+      --tag-bg:    rgba(9,105,218,.08);
+    }
+
+    /* ===================================================================
+       BASE
+    =================================================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+    body {
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13.5px;
+      line-height: 1.7;
+      transition: background .15s ease, color .15s ease;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      background: var(--bg-3);
+      color: var(--accent);
+      padding: 1px 6px;
+      font-family: inherit;
+      font-size: .9em;
+    }
+
+    /* ===================================================================
+       NAV
+    =================================================================== */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .nav__logo {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: .06em;
+      white-space: nowrap;
+    }
+    .nav__logo span { color: var(--accent); }
+    .nav__links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex: 1;
+      justify-content: center;
+    }
+    .nav__link {
+      color: var(--muted);
+      font-size: 12.5px;
+      transition: color .1s;
+    }
+    .nav__link:hover { color: var(--text); text-decoration: none; }
+    .nav__right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      white-space: nowrap;
+    }
+    .theme-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 11.5px;
+      padding: 3px 10px;
+      border-radius: 3px;
+      transition: border-color .15s, color .15s;
+    }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent);
+      color: #fff;
+      padding: 5px 14px;
+      border-radius: 3px;
+      font-size: 12.5px;
+      font-weight: 500;
+      transition: opacity .15s;
+      white-space: nowrap;
+    }
+    .btn-cta:hover { opacity: .85; text-decoration: none; }
+    .btn-outline {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 5px 14px;
+      border-radius: 3px;
+      font-size: 12.5px;
+      transition: border-color .15s, color .15s;
+      white-space: nowrap;
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+
+    /* ===================================================================
+       LAYOUT
+    =================================================================== */
+    .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+    .sec  { padding: 56px 0; }
+    .sec-sm { padding: 32px 0; }
+
+    /* ===================================================================
+       SECTION HEADER
+    =================================================================== */
+    .sh {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .sh::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ===================================================================
+       HERO
+    =================================================================== */
+    .hero-box {
+      border: 1px solid var(--border);
+      padding: 32px 28px 28px;
+      position: relative;
+    }
+    .hero-box::before {
+      content: "// xbrain v1.0";
+      position: absolute;
+      top: -9px;
+      left: 20px;
+      background: var(--bg);
+      padding: 0 8px;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: .1em;
+    }
+    .hero-headline {
+      font-size: clamp(22px, 3.5vw, 32px);
+      font-weight: 700;
+      line-height: 1.25;
+      letter-spacing: -.01em;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+    .hero-headline .hl { color: var(--accent); }
+    .hero-sub {
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.8;
+      max-width: 620px;
+      margin-bottom: 28px;
+    }
+    .hero-sub strong { color: var(--text); font-weight: 500; }
+    .hero-meta {
+      font-size: 11.5px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+      margin-top: 24px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 20px;
+      align-items: center;
+    }
+    .hero-meta .dot { color: var(--border); }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: .05em;
+      padding: 2px 8px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 2px;
+    }
+    .badge-green { border-color: var(--green); color: var(--green); background: rgba(63,185,80,.08); }
+    .badge-accent { border-color: var(--accent); color: var(--accent); background: var(--tag-bg); }
+
+    /* ===================================================================
+       STATS
+    =================================================================== */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      border: 1px solid var(--border);
+    }
+    @media (max-width: 640px) { .stats-row { grid-template-columns: repeat(3, 1fr); } }
+    .stat {
+      padding: 18px 16px;
+      border-right: 1px solid var(--border);
+      text-align: center;
+    }
+    .stat:last-child { border-right: none; }
+    .stat__val {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat__val .a { color: var(--accent); }
+    .stat__label { font-size: 10.5px; color: var(--muted); letter-spacing: .06em; }
+
+    /* ===================================================================
+       TERMINAL BLOCK
+    =================================================================== */
+    .term {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .term-bar {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .term-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+    .term-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-left: auto;
+      letter-spacing: .06em;
+    }
+    .term-body { padding: 18px 20px; }
+    .tl { font-size: 12.5px; line-height: 2; white-space: pre; display: block; }
+    .tl .p  { color: var(--green); }
+    .tl .c  { color: var(--text); }
+    .tl .ok { color: var(--green); }
+    .tl .w  { color: var(--amber); }
+    .tl .er { color: var(--red); }
+    .tl .cm { color: var(--muted); font-style: italic; }
+    .tl .ac { color: var(--accent); }
+
+    /* ===================================================================
+       FEATURES GRID
+    =================================================================== */
+    .feat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-right: none;
+    }
+    @media (max-width: 640px) { .feat-grid { grid-template-columns: 1fr; } }
+    .feat-cell {
+      background: var(--bg);
+      padding: 20px;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      transition: background .1s;
+    }
+    .feat-cell:hover { background: var(--bg-2); }
+    .feat-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .feat-name .marker { color: var(--accent); font-weight: 400; }
+    .tag-paid {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      background: var(--paid-bg);
+      color: var(--paid-col);
+      padding: 1px 6px;
+      border-radius: 2px;
+    }
+    .feat-desc { font-size: 12px; color: var(--muted); line-height: 1.7; }
+
+    /* ===================================================================
+       ASCII-STYLED TABLE
+    =================================================================== */
+    .atable {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    .atable th {
+      background: var(--bg-2);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 10.5px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 10px 14px;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .atable td {
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      color: var(--text);
+      vertical-align: top;
+    }
+    .atable tr:hover td { background: var(--bg-2); }
+    .atable .dim { color: var(--muted); }
+    .atable .ok  { color: var(--green); }
+    .atable .wa  { color: var(--amber); }
+    .atable .paid { color: var(--paid-col); font-size: 11px; }
+    .atable code  { font-size: 11.5px; }
+
+    /* ===================================================================
+       INLINE INFO BOX
+    =================================================================== */
+    .info-box {
+      border: 1px solid var(--border);
+      padding: 20px 22px;
+      font-size: 13px;
+      line-height: 1.8;
+      color: var(--muted);
+      position: relative;
+    }
+    .info-box::before {
+      content: attr(data-label);
+      position: absolute;
+      top: -9px;
+      left: 16px;
+      background: var(--bg);
+      padding: 0 6px;
+      font-size: 10.5px;
+      color: var(--muted);
+      letter-spacing: .1em;
+    }
+    .info-box strong { color: var(--text); font-weight: 500; }
+    .info-box .hl { color: var(--accent); }
+
+    /* ===================================================================
+       DIVIDER
+    =================================================================== */
+    hr { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+    /* ===================================================================
+       FOOTER
+    =================================================================== */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 28px 24px 20px;
+    }
+    .footer-inner {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .footer-main {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    .footer-logo {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .footer-logo span { color: var(--accent); }
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      align-items: center;
+    }
+    .flink {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .flink:hover { color: var(--accent); text-decoration: none; }
+    .footer-oss {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .footer-oss a { color: var(--muted); }
+    .footer-oss a:hover { color: var(--accent); text-decoration: none; }
+
+    /* ===================================================================
+       MOBILE
+    =================================================================== */
+    @media (max-width: 640px) {
+      .nav__links { display: none; }
+      .stats-row { grid-template-columns: repeat(3, 1fr); }
+      .stat { padding: 14px 10px; }
+      .stat__val { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════
+       NAV
+  ═══════════════════════════════════════════════════ -->
+  <header class="nav">
+    <a href="#" class="nav__logo">x<span>brain</span></a>
+
+    <nav class="nav__links">
+      <a href="#features" class="nav__link">features</a>
+      <a href="#deploy"   class="nav__link">deploy</a>
+      <a href="#agents"   class="nav__link">agents</a>
+      <a href="#stack"    class="nav__link">stack</a>
+      <a href="https://xbrain-marketing.web.app/docs/" target="_blank" rel="noopener" class="nav__link">docs ↗</a>
+      <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener" class="nav__link">github ↗</a>
+    </nav>
+
+    <div class="nav__right">
+      <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">◑ light</button>
+      <a href="https://xbrain-marketing.web.app/docs/deployment.html"
+         target="_blank" rel="noopener"
+         class="btn-cta">→ deploy free</a>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════
+       HERO
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec">
+    <div class="hero-box">
+      <div class="hero-headline">
+        Every agent.<br/>
+        <span class="hl">One shared brain.</span>
+      </div>
+      <p class="hero-sub">
+        <strong>Open-source AI memory OS for agentic teams.</strong> Every conversation,
+        document, and agent output flows into a shared memory layer — tagged by team,
+        by project, by truth level — and stays searchable by every other agent on the team.
+        Free to self-host. MIT licensed. Docker Compose in 3 commands.
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px;">
+        <a href="https://xbrain-marketing.web.app/docs/deployment.html"
+           target="_blank" rel="noopener"
+           class="btn-cta">→ deploy on your machine</a>
+        <a href="https://github.com/mrboups/xbrain"
+           target="_blank" rel="noopener"
+           class="btn-outline">★ github</a>
+        <a href="https://xbrain-marketing.web.app/docs/"
+           target="_blank" rel="noopener"
+           class="btn-outline">↗ read the docs</a>
+      </div>
+      <div class="hero-meta">
+        <span class="badge badge-green">MIT License</span>
+        <span class="badge badge-accent">open source</span>
+        <span class="badge">Docker Compose</span>
+        <span class="badge">v1.0.0</span>
+        <span class="dot">·</span>
+        <span>LibreChat · Open WebUI · LangGraph · Claude · GPT · Grok</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       STATS
+  ═══════════════════════════════════════════════════ -->
+  <div class="wrap sec-sm">
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat__val">25<span class="a">+</span></div>
+        <div class="stat__label">containers</div>
+      </div>
+      <div class="stat">
+        <div class="stat__val">7</div>
+        <div class="stat__label">build phases</div>
+      </div>
+      <div class="stat">
+        <div class="stat__val">5</div>
+        <div class="stat__label">truth levels</div>
+      </div>
+      <div class="stat">
+        <div class="stat__val">7</div>
+        <div class="stat__label">tag fields</div>
+      </div>
+      <div class="stat">
+        <div class="stat__val">4<span class="a">+</span></div>
+        <div class="stat__label">AI frontends</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       THE PROBLEM
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="problem">
+    <div class="sh">// the problem with isolated agents</div>
+
+    <div class="term">
+      <div class="term-bar">
+        <div class="term-dot" style="background:#FF5F57;"></div>
+        <div class="term-dot" style="background:#FEBC2E;"></div>
+        <div class="term-dot" style="background:#28C840;"></div>
+        <span class="term-label">team · agents without shared memory</span>
+      </div>
+      <div class="term-body">
+        <span class="tl"><span class="p">dev-agent $</span> <span class="c">ship feature auth-v2 — "JWT refresh tokens, rate limiting, 2FA"</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">shipped. memory stored: 0 items.</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="p">mktg-agent $</span> <span class="c">write launch post for auth-v2</span></span>
+        <span class="tl"><span class="w">  !</span> <span class="c">no context found for "auth-v2"</span></span>
+        <span class="tl"><span class="w">  !</span> <span class="c">starting from zero. what is auth-v2?</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="p">ops-agent  $</span> <span class="c">what rate limits did we ship this week?</span></span>
+        <span class="tl"><span class="er">  ✗</span> <span class="c">no shared context. cannot answer.</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  # three agents. three isolated silos.</span></span>
+        <span class="tl"><span class="cm">  # every session starts at zero.</span></span>
+        <span class="tl"><span class="cm">  # handoffs = manual. context = lost. decisions = repeated.</span></span>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       WHAT XBRAIN DOES
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="how">
+    <div class="sh">// what xbrain does</div>
+
+    <div class="term" style="margin-bottom:20px;">
+      <div class="term-bar">
+        <div class="term-dot" style="background:#FF5F57;"></div>
+        <div class="term-dot" style="background:#FEBC2E;"></div>
+        <div class="term-dot" style="background:#28C840;"></div>
+        <span class="term-label">team · with xbrain memory layer</span>
+      </div>
+      <div class="term-body">
+        <span class="tl"><span class="p">dev-agent $</span> <span class="c">ship feature auth-v2</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">shipped. memory-api indexed: 14 items</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">tagged team_scope=engineering truth_level=WORKING source=agent-runtime</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="p">mktg-agent $</span> <span class="c">write launch post for auth-v2</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">context loaded — 14 items from dev-agent, 2 CANONICAL facts</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">draft ready. no manual briefing needed.</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="p">ops-agent  $</span> <span class="c">what rate limits did we ship this week?</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">"100 req/min per user, 1000 req/min per team — shipped auth-v2 2026-05-07"</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">confidence: 0.97 — truth_level: VALIDATED</span></span>
+      </div>
+    </div>
+
+    <div class="info-box" data-label="// memory-api invariant">
+      <strong>Every write to memory-api carries exactly 7 required fields:</strong> <code>team_scope</code>,
+      <code>project_scope</code>, <code>visibility</code>, <code>confidence</code>,
+      <code>truth_level</code>, <code>source</code>, <code>validation_status</code>.
+      A write missing any of these returns <span class="hl"><code>HTTP 422</code></span>.
+      This is enforced at the API level — not by convention. It is the contract that makes
+      scoped retrieval, truth-level promotion, team isolation, and audit logging possible.
+    </div>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       FEATURES
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="features">
+    <div class="sh">// features</div>
+
+    <div class="feat-grid">
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Memory Core</div>
+        <div class="feat-desc">Vector + graph + relational storage for every team output. Every agent reads the same truth, scoped by team and project.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Agent Bus (MCP)</div>
+        <div class="feat-desc">MCP-native gateway. LangGraph agents, LibreChat, Open WebUI, and Claude Code connect in minutes. No custom wiring.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Truth Engine</div>
+        <div class="feat-desc">5 levels: EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC. Agents act on validated context, never stale drafts.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Drive Sync</div>
+        <div class="feat-desc">Google Drive docs auto-indexed on change via webhooks. Every spec, brief, and decision in Drive becomes agent memory.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Chrome Clipper</div>
+        <div class="feat-desc">Right-click any page or selection — it enters the brain tagged by team and project. Instantly searchable by all agents.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Graphiti</div>
+        <div class="feat-desc">Temporal knowledge graph. Time-bounded facts, entity relationships, and team structure history. Agents reason over time.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> CRM &amp; Contacts <span class="tag-paid">hosted</span></div>
+        <div class="feat-desc">Contacts auto-extracted from meetings and chat. No manual entry. Every participant becomes a tagged contact record.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Task Tracking <span class="tag-paid">hosted</span></div>
+        <div class="feat-desc">Action items auto-generated from meeting notes and chat messages. Tracked, assigned, and polled by agents every 30 seconds.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Meeting Intelligence <span class="tag-paid">hosted</span></div>
+        <div class="feat-desc">Granola meeting notes → memory + contacts + tasks every 5 minutes. One atomic write. Idempotent by source_ref.</div>
+      </div>
+    </div>
+    <p style="margin-top:10px;font-size:11px;color:var(--muted);">
+      <span style="color:var(--paid-col);font-weight:600;">hosted</span> — available on Team &amp; Enterprise tiers of the managed GrooveOS platform.
+      All other features are open-source and fully self-hostable.
+    </p>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       DEPLOY
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="deploy">
+    <div class="sh">// deploy on your own machine</div>
+
+    <div class="term" style="margin-bottom:20px;">
+      <div class="term-bar">
+        <div class="term-dot" style="background:#FF5F57;"></div>
+        <div class="term-dot" style="background:#FEBC2E;"></div>
+        <div class="term-dot" style="background:#28C840;"></div>
+        <span class="term-label">bash — Ubuntu 24.04 · 4 GB RAM min · Docker Compose v2</span>
+      </div>
+      <div class="term-body">
+        <span class="tl"><span class="cm">  # 1. clone the repo</span></span>
+        <span class="tl"><span class="p">  $</span> <span class="c">git clone https://github.com/mrboups/xbrain.git && cd xbrain/infrastructure</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  # 2. set your environment</span></span>
+        <span class="tl"><span class="p">  $</span> <span class="c">cp .env.example .env</span></span>
+        <span class="tl"><span class="cm">  # → POSTGRES_PASSWORD, GOOGLE_CLIENT_ID/SECRET, ANTHROPIC_API_KEY</span></span>
+        <span class="tl"><span class="cm">  # → BRIDGE_SHARED_SECRET  (openssl rand -hex 16)</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  # 3. start the stack</span></span>
+        <span class="tl"><span class="p">  $</span> <span class="c">docker compose up -d</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">memory-api        :8000  — core API</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">librechat          :80   — primary chat</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">open-webui    :80/webui  — admin UI</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">qdrant            :6333  — vector search</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">neo4j             :7474  — graph DB</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">mcp-gateway         MCP  — agent bus</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">graphiti-service  async  — temporal facts</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">langfuse          :3000  — LLM observability</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  # verify</span></span>
+        <span class="tl"><span class="p">  $</span> <span class="c">curl http://localhost:8000/v1/healthz</span></span>
+        <span class="tl"><span class="ok">  {"status":"ok","version":"1.0.0"}</span></span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:12px;">
+      <a href="https://xbrain-marketing.web.app/docs/deployment.html"
+         target="_blank" rel="noopener"
+         class="btn-cta">→ full deployment guide</a>
+      <a href="https://xbrain-marketing.web.app/docs/configuration.html"
+         target="_blank" rel="noopener"
+         class="btn-outline">configuration reference ↗</a>
+      <a href="https://xbrain-marketing.web.app/docs/"
+         target="_blank" rel="noopener"
+         class="btn-outline">all docs ↗</a>
+    </div>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       SUPPORTED AGENTS
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="agents">
+    <div class="sh">// supported agents &amp; frontends</div>
+
+    <table class="atable">
+      <thead>
+        <tr>
+          <th>Agent / Frontend</th>
+          <th>Protocol</th>
+          <th>Auth</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>LibreChat v0.8.5</td>
+          <td class="dim"><code>librechat-bridge</code></td>
+          <td class="dim">Google OAuth · GitHub</td>
+          <td class="dim">Primary chat. All messages auto-indexed.</td>
+        </tr>
+        <tr>
+          <td>Open WebUI v0.9</td>
+          <td class="dim"><code>openwebui-bridge</code></td>
+          <td class="dim">Google OAuth</td>
+          <td class="dim">Admin, RAG, and agent testing UI.</td>
+        </tr>
+        <tr>
+          <td>LangGraph agents</td>
+          <td class="dim">REST + MCP</td>
+          <td class="dim">Bridge JWT</td>
+          <td class="dim">Native via <code>agent-runtime</code> container.</td>
+        </tr>
+        <tr>
+          <td>Claude (claude.ai / Claude Code)</td>
+          <td class="dim">MCP gateway</td>
+          <td class="dim">Bridge JWT</td>
+          <td class="dim">Tools: memory read/write, search, graph traversal.</td>
+        </tr>
+        <tr>
+          <td>GPT / ChatGPT API</td>
+          <td class="dim">REST</td>
+          <td class="dim">Bridge JWT</td>
+          <td class="dim">Any GPT model via OpenAI-compatible endpoint.</td>
+        </tr>
+        <tr>
+          <td>Chrome Extension</td>
+          <td class="dim">REST</td>
+          <td class="dim">Google OAuth</td>
+          <td class="dim">Right-click web clipper → team memory.</td>
+        </tr>
+        <tr>
+          <td>Custom agents</td>
+          <td class="dim">REST · MCP</td>
+          <td class="dim">Bridge JWT · user JWT</td>
+          <td class="dim">Any agent that can call HTTP or MCP tools.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       TRUTH LEVELS
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="truth">
+    <div class="sh">// truth level system</div>
+
+    <table class="atable">
+      <thead>
+        <tr>
+          <th>Level</th>
+          <th>Meaning</th>
+          <th>Agent behavior</th>
+          <th>Promoted by</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>EPHEMERAL</code></td>
+          <td class="dim">Raw output</td>
+          <td class="dim">Skipped unless explicitly queried. Chat messages, drafts, clips.</td>
+          <td class="dim">Any member</td>
+        </tr>
+        <tr>
+          <td><code>WORKING</code></td>
+          <td class="dim">In-progress</td>
+          <td class="dim">Included in general context. Most team knowledge lives here.</td>
+          <td class="dim">Any member</td>
+        </tr>
+        <tr>
+          <td><code>VALIDATED</code></td>
+          <td><span class="ok">✓ reviewed</span></td>
+          <td class="dim">Safe for agent decisions. Peer-reviewed by at least one member.</td>
+          <td class="dim">Team member</td>
+        </tr>
+        <tr>
+          <td><code>CANONICAL</code></td>
+          <td><span class="ok">✓✓ team truth</span></td>
+          <td class="dim">Auto-injected in agent system prompts. The definitive team answer.</td>
+          <td class="dim">Admin</td>
+        </tr>
+        <tr>
+          <td><code>PUBLIC</code></td>
+          <td><span class="ok">↗ published</span></td>
+          <td class="dim">Shareable outside the team. No <code>X-Team-Scope</code> required.</td>
+          <td class="dim">Admin</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin-top:8px;font-size:11.5px;color:var(--muted);">
+      Truth level can only be <em>promoted forward</em> via <code>POST /v1/promotions</code>.
+      A direct <code>PATCH truth_level</code> returns <code>HTTP 405</code> — promotion requires justification.
+    </p>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       TECH STACK
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="stack">
+    <div class="sh">// tech stack — all open source</div>
+
+    <table class="atable">
+      <thead>
+        <tr>
+          <th>Service</th>
+          <th>Role</th>
+          <th>License</th>
+          <th>Phase</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>memory-api (FastAPI)</td>
+          <td class="dim">Core API — memory, CRM, tasks, auth</td>
+          <td><span class="ok">MIT</span></td>
+          <td class="dim">1</td>
+        </tr>
+        <tr>
+          <td>LibreChat v0.8.5</td>
+          <td class="dim">Primary multi-LLM chat frontend</td>
+          <td><span class="ok">MIT</span></td>
+          <td class="dim">1</td>
+        </tr>
+        <tr>
+          <td>PostgreSQL 17</td>
+          <td class="dim">Relational store, migrations, audit log</td>
+          <td><span class="ok">PostgreSQL</span></td>
+          <td class="dim">1</td>
+        </tr>
+        <tr>
+          <td>Qdrant v1.17</td>
+          <td class="dim">Vector search — team-scoped semantic retrieval</td>
+          <td><span class="ok">Apache 2.0</span></td>
+          <td class="dim">1</td>
+        </tr>
+        <tr>
+          <td>Open WebUI v0.9</td>
+          <td class="dim">Admin, RAG, and agent testing frontend</td>
+          <td><span class="wa">Custom</span></td>
+          <td class="dim">2</td>
+        </tr>
+        <tr>
+          <td>mem0 (memory layer)</td>
+          <td class="dim">Memory versioning and conflict resolution</td>
+          <td><span class="ok">Apache 2.0</span></td>
+          <td class="dim">2</td>
+        </tr>
+        <tr>
+          <td>LangGraph 1.1</td>
+          <td class="dim">Agent runtime — stateful multi-actor graphs</td>
+          <td><span class="ok">MIT</span></td>
+          <td class="dim">2</td>
+        </tr>
+        <tr>
+          <td>Langfuse 3</td>
+          <td class="dim">LLM observability — traces, evals, dashboards</td>
+          <td><span class="ok">MIT</span></td>
+          <td class="dim">2</td>
+        </tr>
+        <tr>
+          <td>Neo4j Community</td>
+          <td class="dim">Graph database — entity relationships</td>
+          <td><span class="wa">GPL v3</span></td>
+          <td class="dim">3</td>
+        </tr>
+        <tr>
+          <td>MCP gateway</td>
+          <td class="dim">Agent bus — MCP protocol for all tool calls</td>
+          <td><span class="ok">MIT</span></td>
+          <td class="dim">3</td>
+        </tr>
+        <tr>
+          <td>drive-sync</td>
+          <td class="dim">Google Drive → memory (webhook-driven)</td>
+          <td><span class="ok">MIT</span></td>
+          <td class="dim">3</td>
+        </tr>
+        <tr>
+          <td>graphiti-service</td>
+          <td class="dim">Temporal fact extraction — time-bounded knowledge graph</td>
+          <td><span class="ok">Apache 2.0</span></td>
+          <td class="dim">5</td>
+        </tr>
+        <tr>
+          <td>granola-sync</td>
+          <td class="dim">Meeting notes → memory + contacts + tasks (5 min poll)</td>
+          <td><span class="ok">MIT</span></td>
+          <td class="dim">7</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       FOOTER
+  ═══════════════════════════════════════════════════ -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-main">
+        <span class="footer-logo">x<span>brain</span></span>
+        <div class="footer-links">
+          <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener" class="flink">github ↗</a>
+          <a href="https://xbrain-marketing.web.app/docs/" target="_blank" rel="noopener" class="flink">docs ↗</a>
+          <a href="https://xbrain-marketing.web.app/docs/deployment.html" target="_blank" rel="noopener" class="flink">open source deploy ↗</a>
+          <a href="https://xbrain-marketing.web.app/docs/api-reference.html" target="_blank" rel="noopener" class="flink">api reference ↗</a>
+          <a href="https://github.com/mrboups/xbrain/blob/main/LICENSE" target="_blank" rel="noopener" class="flink">MIT license ↗</a>
+        </div>
+        <span style="font-size:11px;color:var(--muted);">© 2026 xbrain</span>
+      </div>
+      <div class="footer-oss">
+        managed hosted version (GrooveOS) ·
+        <a href="https://dejavu-app.web.app" target="_blank" rel="noopener">dejavu-app.web.app</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ═══════════════════════════════════════════════════
+       THEME TOGGLE
+  ═══════════════════════════════════════════════════ -->
+  <script>
+    const btn  = document.getElementById('theme-toggle');
+    const html = document.documentElement;
+
+    function setTheme(t) {
+      html.setAttribute('data-theme', t);
+      btn.textContent = t === 'dark' ? '◑ light' : '◐ dark';
+      try { localStorage.setItem('xb-theme', t); } catch(e) {}
+    }
+
+    btn.addEventListener('click', () => {
+      setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+
+    try {
+      const saved = localStorage.getItem('xb-theme');
+      if (saved === 'light' || saved === 'dark') setTheme(saved);
+    } catch(e) {}
+  </script>
+</body>
+</html>

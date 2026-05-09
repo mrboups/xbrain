@@ -1,6 +1,6 @@
 # Build context: REPO ROOT (not apps/drive-sync) -- needed for packages/memory-models
 # In docker-compose: context: ..   dockerfile: apps/drive-sync/Dockerfile
-FROM python:3.11-slim
+FROM python:3.12-slim
 WORKDIR /app
 # Install shared package first (repo root context required)
 COPY packages/memory-models/ ./packages/memory-models/

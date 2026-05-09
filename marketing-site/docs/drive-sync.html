@@ -52,8 +52,11 @@
             <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
             <li><a href="agents.html" class="sidebar__link">Agents</a></li>
             <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+            <li><a href="crm.html" class="sidebar__link">CRM &amp; Contacts</a></li>
+            <li><a href="tasks.html" class="sidebar__link">Task Tracking</a></li>
+            <li><a href="meetings.html" class="sidebar__link">Meeting Integration</a></li>
             <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
-            <li><a href="deployment.html" class="sidebar__link">Deployment</a></li>
+            <li><a href="deployment.html" class="sidebar__link">Open Source Deploy</a></li>
             <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
           </ul>
         </div>
@@ -129,7 +132,7 @@ memory-api upsert (truth_level=WORKING)</pre>
         OAuth and stores the credentials encrypted in PostgreSQL using Fernet encryption.
       </p>
       <pre class="code-block"><span class="code-block__label">bash</span># Admin initiates OAuth flow
-GET https://api.dejavu.cat/v1/admin/drive/auth
+GET https://api.grooveos.app/v1/admin/drive/auth
 # → Redirects to Google OAuth consent screen
 # → After consent, credentials stored with Fernet encryption in PostgreSQL</pre>
 
@@ -138,7 +141,7 @@ GET https://api.dejavu.cat/v1/admin/drive/auth
         Once authorized, map a specific Drive folder to a team and project scope. The
         <code>folder_id</code> is the last segment of the Drive URL for that folder.
       </p>
-      <pre class="code-block"><span class="code-block__label">bash</span>curl -X POST https://api.dejavu.cat/v1/admin/drive/mappings \
+      <pre class="code-block"><span class="code-block__label">bash</span>curl -X POST https://api.grooveos.app/v1/admin/drive/mappings \
   -H "Authorization: Bearer $ADMIN_JWT" \
   -H "Content-Type: application/json" \
   -d '{
@@ -186,14 +189,14 @@ POST /v1/admin/drive/mappings
 
       <!-- LIST MAPPINGS -->
       <h2>List Current Mappings</h2>
-      <pre class="code-block"><span class="code-block__label">bash</span>curl https://api.dejavu.cat/v1/admin/drive/mappings \
+      <pre class="code-block"><span class="code-block__label">bash</span>curl https://api.grooveos.app/v1/admin/drive/mappings \
   -H "Authorization: Bearer $ADMIN_JWT"
 # Returns a list of all active folder mappings for the team</pre>
 
       <!-- SYNC STATUS -->
       <h2>Sync Status</h2>
       <p>Check what has been synced by querying memory-api with the drive-sync source filter:</p>
-      <pre class="code-block"><span class="code-block__label">bash</span>curl "https://api.dejavu.cat/v1/memory/search?q=drive+sync&source=drive-sync" \
+      <pre class="code-block"><span class="code-block__label">bash</span>curl "https://api.grooveos.app/v1/memory/search?q=drive+sync&source=drive-sync" \
   -H "Authorization: Bearer $JWT" \
   -H "X-Team-Scope: acme"</pre>
 

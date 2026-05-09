@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # Fernet key — generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     OAUTH_CREDENTIALS_ENCRYPTION_KEY: str = ""
     # Used to build OAuth redirect_uri returned to Google
-    MEMORY_API_EXTERNAL_URL: str = "https://x.dejavu.cat"
+    MEMORY_API_EXTERNAL_URL: str = "https://chat.grooveos.app"
 
     # Phase 5 — GitHub OAuth (plan 05-02)
     GITHUB_CLIENT_ID: str = ""
@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
-    SMTP_FROM: str = "noreply@dejavu.cat"
+    SMTP_FROM: str = "noreply@grooveos.app"
     SMTP_TLS: bool = True
 
     @property

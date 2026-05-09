@@ -25,6 +25,6 @@
     "scopes": ["openid", "email", "profile"]
   },
   "host_permissions": [
-    "https://api.dejavu.cat/*"
+    "https://api.grooveos.app/*"
   ]
 }

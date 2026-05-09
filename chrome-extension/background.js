@@ -4,14 +4,14 @@
  * Responsabilités :
  *   - Obtenir un ID token Google via launchWebAuthFlow (Solution A — RESEARCH.md Q6)
  *   - Stocker le token en cache dans chrome.storage.session (TTL 3600s)
- *   - Envoyer le payload à memory-api (https://api.dejavu.cat/v1/memory/upsert)
+ *   - Envoyer le payload à memory-api (https://api.grooveos.app/v1/memory/upsert)
  *
  * Messages écoutés via chrome.runtime.onMessage :
  *   { type: "GET_ID_TOKEN" }           → retourne { idToken: "..." } ou { error: "..." }
  *   { type: "SEND_TO_BRAIN", payload } → retourne { ok: true } ou { error: "..." }
  */
 
-const MEMORY_API_URL = "https://api.dejavu.cat/v1/memory/upsert";
+const MEMORY_API_URL = "https://api.grooveos.app/v1/memory/upsert";
 // Remplacer __GOOGLE_CLIENT_ID__ par le même client_id que LibreChat Google OAuth
 // Format attendu : "XXXXXXXXXX.apps.googleusercontent.com"
 const CLIENT_ID = "50097563098-rdh24v05dcp0ees8o4kqviuuoi5sup3n.apps.googleusercontent.com";
@@ -89,7 +89,7 @@ async function getGoogleIdToken() {
 }
 
 /**
- * Envoyer un payload de mémoire à api.dejavu.cat.
+ * Envoyer un payload de mémoire à api.grooveos.app.
  * Le payload doit contenir les champs du contrat de tagging xbrain.
  */
 async function sendToBrain(idToken, payload) {

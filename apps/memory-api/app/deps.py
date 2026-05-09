@@ -107,11 +107,14 @@ async def get_current_principal(
             }
         # LibreChat onboarding tokens: iss=librechat-onboarding, email=user email
         if claims.get("iss") == "librechat-onboarding" and claims.get("email"):
+            raw_gh_id = claims.get("github_id")
+            github_id = int(raw_gh_id) if raw_gh_id else None
             user = await get_or_create_user(
                 session,
                 source_user_id=f"email:{claims['email']}",
                 email=claims["email"],
                 display_name=None,
+                github_id=github_id,
             )
             await session.commit()
             return {

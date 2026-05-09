@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Get started with xbrain — your team's shared AI memory layer. Sign up, create a team, and connect your AI tools in minutes.">
+  <title>Getting Started — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+<nav class="xb-nav">
+  <div class="xb-nav__inner">
+    <a href="../index.html" class="xb-nav__logo">xbrain</a>
+    <ul class="xb-nav__links">
+      <li><a href="../index.html#features" class="xb-nav__link">Features</a></li>
+      <li><a href="../index.html#pricing" class="xb-nav__link">Pricing</a></li>
+      <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+    </ul>
+    <a href="mailto:team@grooveos.app?subject=xbrain waitlist" class="xb-nav__cta">Join Waitlist</a>
+  </div>
+</nav>
+
+<div class="docs-layout">
+
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <aside class="sidebar">
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Getting Started</div>
+      <a href="index.html" class="sidebar__link active">Getting Started</a>
+    </div>
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Features</div>
+      <a href="memory.html" class="sidebar__link">Memory &amp; Knowledge</a>
+      <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
+      <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
+      <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
+      <a href="drive-sync.html" class="sidebar__link">Drive Sync</a>
+      <a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a>
+    </div>
+    <div class="sidebar__section">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Reference</div>
+      <a href="api.html" class="sidebar__link">API Reference</a>
+      <a href="billing.html" class="sidebar__link">Plans &amp; Billing</a>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN CONTENT
+       ============================================================ -->
+  <main class="docs-content">
+
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <span class="breadcrumb__item">
+        <a href="index.html" class="breadcrumb__link">Docs</a>
+        <span class="breadcrumb__separator">/</span>
+      </span>
+      <span class="breadcrumb__current">Getting Started</span>
+    </nav>
+
+    <h1>Getting Started</h1>
+
+    <div class="docs-meta">
+      <span class="docs-meta__badge">Guide</span>
+      <span>5 min read</span>
+      <span>Updated May 2026</span>
+    </div>
+
+    <!-- --------------------------------------------------------
+         Welcome
+         -------------------------------------------------------- -->
+    <h2>Welcome to xbrain</h2>
+
+    <p>
+      xbrain is your team's shared AI memory layer, hosted in the cloud. Every conversation
+      with Claude, GPT-4, or Grok — every document your team shares, every web page you
+      clip — flows into one searchable, persistent knowledge base that every team member
+      and AI tool can access.
+    </p>
+
+    <p>
+      There is nothing to install, no server to maintain, and no Docker to configure.
+      Sign up, create a team, and your shared brain starts growing immediately.
+    </p>
+
+    <!-- --------------------------------------------------------
+         Step 1 — Join the Waitlist
+         -------------------------------------------------------- -->
+    <h2>Step 1 — Join the Waitlist</h2>
+
+    <p>xbrain is currently in private beta. Request early access in one of two ways:</p>
+
+    <ul>
+      <li>Click <strong>Join Waitlist</strong> on the <a href="../index.html">homepage</a> — your invite arrives within 48 hours.</li>
+      <li>Email <a href="mailto:team@grooveos.app?subject=xbrain waitlist">team@grooveos.app</a> with the subject line <strong>xbrain waitlist</strong>.</li>
+    </ul>
+
+    <div class="callout callout--info">
+      <p class="callout__title">Already have an invite?</p>
+      <p>Sign in at <a href="https://chat.grooveos.app" target="_blank" rel="noopener">chat.grooveos.app</a> with your Google account. No password needed — Google OAuth is the only sign-in method.</p>
+    </div>
+
+    <!-- --------------------------------------------------------
+         Step 2 — Create your team
+         -------------------------------------------------------- -->
+    <h2>Step 2 — Create your team</h2>
+
+    <p>On first sign-in, you will be prompted to create a team. Fill in three fields:</p>
+
+    <ul>
+      <li><strong>Team name</strong> — The display name shown across the product (e.g., "Acme Engineering").</li>
+      <li><strong>Team slug</strong> — The internal identifier used in API calls and memory scoping (e.g., <code>acme</code>). Lowercase letters and hyphens only, no spaces.</li>
+      <li><strong>Invite members</strong> — Enter email addresses directly, or connect your GitHub Organization so that any org member can join automatically.</li>
+    </ul>
+
+    <p>
+      Once your team is created, all memory items, conversations, and projects are scoped
+      to that team. Members of other teams can never see your data — isolation is enforced
+      at the infrastructure level, not just the interface.
+    </p>
+
+    <!-- --------------------------------------------------------
+         Step 3 — Connect your AI tools
+         -------------------------------------------------------- -->
+    <h2>Step 3 — Connect your AI tools</h2>
+
+    <p>xbrain works with the AI tools you already use. Everything is pre-configured — no API keys to wire up, no accounts to create separately.</p>
+
+    <table class="docs-table">
+      <thead>
+        <tr>
+          <th>Tool</th>
+          <th>How to access</th>
+          <th>What it does</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>LibreChat</strong></td>
+          <td>Sign in at <a href="https://chat.grooveos.app" target="_blank" rel="noopener">chat.grooveos.app</a> with Google</td>
+          <td>Primary chat interface — connects Claude, GPT-4, and Grok to your team's shared memory</td>
+        </tr>
+        <tr>
+          <td><strong>Open WebUI</strong></td>
+          <td>Available at <a href="https://chat.grooveos.app/owui" target="_blank" rel="noopener">chat.grooveos.app/owui</a></td>
+          <td>Admin interface, agent testing, truth-level approvals</td>
+        </tr>
+        <tr>
+          <td><strong>Chrome Extension</strong></td>
+          <td>Install from the <a href="chrome-ext.html">Chrome Extension docs</a></td>
+          <td>Web clipper — send selected text from any page directly to your team memory</td>
+        </tr>
+        <tr>
+          <td><strong>API</strong></td>
+          <td>Bearer token from your profile page</td>
+          <td>Programmatic access from your own apps, scripts, and agents</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- --------------------------------------------------------
+         Step 4 — Your brain starts growing
+         -------------------------------------------------------- -->
+    <h2>Step 4 — Your team's brain starts growing</h2>
+
+    <p>Once you are set up, xbrain works automatically in the background:</p>
+
+    <ul>
+      <li>Every LibreChat conversation is saved and indexed into searchable memory.</li>
+      <li>Drive documents sync continuously when you map a folder to a project (see <a href="drive-sync.html">Drive Sync</a>).</li>
+      <li>Chrome clips are tagged with your team scope and project, and are searchable immediately after clipping.</li>
+      <li>CANONICAL facts — information your team has promoted to the highest truth level — are automatically injected into every AI conversation, so your models always know your team's ground truth.</li>
+    </ul>
+
+    <div class="callout callout--tip">
+      <p class="callout__title">Tip: Truth levels</p>
+      <p>
+        Every memory item in xbrain has a truth level: <strong>EPHEMERAL &rarr; WORKING &rarr; VALIDATED &rarr; CANONICAL &rarr; PUBLIC</strong>.
+        Start by saving everything. Promote the facts your team agrees on to CANONICAL — those will always be available in every AI conversation.
+        See <a href="memory.html">Memory &amp; Knowledge</a> for the full guide.
+      </p>
+    </div>
+
+    <!-- --------------------------------------------------------
+         What's next
+         -------------------------------------------------------- -->
+    <h2>What's next</h2>
+
+    <p>Once your team is up and running, explore these guides:</p>
+
+    <ul>
+      <li><a href="memory.html">Memory &amp; Knowledge</a> — Understanding truth levels, searching memory, and promoting facts.</li>
+      <li><a href="teams.html">Teams &amp; Projects</a> — Inviting members, creating projects, and managing roles.</li>
+      <li><a href="api.html">API Reference</a> — Programmatic access for developers and agents.</li>
+      <li><a href="billing.html">Plans &amp; Billing</a> — Free vs. Team vs. Enterprise, pricing details, and upgrading.</li>
+    </ul>
+
+  </main>
+</div>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer class="xb-footer">
+  <div class="xb-footer__inner">
+    <div class="xb-footer__grid">
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Product</p>
+        <ul class="xb-footer__links">
+          <li><a href="../index.html#features" class="xb-footer__link">Features</a></li>
+          <li><a href="../index.html#pricing" class="xb-footer__link">Pricing</a></li>
+          <li><a href="#" class="xb-footer__link">Changelog</a></li>
+          <li><a href="#" class="xb-footer__link">Roadmap</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Docs</p>
+        <ul class="xb-footer__links">
+          <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
+          <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
+          <li><a href="chrome-ext.html" class="xb-footer__link">Chrome Extension</a></li>
+          <li><a href="teams.html" class="xb-footer__link">Teams &amp; Projects</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Developers</p>
+        <ul class="xb-footer__links">
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Self-hosted version</a></li>
+          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Open Source</a></li>
+        </ul>
+      </div>
+
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Company</p>
+        <ul class="xb-footer__links">
+          <li><a href="mailto:team@grooveos.app" class="xb-footer__link">Contact</a></li>
+          <li><a href="#" class="xb-footer__link">Privacy</a></li>
+          <li><a href="#" class="xb-footer__link">Terms</a></li>
+        </ul>
+      </div>
+
+    </div>
+    <div class="xb-footer__bottom">
+      <p class="xb-footer__copyright">&copy; 2026 xbrain &middot; Built with care for AI-first teams</p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

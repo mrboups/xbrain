@@ -1,40 +1,89 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="xbrain MCP Tools let your AI scrape URLs, read Drive files, check your calendar, and generate presentations — all from chat, no setup required.">
-  <title>MCP Tools — xbrain Docs</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="../assets/style.css">
-  <link rel="stylesheet" href="../assets/docs.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="GrooveOS MCP Tools let your AI scrape URLs, read Drive files, check your calendar, and generate presentations — all from chat, no setup required." />
+  <title>MCP Tools — GrooveOS Docs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root{--bg:#0D1117;--bg-2:#161B22;--bg-3:#21262D;--text:#E6EDF3;--muted:#8B949E;--accent:#58A6FF;--green:#3FB950;--amber:#D29922;--red:#F85149;--border:#30363D;--paid-bg:rgba(248,81,73,.12);--paid-col:#F85149;--tag-bg:rgba(88,166,255,.12)}
+    [data-theme="light"]{--bg:#FFFFFF;--bg-2:#F6F8FA;--bg-3:#EAEEF2;--text:#1F2328;--muted:#57606A;--accent:#0969DA;--green:#1A7F37;--amber:#9A6700;--red:#CF222E;--border:#D0D7DE;--paid-bg:rgba(207,34,46,.08);--paid-col:#CF222E;--tag-bg:rgba(9,105,218,.08)}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+    body{font-family:'JetBrains Mono','Courier New',monospace;background:var(--bg);color:var(--text);font-size:13.5px;line-height:1.7;transition:background .15s ease,color .15s ease}
+    a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+    code{background:var(--bg-3);color:var(--accent);padding:1px 6px;font-family:inherit;font-size:.9em}
+    .nav{position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid var(--border);padding:0 24px;height:46px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .nav__logo{font-size:15px;font-weight:700;color:var(--text);letter-spacing:.06em;white-space:nowrap}.nav__logo span{color:var(--accent)}
+    .nav__links{display:flex;align-items:center;gap:20px;flex:1;justify-content:center}
+    .nav__link{color:var(--muted);font-size:12.5px;transition:color .1s}.nav__link:hover{color:var(--text);text-decoration:none}
+    .nav__right{display:flex;align-items:center;gap:10px;white-space:nowrap}
+    .theme-btn{background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-family:inherit;font-size:11.5px;padding:3px 10px;border-radius:3px;transition:border-color .15s,color .15s}.theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+    .btn-cta{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff;padding:5px 14px;border-radius:3px;font-size:12.5px;font-weight:500;transition:opacity .15s;white-space:nowrap}.btn-cta:hover{opacity:.85;text-decoration:none}
+    @media(max-width:640px){.nav__links{display:none}}
+    .docs-layout{display:grid;grid-template-columns:220px 1fr;max-width:1100px;margin:0 auto;padding:32px 24px;gap:48px;align-items:start}
+    @media(max-width:768px){.docs-layout{grid-template-columns:1fr}.sidebar{display:none}}
+    .sidebar{position:sticky;top:62px}.sidebar__section{margin-bottom:24px}
+    .sidebar__group-label{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+    .sidebar__link{display:block;font-size:12.5px;color:var(--muted);padding:4px 0;text-decoration:none;transition:color .1s;border-left:2px solid transparent;padding-left:10px;margin-left:-10px}.sidebar__link:hover{color:var(--text)}.sidebar__link.active{color:var(--accent);border-left-color:var(--accent);font-weight:500}
+    .docs-content h1{font-size:24px;font-weight:700;color:var(--text);margin-bottom:16px;line-height:1.2}
+    .docs-content h2{font-size:16px;font-weight:700;color:var(--text);margin-top:40px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+    .docs-content h3{font-size:13.5px;font-weight:700;color:var(--text);margin-top:24px;margin-bottom:8px}
+    .docs-content p{color:var(--muted);font-size:13px;line-height:1.8;margin-bottom:14px}
+    .docs-content strong{color:var(--text);font-weight:500}
+    .docs-content ul,.docs-content ol{color:var(--muted);font-size:13px;line-height:1.8;margin:0 0 14px 20px}.docs-content li{margin-bottom:4px}
+    .docs-content a{color:var(--accent)}.docs-content a:hover{text-decoration:underline}
+    pre.code-block{background:var(--bg-2);border:1px solid var(--border);padding:16px 18px;overflow-x:auto;margin:16px 0;font-size:12.5px;color:var(--text);line-height:1.7}
+    pre.code-block code{background:none;padding:0;color:inherit;font-size:inherit}
+    .callout{border:1px solid var(--border);padding:14px 18px;margin:20px 0;position:relative;font-size:13px;color:var(--muted);line-height:1.7}
+    .callout::before{content:attr(data-label);position:absolute;top:-9px;left:14px;background:var(--bg);padding:0 6px;font-size:10.5px;letter-spacing:.08em;color:var(--muted)}
+    .callout--info{border-color:var(--accent)}.callout--info::before{color:var(--accent);background:var(--bg)}
+    .callout--tip{border-color:var(--green)}.callout--tip::before{color:var(--green);background:var(--bg)}
+    .callout--warning{border-color:var(--amber)}.callout--warning::before{color:var(--amber);background:var(--bg)}
+    .callout__title{font-weight:700;color:var(--text);margin-bottom:4px;font-size:13px}
+    .docs-table{width:100%;border-collapse:collapse;font-size:12.5px;margin:16px 0}
+    .docs-table th{background:var(--bg-2);color:var(--muted);font-weight:600;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:10px 14px;text-align:left;border:1px solid var(--border)}
+    .docs-table td{padding:10px 14px;border:1px solid var(--border);color:var(--text);vertical-align:top}.docs-table tr:hover td{background:var(--bg-2)}
+    .breadcrumb{font-size:11.5px;color:var(--muted);margin-bottom:20px}.breadcrumb a{color:var(--muted)}.breadcrumb a:hover{color:var(--accent);text-decoration:none}.breadcrumb__separator{margin:0 6px}.breadcrumb__current{color:var(--text)}
+    .docs-meta{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:32px;font-size:11.5px;color:var(--muted);padding-bottom:16px;border-bottom:1px solid var(--border)}
+    .docs-meta__badge{padding:2px 8px;border:1px solid var(--border);font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--accent);border-color:var(--accent)}
+    .docs-meta__badge--paid{background:rgba(248,81,73,.12);color:var(--paid-col);border-color:var(--paid-col)}
+    .xb-footer{border-top:1px solid var(--border);padding:32px 24px 20px;margin-top:64px}.xb-footer__inner{max-width:1100px;margin:0 auto}
+    .xb-footer__grid{display:grid;grid-template-columns:repeat(4,1fr);gap:32px;margin-bottom:24px}
+    @media(max-width:640px){.xb-footer__grid{grid-template-columns:repeat(2,1fr)}}
+    .xb-footer__col-title{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+    .xb-footer__links{list-style:none;display:flex;flex-direction:column;gap:8px}
+    .xb-footer__link{font-size:12px;color:var(--muted);text-decoration:none}.xb-footer__link:hover{color:var(--accent)}
+    .xb-footer__bottom{border-top:1px solid var(--border);padding-top:16px;font-size:11px;color:var(--muted)}
+  </style>
 </head>
-<body class="bg-white text-gray-900">
+<body>
 
-<nav class="xb-nav">
-  <div class="xb-nav__inner">
-    <a href="../index.html" class="xb-nav__logo">xbrain</a>
-    <ul class="xb-nav__links">
-      <li><a href="../index.html#features" class="xb-nav__link">Features</a></li>
-      <li><a href="../index.html#pricing" class="xb-nav__link">Pricing</a></li>
-      <li><a href="index.html" class="xb-nav__link">Docs</a></li>
-    </ul>
-    <a href="mailto:team@grooveos.app?subject=xbrain waitlist" class="xb-nav__cta">Join Waitlist</a>
+<header class="nav">
+  <a href="../index.html" class="nav__logo">GROOVE<span>OS</span></a>
+  <nav class="nav__links">
+    <a href="../index.html#features" class="nav__link">features</a>
+    <a href="../index.html#pricing" class="nav__link">pricing</a>
+    <a href="index.html" class="nav__link">docs</a>
+  </nav>
+  <div class="nav__right">
+    <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">◑ light</button>
+    <a href="mailto:team@grooveos.app?subject=GrooveOS early access" class="btn-cta">→ join waitlist</a>
   </div>
-</nav>
+</header>
 
 <div class="docs-layout">
 
-  <!-- ============================================================
-       SIDEBAR
-       ============================================================ -->
   <aside class="sidebar">
     <div class="sidebar__section">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Getting Started</div>
+      <div class="sidebar__group-label">Getting Started</div>
       <a href="index.html" class="sidebar__link">Getting Started</a>
     </div>
     <div class="sidebar__section">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Features</div>
+      <div class="sidebar__group-label">Features</div>
       <a href="memory.html" class="sidebar__link">Memory &amp; Knowledge</a>
       <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
       <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
@@ -43,42 +92,33 @@
       <a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a>
     </div>
     <div class="sidebar__section">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#9CA3AF;font-weight:600;margin-bottom:8px">Reference</div>
+      <div class="sidebar__group-label">Reference</div>
       <a href="api.html" class="sidebar__link">API Reference</a>
       <a href="billing.html" class="sidebar__link">Plans &amp; Billing</a>
     </div>
   </aside>
 
-  <!-- ============================================================
-       MAIN CONTENT
-       ============================================================ -->
   <main class="docs-content">
 
-    <!-- Breadcrumb -->
     <nav class="breadcrumb" aria-label="Breadcrumb">
-      <span class="breadcrumb__item">
-        <a href="index.html" class="breadcrumb__link">Docs</a>
-        <span class="breadcrumb__separator">/</span>
-      </span>
+      <a href="index.html">Docs</a>
+      <span class="breadcrumb__separator">/</span>
       <span class="breadcrumb__current">MCP Tools</span>
     </nav>
 
     <h1>MCP Tools</h1>
 
     <div class="docs-meta">
-      <span class="docs-meta__badge">Team Plan</span>
+      <span class="docs-meta__badge docs-meta__badge--paid">Team Plan</span>
       <span>7 min read</span>
       <span>Updated May 2026</span>
     </div>
 
-    <div class="callout callout--warning">
+    <div class="callout callout--warning" data-label="// plan">
       <p class="callout__title">Team and Enterprise plans only</p>
       <p>MCP Tools are available on the Team and Enterprise plans. Free plan users can read about them here but cannot activate them. <a href="billing.html">See Plans &amp; Billing &rarr;</a></p>
     </div>
 
-    <!-- --------------------------------------------------------
-         What are MCP tools?
-         -------------------------------------------------------- -->
     <h2>What are MCP tools?</h2>
 
     <p>
@@ -88,17 +128,14 @@
     </p>
 
     <p>
-      xbrain includes 4 built-in MCP tools. Every tool call is team-scoped and logged in
+      GrooveOS includes 4 built-in MCP tools. Every tool call is team-scoped and logged in
       your audit trail, so you always have a record of what your AI did and when.
     </p>
 
-    <!-- --------------------------------------------------------
-         How tools work in chat
-         -------------------------------------------------------- -->
     <h2>How tools work in chat</h2>
 
     <p>
-      You don't activate tools manually. Just ask naturally — xbrain figures out which tool
+      You don't activate tools manually. Just ask naturally — GrooveOS figures out which tool
       to use and calls it automatically. Examples:
     </p>
 
@@ -109,59 +146,53 @@
       <li>"Create a 5-slide pitch deck for our fundraising round" &rarr; <strong>Deck generator activates</strong></li>
     </ul>
 
-    <!-- --------------------------------------------------------
-         Tool 1: Web Scraper
-         -------------------------------------------------------- -->
     <h2>Tool 1: Web Scraper</h2>
 
     <table class="docs-table">
       <tbody>
         <tr>
-          <td style="font-weight:600;width:140px;">What it does</td>
+          <td style="font-weight:600;width:140px;color:var(--text)">What it does</td>
           <td>Fetches and extracts text from any public URL</td>
         </tr>
         <tr>
-          <td style="font-weight:600;">In chat</td>
+          <td style="font-weight:600;color:var(--text)">In chat</td>
           <td>"Summarize [URL]", "What does [URL] say about X?"</td>
         </tr>
         <tr>
-          <td style="font-weight:600;">Output</td>
+          <td style="font-weight:600;color:var(--text)">Output</td>
           <td>Text content, saved to team memory with source URL as provenance tag</td>
         </tr>
         <tr>
-          <td style="font-weight:600;">Limits</td>
+          <td style="font-weight:600;color:var(--text)">Limits</td>
           <td>Max 5,000 characters per scrape; respects <code>robots.txt</code></td>
         </tr>
       </tbody>
     </table>
 
-    <!-- --------------------------------------------------------
-         Tool 2: Google Drive Reader
-         -------------------------------------------------------- -->
     <h2>Tool 2: Google Drive Reader</h2>
 
     <table class="docs-table">
       <tbody>
         <tr>
-          <td style="font-weight:600;width:140px;">What it does</td>
+          <td style="font-weight:600;width:140px;color:var(--text)">What it does</td>
           <td>Reads (and optionally writes) files in your mapped Drive folders</td>
         </tr>
         <tr>
-          <td style="font-weight:600;">In chat</td>
+          <td style="font-weight:600;color:var(--text)">In chat</td>
           <td>"Read the fundraising brief from Drive", "Update the roadmap doc"</td>
         </tr>
         <tr>
-          <td style="font-weight:600;">Auth</td>
+          <td style="font-weight:600;color:var(--text)">Auth</td>
           <td>Uses your team's Drive OAuth (set up in <a href="drive-sync.html">Drive Sync settings</a>)</td>
         </tr>
         <tr>
-          <td style="font-weight:600;">Write access</td>
+          <td style="font-weight:600;color:var(--text)">Write access</td>
           <td>Requires explicit confirmation in chat before any write operation executes</td>
         </tr>
       </tbody>
     </table>
 
-    <div class="callout callout--warning">
+    <div class="callout callout--warning" data-label="// warning">
       <p class="callout__title">Drive write operations</p>
       <p>
         Drive write operations (creating, editing, or deleting files) are logged in your
@@ -170,53 +201,47 @@
       </p>
     </div>
 
-    <!-- --------------------------------------------------------
-         Tool 3: Google Calendar
-         -------------------------------------------------------- -->
     <h2>Tool 3: Google Calendar</h2>
 
     <table class="docs-table">
       <tbody>
         <tr>
-          <td style="font-weight:600;width:140px;">What it does</td>
+          <td style="font-weight:600;width:140px;color:var(--text)">What it does</td>
           <td>Reads your team's calendar events</td>
         </tr>
         <tr>
-          <td style="font-weight:600;">In chat</td>
+          <td style="font-weight:600;color:var(--text)">In chat</td>
           <td>"What meetings do we have this week?", "When is Alice's next sync?"</td>
         </tr>
         <tr>
-          <td style="font-weight:600;">Access</td>
+          <td style="font-weight:600;color:var(--text)">Access</td>
           <td>Read-only — never creates, modifies, or deletes calendar events</td>
         </tr>
         <tr>
-          <td style="font-weight:600;">Auth</td>
+          <td style="font-weight:600;color:var(--text)">Auth</td>
           <td>Uses your team's Google OAuth credentials — no separate setup needed if Drive Sync is connected</td>
         </tr>
       </tbody>
     </table>
 
-    <!-- --------------------------------------------------------
-         Tool 4: Deck Generator
-         -------------------------------------------------------- -->
     <h2>Tool 4: Deck Generator</h2>
 
     <table class="docs-table">
       <tbody>
         <tr>
-          <td style="font-weight:600;width:140px;">What it does</td>
+          <td style="font-weight:600;width:140px;color:var(--text)">What it does</td>
           <td>Generates PowerPoint (.pptx) presentations from a natural-language brief</td>
         </tr>
         <tr>
-          <td style="font-weight:600;">In chat</td>
+          <td style="font-weight:600;color:var(--text)">In chat</td>
           <td>"Create a 5-slide deck for our pitch", "Generate a status update presentation"</td>
         </tr>
         <tr>
-          <td style="font-weight:600;">Output</td>
+          <td style="font-weight:600;color:var(--text)">Output</td>
           <td>.pptx file available for download, also saved to team memory</td>
         </tr>
         <tr>
-          <td style="font-weight:600;">Templates</td>
+          <td style="font-weight:600;color:var(--text)">Templates</td>
           <td>Professional, minimal, data-focused</td>
         </tr>
       </tbody>
@@ -224,15 +249,12 @@
 
     <p>Example conversation:</p>
 
-    <pre class="code-block"><span class="code-block__label">chat — Deck generator in action</span>You: Create a 3-slide pitch deck: Problem (teams lose AI context),
-     Solution (xbrain shared memory), Traction (5 teams, 10k memories)
+    <pre class="code-block"><code>You: Create a 3-slide pitch deck: Problem (teams lose AI context),
+     Solution (GrooveOS shared memory), Traction (5 teams, 10k memories)
 
-xbrain: Created "pitch-deck-2026-05-07.pptx" (3 slides)
-        [Download] — also saved to your team memory</pre>
+GrooveOS: Created "pitch-deck-2026-05-07.pptx" (3 slides)
+           [Download] — also saved to your team memory</code></pre>
 
-    <!-- --------------------------------------------------------
-         Audit Trail
-         -------------------------------------------------------- -->
     <h2>Audit Trail</h2>
 
     <p>Every tool call is logged automatically. The audit trail records:</p>
@@ -254,57 +276,57 @@ xbrain: Created "pitch-deck-2026-05-07.pptx" (3 slides)
   </main>
 </div>
 
-<!-- ============================================================
-     FOOTER
-     ============================================================ -->
 <footer class="xb-footer">
   <div class="xb-footer__inner">
     <div class="xb-footer__grid">
-
       <div class="xb-footer__col">
         <p class="xb-footer__col-title">Product</p>
         <ul class="xb-footer__links">
           <li><a href="../index.html#features" class="xb-footer__link">Features</a></li>
           <li><a href="../index.html#pricing" class="xb-footer__link">Pricing</a></li>
-          <li><a href="#" class="xb-footer__link">Changelog</a></li>
-          <li><a href="#" class="xb-footer__link">Roadmap</a></li>
         </ul>
       </div>
-
       <div class="xb-footer__col">
         <p class="xb-footer__col-title">Docs</p>
         <ul class="xb-footer__links">
           <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
           <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
-          <li><a href="chrome-ext.html" class="xb-footer__link">Chrome Extension</a></li>
-          <li><a href="teams.html" class="xb-footer__link">Teams &amp; Projects</a></li>
+          <li><a href="billing.html" class="xb-footer__link">Plans &amp; Billing</a></li>
         </ul>
       </div>
-
       <div class="xb-footer__col">
-        <p class="xb-footer__col-title">Developers</p>
+        <p class="xb-footer__col-title">Open Source</p>
         <ul class="xb-footer__links">
-          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Self-hosted version</a></li>
-          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub</a></li>
-          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">Open Source</a></li>
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">xbrain (MIT) ↗</a></li>
+          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub ↗</a></li>
         </ul>
       </div>
-
       <div class="xb-footer__col">
-        <p class="xb-footer__col-title">Company</p>
+        <p class="xb-footer__col-title">Contact</p>
         <ul class="xb-footer__links">
-          <li><a href="mailto:team@grooveos.app" class="xb-footer__link">Contact</a></li>
-          <li><a href="#" class="xb-footer__link">Privacy</a></li>
-          <li><a href="#" class="xb-footer__link">Terms</a></li>
+          <li><a href="mailto:team@grooveos.app" class="xb-footer__link">team@grooveos.app</a></li>
         </ul>
       </div>
-
     </div>
-    <div class="xb-footer__bottom">
-      <p class="xb-footer__copyright">&copy; 2026 xbrain &middot; Built with care for AI-first teams</p>
-    </div>
+    <div class="xb-footer__bottom">© 2026 GrooveOS · powered by <a href="https://xbrain-marketing.web.app" style="color:var(--muted)" target="_blank">xbrain</a></div>
   </div>
 </footer>
 
+<script>
+  const btn = document.getElementById('theme-toggle');
+  const html = document.documentElement;
+  function setTheme(t) {
+    html.setAttribute('data-theme', t);
+    btn.textContent = t === 'dark' ? '◑ light' : '◐ dark';
+    try { localStorage.setItem('xb-theme', t); } catch(e) {}
+  }
+  btn.addEventListener('click', () => {
+    setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+  try {
+    const saved = localStorage.getItem('xb-theme');
+    if (saved === 'light' || saved === 'dark') setTheme(saved);
+  } catch(e) {}
+</script>
 </body>
 </html>
