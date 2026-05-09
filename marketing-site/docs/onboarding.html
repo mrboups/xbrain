@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Onboarding Guide — xbrain. Step-by-step: join a team, generate your API token, and connect Claude.ai or ChatGPT to your team brain via MCP.">
+  <title>Onboarding Guide — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900 antialiased">
+
+  <!-- NAV -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank" rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding:8px 18px;font-size:0.875rem;">
+            Get Started
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- DOCS LAYOUT -->
+  <div class="docs-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" aria-label="Documentation navigation">
+      <div class="sidebar__section">
+        <p class="sidebar__section-title">Documentation</p>
+        <ul class="sidebar__links">
+          <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+          <li><a href="onboarding.html" class="sidebar__link active" aria-current="page">Onboarding Guide</a></li>
+          <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+          <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+          <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+          <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+          <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+          <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+          <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+          <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+          <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+          <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+          <li><a href="crm.html" class="sidebar__link">CRM &amp; Contacts</a></li>
+          <li><a href="tasks.html" class="sidebar__link">Task Tracking</a></li>
+          <li><a href="meetings.html" class="sidebar__link">Meeting Integration</a></li>
+          <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+          <li><a href="deployment.html" class="sidebar__link">Open Source Deploy</a></li>
+          <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+        </ul>
+      </div>
+
+      <!-- On this page -->
+      <div class="sidebar__section" style="margin-top:2rem;">
+        <p class="sidebar__section-title">On this page</p>
+        <ul class="sidebar__links">
+          <li><a href="#step1" class="sidebar__link">1 · Get invited</a></li>
+          <li><a href="#step2" class="sidebar__link">2 · Sign in</a></li>
+          <li><a href="#step3" class="sidebar__link">3 · Verify your team</a></li>
+          <li><a href="#step4" class="sidebar__link">4 · Generate API token</a></li>
+          <li><a href="#step5" class="sidebar__link">5 · Connect Claude.ai</a></li>
+          <li><a href="#step6" class="sidebar__link">6 · Connect ChatGPT</a></li>
+          <li><a href="#step7" class="sidebar__link">7 · Test the connection</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="docs-content" id="main-content">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <span class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </span>
+        <span class="breadcrumb__current">Onboarding Guide</span>
+      </nav>
+
+      <!-- Page Header -->
+      <div class="docs-header">
+        <h1 class="docs-title">Onboarding Guide</h1>
+        <p class="docs-lead">
+          From zero to a working team brain in 7 steps — join your team, generate a personal token,
+          and connect Claude.ai or ChatGPT so every conversation enriches the shared memory.
+        </p>
+      </div>
+
+      <!-- Overview timeline -->
+      <div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:12px;padding:24px 28px;margin-bottom:40px;">
+        <p style="font-weight:700;color:#5B21B6;margin-bottom:14px;font-size:0.875rem;letter-spacing:0.05em;text-transform:uppercase;">Quick overview</p>
+        <ol style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;">
+          <li style="display:flex;align-items:center;gap:12px;">
+            <span style="min-width:26px;height:26px;background:#7C3AED;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;">1</span>
+            <span style="color:#374151;font-size:0.9rem;">Your team admin adds you to a team slug</span>
+          </li>
+          <li style="display:flex;align-items:center;gap:12px;">
+            <span style="min-width:26px;height:26px;background:#7C3AED;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;">2</span>
+            <span style="color:#374151;font-size:0.9rem;">Sign in with Google at <code style="background:#EDE9FE;padding:2px 6px;border-radius:4px;">chat.grooveos.app</code></span>
+          </li>
+          <li style="display:flex;align-items:center;gap:12px;">
+            <span style="min-width:26px;height:26px;background:#7C3AED;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;">3</span>
+            <span style="color:#374151;font-size:0.9rem;">Verify you can see your team via the API</span>
+          </li>
+          <li style="display:flex;align-items:center;gap:12px;">
+            <span style="min-width:26px;height:26px;background:#7C3AED;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;">4</span>
+            <span style="color:#374151;font-size:0.9rem;">Generate your personal <code style="background:#EDE9FE;padding:2px 6px;border-radius:4px;">xbt_…</code> API token</span>
+          </li>
+          <li style="display:flex;align-items:center;gap:12px;">
+            <span style="min-width:26px;height:26px;background:#7C3AED;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;">5</span>
+            <span style="color:#374151;font-size:0.9rem;">Add the MCP server to Claude.ai</span>
+          </li>
+          <li style="display:flex;align-items:center;gap:12px;">
+            <span style="min-width:26px;height:26px;background:#7C3AED;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;">6</span>
+            <span style="color:#374151;font-size:0.9rem;">Optionally add a ChatGPT Custom Action</span>
+          </li>
+          <li style="display:flex;align-items:center;gap:12px;">
+            <span style="min-width:26px;height:26px;background:#7C3AED;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;">7</span>
+            <span style="color:#374151;font-size:0.9rem;">Run a test search — you're in</span>
+          </li>
+        </ol>
+      </div>
+
+      <!-- ── STEP 1 ── -->
+      <h2 id="step1">Step 1 — Get invited to a team</h2>
+      <p>
+        xbrain organises every memory item by <strong>team slug</strong> (e.g. <code>acme-product</code>).
+        You cannot self-register — a team admin must add you first.
+      </p>
+
+      <div class="callout callout--info">
+        <p class="callout__title">For admins — how to add a member</p>
+        <p>Send a <code>POST /v1/teams/{slug}/members</code> with the new user's email and role.
+           The user must have logged in at least once so their account exists in the database.</p>
+      </div>
+
+      <pre class="code-block"><code class="code-block__label">bash — admin adds a member</code><code># Replace {YOUR_ADMIN_TOKEN} and {TEAM_SLUG}
+curl -X POST https://api.grooveos.app/v1/teams/{TEAM_SLUG}/members \
+  -H "Authorization: Bearer {YOUR_ADMIN_TOKEN}" \
+  -H "X-Team-Scope: {TEAM_SLUG}" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "alice@example.com", "role": "member"}'</code></pre>
+
+      <p>Once added you will receive the team slug from your admin — keep it handy for Step 4.</p>
+
+      <!-- ── STEP 2 ── -->
+      <h2 id="step2">Step 2 — Sign in with Google</h2>
+      <p>
+        xbrain uses Google OAuth for all user authentication.
+        Open <a href="https://chat.grooveos.app" target="_blank" rel="noopener noreferrer" class="text-violet-700 underline">chat.grooveos.app</a>
+        and click <strong>Continue with Google</strong>.
+      </p>
+
+      <ol class="docs-list">
+        <li>Visit <code>https://chat.grooveos.app</code></li>
+        <li>Click <strong>Continue with Google</strong> on the login page</li>
+        <li>Choose the Google account that was invited (must match the email your admin used)</li>
+        <li>You will land on the LibreChat interface — your account is now provisioned</li>
+      </ol>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Use the right Google account</p>
+        <p>The email must exactly match what the admin registered. If you signed in with the wrong
+           account, sign out and try again — there is no merge path.</p>
+      </div>
+
+      <!-- ── STEP 3 ── -->
+      <h2 id="step3">Step 3 — Verify your team membership</h2>
+      <p>
+        After signing in, you need a short-lived Google ID token to call the API.
+        The easiest way is to copy it from the LibreChat network tab, or use the
+        Chrome extension (which fetches it automatically).
+      </p>
+      <p>
+        For a quick check, open a terminal and call:
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">bash — list your teams</code><code>curl https://api.grooveos.app/v1/teams/my-teams \
+  -H "Authorization: Bearer {YOUR_GOOGLE_ID_TOKEN}"
+
+# Expected response:
+# [
+#   {
+#     "slug": "acme-product",
+#     "display_name": "Acme · Product",
+#     "role": "member"
+#   }
+# ]</code></pre>
+
+      <p>
+        If you see your team slug in the list, you are correctly provisioned.
+        If the list is empty, ask your admin to confirm the invite was sent to the right email.
+      </p>
+
+      <!-- ── STEP 4 ── -->
+      <h2 id="step4">Step 4 — Generate your personal API token</h2>
+      <p>
+        Claude.ai and ChatGPT cannot use a Google ID token (it expires in 1 hour).
+        Instead, generate a <strong>personal API token</strong> — a long-lived
+        <code>xbt_…</code> secret that is scoped to your team.
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">bash — generate a personal API token</code><code>curl -X POST https://api.grooveos.app/v1/me/api-token \
+  -H "Authorization: Bearer {YOUR_GOOGLE_ID_TOKEN}" \
+  -H "X-Team-Scope: {TEAM_SLUG}" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "claude-ai", "team_scope": "{TEAM_SLUG}"}'
+
+# Response (token shown ONCE — copy it now):
+# {
+#   "token": "xbt_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abcdef",
+#   "id": "...",
+#   "team_scope": "acme-product",
+#   "name": "claude-ai",
+#   "created_at": "2026-05-09T..."
+# }</code></pre>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Save your token immediately</p>
+        <p>
+          The plaintext token is returned <strong>exactly once</strong> and never stored.
+          Copy it now and keep it in a password manager.
+          If you lose it, revoke it and generate a new one.
+        </p>
+      </div>
+
+      <p>To list your active tokens or revoke one:</p>
+      <pre class="code-block"><code class="code-block__label">bash — list / revoke tokens</code><code># List
+curl https://api.grooveos.app/v1/me/api-token \
+  -H "Authorization: Bearer {YOUR_GOOGLE_ID_TOKEN}"
+
+# Revoke
+curl -X DELETE https://api.grooveos.app/v1/me/api-token/{TOKEN_ID} \
+  -H "Authorization: Bearer {YOUR_GOOGLE_ID_TOKEN}"</code></pre>
+
+      <!-- ── STEP 5 ── -->
+      <h2 id="step5">Step 5 — Connect Claude.ai via MCP</h2>
+      <p>
+        xbrain exposes a remote MCP server at <code>https://mcp.grooveos.app/mcp</code>
+        with 9 tools: <code>memory_search</code>, <code>memory_add</code>, <code>tasks_list</code>,
+        <code>task_create</code>, <code>task_update</code>, <code>contacts_search</code>,
+        <code>contact_add</code>, <code>agent_invoke</code>, and <code>team_context</code>.
+      </p>
+
+      <ol class="docs-list">
+        <li>Open <a href="https://claude.ai" target="_blank" rel="noopener noreferrer" class="text-violet-700 underline">claude.ai</a> and sign in</li>
+        <li>Go to <strong>Settings → Integrations</strong></li>
+        <li>Click <strong>Add integration</strong></li>
+        <li>Fill in the form:</li>
+      </ol>
+
+      <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:10px;padding:20px 24px;margin:20px 0;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+          <tbody>
+            <tr style="border-bottom:1px solid #E5E7EB;">
+              <td style="padding:10px 0;font-weight:600;color:#374151;width:160px;">Integration name</td>
+              <td style="padding:10px 0;color:#111827;font-family:monospace;">xbrain</td>
+            </tr>
+            <tr style="border-bottom:1px solid #E5E7EB;">
+              <td style="padding:10px 0;font-weight:600;color:#374151;">Server URL</td>
+              <td style="padding:10px 0;color:#111827;font-family:monospace;">https://mcp.grooveos.app/mcp</td>
+            </tr>
+            <tr>
+              <td style="padding:10px 0;font-weight:600;color:#374151;">Authentication</td>
+              <td style="padding:10px 0;color:#111827;">Bearer token → paste your <code style="background:#EDE9FE;padding:2px 6px;border-radius:4px;">xbt_…</code> token</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <ol class="docs-list" start="5">
+        <li>Click <strong>Save</strong></li>
+        <li>In any Claude.ai conversation, click the <strong>integrations</strong> icon (top right) and enable <strong>xbrain</strong></li>
+        <li>Claude will now see your team's tools and can call them on your behalf</li>
+      </ol>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Team scope is automatic</p>
+        <p>
+          Your API token already encodes your team slug. You do not need to specify
+          <code>X-Team-Scope</code> manually — the MCP server reads it from the token.
+        </p>
+      </div>
+
+      <!-- ── STEP 6 ── -->
+      <h2 id="step6">Step 6 — Connect ChatGPT (optional)</h2>
+      <p>
+        xbrain publishes a ChatGPT-compatible OpenAPI spec at
+        <code>https://mcp.grooveos.app/openapi.json</code>.
+        Use it to add xbrain as a <strong>Custom Action</strong> inside a GPT.
+      </p>
+
+      <ol class="docs-list">
+        <li>Go to <a href="https://chat.openai.com/gpts/mine" target="_blank" rel="noopener noreferrer" class="text-violet-700 underline">My GPTs</a> and open (or create) a GPT</li>
+        <li>Switch to the <strong>Configure</strong> tab → scroll to <strong>Actions</strong></li>
+        <li>Click <strong>Create new action</strong></li>
+        <li>Click <strong>Import from URL</strong> and enter:</li>
+      </ol>
+
+      <pre class="code-block"><code class="code-block__label">url — ChatGPT Actions schema</code><code>https://mcp.grooveos.app/openapi.json</code></pre>
+
+      <ol class="docs-list" start="5">
+        <li>Set authentication to <strong>API Key</strong>, key name <code>Authorization</code>,
+            format <code>Bearer {xbt_…}</code></li>
+        <li>Click <strong>Save</strong> — your GPT can now search and add memories</li>
+      </ol>
+
+      <!-- ── STEP 7 ── -->
+      <h2 id="step7">Step 7 — Test the connection</h2>
+      <p>
+        In Claude.ai (with the xbrain integration enabled) or in your GPT,
+        type a test prompt:
+      </p>
+
+      <pre class="code-block"><code class="code-block__label">prompt — first test</code><code>Search the team brain for anything about our product roadmap.</code></pre>
+
+      <p>
+        Claude will call <code>memory_search</code> with your query and return results from
+        your team's memory store. If you see results (or an empty-but-successful response),
+        the connection is working.
+      </p>
+      <p>Try adding a memory:</p>
+
+      <pre class="code-block"><code class="code-block__label">prompt — add a memory</code><code>Remember that our Q3 launch target is July 15th.
+Save it to the team brain at truth level WORKING.</code></pre>
+
+      <p>
+        Claude calls <code>memory_add</code> and confirms. The item is now in your team's
+        shared memory, visible to every teammate using Claude.ai, ChatGPT, or the LibreChat interface.
+      </p>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Chrome Extension for quick clipping</p>
+        <p>
+          Install the <a href="chrome-ext.html" class="text-violet-700 underline">xbrain Chrome Extension</a>
+          to clip any web page selection directly to your team brain without leaving the browser.
+          It uses the same Google auth flow and automatically loads your team scope.
+        </p>
+      </div>
+
+      <!-- Troubleshooting -->
+      <h2>Troubleshooting</h2>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Symptom</th>
+            <th>Likely cause</th>
+            <th>Fix</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>401 Unauthorized</code></td>
+            <td>Token revoked or wrong value</td>
+            <td>Regenerate token (Step 4) and update it in the integration</td>
+          </tr>
+          <tr>
+            <td><code>403 Forbidden</code></td>
+            <td>Your account is not in the team</td>
+            <td>Ask your admin to re-add you (Step 1)</td>
+          </tr>
+          <tr>
+            <td>Empty memory results</td>
+            <td>Team brain is new or no data yet</td>
+            <td>Add a test memory (Step 7) and search again</td>
+          </tr>
+          <tr>
+            <td>Claude can't find the tools</td>
+            <td>Integration not enabled in conversation</td>
+            <td>Click the integrations icon in the conversation and toggle xbrain on</td>
+          </tr>
+          <tr>
+            <td>Wrong team's data showing</td>
+            <td>Token scoped to a different team</td>
+            <td>Revoke and regenerate with the correct <code>team_scope</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Next steps -->
+      <h2>What's next</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:8px;">
+        <a href="memory.html" style="display:block;padding:20px 22px;border:1px solid #E5E7EB;border-radius:10px;text-decoration:none;transition:box-shadow 150ms ease;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'">
+          <p style="font-weight:700;color:#111827;margin-bottom:6px;font-size:0.9375rem;">Memory System</p>
+          <p style="color:#6B7280;font-size:0.875rem;margin:0;">Understand truth levels, tagging, and how memory is retrieved.</p>
+        </a>
+        <a href="teams.html" style="display:block;padding:20px 22px;border:1px solid #E5E7EB;border-radius:10px;text-decoration:none;transition:box-shadow 150ms ease;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'">
+          <p style="font-weight:700;color:#111827;margin-bottom:6px;font-size:0.9375rem;">Teams &amp; Scopes</p>
+          <p style="color:#6B7280;font-size:0.875rem;margin:0;">Deep dive into team isolation, project scopes, and visibility rules.</p>
+        </a>
+        <a href="chrome-ext.html" style="display:block;padding:20px 22px;border:1px solid #E5E7EB;border-radius:10px;text-decoration:none;transition:box-shadow 150ms ease;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'">
+          <p style="font-weight:700;color:#111827;margin-bottom:6px;font-size:0.9375rem;">Chrome Extension</p>
+          <p style="color:#6B7280;font-size:0.875rem;margin:0;">Clip web pages to the team brain in one click.</p>
+        </a>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="xb-footer" role="contentinfo">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+        <div>
+          <p class="xb-footer__col-title">xbrain</p>
+          <ul class="xb-footer__links">
+            <li><a href="../index.html" class="xb-footer__link">Home</a></li>
+            <li><a href="index.html" class="xb-footer__link">Documentation</a></li>
+            <li><a href="onboarding.html" class="xb-footer__link">Onboarding Guide</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Get Started</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Docs</p>
+          <ul class="xb-footer__links">
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="memory.html" class="xb-footer__link">Memory System</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+            <li><a href="configuration.html" class="xb-footer__link">Configuration</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="xb-footer__col-title">Community</p>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank" rel="noopener noreferrer"
+                 class="xb-footer__link">GitHub</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="xb-footer__bottom">
+        <p class="xb-footer__copyright">&copy; 2026 xbrain. Open source under MIT License.</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
