@@ -132,6 +132,26 @@ async def create_team(
 # ── Static-path routes MUST come before /{team_id} routes ──────────────────────
 
 
+@router.get("/teams/my-teams", response_model=list[TeamSearchOut])
+async def get_my_teams(
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Return all teams the caller belongs to. Used by the Chrome extension to populate the team dropdown."""
+    user = _require_user(principal)
+    teams = await teams_repo.get_all_teams_for_user(session, user_id=user.id)
+    return [
+        TeamSearchOut(
+            id=str(t.id),
+            slug=t.slug,
+            display_name=t.display_name,
+            visibility=t.visibility,
+            github_org=t.github_org,
+        )
+        for t in teams
+    ]
+
+
 @router.get("/teams/my-team")
 async def get_my_team(
     principal: dict[str, Any] = Depends(get_current_principal),

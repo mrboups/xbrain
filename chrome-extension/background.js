@@ -97,13 +97,13 @@ async function sendToBrain(idToken, payload) {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${idToken}`,
-      "X-Team-Scope": payload.team_scope || "acme",
+      "X-Team-Scope": payload.team_scope,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       item: {
         content: payload.content,
-        team_scope: payload.team_scope || "acme",
+        team_scope: payload.team_scope,
         project_scope: payload.project_scope || null,
         visibility: payload.visibility || "team",
         confidence: payload.confidence !== undefined ? payload.confidence : 1.0,

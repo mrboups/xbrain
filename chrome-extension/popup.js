@@ -74,15 +74,61 @@ function hostnameFromUrl(url) {
   }
 }
 
+const MEMORY_API_BASE = "https://api.grooveos.app";
+
 /** État partagé */
 let currentTabUrl = "";
 let currentTabTitle = "";
+
+/**
+ * Charger les équipes de l'utilisateur via GET /v1/teams/my-teams.
+ * Peuple le <select id="teamScope"> avec les vraies équipes du compte connecté.
+ */
+async function loadUserTeams(idToken) {
+  const teamSelect = document.getElementById("teamScope");
+  try {
+    const res = await fetch(`${MEMORY_API_BASE}/v1/teams/my-teams`, {
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const teams = await res.json();
+
+    teamSelect.innerHTML = "";
+    if (teams.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "— aucune équipe —";
+      opt.disabled = true;
+      opt.selected = true;
+      teamSelect.appendChild(opt);
+      return;
+    }
+
+    for (const t of teams) {
+      const opt = document.createElement("option");
+      opt.value = t.slug;
+      opt.textContent = t.display_name || t.slug;
+      teamSelect.appendChild(opt);
+    }
+    // Auto-sélectionner si une seule équipe
+    if (teams.length === 1) teamSelect.selectedIndex = 0;
+  } catch (err) {
+    // Fail-soft : laisser le champ vide avec un message
+    teamSelect.innerHTML = `<option value="" disabled selected>Erreur chargement équipes</option>`;
+    console.warn("loadUserTeams failed:", err);
+  }
+}
 
 /** Initialisation au chargement du popup */
 document.addEventListener("DOMContentLoaded", async () => {
   const contentArea = document.getElementById("content");
   const sourceHint = document.getElementById("sourceHint");
   const sendBtn = document.getElementById("sendBtn");
+  const teamSelect = document.getElementById("teamScope");
+
+  // Placeholder pendant le chargement
+  teamSelect.innerHTML = `<option value="" disabled selected>Connexion…</option>`;
+  sendBtn.disabled = true;
 
   // 1. Récupérer le tab actif + la sélection
   const tab = await getActiveTab();
@@ -92,17 +138,24 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   const selection = await getSelectionFromPage(tab);
-
   if (selection && selection.selectedText && selection.selectedText.trim()) {
     contentArea.value = selection.selectedText.trim();
   }
-
   if (currentTabUrl) {
-    const hostname = hostnameFromUrl(currentTabUrl);
-    sourceHint.textContent = `Source : ${hostname}`;
+    sourceHint.textContent = `Source : ${hostnameFromUrl(currentTabUrl)}`;
   }
 
-  // 2. Écoute du bouton "Envoyer au brain"
+  // 2. Authentification + chargement des équipes en parallèle
+  const tokenResponse = await chrome.runtime.sendMessage({ type: "GET_ID_TOKEN" });
+  if (tokenResponse && tokenResponse.idToken) {
+    await loadUserTeams(tokenResponse.idToken);
+    sendBtn.disabled = false;
+  } else {
+    teamSelect.innerHTML = `<option value="" disabled selected>Non connecté</option>`;
+    showStatus("Connexion Google requise — réessayez.", "error");
+  }
+
+  // 3. Écoute du bouton "Envoyer au brain"
   sendBtn.addEventListener("click", handleSend);
 });
 
@@ -113,9 +166,12 @@ async function handleSend() {
   const projectScope = document.getElementById("projectScope").value.trim() || null;
   const truthLevel = document.querySelector('input[name="truthLevel"]:checked')?.value || "EPHEMERAL";
 
-  // Validation basique
   if (!content) {
     showStatus("Le contenu ne peut pas être vide.", "error");
+    return;
+  }
+  if (!teamScope) {
+    showStatus("Sélectionnez une équipe.", "error");
     return;
   }
 

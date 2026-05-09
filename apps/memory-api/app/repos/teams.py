@@ -124,6 +124,17 @@ async def get_first_team_for_user(session: AsyncSession, *, user_id: UUID) -> Te
     return result.scalar_one_or_none()
 
 
+async def get_all_teams_for_user(session: AsyncSession, *, user_id: UUID) -> list[Team]:
+    """Return all teams the user belongs to, ordered by slug."""
+    result = await session.execute(
+        select(Team)
+        .join(TeamMember, TeamMember.team_id == Team.id)
+        .where(TeamMember.user_id == user_id)
+        .order_by(Team.slug)
+    )
+    return list(result.scalars().all())
+
+
 async def get_teams_with_github_org(session: AsyncSession) -> list[Team]:
     """Return all teams that have a github_org set."""
     result = await session.execute(
