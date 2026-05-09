@@ -378,7 +378,7 @@ async def invoke_agent(
     # Fire background hooks on agent output — same as memory/upsert does after a write.
     # Lazy import avoids a module-level circular dependency (memory imports nothing from agents).
     if recap_text:
-        from app.routes.memory import _extract_crm_contacts, _maybe_create_task_from_action  # noqa: PLC0415
+        from app.routes.memory import _extract_crm_contacts, _maybe_create_task_from_action, _enrich_with_graphiti  # noqa: PLC0415
         _item = types.SimpleNamespace(
             content=recap_text,
             metadata=metadata_payload,
@@ -387,6 +387,7 @@ async def invoke_agent(
         )
         asyncio.create_task(_extract_crm_contacts(recap_text, body.team_scope, "agent"))
         asyncio.create_task(_maybe_create_task_from_action(_item, body.team_scope))
+        asyncio.create_task(_enrich_with_graphiti(recap_text, body.team_scope))
 
     log.info(
         "agent.invoked",

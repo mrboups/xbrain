@@ -1,5 +1,6 @@
 """/v1/admin/granola-integration + /v1/integrations/granola/ingest — D3 Granola integration."""
 
+import asyncio
 import json
 from datetime import datetime
 from typing import Any
@@ -374,6 +375,9 @@ async def ingest_granola_note(
 
     # Single commit — all writes atomic (memory_item + contacts + tasks)
     await session.commit()
+
+    from app.routes.memory import _enrich_with_graphiti  # noqa: PLC0415
+    asyncio.create_task(_enrich_with_graphiti(summary_content, body.team_scope))
 
     return GranolaIngestOut(
         memory_item_id=memory_item_id,
