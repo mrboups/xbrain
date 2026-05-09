@@ -7,6 +7,10 @@ on:
   schedule:
     - cron: '0 */6 * * *'
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -27,10 +31,15 @@ jobs:
         run: |
           cd projects-dashboard
           python3 scripts/generate_dashboard.py
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/50097563098/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: firebase-adminsdk-fbsvc@xbrain-495115.iam.gserviceaccount.com
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_XBRAIN }}
           projectId: xbrain-495115
           target: projects
           channelId: live
