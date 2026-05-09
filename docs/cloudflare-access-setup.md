@@ -30,7 +30,7 @@
    - Application type: Web application
    - Name: Cloudflare Access
    - Authorized redirect URI: `https://<team>.cloudflareaccess.com/cdn-cgi/access/callback`
-     (remplacer `<team>` par votre team slug Cloudflare Zero Trust)
+     (remplacer `<team>` par votre team slug Cloudflare Zero Trust — actuellement `cortxos`)
 3. Copier Client ID et Client Secret dans Cloudflare
 
 ## Étape 3 — Application Access
@@ -45,11 +45,10 @@
 ## Étape 4 — Policy
 
 1. Dans l'application créée > Add a policy
-2. Policy name: `Team xbrain Access`
+2. Policy name: `xbrain Team`
 3. Action: Allow
 4. Rule type: Emails
-5. Values: `team@grooveos.app`, `team@grooveos.app`
-   (ou Rule type: Email domain, Values: `acme.example.com` pour plus de flexibilité)
+5. Values: `team@grooveos.app`, `team@grooveos.app`, `<team-member@example.com>`
 
 ## Résultat attendu
 
