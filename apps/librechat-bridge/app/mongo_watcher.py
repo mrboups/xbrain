@@ -18,6 +18,7 @@ from app.conv_enricher import enrich_new_conversation
 from app.memory_api_client import MemoryApiClient
 from app.state_store import load_resume_token, save_resume_token
 from app.task_intent_detector import detect_task_intent
+from app.contact_extractor import extract_contacts_from_message
 
 log = structlog.get_logger()
 
@@ -131,6 +132,18 @@ async def messages_watch_loop(db, mem: MemoryApiClient) -> None:
                         team=team_scope,
                         source=payload["source"],
                     )
+                    # Phase 8 plan 08-06 — fire-and-forget contact extraction (D3 RESEARCH.md)
+                    # Process BOTH user AND assistant messages (Open Question 2 resolution).
+                    if payload.get("content"):
+                        asyncio.create_task(
+                            extract_contacts_from_message(
+                                content=payload["content"],
+                                sub=payload["sub"],
+                                team_scope=team_scope,
+                                source=payload.get("source") or "librechat",
+                                source_ref=payload["metadata"].get("librechat_id"),
+                            )
+                        )
                 save_resume_token(change.get("_id"))
                 _heartbeat()
             except Exception as e:  # noqa: BLE001
