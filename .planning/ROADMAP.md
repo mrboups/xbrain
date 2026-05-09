@@ -12,15 +12,15 @@ xbrain est construit en trois phases qui correspondent aux trois invariants du p
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: Socle Infra + Frontends + memory-api** - GCP VM, Docker Compose multi-service, LibreChat + Open WebUI branchés sur une memory-api qui enforce le contrat de tagging dès le premier write — **DONE 2026-05-03** (https://x.dejavu.cat + https://ai.dejavu.cat)
+- [x] **Phase 1: Socle Infra + Frontends + memory-api** - GCP VM, Docker Compose multi-service, LibreChat + Open WebUI branchés sur une memory-api qui enforce le contrat de tagging dès le premier write — **DONE 2026-05-03** (https://chat.grooveos.app + https://adm.grooveos.app)
 - [x] **Phase 2: Mémoire Intelligente + Agents** - VM upgrade, mem0 + MemoryProvider, truth-level promotion workflow, LangGraph agents avec HITL, RAG permission-aware — **DONE 2026-05-04**
 - [x] **Phase 3: Graphe + Extraction + Intégrations** - Neo4j, extraction structurée (Claude NER), Drive sync, MCP gateway + 3 premiers outils — **DONE 2026-05-04**
 - [x] **Phase 3.5: MCP Gateway Fix + Corrections Phase 3** (INSERTED) - Réécriture mcp-gateway client MCP stateful (Bug 1 critique : tool-call E2E cassé), fix verify-phase3.sh parser (Bug 2 cosmetic) — **DONE 2026-05-05**
 - [x] **Phase 4: Consolidation MCP Frontends + Intégrations Avancées** - LibreChat & agent-runtime branchés sur la gateway MCP (MCP-05/06 réellement câblés), fix logging Open WebUI conversations (MEM-04 résiduel), Drive push webhooks + multi-folder mapping, deck-service MCP tool (MCP-07 déféré) — **DONE 2026-05-05**
 - [x] **Phase 5: Plateforme Projets Équipe** - Pipeline GitOps (GitHub Actions → Cloud Run + Firebase), Graphiti extraction temporelle, extension Chrome truth-level, auth GitHub Org + Google + account linking, dashboard projets déployés — **DONE 2026-05-06**
-- [x] **Phase 6: Marketing Site + Documentation** - Site marketing statique en anglais (fond blanc, cible startup teams), documentation complète de toutes les features, déploiement Firebase Hosting — **DONE 2026-05-07** (https://xbrain-marketing.web.app)
-- [ ] **Phase 7: CRM + Granola + Task Intelligence** - CRM auto-populé depuis le brain (contacts extraits automatiquement), intégration Granola → mémoire (notes de réunion → faits taguées), task tracking automatique (tout output brain qui implique une action génère une tâche assignée + notification team)
-- [ ] **Phase 8: Granola Per-User + Universal Extraction Pipeline + Platform Agents** - Clé API Granola per-user (saisie manuelle onboarding, Fernet chiffré), pipeline extraction universel (LibreChat + Chrome ext + Granola → CRM + tasks), registry agent_definitions éditable par les admins avec agent meeting-recap seedé
+- [x] **Phase 6: Marketing Site + Documentation** - Site marketing statique en anglais (fond blanc, cible startup teams), documentation complète de toutes les features, déploiement Firebase Hosting — **DONE 2026-05-07** (https://grooveos.app)
+- [x] **Phase 7: CRM + Granola + Task Intelligence** - CRM auto-populé depuis le brain (contacts extraits automatiquement), intégration Granola → mémoire (notes de réunion → faits taguées), task tracking automatique (tout output brain qui implique une action génère une tâche assignée + notification team) — **DONE 2026-05-07**
+- [ ] **Phase 8: Granola Per-User + Universal Extraction Pipeline + Platform Agents** - Clé API Granola per-user (saisie manuelle onboarding, Fernet chiffré), pipeline extraction universel (LibreChat + Chrome ext + Granola → CRM + tasks), registry agent_definitions éditable par les admins avec agent meeting-recap seedé — **IN PROGRESS** (onboarding flow shipped 2026-05-09 — github-orgs, solo-team, onboarding modal)
 
 ## Phase Details
 
@@ -108,19 +108,19 @@ Plans:
   1. `GET http://graphiti-service:8300/v1/healthz` retourne `{"status": "ok", "graphiti": true}` et `POST /v1/ingest` retourne 202 en moins de 500ms.
   2. LibreChat affiche deux boutons de connexion (Google + GitHub) — un user peut se connecter avec son compte GitHub de l'org `your-github-org`.
   3. La table `users` PostgreSQL a les colonnes `github_username` et `github_id` (migration 0007 appliquée).
-  4. Un repo GitHub avec `brain.yaml` peut déclencher le workflow `deploy-cloudrun.yml` ou `deploy-firebase.yml` et indexer son contenu dans `api.dejavu.cat/v1/memory` via `brain-index.sh`.
-  5. L'extension Chrome (Manifest V3) peut envoyer du contenu sélectionné sur une page web vers `api.dejavu.cat/v1/memory` avec le truth_level choisi par l'utilisateur — memory-api retourne 201.
+  4. Un repo GitHub avec `brain.yaml` peut déclencher le workflow `deploy-cloudrun.yml` ou `deploy-firebase.yml` et indexer son contenu dans `api.grooveos.app/v1/memory` via `brain-index.sh`.
+  5. L'extension Chrome (Manifest V3) peut envoyer du contenu sélectionné sur une page web vers `api.grooveos.app/v1/memory` avec le truth_level choisi par l'utilisateur — memory-api retourne 201.
   6. `projects-dashboard/public/index.html` est généré par `generate_dashboard.py` et déployé sur Firebase Hosting (ou testable localement).
   7. `bash infrastructure/scripts/verify-phase5.sh` retourne `PASS: 8 / 8`.
 **Plans**: 7 plans
 Plans:
-- [ ] 05-01-PLAN.md — graphiti-service container (FastAPI wrapper graphiti-core, port 8300, Neo4j backend)
-- [ ] 05-02-PLAN.md — GitHub OAuth LibreChat + migration 0007 github_username + membership middleware
-- [ ] 05-03-PLAN.md — brain.yaml schema + GitHub Actions templates Cloud Run / Firebase + POST /v1/admin/projects
-- [ ] 05-04-PLAN.md — Extension Chrome MV3 (web clipper, auth launchWebAuthFlow, CORS memory-api)
-- [ ] 05-05-PLAN.md — projects.dejavu.cat dashboard statique (generate_dashboard.py + Firebase deploy)
-- [ ] 05-06-PLAN.md — nginx 30-projects.conf + Cloudflare Access runbook + .env.example Phase 5
-- [ ] 05-07-PLAN.md — register-mcp-tools.sh vérification + verify-phase5.sh (8 tests)
+- [x] 05-01-PLAN.md — graphiti-service container (FastAPI wrapper graphiti-core, port 8300, Neo4j backend)
+- [x] 05-02-PLAN.md — GitHub OAuth LibreChat + migration 0007 github_username + membership middleware
+- [x] 05-03-PLAN.md — brain.yaml schema + GitHub Actions templates Cloud Run / Firebase + POST /v1/admin/projects
+- [x] 05-04-PLAN.md — Extension Chrome MV3 (web clipper, auth launchWebAuthFlow, CORS memory-api)
+- [x] 05-05-PLAN.md — projects.grooveos.app dashboard statique (generate_dashboard.py + Firebase deploy)
+- [x] 05-06-PLAN.md — nginx 30-projects.conf + Cloudflare Access runbook + .env.example Phase 5
+- [x] 05-07-PLAN.md — register-mcp-tools.sh vérification + verify-phase5.sh (8 tests)
 
 ### Phase 6: Marketing Site + Documentation
 **Goal**: Livrer un site marketing statique en anglais (fond blanc, cible startup teams implémentant l'AI) + documentation complète de toutes les features Phase 1-5, déployés en ligne via Firebase Hosting.
@@ -137,13 +137,13 @@ Plans:
 **Plans**: 8 plans
 Plans:
 - [x] 06-01-PLAN.md — Firebase config + CSS foundation (style.css + docs.css)
-- [ ] 06-02-PLAN.md — Landing page index.html (7 sections, TailwindCSS CDN)
-- [ ] 06-03-PLAN.md — Docs home + Architecture + Memory System pages
-- [ ] 06-04-PLAN.md — Teams + Chat + MCP Tools pages
-- [ ] 06-05-PLAN.md — Drive Sync + Chrome Extension + GitHub Auth pages
-- [ ] 06-06-PLAN.md — Agents + Graphiti + API Reference pages
-- [ ] 06-07-PLAN.md — Deployment + Configuration pages
-- [ ] 06-08-PLAN.md — Firebase deploy + checkpoint human verification
+- [x] 06-02-PLAN.md — Landing page index.html (7 sections, TailwindCSS CDN)
+- [x] 06-03-PLAN.md — Docs home + Architecture + Memory System pages
+- [x] 06-04-PLAN.md — Teams + Chat + MCP Tools pages
+- [x] 06-05-PLAN.md — Drive Sync + Chrome Extension + GitHub Auth pages
+- [x] 06-06-PLAN.md — Agents + Graphiti + API Reference pages
+- [x] 06-07-PLAN.md — Deployment + Configuration pages
+- [x] 06-08-PLAN.md — Firebase deploy + checkpoint human verification
 
 ### Phase 8: Granola Per-User + Universal Extraction Pipeline + Platform Agents
 **Goal**: Chaque utilisateur entre sa clé API Granola manuellement dans l'onboarding (Fernet chiffré, stocké dans `granola_user_connections`, révocable), toutes les sorties applicatives (LibreChat, Chrome extension, Granola meetings) alimentent automatiquement le CRM et les tâches, et les admins peuvent créer/éditer des agents de plateforme configurables (registry `agent_definitions`) accessibles depuis la plateforme.
@@ -186,19 +186,19 @@ Plans:
 **Plans**: 9 plans
 Plans:
 - [x] 07-01-PLAN.md — Migrations 0008 (teams.plan) + 0009 (contacts + granola_integrations) + 0010 (tasks, created_by NULLABLE)
-- [ ] 07-02-PLAN.md — require_paid_tier + _user_id_from_principal dans deps.py + router CRM /v1/crm/contacts (CRUD + audit)
-- [ ] 07-03-PLAN.md — Router /v1/tasks (CRUD + filtres + polling since)
-- [ ] 07-04-PLAN.md — Router granola_integration (admin Fernet + ingest atomic memory_item+contacts+tasks, dedup note_id, created_by=NULL)
-- [ ] 07-05-PLAN.md — Squelette apps/granola-sync/ (Dockerfile, pyproject, main, config, memory_client, extractor — pas de poller, pas de docker-compose)
-- [ ] 07-06-PLAN.md — Background tasks memory.py (extract contacts + auto-task via async_session_factory) + service notifications email
-- [ ] 07-07-PLAN.md — Dashboard tasks.html + Nginx routes + verify-phase7.sh + .env.example
-- [ ] 07-08-PLAN.md — Boucle polling granola_poller.py + service granola-sync dans docker-compose.yml (split de 07-05)
-- [ ] 07-09-PLAN.md — D5 Trigger 3 : librechat-bridge task_intent_detector.py + hook mongo_watcher (chat → contains_action → task auto via 07-06)
+- [x] 07-02-PLAN.md — require_paid_tier + _user_id_from_principal dans deps.py + router CRM /v1/crm/contacts (CRUD + audit)
+- [x] 07-03-PLAN.md — Router /v1/tasks (CRUD + filtres + polling since)
+- [x] 07-04-PLAN.md — Router granola_integration (admin Fernet + ingest atomic memory_item+contacts+tasks, dedup note_id, created_by=NULL)
+- [x] 07-05-PLAN.md — Squelette apps/granola-sync/ (Dockerfile, pyproject, main, config, memory_client, extractor — pas de poller, pas de docker-compose)
+- [x] 07-06-PLAN.md — Background tasks memory.py (extract contacts + auto-task via async_session_factory) + service notifications email
+- [x] 07-07-PLAN.md — Dashboard tasks.html + Nginx routes + verify-phase7.sh + .env.example
+- [x] 07-08-PLAN.md — Boucle polling granola_poller.py + service granola-sync dans docker-compose.yml (split de 07-05)
+- [x] 07-09-PLAN.md — D5 Trigger 3 : librechat-bridge task_intent_detector.py + hook mongo_watcher (chat → contains_action → task auto via 07-06)
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 → 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -209,8 +209,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7
 | 4. Consolidation MCP Frontends + Intégrations Avancées | 8/8 | ✅ Complete | 2026-05-05 |
 | 5. Plateforme Projets Équipe | 7/7 | ✅ Complete | 2026-05-06 |
 | 6. Marketing Site + Documentation | 8/8 | ✅ Complete | 2026-05-07 |
-| 7. CRM + Granola + Task Intelligence | 0/7 | 🟡 Planned | — |
-| 8. Granola OAuth Per-User + Universal Extraction + Platform Agents | 0/TBD | ⚪ Not started | — |
+| 7. CRM + Granola + Task Intelligence | 9/9 | ✅ Complete | 2026-05-07 |
+| 8. Granola Per-User + Universal Extraction + Platform Agents | partial (onboarding) | 🟡 In Progress | — |
 
 ---
 

@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: complete
-stopped_at: Phase 7 complete — all 9 plans executed (07-01..07-09). Milestone v1.0 DONE.
-last_updated: "2026-05-07T04:00:00.000Z"
-last_activity: 2026-05-07 -- Phase 7 execution complete (all 9 plans, all 7 phases)
+status: active
+stopped_at: Phase 8 partial — onboarding + github-orgs + solo-team shipped (05-09). Phase 7 fully complete.
+last_updated: "2026-05-09T12:00:00.000Z"
+last_activity: 2026-05-09 -- Phase 8 onboarding (xbrain-routes.js, socialLogin.js, githubStrategy.js, onboarding.js, teams.py), domain migration grooveos.app, dashboard bridge JWT fixed
 progress:
   total_phases: 7
   completed_phases: 7
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Milestone v1.0 COMPLETE — Phases 1-7 done
+**Current focus:** Phase 8 in progress — onboarding + universal extraction + platform agents
 
 ## Current Position
 
-Phase: 7 — COMPLETE
-Plan: 9/9
-Status: All 7 phases complete. Milestone v1.0 shipped.
-Last activity: 2026-05-07 -- Phase 7 execution complete — CRM + Granola + Task Intelligence
+Phase: 8 — IN PROGRESS (partial)
+Plan: 0/8 formal plans — onboarding code shipped as quick tasks
+Status: Phases 1-7 complete. Phase 8 onboarding partially implemented.
+Last activity: 2026-05-09 -- Phase 8 onboarding shipped; domain migration dejavu.cat → grooveos.app complete
 
-Progress: [██████████] 100% — ALL PHASES COMPLETE
+Progress: [██████████] 100% — ALL v1.0 PHASES COMPLETE — Phase 8 post-v1 in progress
 
 ## Performance Metrics
 
@@ -100,6 +100,15 @@ Recent decisions affecting current work:
 - 2026-05-07 (07-09): Bridge sets metadata.contains_action=true rather than calling /v1/tasks directly — 07-03 rejects bridge JWT
 - 2026-05-07 (07-09): TASK_INTENT_DETECTION=false default — opt-in kill-switch for D5 trigger 3
 - 2026-05-07 (07-09): Lazy anthropic import in _get_client() — module loads without package installed
+- 2026-05-07: Domain migration dejavu.cat → grooveos.app. Subdomains: x→chat, ai→adm. Canonical URLs: chat.grooveos.app (LibreChat), adm.grooveos.app (Open WebUI), api.grooveos.app (memory-api), lang.grooveos.app (Langfuse), grooveos.app (app-site Firebase), projects.grooveos.app (dashboard Firebase).
+- 2026-05-09 (08-partial): GitHub OAuth read:org scope added (githubStrategy.js patch) — required for /api/xbrain/github-orgs
+- 2026-05-09 (08-partial): github_access_token stored in MongoDB users collection at OAuth login (socialLogin.js) — all 3 login paths (same provider, linked, new user)
+- 2026-05-09 (08-partial): /api/xbrain/github-orgs endpoint (xbrain-routes.js) — reads github_access_token from Mongo, calls GitHub /user/orgs, returns [] for Google-only users
+- 2026-05-09 (08-partial): POST /v1/teams/self-solo (teams.py) — idempotent solo workspace creation; GET /v1/teams/my-team — 204 if no team
+- 2026-05-09 (08-partial): onboarding.js boot() — checks orgs → if [] → createSoloTeam() → renderSoloWelcome(); else → renderPicker()
+- 2026-05-09 (08-partial): Bridge JWT requires scope="bridge" field — authlib HS256, iss=librechat-onboarding; missing scope raises ValueError
+- 2026-05-09 (08-partial): XBRAIN_BRIDGE_JWT secret + XBRAIN_TEAM_SCOPE=dejavudev set in GitHub Actions — dashboard now partial=False
+- 2026-05-09 (08-partial): generate_dashboard.py uses requests.Session() with User-Agent to bypass Cloudflare bot detection
 
 ### Pending Todos
 
@@ -107,10 +116,15 @@ None yet.
 
 ### Blockers/Concerns
 
-- **Phase 2 entry gate** : POC 1-jour mem0 vs native doit être réalisé AVANT le planning Phase 2 — résultat détermine le chemin `MemoryProvider` implémentation
-- **Phase 3 entry gate** : POC Memori BYODB (Alpha) doit être réalisé avant planning Phase 3 — fallback = LangGraph + LLM structured output
-- **OOM Risk Phase 1** : e2-medium (4 GB) est serré avec LibreChat + MongoDB + Qdrant + memory-api. Surveiller `docker stats` total. Ne pas ajouter Langfuse complet (ClickHouse) sans upgrade VM.
-- **VM disk 99%** : La VM est à 99% (28G/29G). Le rebuild de drive-sync a échoué par manque d'espace. Nettoyer avant prochain plan avec rebuild de containers. `docker system prune` n'a pas libéré d'espace — probablement des snapshots containerd à nettoyer manuellement ou agrandir le disque.
+- **Phase 8 onboarding E2E non testé** : Le flux onboarding (Google → github-orgs → solo-team) n'a pas encore été testé en conditions réelles avec un vrai compte Google/GitHub. Test E2E requis avant de déclarer Phase 8 complète.
+- **GH_API_PAT mrboups repos** : GitHub Actions dashboard montre 0 repos pour l'utilisateur `mrboups` — le PAT semble ne pas avoir le scope `repo` ou est expiré. Vérifier `gh secret list` et regénérer si besoin.
+- **VM disk** : Était à 99% le 2026-05-07. Résolu par agrandissement disque + `docker system prune`. Surveiller si rebuild containers échoue de nouveau.
+
+**Resolved (archivé):**
+- ~~Phase 2 entry gate POC~~ — Phases 2-7 complètes, mem0 + native memory-api retenu
+- ~~Phase 3 entry gate POC Memori~~ — Phase 3 complète, fallback LangGraph utilisé
+- ~~OOM Risk Phase 1~~ — VM upgradée e2-standard-2 (8 GB) depuis Phase 2
+- ~~chat.grooveos.app 502~~ — Race condition nginx/librechat au démarrage, auto-résolu
 
 ## Deferred Items
 
@@ -120,6 +134,12 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-07
-Stopped at: Plan 07-09 complete — task_intent_detector.py (3628d38), mongo_watcher hook + config + deps (b866c99), docker-compose librechat-bridge env vars (01c26f9). Phase 7 Wave 7 COMPLETE.
+Last session: 2026-05-09
+Stopped at: Phase 8 partial — onboarding flow shipped (xbrain-routes.js, socialLogin.js, githubStrategy.js, onboarding.js, teams.py), domain migration done, dashboard JWT fixed. 26 containers healthy. Remaining Phase 8 plans (08-01..08-08 formal) not yet planned.
 Resume file: None
+
+### Quick Tasks Completed
+
+| Slug | Date | Description |
+|------|------|-------------|
+| global-audit | 2026-05-09 | Global features audit + STATE.md/ROADMAP.md docs update |
