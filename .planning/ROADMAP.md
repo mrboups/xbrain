@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Plateforme Projets Équipe** - Pipeline GitOps (GitHub Actions → Cloud Run + Firebase), Graphiti extraction temporelle, extension Chrome truth-level, auth GitHub Org + Google + account linking, dashboard projets déployés — **DONE 2026-05-06**
 - [x] **Phase 6: Marketing Site + Documentation** - Site marketing statique en anglais (fond blanc, cible startup teams), documentation complète de toutes les features, déploiement Firebase Hosting — **DONE 2026-05-07** (https://xbrain-marketing.web.app)
 - [ ] **Phase 7: CRM + Granola + Task Intelligence** - CRM auto-populé depuis le brain (contacts extraits automatiquement), intégration Granola → mémoire (notes de réunion → faits taguées), task tracking automatique (tout output brain qui implique une action génère une tâche assignée + notification team)
-- [ ] **Phase 8: Granola OAuth Per-User + Universal Extraction Pipeline + Platform Agents** - Granola OAuth 2.0 PKCE per-user (popup self-service), pipeline extraction universel (LibreChat + Chrome ext + Granola → CRM + tasks), registry agent_definitions éditable par les admins avec agent meeting-recap seedé
+- [ ] **Phase 8: Granola Per-User + Universal Extraction Pipeline + Platform Agents** - Clé API Granola per-user (saisie manuelle onboarding, Fernet chiffré), pipeline extraction universel (LibreChat + Chrome ext + Granola → CRM + tasks), registry agent_definitions éditable par les admins avec agent meeting-recap seedé
 
 ## Phase Details
 
@@ -145,14 +145,14 @@ Plans:
 - [ ] 06-07-PLAN.md — Deployment + Configuration pages
 - [ ] 06-08-PLAN.md — Firebase deploy + checkpoint human verification
 
-### Phase 8: Granola OAuth Per-User + Universal Extraction Pipeline + Platform Agents
-**Goal**: Chaque utilisateur connecte Granola en OAuth self-service (popup PKCE, pas de clé API admin), toutes les sorties applicatives (LibreChat, Chrome extension, Granola meetings) alimentent automatiquement le CRM et les tâches, et les admins peuvent créer/éditer des agents de plateforme configurables (registry `agent_definitions`) accessibles depuis la plateforme.
+### Phase 8: Granola Per-User + Universal Extraction Pipeline + Platform Agents
+**Goal**: Chaque utilisateur entre sa clé API Granola manuellement dans l'onboarding (Fernet chiffré, stocké dans `granola_user_connections`, révocable), toutes les sorties applicatives (LibreChat, Chrome extension, Granola meetings) alimentent automatiquement le CRM et les tâches, et les admins peuvent créer/éditer des agents de plateforme configurables (registry `agent_definitions`) accessibles depuis la plateforme.
 **Depends on**: Phase 7
-**Entry gate**: Phase 7 SHIPPED. Tables `contacts`, `tasks`, `granola_integrations` présentes. Granola OAuth 2.0 endpoint accessible (scope `meetings:read`).
+**Entry gate**: Phase 7 SHIPPED. Tables `contacts`, `tasks`, `granola_integrations` présentes.
 **Requirements**: (phase post-v1 — nouvelles capacités hors scope 73 REQ-IDs v1)
 **Success Criteria** (what must be TRUE):
-  1. Un utilisateur clique "Connect Granola" dans l'onboarding ou son profil → popup OAuth 2.0 PKCE Granola → token stocké dans `granola_user_connections` (chiffré Fernet, lié à `user_id`) ; la connexion est visible dans son profil et révocable
-  2. Après connexion OAuth, granola-sync poll per-user et ingère les meetings → contacts + tasks (même pipeline Phase 7 mais déclenché par `user_id`, non team-API-key)
+  1. Un utilisateur entre sa clé API Granola dans l'étape optionnelle de l'onboarding → clé stockée chiffrée Fernet dans `granola_user_connections` (liée à `user_id`) via `POST /v1/me/granola-key` ; la connexion est visible dans son profil (GET retourne {connected: true}) et révocable (DELETE /v1/me/granola-key)
+  2. Après saisie de la clé, granola-sync poll per-user et ingère les meetings → contacts + tasks (même pipeline Phase 7 mais déclenché par `user_id`, non team-API-key)
   3. Tout output LibreChat (message assistant) contenant des patterns contact (nom/email/entreprise) déclenche l'extraction contact → CRM (pipeline robuste, fail-soft, idempotent)
   4. Tout clip Chrome extension → extraction contact + task si action item détecté (via background worker)
   5. Table `agent_definitions` : admin peut CRUD via `POST/GET/PATCH/DELETE /v1/admin/agents` ; chaque agent a `name`, `description`, `system_prompt`, `model`, `tools_json`, `enabled`, `created_by` ; l'agent `meeting-recap` est seedé au déploiement
