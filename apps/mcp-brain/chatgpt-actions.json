@@ -73,7 +73,7 @@
         ],
         "requestBody": {
           "required": true,
-          "content": {"application/json": {"schema": {"type": "object", "required": ["item"], "properties": {"item": {"type": "object", "required": ["team_scope","content","source","truth_level","confidence","visibility","validation_status"], "properties": {"team_scope": {"type": "string"}, "content": {"type": "string"}, "source": {"type": "string", "default": "chatgpt"}, "truth_level": {"type": "string", "default": "WORKING"}, "confidence": {"type": "number", "default": 0.8}, "visibility": {"type": "string", "default": "team"}, "validation_status": {"type": "string", "default": "pending"}, "project_scope": {"type": "string"}}}}}}
+          "content": {"application/json": {"schema": {"type": "object", "required": ["item"], "properties": {"item": {"type": "object", "required": ["team_scope","content","source","truth_level","confidence","visibility","validation_status"], "properties": {"team_scope": {"type": "string"}, "content": {"type": "string"}, "source": {"type": "string", "default": "chatgpt"}, "truth_level": {"type": "string", "default": "WORKING"}, "confidence": {"type": "number", "default": 0.8}, "visibility": {"type": "string", "default": "team"}, "validation_status": {"type": "string", "default": "pending"}, "project_scope": {"type": "string"}}}}}}}
         },
         "responses": {
           "201": {"description": "Created", "content": {"application/json": {"schema": {"type": "object", "properties": {"id": {"type": "string"}}}}}}
