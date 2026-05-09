@@ -31,10 +31,20 @@ from typing import Any
 try:
     import requests
 
+    _SESSION = requests.Session()
+    _SESSION.headers.update({"User-Agent": "xbrain-dashboard/1.0 (+https://grooveos.app)"})
+
     def _get(url: str, headers: dict) -> tuple[int, Any]:
         try:
-            r = requests.get(url, headers=headers, timeout=15)
-            return r.status_code, r.json() if r.content else {}
+            r = _SESSION.get(url, headers=headers, timeout=15)
+            if not r.content:
+                return r.status_code, {}
+            try:
+                return r.status_code, r.json()
+            except Exception:
+                preview = r.text[:200].replace("\n", " ")
+                print(f"[generate_dashboard] WARN non-JSON response HTTP {r.status_code} from {url}: {preview!r}", file=sys.stderr)
+                return r.status_code, {}
         except Exception as exc:  # noqa: BLE001
             print(f"[generate_dashboard] WARN GET {url}: {exc}", file=sys.stderr)
             return 0, {}
@@ -44,6 +54,7 @@ except ImportError:
     import urllib.error
 
     def _get(url: str, headers: dict) -> tuple[int, Any]:  # type: ignore[misc]
+        headers = {**headers, "User-Agent": "xbrain-dashboard/1.0 (+https://grooveos.app)"}
         req = urllib.request.Request(url, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=15) as resp:
