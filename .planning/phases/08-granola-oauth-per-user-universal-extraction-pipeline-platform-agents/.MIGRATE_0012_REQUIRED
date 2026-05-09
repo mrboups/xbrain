@@ -1,0 +1,45 @@
+# Migration 0012 requise sur la VM avant de lancer les plans 08-02..08-08
+#
+# L'agent tourne sur Windows (D:\VSC\xbrain) sans accès SSH direct.
+# Ces commandes doivent être exécutées manuellement sur la VM (__VM_HOST__).
+#
+# Généré par: exécution plan 08-01 le 2026-05-09
+
+## Étapes à exécuter dans cet ordre
+
+# 1. Se connecter à la VM
+ssh ubuntu@__VM_HOST__
+
+# 2. Aller dans le répertoire du projet
+cd ~/xbrain/infrastructure
+
+# 3. Récupérer les dernières sources (incluant la migration 0012)
+git pull origin main
+
+# 4. Appliquer la migration
+docker compose exec memory-api alembic upgrade head
+
+# 5. Vérifier que la version est bien 0012
+docker compose exec postgres psql -U xbrain -d xbrain -tAc "SELECT version_num FROM alembic_version"
+# Résultat attendu: 0012
+
+# 6. Vérifier que les deux tables existent
+docker compose exec postgres psql -U xbrain -d xbrain -tAc "SELECT to_regclass('granola_user_connections')::text, to_regclass('agent_definitions')::text"
+# Résultat attendu: granola_user_connections|agent_definitions
+
+# 7. Vérifier le seed meeting-recap
+docker compose exec postgres psql -U xbrain -d xbrain -tAc "SELECT count(*) FROM agent_definitions WHERE name='meeting-recap'"
+# Résultat attendu: 1
+
+## En cas d'erreur Alembic "Multiple head revisions"
+# NE PAS forcer avec `alembic stamp`. Investiguer la cause avant de continuer.
+# Contacter l'équipe ou ouvrir un ticket.
+
+## Idempotence
+# Lancer `alembic upgrade head` une deuxième fois est sans danger :
+# - Le seed utilise ON CONFLICT (name) DO NOTHING — aucun doublon.
+# - Les tables CREATE TABLE échouent avec "already exists" -> Alembic gère ça nativement.
+
+## Blocker
+# Tous les plans 08-02..08-08 supposent que cette migration est appliquée.
+# verify-phase8.sh échouera tant que alembic_version != 0012.
