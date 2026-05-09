@@ -150,16 +150,18 @@
       vertical-align: middle;
     }
     @keyframes xb-spin { to { transform: rotate(360deg); } }
+    .xb-logout {
+      display: block; text-align: center; margin-top: 28px;
+      font-size: 12px; color: rgba(236,236,236,0.3);
+      cursor: pointer; background: none; border: none; width: 100%;
+    }
+    .xb-logout:hover { color: rgba(236,236,236,0.6); }
   `;
 
   // ── State ────────────────────────────────────────────────────────────────
 
-  const PROVIDERS = ['anthropic', 'openai', 'xai', 'google', 'mistral', 'cohere'];
   let token = null;
-  let step = 1;
-  let searchResults = [];
   let selectedTeam = null;
-  let apiKeys = [{ provider: 'anthropic', key: '' }];
 
   // ── DOM helpers ──────────────────────────────────────────────────────────
 
@@ -183,260 +185,220 @@
     nodes.forEach(n => container.appendChild(n));
   }
 
-  // ── Render steps ─────────────────────────────────────────────────────────
+  // ── Render views ─────────────────────────────────────────────────────────
 
-  function renderStep1(body) {
-    const indicator = el('p', { class: 'xb-step-indicator' }, 'Step 1 of 4');
-    const title = el('h2', {}, 'Join or create a team');
-    const desc = el('p', { class: 'xb-desc' }, 'xbrain organizes memory by team. Join yours to get started.');
-
-    const nameInput = el('input', {
-      class: 'xb-input', type: 'text', placeholder: 'Team name or slug...',
-    });
-    const errorDiv = el('p', { class: 'xb-error', style: 'display:none' });
-    const resultDiv = el('div', {});
-
-    let searchTimer = null;
-    nameInput.oninput = () => {
-      clearTimeout(searchTimer);
-      const q = nameInput.value.trim();
-      if (q.length < 2) { resultDiv.innerHTML = ''; return; }
-      searchTimer = setTimeout(() => doSearch(q, resultDiv, errorDiv), 400);
-    };
-
-    const hasGithub = false; // TODO: check if user has github linked via /v1/me
-    const hint = hasGithub
-      ? el('p', { class: 'xb-desc', style: 'margin-bottom:12px' },
-          'Your GitHub organizations are listed below.')
-      : el('p', { class: 'xb-desc', style: 'margin-bottom:12px' },
-          'Type your team name to search, or create a new one.');
-
-    const createBtn = el('button', {
-      class: 'xb-btn xb-btn-secondary',
-      style: 'margin-left:0',
-      onclick: () => { selectedTeam = null; goStep(2); },
-    }, '+ Create a new team');
-
-    setHtml(body, indicator, title, desc, hint, errorDiv, nameInput, resultDiv, createBtn);
+  function getBody() {
+    return document.getElementById('xbrain-onboarding-modal').querySelector('.xb-body');
   }
 
-  async function doSearch(q, resultDiv, errorDiv) {
-    resultDiv.innerHTML = '<span class="xb-spinner"></span> Searching...';
+  function dismiss() {
+    sessionStorage.setItem(STORAGE_KEY, '1');
+    document.getElementById('xbrain-onboarding-overlay').remove();
+  }
+
+  async function createSoloTeam() {
     try {
-      const r = await apiCall('GET', `/v1/teams/search?name=${encodeURIComponent(q)}`, null, token);
-      if (!r.ok) throw new Error('search failed');
-      searchResults = await r.json();
-      resultDiv.innerHTML = '';
-      if (searchResults.length === 0) {
-        resultDiv.appendChild(el('p', { class: 'xb-desc', style: 'margin-bottom:0' },
-          'No team found. You can create one below.'));
-        return;
-      }
-      searchResults.forEach(t => {
-        const btn = el('button', {
-          class: 'xb-team-btn',
-          onclick: () => { selectedTeam = t; goStep(2); },
-        },
-          el('strong', {}, t.display_name),
-          document.createTextNode(` — ${t.visibility === 'open' ? '🔓 Open' : '🔒 Private'}`),
-        );
-        resultDiv.appendChild(btn);
-      });
-    } catch {
-      errorDiv.textContent = 'Search failed. Please try again.';
-      errorDiv.style.display = 'block';
-      resultDiv.innerHTML = '';
-    }
+      const r = await apiCall('POST', '/v1/teams/self-solo', null, token);
+      if (r.ok) return await r.json();
+    } catch (_) {}
+    return null;
   }
 
-  function renderStep2(body) {
-    const indicator = el('p', { class: 'xb-step-indicator' }, 'Step 2 of 4');
-
-    if (selectedTeam) {
-      // Join flow
-      const title = el('h2', {}, `Join "${selectedTeam.display_name}"?`);
-      const desc = el('p', { class: 'xb-desc' },
-        selectedTeam.visibility === 'open'
-          ? 'This team is open. You can join directly.'
-          : 'This team is private. Your request will be reviewed by an admin.',
-      );
-      const errorDiv = el('p', { class: 'xb-error', style: 'display:none' });
-      const joinBtn = el('button', { class: 'xb-btn xb-btn-primary' },
-        selectedTeam.visibility === 'open' ? 'Join team' : 'Request access',
-      );
-      const backBtn = el('button', { class: 'xb-btn xb-btn-secondary', onclick: () => goStep(1) }, '← Back');
-      joinBtn.onclick = async () => {
-        joinBtn.disabled = true;
-        errorDiv.style.display = 'none';
-        try {
-          if (selectedTeam.visibility === 'open') {
-            const r = await apiCall('POST', `/v1/teams/${selectedTeam.id}/join`, null, token);
-            if (!r.ok && r.status !== 204) throw new Error('join failed');
-            goStep(3);
-          } else {
-            const r = await apiCall('POST', `/v1/teams/${selectedTeam.id}/join-request`, null, token);
-            if (!r.ok) throw new Error('request failed');
-            showPendingConfirmation(selectedTeam.display_name);
-          }
-        } catch {
-          errorDiv.textContent = 'Something went wrong. Please try again.';
-          errorDiv.style.display = 'block';
-          joinBtn.disabled = false;
-        }
-      };
-      setHtml(body, indicator, title, desc, errorDiv, joinBtn, backBtn);
-    } else {
-      // Create flow
-      const title = el('h2', {}, 'Create your team');
-      const desc = el('p', { class: 'xb-desc' }, 'You will become the founding admin of this team.');
-      const nameInput = el('input', {
-        class: 'xb-input', type: 'text', placeholder: 'Team name (e.g. Acme)',
-      });
-      const slugInput = el('input', {
-        class: 'xb-input', type: 'text', placeholder: 'Team slug (e.g. acme)',
-      });
-      nameInput.oninput = () => {
-        slugInput.value = nameInput.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      };
-      const visSelect = el('select', { class: 'xb-select' },
-        el('option', { value: 'closed' }, '🔒 Private (requires approval)'),
-        el('option', { value: 'open' }, '🔓 Open (anyone can join)'),
-      );
-      const orgInput = el('input', {
-        class: 'xb-input', type: 'text', placeholder: 'GitHub organization (optional, e.g. your-github-org)',
-      });
-      const errorDiv = el('p', { class: 'xb-error', style: 'display:none' });
-      const createBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Create team');
-      const backBtn = el('button', { class: 'xb-btn xb-btn-secondary', onclick: () => goStep(1) }, '← Back');
-
-      createBtn.onclick = async () => {
-        const slug = slugInput.value.trim();
-        const display = nameInput.value.trim();
-        if (!slug || !display) {
-          errorDiv.textContent = 'Name and slug are required.';
-          errorDiv.style.display = 'block';
-          return;
-        }
-        createBtn.disabled = true;
-        errorDiv.style.display = 'none';
-        try {
-          const r = await apiCall('POST', '/v1/teams/self', {
-            slug,
-            display_name: display,
-            visibility: visSelect.value,
-            github_org: orgInput.value.trim() || null,
-          }, token);
-          if (!r.ok) {
-            const err = await r.json().catch(() => ({}));
-            throw new Error(err.detail || 'create failed');
-          }
-          selectedTeam = await r.json();
-          goStep(3);
-        } catch (e) {
-          errorDiv.textContent = e.message || 'Something went wrong. Please try again.';
-          errorDiv.style.display = 'block';
-          createBtn.disabled = false;
-        }
-      };
-
-      setHtml(body, indicator, title, desc, nameInput, slugInput, visSelect, orgInput, errorDiv, createBtn, backBtn);
-    }
+  function renderSoloWelcome() {
+    const body = getBody();
+    const title = el('h2', {}, 'Votre espace de travail est prêt');
+    const desc = el('p', { class: 'xb-desc' },
+      'Vous êtes en mode solo. Connectez votre organisation GitHub pour collaborer avec votre équipe.');
+    const githubBtn = el('button', { class: 'xb-btn xb-btn-primary' }, '🔗 Connecter une org GitHub');
+    githubBtn.onclick = () => { location.href = '/oauth/github'; };
+    const soloBtn = el('button', { class: 'xb-btn xb-btn-secondary' }, 'Continuer en solo →');
+    soloBtn.onclick = dismiss;
+    const btnRow = el('div', { style: 'display:flex;gap:8px;margin-top:8px' }, githubBtn, soloBtn);
+    setHtml(body, title, desc, btnRow);
   }
 
-  function renderStep3(body) {
-    const indicator = el('p', { class: 'xb-step-indicator' }, 'Step 3 of 4');
-    const title = el('h2', {}, 'Team API keys (optional)');
-    const desc = el('p', { class: 'xb-desc' }, 'Set shared API keys for your team members. You can add more later.');
-
-    const keysList = el('div', {});
-
-    function renderKeys() {
-      keysList.innerHTML = '';
-      apiKeys.forEach((k, i) => {
-        const provSelect = el('select', { class: 'xb-select', style: 'margin-bottom:0' });
-        PROVIDERS.forEach(p => {
-          const opt = el('option', { value: p }, p);
-          if (p === k.provider) opt.selected = true;
-          provSelect.appendChild(opt);
-        });
-        provSelect.onchange = () => { apiKeys[i].provider = provSelect.value; };
-        const keyInput = el('input', {
-          class: 'xb-input', type: 'password', placeholder: 'sk-...', style: 'margin-bottom:0',
-          value: k.key,
-        });
-        keyInput.oninput = () => { apiKeys[i].key = keyInput.value; };
-        const delBtn = el('button', {}, '✕');
-        delBtn.onclick = () => { apiKeys.splice(i, 1); renderKeys(); };
-        keysList.appendChild(el('div', { class: 'xb-key-row' }, provSelect, keyInput, delBtn));
-      });
-    }
-    renderKeys();
-
-    const addBtn = el('button', { class: 'xb-btn xb-btn-secondary', style: 'margin-left:0;margin-bottom:16px' }, '+ Add a key');
-    addBtn.onclick = () => { apiKeys.push({ provider: 'openai', key: '' }); renderKeys(); };
-
-    const errorDiv = el('p', { class: 'xb-error', style: 'display:none' });
-    const saveBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Save and continue');
-    const skipBtn = el('button', { class: 'xb-btn xb-btn-secondary', onclick: () => goStep(4) }, 'Skip →');
-
-    saveBtn.onclick = async () => {
-      const filled = apiKeys.filter(k => k.key.trim());
-      if (filled.length === 0) { goStep(4); return; }
-      saveBtn.disabled = true;
-      errorDiv.style.display = 'none';
-      try {
-        const r = await apiCall('PUT', `/v1/teams/${selectedTeam.id}/api-keys`, {
-          keys: filled.map(k => ({ provider: k.provider, api_key: k.key })),
-        }, token);
-        if (!r.ok) throw new Error('save failed');
-        goStep(4);
-      } catch {
-        errorDiv.textContent = 'Failed to save. Try again or skip this step.';
-        errorDiv.style.display = 'block';
-        saveBtn.disabled = false;
-      }
-    };
-
-    setHtml(body, indicator, title, desc, keysList, addBtn, errorDiv, saveBtn, skipBtn);
-  }
-
-  function renderStep4(body) {
-    const title = el('h2', {}, `Welcome to "${selectedTeam?.display_name || 'your team'}"! 🎉`);
-    const desc = el('p', { class: 'xb-desc' }, 'Your team is set up. You can now use xbrain with your teammates.');
+  function renderWelcome() {
+    const body = getBody();
+    const title = el('h2', {}, `Welcome to "${selectedTeam?.display_name || 'your team'}"!`);
+    const desc = el('p', { class: 'xb-desc' }, 'Your team is set up. You\'re ready to use xbrain.');
     const startBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Get started →');
-    startBtn.onclick = () => {
-      sessionStorage.setItem(STORAGE_KEY, '1');
-      document.getElementById('xbrain-onboarding-overlay').remove();
-    };
+    startBtn.onclick = dismiss;
     setHtml(body, title, desc, startBtn);
   }
 
-  function showPendingConfirmation(teamName) {
-    const modal = document.getElementById('xbrain-onboarding-modal');
-    const body = modal.querySelector('.xb-body');
+  function renderPending(teamName) {
+    const body = getBody();
     const title = el('h2', {}, 'Request sent');
-    const desc = el('p', { class: 'xb-desc' }, `Your request to join "${teamName}" has been submitted. An admin will review it shortly.`);
+    const desc = el('p', { class: 'xb-desc' },
+      `Your request to join "${teamName}" has been submitted. An admin will review it shortly.`);
     const okBtn = el('button', { class: 'xb-btn xb-btn-primary' }, 'Got it');
-    okBtn.onclick = () => {
-      sessionStorage.setItem(STORAGE_KEY, '1');
-      document.getElementById('xbrain-onboarding-overlay').remove();
-    };
+    okBtn.onclick = dismiss;
     setHtml(body, title, desc, okBtn);
   }
 
-  function goStep(n) {
-    step = n;
-    const modal = document.getElementById('xbrain-onboarding-modal');
-    const body = modal.querySelector('.xb-body');
-    if (n === 1) renderStep1(body);
-    else if (n === 2) renderStep2(body);
-    else if (n === 3) renderStep3(body);
-    else if (n === 4) renderStep4(body);
+  async function joinTeam(team, errorDiv, btn) {
+    btn.disabled = true;
+    errorDiv.style.display = 'none';
+    try {
+      if (team.visibility === 'open') {
+        const r = await apiCall('POST', `/v1/teams/${team.id}/join`, null, token);
+        if (!r.ok && r.status !== 204) throw new Error('join failed');
+        selectedTeam = team;
+        renderWelcome();
+      } else {
+        const r = await apiCall('POST', `/v1/teams/${team.id}/join-request`, null, token);
+        if (!r.ok) throw new Error('request failed');
+        renderPending(team.display_name);
+      }
+    } catch {
+      errorDiv.textContent = 'Something went wrong. Please try again.';
+      errorDiv.style.display = 'block';
+      btn.disabled = false;
+    }
+  }
+
+  async function createTeam(name, errorDiv, btn, githubOrg) {
+    const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 64);
+    if (!slug) {
+      errorDiv.textContent = 'Team name is required.';
+      errorDiv.style.display = 'block';
+      return;
+    }
+    btn.disabled = true;
+    errorDiv.style.display = 'none';
+    try {
+      const body = { slug, display_name: name, visibility: 'closed' };
+      if (githubOrg) body.github_org = githubOrg;
+      const r = await apiCall('POST', '/v1/teams/self', body, token);
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || 'create failed');
+      }
+      selectedTeam = await r.json();
+      renderWelcome();
+    } catch (e) {
+      errorDiv.textContent = e.message || 'Something went wrong. Please try again.';
+      errorDiv.style.display = 'block';
+      btn.disabled = false;
+    }
+  }
+
+  function renderPicker() {
+    const body = getBody();
+    const title = el('h2', {}, 'Join or create your team');
+    const desc = el('p', { class: 'xb-desc' },
+      'Select your GitHub organization, or search for a team by name.');
+
+    const githubSection = el('div', {});
+    const divider = el('p', {
+      class: 'xb-desc',
+      style: 'margin-top:16px;margin-bottom:8px;display:none',
+    }, 'Or search manually:');
+    const nameInput = el('input', {
+      class: 'xb-input', type: 'text', placeholder: 'Team name...',
+    });
+    const errorDiv = el('p', { class: 'xb-error', style: 'display:none' });
+    const resultDiv = el('div', {});
+    const actionDiv = el('div', {});
+
+    let searchTimer = null;
+
+    function updateAction(q) {
+      actionDiv.innerHTML = '';
+      if (!q) return;
+      const btn = el('button', {
+        class: 'xb-btn xb-btn-primary', style: 'margin-top:8px',
+      }, `Create "${q}" →`);
+      btn.onclick = () => createTeam(q, errorDiv, btn, null);
+      actionDiv.appendChild(btn);
+    }
+
+    nameInput.oninput = () => {
+      clearTimeout(searchTimer);
+      const q = nameInput.value.trim();
+      errorDiv.style.display = 'none';
+      updateAction(q);
+      resultDiv.innerHTML = '';
+      if (q.length < 2) return;
+      resultDiv.innerHTML = '<span class="xb-spinner"></span>';
+      searchTimer = setTimeout(async () => {
+        try {
+          const r = await apiCall('GET', `/v1/teams/search?name=${encodeURIComponent(q)}`, null, token);
+          if (!r.ok) throw new Error();
+          const results = await r.json();
+          resultDiv.innerHTML = '';
+          results.forEach(t => {
+            const btn = el('button', { class: 'xb-team-btn' },
+              el('strong', {}, t.display_name),
+              document.createTextNode(` — ${t.visibility === 'open' ? '🔓 Open' : '🔒 Private'}`),
+            );
+            btn.onclick = () => joinTeam(t, errorDiv, btn);
+            resultDiv.appendChild(btn);
+          });
+        } catch {
+          resultDiv.innerHTML = '';
+        }
+      }, 400);
+    };
+
+    setHtml(body, title, desc, githubSection, divider, nameInput, errorDiv, resultDiv, actionDiv);
+
+    // Fetch GitHub orgs (LibreChat endpoint — uses user's own token → includes private orgs)
+    // + matched xbrain teams in parallel
+    githubSection.innerHTML = '<span class="xb-spinner"></span>';
+
+    Promise.all([
+      fetch('/api/xbrain/github-orgs', {
+        headers: { Authorization: 'Bearer ' + _libreToken },
+      }).then(r => r.ok ? r.json() : []).catch(() => []),
+      apiCall('GET', '/v1/teams/github-matches', null, token)
+        .then(r => r.ok ? r.json() : []).catch(() => []),
+    ]).then(([orgs, matches]) => {
+      githubSection.innerHTML = '';
+
+      if (!orgs || orgs.length === 0) {
+        nameInput.placeholder = 'Team name or slug...';
+        const ghBtn = el('button', { class: 'xb-btn xb-btn-secondary', style: 'margin-bottom:12px;width:100%' },
+          '🔗 Authorize GitHub org access');
+        ghBtn.onclick = () => { location.href = '/oauth/github'; };
+        githubSection.appendChild(ghBtn);
+        return;
+      }
+
+      // Build map: github_org login → xbrain team (if already exists)
+      const orgTeamMap = {};
+      if (matches) matches.forEach(t => { if (t.github_org) orgTeamMap[t.github_org] = t; });
+
+      githubSection.appendChild(el('p', { class: 'xb-desc', style: 'margin-bottom:8px' },
+        'Your GitHub organizations:'));
+
+      orgs.forEach(org => {
+        const xbrainTeam = orgTeamMap[org.login];
+        const btn = el('button', { class: 'xb-team-btn', style: 'margin-bottom:8px' });
+
+        if (xbrainTeam) {
+          btn.appendChild(el('strong', {}, xbrainTeam.display_name));
+          btn.appendChild(document.createTextNode(
+            xbrainTeam.visibility === 'open' ? ' — 🔓 Join' : ' — 🔒 Request access',
+          ));
+          btn.onclick = () => joinTeam(xbrainTeam, errorDiv, btn);
+        } else {
+          btn.appendChild(el('strong', {}, org.login));
+          btn.appendChild(document.createTextNode(' — Create team →'));
+          const orgName = org.login.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          btn.onclick = () => createTeam(orgName, errorDiv, btn, org.login);
+        }
+
+        githubSection.appendChild(btn);
+      });
+
+      divider.style.display = '';
+    });
   }
 
   // ── Mount ────────────────────────────────────────────────────────────────
 
-  function mount() {
+  function mount(renderFn = renderPicker) {
     const style = document.createElement('style');
     style.textContent = CSS;
     document.head.appendChild(style);
@@ -444,11 +406,19 @@
     const overlay = el('div', { id: 'xbrain-onboarding-overlay' });
     const modal = el('div', { id: 'xbrain-onboarding-modal' });
     const bodyDiv = el('div', { class: 'xb-body' });
+    const logoutBtn = el('button', { class: 'xb-logout' }, 'Wrong account? Log out');
+    logoutBtn.onclick = () => {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: _libreToken ? { Authorization: 'Bearer ' + _libreToken } : {},
+      }).finally(() => { location.href = '/'; });
+    };
     modal.appendChild(bodyDiv);
+    modal.appendChild(logoutBtn);
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 
-    renderStep1(bodyDiv);
+    renderFn();
   }
 
   // ── Boot ─────────────────────────────────────────────────────────────────
@@ -476,6 +446,21 @@
     if (team) {
       sessionStorage.setItem(STORAGE_KEY, '1');
       return;
+    }
+
+    // Check if this user has GitHub orgs available (GitHub-connected user).
+    // Google-only users get a solo workspace created automatically.
+    const orgs = await fetch('/api/xbrain/github-orgs', {
+      headers: { Authorization: 'Bearer ' + _libreToken },
+    }).then(r => r.ok ? r.json() : []).catch(() => []);
+
+    if (!orgs || orgs.length === 0) {
+      const soloTeam = await createSoloTeam();
+      if (soloTeam) {
+        selectedTeam = soloTeam;
+        mount(renderSoloWelcome);
+        return;
+      }
     }
 
     mount();

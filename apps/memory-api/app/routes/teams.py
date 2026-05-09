@@ -100,6 +100,11 @@ class JoinRequestOut(BaseModel):
     team_id: str
 
 
+class GithubOrgOut(BaseModel):
+    login: str
+    description: str | None = None
+
+
 @router.post("/teams", response_model=TeamOut, status_code=201)
 async def create_team(
     body: TeamCreateBody,
@@ -169,6 +174,33 @@ async def search_teams(
     ]
 
 
+_GH_HEADERS = {
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+}
+
+
+async def _resolve_github_username(user, session: AsyncSession, pat: str) -> str | None:
+    """Return GitHub login, resolving from github_id via API if username not cached yet."""
+    if user.github_username:
+        return user.github_username
+    if not user.github_id:
+        return None
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.get(
+            f"https://api.github.com/user/{user.github_id}",
+            headers={"Authorization": f"Bearer {pat}", **_GH_HEADERS},
+        )
+        if r.status_code != 200:
+            return None
+        login = r.json().get("login")
+        if login:
+            user.github_username = login
+            await session.flush()
+            await session.commit()
+        return login
+
+
 @router.get("/teams/github-matches", response_model=list[TeamSearchOut])
 async def github_matches(
     principal: dict[str, Any] = Depends(get_current_principal),
@@ -176,21 +208,24 @@ async def github_matches(
 ):
     """Return xbrain teams whose github_org matches any org the user is a member of."""
     user = _require_user(principal)
-    if not user.github_username or not settings.GITHUB_API_PAT:
+    if not settings.GITHUB_API_PAT:
+        return []
+
+    username = await _resolve_github_username(user, session, settings.GITHUB_API_PAT)
+    if not username:
         return []
 
     all_teams = await teams_repo.get_teams_with_github_org(session)
+    if not all_teams:
+        return []
+
     matches = []
     async with httpx.AsyncClient(timeout=10.0) as client:
         for team in all_teams:
-            url = f"https://api.github.com/orgs/{team.github_org}/members/{user.github_username}"
+            url = f"https://api.github.com/orgs/{team.github_org}/members/{username}"
             r = await client.get(
                 url,
-                headers={
-                    "Authorization": f"Bearer {settings.GITHUB_API_PAT}",
-                    "Accept": "application/vnd.github+json",
-                    "X-GitHub-Api-Version": "2022-11-28",
-                },
+                headers={"Authorization": f"Bearer {settings.GITHUB_API_PAT}", **_GH_HEADERS},
             )
             if r.status_code == 204:
                 matches.append(
@@ -203,6 +238,83 @@ async def github_matches(
                     )
                 )
     return matches
+
+
+@router.get("/teams/my-github-orgs", response_model=list[GithubOrgOut])
+async def my_github_orgs(
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Return the caller's GitHub organizations."""
+    user = _require_user(principal)
+    if not settings.GITHUB_API_PAT:
+        return []
+
+    username = await _resolve_github_username(user, session, settings.GITHUB_API_PAT)
+    if not username:
+        return []
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.get(
+            f"https://api.github.com/users/{username}/orgs",
+            headers={"Authorization": f"Bearer {settings.GITHUB_API_PAT}", **_GH_HEADERS},
+        )
+        if r.status_code != 200:
+            return []
+        return [
+            GithubOrgOut(login=o["login"], description=o.get("description"))
+            for o in r.json()
+        ]
+
+
+@router.post("/teams/self-solo", response_model=TeamSearchOut, status_code=200)
+async def self_create_solo_team(
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Idempotent: create or return the caller's solo workspace team (no github_org).
+
+    Called automatically at first login for Google-only users. Returns the existing
+    team if the user already belongs to one (solo or otherwise).
+    Slug pattern: solo-<first 16 hex chars of user UUID>.
+    """
+    user = _require_user(principal)
+    existing = await teams_repo.get_first_team_for_user(session, user_id=user.id)
+    if existing is not None:
+        return TeamSearchOut(
+            id=str(existing.id),
+            slug=existing.slug,
+            display_name=existing.display_name,
+            visibility=existing.visibility,
+            github_org=existing.github_org,
+        )
+    slug = f"solo-{user.id.hex[:16]}"
+    if await teams_repo.get_team_by_slug(session, slug) is not None:
+        slug = f"solo-{user.id.hex}"
+    team = await teams_repo.create_team(
+        session,
+        slug=slug,
+        display_name="My Workspace",
+        creator_user_id=user.id,
+        visibility="closed",
+        github_org=None,
+    )
+    await write_audit(
+        session,
+        actor_user_id=user.id,
+        team_scope=team.slug,
+        action="teams.solo_create",
+        target_id=str(team.id),
+        payload={"slug": team.slug},
+    )
+    await session.commit()
+    return TeamSearchOut(
+        id=str(team.id),
+        slug=team.slug,
+        display_name=team.display_name,
+        visibility=team.visibility,
+        github_org=team.github_org,
+    )
 
 
 @router.post("/teams/self", response_model=TeamSearchOut, status_code=201)
