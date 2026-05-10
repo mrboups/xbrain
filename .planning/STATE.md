@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: active
-stopped_at: Phase 8 COMPLETE — PASS 7/7 verify-phase8.sh. 8/8 plans done. VM rebuilt (memory-api, granola-sync, librechat, librechat-bridge).
-last_updated: "2026-05-09T18:00:00.000Z"
-last_activity: 2026-05-09 -- Phase 8 complete: agents CRUD+invoke, granola per-user poll, github repos proxy, contact extractor, onboarding Granola step, verify-phase8.sh PASS 7/7
+stopped_at: Phase 9 added to roadmap (Session Bridge — Pro/Max routing via Chrome extension). Ready for /gsd:plan-phase 9.
+last_updated: "2026-05-11T00:30:00.000Z"
+last_activity: 2026-05-11 -- Phase 9 scope added to ROADMAP.md (session-bridge microservice + extension WebSocket + LibreChat custom endpoint + nginx vhost + DB table). ChatGPT Plus routing déféré Phase 10.
 progress:
-  total_phases: 7
-  completed_phases: 7
+  total_phases: 8
+  completed_phases: 8
   total_plans: 59
   completed_plans: 59
-  percent: 100
+  percent: 89
 ---
 
 # Project State

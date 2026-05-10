@@ -21,6 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: Marketing Site + Documentation** - Site marketing statique en anglais (fond blanc, cible startup teams), documentation complète de toutes les features, déploiement Firebase Hosting — **DONE 2026-05-07** (https://grooveos.app)
 - [x] **Phase 7: CRM + Granola + Task Intelligence** - CRM auto-populé depuis le brain (contacts extraits automatiquement), intégration Granola → mémoire (notes de réunion → faits taguées), task tracking automatique (tout output brain qui implique une action génère une tâche assignée + notification team) — **DONE 2026-05-07**
 - [x] **Phase 8: Granola Per-User + Universal Extraction Pipeline + Platform Agents** - Clé API Granola per-user (saisie manuelle onboarding, Fernet chiffré), pipeline extraction universel (LibreChat + Chrome ext + Granola → CRM + tasks), registry agent_definitions éditable par les admins avec agent meeting-recap seedé — **DONE 2026-05-09** (PASS: 7/7 verify-phase8.sh)
+- [ ] **Phase 9: Session Bridge — Pro/Max Routing via Chrome Extension** - Les users xbrain consomment leur propre quota Claude Pro/Max au lieu de la clé API team. Nouveau microservice `session-bridge` (port 8105, OpenAI-compat ↔ WebSocket router), extension xbrain étendue (WebSocket persistant + fetch credentialed claude.ai), nouveau endpoint LibreChat "Claude (mon abonnement)", vhost nginx bridge.grooveos.app, table `user_external_sessions`. **Scope: Claude only — ChatGPT Plus déféré Phase 10.**
 
 ## Phase Details
 
@@ -169,6 +170,21 @@ Plans:
 - [x] 08-06-PLAN.md — librechat-bridge: contact_extractor.py + hook mongo_watcher (extraction CRM depuis messages)
 - [x] 08-07-PLAN.md — onboarding.js patch: étape 4 optionnelle Granola API key
 - [x] 08-08-PLAN.md — verify-phase8.sh (7 tests) + .env.example section Phase 8
+
+### Phase 9: Session Bridge — Pro/Max Routing via Chrome Extension
+**Goal**: Un user xbrain qui possède un abonnement Claude Pro/Max peut consommer son propre quota d'inférence depuis LibreChat, au lieu de la clé API team. Quand son extension xbrain est active et qu'il est logué sur claude.ai dans son navigateur, les requêtes chat sont routées via WebSocket vers son browser, qui fait un fetch credentialed contre l'API interne claude.ai et streame la réponse de retour. ChatGPT Plus routing est explicitement déféré (Phase 10).
+**Depends on**: Phase 8
+**Entry gate**: Extension xbrain v1 actuelle stable (Phase 4 + Phase 8 team discovery), claude.ai accessible depuis browser des testeurs, sous-domaine `bridge.grooveos.app` disponible côté Cloudflare DNS, table `user_external_credentials` ou équivalent inexistante (à créer dans cette phase).
+**Requirements**: (phase post-v1 — nouvelles capacités hors scope 73 REQ-IDs v1) — SESSION-01 à SESSION-06 (extension WebSocket bridge / claude.ai routing / per-user session tracking / graceful fallback / Sonnet via routed chat / SSE streaming translation)
+**Success Criteria** (what must be TRUE):
+  1. Un user xbrain logué sur claude.ai dans son browser, extension xbrain v2 installée, peut sélectionner "Claude (mon abonnement)" dans LibreChat et envoyer un message — la réponse arrive en streaming et le quota Pro/Max de l'user est décrémenté (visible sur claude.ai/settings/usage), pas la facture API team
+  2. La même requête sans extension active OU sans onglet claude.ai actif retourne un message d'erreur explicite "Install xbrain extension and login to claude.ai" — aucun fallback silencieux vers la clé API team (l'user voit la friction)
+  3. Le microservice `session-bridge` tourne en container docker-compose, expose `/v1/chat/completions` (OpenAI-compat sur HTTP) + `/ws/{user_sub}` (WebSocket persistante pour extension), accessible publiquement via nginx vhost `bridge.grooveos.app` (TLS via Cloudflare)
+  4. Le popup de l'extension xbrain affiche le statut de la session ("Claude session: 🟢 Active / 🔴 None") avec l'email claude.ai loggé et permet refresh/disconnect ; la table `user_external_sessions` track les extensions connectées avec last_seen_at et metadata JSONB
+  5. Le format de réponse claude.ai interne (SSE event-style) est correctement translaté en SSE OpenAI-compat dans `session-bridge` pour que LibreChat consomme la réponse sans patch
+  6. `bash infrastructure/scripts/verify-phase9.sh` retourne `PASS: N / N` (compte de tests TBD au planning) — au minimum : (a) session-bridge healthcheck, (b) nginx vhost répond 200 sur `/v1/chat/completions` avec body d'auth attendu, (c) extension WebSocket connecte et echo bidirectionnel marche, (d) end-to-end LibreChat → session-bridge → extension → claude.ai mock retourne un texte
+**Plans**: TBD
+**UI hint**: yes (extension popup + LibreChat endpoint dropdown + settings page session status)
 
 ### Phase 7: CRM + Granola + Task Intelligence
 **Goal**: Le brain devient actif. Une équipe peut (1) consulter un CRM populé automatiquement depuis tout ce qui passe par le brain (chats, agents, meetings Granola), (2) voir chaque réunion Granola ingérée comme source de mémoire de premier ordre (résumé + participants + actions + décisions), et (3) gérer un backlog de tâches auto-générées depuis les action items Granola et les outputs agents — chaque tâche assignée à un contact CRM déclenche une notification email.
