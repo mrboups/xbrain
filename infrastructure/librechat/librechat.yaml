@@ -43,10 +43,20 @@ endpoints:
       apiKey: "${XAI_API_KEY}"
       baseURL: "https://api.x.ai/v1"
       models:
-        default: ["grok-2-latest", "grok-2-mini"]
+        default: ["grok-3", "grok-2-mini"]
         fetch: false
       titleConvo: false
       modelDisplayLabel: "Grok"
+
+    - name: "Claude Reasoning"
+      apiKey: "${ANTHROPIC_API_KEY}"
+      baseURL: "https://api.anthropic.com/v1"
+      models:
+        default: ["claude-sonnet-4-6"]
+        fetch: false
+      titleConvo: true
+      titleModel: "claude-haiku-4-5-20251001"
+      modelDisplayLabel: "Claude Reasoning"
 
 # MCP settings — Phase 4 (plan 04-03)
 # allowedDomains is required to permit internal Docker network hosts.
