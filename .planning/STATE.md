@@ -137,8 +137,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-09
-Stopped at: mcp-brain remote MCP server shipped (260509-a1b). 9 tools, API token auth, nginx vhost, ChatGPT Actions spec. Verified 9/9.
+Last session: 2026-05-11
+Stopped at: Lot 2 LLM stack quick wins shipped (260511-0jb). Grok-3 + Claude Reasoning endpoint in LibreChat, second-opinion now 3-way (Sonnet+Opus 4.7+Grok-3), Anthropic prompt caching activated on 6 extraction call sites across 5 services. Verified 5/5.
 Resume file: None
 
 ### Quick Tasks Completed
@@ -147,3 +147,4 @@ Resume file: None
 |------|------|--------|--------|-------------|
 | global-audit | 2026-05-09 | — | — | Global features audit + STATE.md/ROADMAP.md docs update |
 | 260509-a1b-mcp-brain-remote-server | 2026-05-09 | 9f21d52 | Verified | mcp-brain remote MCP server for Claude.ai + ChatGPT web access to team brain |
+| 260511-0jb-lot-2-quick-wins-llm-stack | 2026-05-11 | d8fcb69 | Verified | LibreChat grok-3 + Claude Reasoning endpoint + second-opinion 3-way (Sonnet+Opus 4.7+Grok-3) + Anthropic prompt caching on 6 extraction sites |
