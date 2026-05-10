@@ -86,12 +86,18 @@ async def _extract_crm_contacts(content: str, team_scope: str, source: str) -> N
         msg = await client.messages.create(
             model="claude-3-5-haiku-20241022",
             max_tokens=1024,
-            system=(
-                "Extract distinct person mentions from the text. "
-                "Return STRICT JSON array (no prose, no markdown fence): "
-                '[{"name": "...", "email": "...-or-null"}]. '
-                "If no people, return []."
-            ),
+            system=[
+                {
+                    "type": "text",
+                    "text": (
+                        "Extract distinct person mentions from the text. "
+                        "Return STRICT JSON array (no prose, no markdown fence): "
+                        '[{"name": "...", "email": "...-or-null"}]. '
+                        "If no people, return []."
+                    ),
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
             messages=[{"role": "user", "content": content[:10000]}],
         )
         text = msg.content[0].text.strip() if msg.content else "[]"
@@ -179,12 +185,18 @@ async def _maybe_create_task_from_action(item: MemoryItem, team_scope: str) -> N
             msg = await client.messages.create(
                 model="claude-3-5-haiku-20241022",
                 max_tokens=512,
-                system=(
-                    "Extract a single task definition from the text. Return STRICT JSON "
-                    '(no markdown): {"title": "<concise title <80 chars>", '
-                    '"description": "<details or null>", "assignee_email": "<email or null>"}. '
-                    'If no clear actionable task, return {"title": null}.'
-                ),
+                system=[
+                    {
+                        "type": "text",
+                        "text": (
+                            "Extract a single task definition from the text. Return STRICT JSON "
+                            '(no markdown): {"title": "<concise title <80 chars>", '
+                            '"description": "<details or null>", "assignee_email": "<email or null>"}. '
+                            'If no clear actionable task, return {"title": null}.'
+                        ),
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
                 messages=[{"role": "user", "content": content[:8000]}],
             )
             text = msg.content[0].text.strip() if msg.content else "{}"

@@ -138,7 +138,13 @@ async def extract_contacts_from_message(
         msg = await client.messages.create(
             model=settings.ANTHROPIC_CONTACT_MODEL,
             max_tokens=1024,
-            system=SYSTEM_PROMPT,
+            system=[
+                {
+                    "type": "text",
+                    "text": SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
             messages=[{"role": "user", "content": content[:6000]}],
         )
         text = (msg.content[0].text if msg.content else "[]").strip()

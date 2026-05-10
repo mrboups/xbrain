@@ -95,7 +95,13 @@ async def detect_task_intent(message_content: str) -> dict[str, Any] | None:
         msg = await client.messages.create(
             model=settings.ANTHROPIC_TASK_INTENT_MODEL,
             max_tokens=512,
-            system=SYSTEM_PROMPT,
+            system=[
+                {
+                    "type": "text",
+                    "text": SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
             messages=[{"role": "user", "content": message_content[:4000]}],
         )
         text = (msg.content[0].text if msg.content else "{}").strip()

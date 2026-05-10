@@ -66,7 +66,13 @@ async def extract_from_summary(
         msg = await client.messages.create(
             model=settings.ANTHROPIC_MODEL,
             max_tokens=2048,
-            system=SYSTEM_PROMPT,
+            system=[
+                {
+                    "type": "text",
+                    "text": SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
             messages=[{"role": "user", "content": summary_text[:20000]}],  # cap input (T-07-05-10)
         )
         text = msg.content[0].text if msg.content else ""
