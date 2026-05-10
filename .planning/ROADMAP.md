@@ -183,7 +183,14 @@ Plans:
   4. Le popup de l'extension xbrain affiche le statut de la session ("Claude session: 🟢 Active / 🔴 None") avec l'email claude.ai loggé et permet refresh/disconnect ; la table `user_external_sessions` track les extensions connectées avec last_seen_at et metadata JSONB
   5. Le format de réponse claude.ai interne (SSE event-style) est correctement translaté en SSE OpenAI-compat dans `session-bridge` pour que LibreChat consomme la réponse sans patch
   6. `bash infrastructure/scripts/verify-phase9.sh` retourne `PASS: N / N` (compte de tests TBD au planning) — au minimum : (a) session-bridge healthcheck, (b) nginx vhost répond 200 sur `/v1/chat/completions` avec body d'auth attendu, (c) extension WebSocket connecte et echo bidirectionnel marche, (d) end-to-end LibreChat → session-bridge → extension → claude.ai mock retourne un texte
-**Plans**: TBD
+**Plans**: 6 plans
+Plans:
+- [ ] 09-01-PLAN.md — session-bridge FastAPI skeleton (pool + auth + 401/503 chat stub + docker-compose entry)
+- [ ] 09-02-PLAN.md — claude.ai client + SSE translator (live DevTools capture + claude_ai_client.js + translate_sse.js + node tests)
+- [ ] 09-03-PLAN.md — Chrome extension v1.1.0 — WebSocket persistent + chrome.alarms watchdog + handleClaude dispatcher
+- [ ] 09-04-PLAN.md — Cloudflare DNS + nginx 50-bridge.conf + Alembic 0014 + memory-api /v1/me/external-sessions GET/DELETE
+- [ ] 09-05-PLAN.md — librechat.yaml "Claude (mon abonnement)" endpoint + extension popup Sessions section
+- [ ] 09-06-PLAN.md — verify-phase9.sh (8 tests) + .env.example + docs/sessions.html + 09-UAT.md
 **UI hint**: yes (extension popup + LibreChat endpoint dropdown + settings page session status)
 
 ### Phase 7: CRM + Granola + Task Intelligence
