@@ -24,19 +24,17 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-import httpx
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.deps import get_current_principal, get_session
 from app.models.team import Team
 from app.repos import team_messages as tm_repo
 from app.repos import teams as teams_repo
-from app.services import centrifugo_client, mention_detector, team_context_cache
+from app.services import centrifugo_client, mention_detector, team_chat_agent, team_context_cache
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
@@ -192,15 +190,18 @@ async def post_team_message(
         )
     )
 
-    # @claude mention → enqueue agent task.
+    # @claude mention → run the agent handler in the background.
+    # We deliberately run inline (memory-api process) rather than dispatching
+    # to agent-runtime — v1 simplification. See Wave 2.5 plan for the
+    # tradeoff. The handler never raises; it logs and surfaces errors as
+    # `agent_stream_error` frames on the Centrifugo channel.
     mention = mention_detector.detect(body.content)
     if mention is not None:
         asyncio.create_task(
-            _enqueue_agent_task(
+            team_chat_agent.handle_claude_mention(
                 team_id=team_id,
                 triggering_message_id=msg.id,
                 triggering_user_sub=user.source_user_id,
-                agent_name=mention["agent_name"],
             )
         )
         log.info(
@@ -211,35 +212,6 @@ async def post_team_message(
         )
 
     return payload
-
-
-async def _enqueue_agent_task(
-    *,
-    team_id: UUID,
-    triggering_message_id: UUID,
-    triggering_user_sub: str,
-    agent_name: str,
-) -> None:
-    """Fire-and-forget POST to agent-runtime. Logs failures, never raises."""
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.post(
-                f"{settings.AGENT_RUNTIME_INTERNAL_URL}/v1/agents/team_chat_mention/run",
-                json={
-                    "team_id": str(team_id),
-                    "triggering_message_id": str(triggering_message_id),
-                    "triggering_user_sub": triggering_user_sub,
-                    "agent_name": agent_name,
-                },
-            )
-        if r.status_code >= 400:
-            log.warning(
-                "team_chat.mention.dispatch_failed",
-                status=r.status_code,
-                body=r.text[:200],
-            )
-    except Exception as e:  # noqa: BLE001
-        log.warning("team_chat.mention.dispatch_error", err=str(e))
 
 
 # ── /v1/teams/{team_id}/agent-context-bundle — internal (bridge JWT) ─────────
