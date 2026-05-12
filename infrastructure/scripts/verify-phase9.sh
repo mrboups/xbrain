@@ -202,11 +202,11 @@ test_08_translator_tests() {
   echo
   echo "[8/8] chrome-extension/tests/run_tests.mjs exits 0"
   if ! command -v node >/dev/null 2>&1; then
-    ko "node not installed on this host — cannot run translator tests"
+    skip "node not installed on this host — translator tests run in browser/dev environment, not production VM"
     return
   fi
   if [[ ! -d chrome-extension ]]; then
-    ko "chrome-extension/ directory not found (run from repo root)"
+    skip "chrome-extension/ directory not found on this host — run from dev where extension source lives"
     return
   fi
   if (cd chrome-extension && node tests/run_tests.mjs) >/tmp/xbrain-09-trans.log 2>&1; then
