@@ -33,6 +33,26 @@
   let observer = null;
   let cachedToken = null;
   let cachedSetting = null;
+  let postConnectPollTimer = null;
+
+  /**
+   * Poll the DOM every 1s for up to 30s after the token first arrives. Catches
+   * the case where LibreChat keeps the API key dialog mounted but hidden,
+   * so the MutationObserver never sees it as a new node. Stops itself as soon
+   * as `filled === true` or after the deadline.
+   */
+  function startPostConnectPoll() {
+    if (postConnectPollTimer || filled) return;
+    const deadline = Date.now() + 30000;
+    postConnectPollTimer = setInterval(() => {
+      if (filled || Date.now() > deadline) {
+        clearInterval(postConnectPollTimer);
+        postConnectPollTimer = null;
+        return;
+      }
+      scan(document.body);
+    }, 1000);
+  }
 
   /**
    * Returns true when the given <input> looks like the API key field for
@@ -144,8 +164,16 @@
           if (area !== "local") return;
           if (changes.xbt_token && changes.xbt_token.newValue) {
             cachedToken = changes.xbt_token.newValue;
-            // Re-scan the current DOM in case the dialog is already open.
+            // Re-scan immediately (covers MOUNTED-and-VISIBLE dialogs).
             scan(document.body);
+            // …then poll for 30s to catch MOUNTED-but-HIDDEN dialogs that
+            // LibreChat toggles via display:none rather than mount/unmount.
+            // The MutationObserver only sees added/removed nodes, so a
+            // hidden→visible transition wouldn't trigger it. Polling here
+            // means the user no longer needs to reload LibreChat after
+            // connecting to xbrain — the autofill happens within ~1s of
+            // them opening the API key dialog, whenever they do.
+            startPostConnectPoll();
           }
         });
         // Still attach the observer so we catch dialogs opened later.
