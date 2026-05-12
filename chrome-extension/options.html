@@ -337,10 +337,18 @@
         <label class="setting-title">Default truth level</label>
         <p class="setting-help">Truth level applied to clipped content unless changed in the overlay.</p>
         <div class="opt-radio-row">
-          <label><input type="radio" name="opt-clip-truth" value="EPHEMERAL" /> EPHEMERAL</label>
-          <label><input type="radio" name="opt-clip-truth" value="WORKING" /> WORKING</label>
-          <label><input type="radio" name="opt-clip-truth" value="VALIDATED" /> VALIDATED</label>
-          <label><input type="radio" name="opt-clip-truth" value="CANONICAL" /> CANONICAL</label>
+          <label title="EPHEMERAL — first capture, low confidence">
+            <input type="radio" name="opt-clip-truth" value="EPHEMERAL" /> raw
+          </label>
+          <label title="WORKING — confirmed by someone, day-to-day reference">
+            <input type="radio" name="opt-clip-truth" value="WORKING" /> work
+          </label>
+          <label title="VALIDATED — cross-checked against reality, suitable for decisions">
+            <input type="radio" name="opt-clip-truth" value="VALIDATED" /> validated
+          </label>
+          <label title="CANONICAL — team-blessed source of truth">
+            <input type="radio" name="opt-clip-truth" value="CANONICAL" /> production
+          </label>
         </div>
       </div>
     </div>

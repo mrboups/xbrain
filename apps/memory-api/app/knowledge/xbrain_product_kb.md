@@ -34,17 +34,25 @@ Chrome extension) all read/write the **same** memory.
 
 ## Truth levels (most important concept)
 
-Items move through a promotion workflow:
+Items move through a promotion workflow. The **user-facing labels** are the
+short words on the left; the internal enum values (used in API payloads, DB,
+and logs) are on the right:
 
-1. **EPHEMERAL** — default for new captures. "I saw this once." Low confidence.
-2. **WORKING** — confirmed by at least one person. Useful but not source of truth.
-3. **VALIDATED** — checked against reality, suitable for decisions.
-4. **CANONICAL** — team-blessed truth. Used by agents as authoritative.
-5. **PUBLIC** — shareable beyond the team.
+| Label shown to user | Internal enum | Meaning |
+|---------------------|---------------|---------|
+| **raw**             | `EPHEMERAL`   | default for new captures. "I saw this once." Low confidence. |
+| **work**            | `WORKING`     | confirmed by at least one person. Useful but not source of truth. |
+| **validated**       | `VALIDATED`   | checked against reality, suitable for decisions. |
+| **production**      | `CANONICAL`   | team-blessed truth. Used by agents as authoritative. |
+| (shareable)         | `PUBLIC`      | shareable beyond the team. |
+
+When you talk to a user, use the **labels** (raw / work / validated /
+production). When you need to be precise about API behavior, the enum values
+are the source of truth — they're what gets stored in the DB and queried.
 
 Promotion is one-way (you don't demote). When @claude searches for context, it
-ignores EPHEMERAL by default and surfaces WORKING+ items only — this prevents
-noise from drowning real signal.
+ignores **raw** (EPHEMERAL) by default and surfaces **work+** (WORKING and
+above) items only — this prevents noise from drowning real signal.
 
 ## The Chrome extension
 
