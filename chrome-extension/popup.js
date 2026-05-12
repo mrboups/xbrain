@@ -145,14 +145,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Prefer a selection captured via the right-click context menu (quick task
-  // 260512-cmu) — it survives across popup opens until the user clicks Send.
-  // Otherwise, ask the active tab's content script for the current selection.
+  // 260512-cmu/csm) — it survives across popup opens until the user clicks
+  // Send. Otherwise, ask the active tab's content script for the current
+  // selection.
   let prefilledText = "";
+  let pendingTeamScope = null;
   const pending = await chrome.storage.session.get(["pending_selection"]);
   if (pending && pending.pending_selection && pending.pending_selection.selectedText) {
     prefilledText = pending.pending_selection.selectedText.trim();
     if (pending.pending_selection.url) currentTabUrl = pending.pending_selection.url;
     if (pending.pending_selection.title) currentTabTitle = pending.pending_selection.title;
+    if (pending.pending_selection.team_scope) {
+      pendingTeamScope = pending.pending_selection.team_scope;
+    }
     // Clear so the next popup open doesn't replay it.
     await chrome.storage.session.remove(["pending_selection"]);
   } else {
@@ -179,6 +184,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (tokenResponse && tokenResponse.idToken) {
     await loadUserTeams(tokenResponse.idToken);
     sendBtn.disabled = false;
+    // If the right-click context menu carried a team_scope, pre-select it now
+    // that the dropdown is populated. Match by slug; ignore silently if the
+    // requested team isn't in the user's team list (rare — e.g. cached menu
+    // out of sync with current memberships).
+    if (pendingTeamScope) {
+      const option = Array.from(teamSelect.options).find(
+        (o) => o.value === pendingTeamScope,
+      );
+      if (option) teamSelect.value = pendingTeamScope;
+    }
   } else {
     teamSelect.innerHTML = `<option value="" disabled selected>Not signed in</option>`;
     // No error toast — silent failure here is expected for first-time users.

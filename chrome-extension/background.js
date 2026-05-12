@@ -576,104 +576,229 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 // ===========================================================================
-// Quick task 260512-cmu — "Add to xbrain" context menu (right-click selection)
+// Right-click "CortX OS" context menu with per-team submenus
+// (quick task 260512-cmu + 260512-csm dynamic submenu refresh)
 // ===========================================================================
 //
-// Right-click any selected text on a web page → "Add to xbrain" → the
-// selection lands in the popup/side panel's Content field, ready to send.
+// Parent: "CortX OS"
+//   ├─ Add selection to <Team A>   (id: xbrain_add_team:<slug-a>)
+//   ├─ Add selection to <Team B>   (id: xbrain_add_team:<slug-b>)
+//   └─ Connect xbrain account…     (id: xbrain_connect_first) [shown only when no teams]
 //
-// Flow:
-//   1. User right-clicks selection → onClicked fires with info.selectionText.
-//   2. We stash {selectedText, url, title} in chrome.storage.session under
-//      key "pending_selection". The popup reads + clears this on open.
-//   3. We open the side panel (or popup, per the user setting). For the
-//      side panel path we use chrome.sidePanel.open({tabId}) which requires
-//      a user gesture — the context menu click counts.
-//   4. If the user isn't connected yet, the popup shows the standard
-//      Connect button as usual; the pending selection is preserved until
-//      they connect.
+// On click: stash {selectedText, url, title, team_scope} in
+// chrome.storage.session.pending_selection. The popup reads + clears this on
+// open and pre-selects the team in the dropdown.
 
-const CONTEXT_MENU_ID = "xbrain_add_to_brain";
+const CONTEXT_MENU_PARENT_ID = "xbrain_parent";
+const CONTEXT_MENU_CONNECT_ID = "xbrain_connect_first";
+const CONTEXT_MENU_TEAM_PREFIX = "xbrain_add_team:";
 
-function registerContextMenu() {
-  if (!chrome.contextMenus || !chrome.contextMenus.create) return;
-  // create() is fail-loud on duplicates → wrap in try.
+const TEAMS_CACHE_KEY = "xbrain_teams_cache";
+const TEAMS_CACHE_TS_KEY = "xbrain_teams_cache_ts";
+const TEAMS_CACHE_TTL_MS = 24 * 3600 * 1000; // 24h — teams change rarely
+
+/**
+ * Fetch the user's teams from memory-api. Returns null on auth failure or
+ * network error so the caller can fall back to a "connect first" menu.
+ *
+ * Uses getGoogleIdToken({silent: true}) — never opens a consent popup. If the
+ * user hasn't connected yet, this returns null and the menu shows the
+ * connect-first item.
+ */
+async function fetchUserTeams() {
+  let idToken;
   try {
+    idToken = await getGoogleIdToken({ silent: true });
+  } catch {
+    return null;
+  }
+  try {
+    const r = await fetch(`${MEMORY_API_BASE}/v1/teams/my-teams`, {
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    if (!r.ok) return null;
+    const teams = await r.json();
+    if (!Array.isArray(teams)) return null;
+    return teams.map((t) => ({
+      slug: t.slug,
+      display_name: t.display_name || t.slug,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Load cached teams from chrome.storage.local. Returns null if cache is
+ * empty or older than TEAMS_CACHE_TTL_MS.
+ */
+async function loadCachedTeams() {
+  const stored = await chrome.storage.local.get([
+    TEAMS_CACHE_KEY,
+    TEAMS_CACHE_TS_KEY,
+  ]);
+  const ts = stored[TEAMS_CACHE_TS_KEY] || 0;
+  if (Date.now() - ts > TEAMS_CACHE_TTL_MS) return null;
+  return stored[TEAMS_CACHE_KEY] || null;
+}
+
+async function saveCachedTeams(teams) {
+  await chrome.storage.local.set({
+    [TEAMS_CACHE_KEY]: teams,
+    [TEAMS_CACHE_TS_KEY]: Date.now(),
+  });
+}
+
+/**
+ * Build the context menu tree from a (possibly null) teams list.
+ *
+ * Always rebuild from scratch via removeAll() — contextMenus has no "update
+ * the children" API and tracking individual ids gets fragile across reloads.
+ */
+async function rebuildContextMenu(teams) {
+  if (!chrome.contextMenus || !chrome.contextMenus.create) return;
+  await new Promise((resolve) =>
+    chrome.contextMenus.removeAll(() => resolve()),
+  );
+
+  // Parent
+  chrome.contextMenus.create(
+    {
+      id: CONTEXT_MENU_PARENT_ID,
+      title: "CortX OS",
+      contexts: ["selection"],
+    },
+    () => void chrome.runtime.lastError,
+  );
+
+  if (Array.isArray(teams) && teams.length > 0) {
+    for (const t of teams) {
+      chrome.contextMenus.create(
+        {
+          id: CONTEXT_MENU_TEAM_PREFIX + t.slug,
+          parentId: CONTEXT_MENU_PARENT_ID,
+          title: `Add selection to ${t.display_name}`,
+          contexts: ["selection"],
+        },
+        () => void chrome.runtime.lastError,
+      );
+    }
+  } else {
     chrome.contextMenus.create(
       {
-        id: CONTEXT_MENU_ID,
-        title: "Add selection to xbrain",
+        id: CONTEXT_MENU_CONNECT_ID,
+        parentId: CONTEXT_MENU_PARENT_ID,
+        title: "Connect xbrain account…",
         contexts: ["selection"],
       },
-      () => {
-        // Swallow "duplicate id" error after extension reload.
-        void chrome.runtime.lastError;
-      },
-    );
-  } catch (e) {
-    console.warn(
-      "[xbrain] registerContextMenu failed:",
-      e && e.message ? e.message : e,
+      () => void chrome.runtime.lastError,
     );
   }
 }
 
+/**
+ * Full refresh: render cached menu immediately for snappy UX, then kick off
+ * a background fetch and rebuild with the live result.
+ *
+ * Safe to call from boot, onInstalled, or storage.onChanged.
+ */
+async function refreshContextMenus() {
+  const cached = await loadCachedTeams();
+  await rebuildContextMenu(cached);
+
+  // Background refresh (fire-and-forget — never blocks the menu rebuild).
+  fetchUserTeams().then(async (teams) => {
+    if (!teams) return; // silent auth failed or network error — keep cached menu
+    await saveCachedTeams(teams);
+    await rebuildContextMenu(teams);
+  });
+}
+
 chrome.runtime.onInstalled.addListener(() => {
-  registerContextMenu();
+  refreshContextMenus();
 });
 
-// SW boot path — onInstalled fires only on install/update; recreate the menu
-// on every boot in case the SW was killed.
-registerContextMenu();
+// SW boot path — onInstalled fires only on install/update; rebuild every boot.
+refreshContextMenus();
+
+// When the user just connected (xbt_token appears in storage.local), the
+// silent Google auth path is now warm — re-fetch the team list so the menu
+// updates from "Connect xbrain account…" to per-team items.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  if (changes.xbt_token) {
+    refreshContextMenus();
+  }
+});
 
 chrome.contextMenus &&
   chrome.contextMenus.onClicked &&
   chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-    if (info.menuItemId !== CONTEXT_MENU_ID) return;
+    const id = String(info.menuItemId || "");
     const selectedText = (info.selectionText || "").trim();
-    if (!selectedText) return;
 
-    // Stash the selection so the popup reads it on init.
-    await chrome.storage.session.set({
-      pending_selection: {
-        selectedText,
-        url: (tab && tab.url) || info.pageUrl || "",
-        title: (tab && tab.title) || "",
-        captured_at: Date.now(),
-      },
-    });
-
-    // Open side panel if the user opted in, otherwise the toolbar popup.
-    // chrome.action.openPopup() needs a user gesture — the context menu
-    // click is a valid gesture per Chrome's policy. sidePanel.open requires
-    // either a tabId or windowId (we have tabId from the event).
-    try {
-      const settings = await loadSettings(chrome.storage.sync);
-      if (settings.openInSidePanel && chrome.sidePanel && chrome.sidePanel.open) {
-        await chrome.sidePanel.open({ tabId: tab.id });
-        return;
-      }
-      if (chrome.action && chrome.action.openPopup) {
-        await chrome.action.openPopup();
-        return;
-      }
-    } catch (e) {
-      console.warn(
-        "[xbrain] context menu open failed:",
-        e && e.message ? e.message : e,
-      );
+    // Branch 1: "Connect xbrain account…" — no selection processing, just
+    // surface the side panel so the user can hit the Connect button.
+    if (id === CONTEXT_MENU_CONNECT_ID) {
+      await openPanelOrPopup(tab);
+      return;
     }
 
-    // Last-resort fallback — show a notification telling the user to click
-    // the toolbar icon to finish. Happens on Chrome < 127 (no
-    // chrome.action.openPopup) or when both APIs fail.
-    if (chrome.notifications && chrome.notifications.create) {
-      chrome.notifications.create({
-        type: "basic",
-        iconUrl: "icon128.png",
-        title: "xbrain — selection captured",
-        message: "Click the xbrain icon to send it to your brain.",
-        priority: 1,
+    // Branch 2: a team item — stash with team_scope set.
+    if (id.startsWith(CONTEXT_MENU_TEAM_PREFIX)) {
+      if (!selectedText) return;
+      const teamScope = id.slice(CONTEXT_MENU_TEAM_PREFIX.length);
+      await chrome.storage.session.set({
+        pending_selection: {
+          selectedText,
+          team_scope: teamScope,
+          url: (tab && tab.url) || info.pageUrl || "",
+          title: (tab && tab.title) || "",
+          captured_at: Date.now(),
+        },
       });
+      await openPanelOrPopup(tab);
+      return;
     }
   });
+
+/**
+ * Open the side panel (if user opted in) or the toolbar popup. Falls back to
+ * a notification on Chrome < 127 where neither programmatic open API exists.
+ *
+ * Extracted from the previous inline copy so both context-menu branches
+ * (team click + connect-first click) share the same surface logic.
+ */
+async function openPanelOrPopup(tab) {
+  try {
+    const settings = await loadSettings(chrome.storage.sync);
+    if (
+      settings.openInSidePanel &&
+      chrome.sidePanel &&
+      chrome.sidePanel.open &&
+      tab &&
+      tab.id
+    ) {
+      await chrome.sidePanel.open({ tabId: tab.id });
+      return;
+    }
+    if (chrome.action && chrome.action.openPopup) {
+      await chrome.action.openPopup();
+      return;
+    }
+  } catch (e) {
+    console.warn(
+      "[xbrain] context menu open failed:",
+      e && e.message ? e.message : e,
+    );
+  }
+  if (chrome.notifications && chrome.notifications.create) {
+    chrome.notifications.create({
+      type: "basic",
+      iconUrl: "icon128.png",
+      title: "xbrain — selection captured",
+      message: "Click the xbrain icon to send it to your brain.",
+      priority: 1,
+    });
+  }
+}

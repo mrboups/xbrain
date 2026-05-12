@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 Phase: 09 (session-bridge-pro-max-routing-via-chrome-extension) — **SHIPPED 2026-05-12**
 Plan: 6 of 6 (09-06 complete; verify-phase9.sh + sessions.html + 09-UAT.md shipped)
 Status: Phase 9 code SHIPPED — residual: VM deploy + Cloudflare DNS + 09-UAT.md walk
-Last activity: 2026-05-12 -- Quick task 260512-cmu SHIPPED — extension UX polish: silent-only auto-mint (no more violent auto-popup at open), promise dedup for concurrent auth (kills double-popup bug), and right-click "Add selection to xbrain" context menu. Extension suite still 6/6 PASS.
+Last activity: 2026-05-12 -- Quick task 260512-csm SHIPPED — context menu upgraded to "CortX OS" parent with per-team submenus. Click a team child → side panel opens with selection pre-filled AND team dropdown auto-selected. 24h chrome.storage.local cache for instant render, auto-refresh on connect via storage.onChanged. Extension suite still 6/6 PASS.
 
 Progress: [██████████] 100% — ALL 9 PHASES COMPLETE (Phase 9 SHIPPED 2026-05-12)
 
@@ -153,3 +153,4 @@ Resume file: None
 | 260512-spx-extension-sidepanel-libchat-autofill | 2026-05-12 | 7179d61 | Verified | Extension v1.2.0 — Chrome side panel mode (Chrome 114+) + LibreChat API key auto-fill on chat.grooveos.app, both toggleable via new Options page (`chrome.storage.sync`). 13 new tests PASS; suite at 6 test files / 53 assertions. |
 | 260512-zca-extension-zero-click-auth | 2026-05-12 | a4dae12 | Verified | Zero-click onboarding — memory-api accepts Google OAuth access tokens (auth.py verify_google_access_token + deps.py auto-detect); extension uses chrome.identity.getAuthToken (silent post-consent); popup auto-mints on first open. memory-api 10/10 auth unit tests PASS; extension suite 6/6 still PASS. |
 | 260512-cmu-extension-context-menu-silent-ux | 2026-05-12 | 2e3ca29 | Verified | Silent-only auto-mint (no consent popup at open without user click); in-flight promise dedup for concurrent getGoogleIdToken (kills double-popup); right-click "Add selection to xbrain" context menu opens side panel with text pre-filled. Suite still 6/6 PASS. |
+| 260512-csm-context-submenu-teams | 2026-05-12 | (pending) | Verified | Context menu upgraded — "CortX OS" parent with one child per team the user belongs to. Click a team child → side panel opens with text + team_scope pre-selected. 24h cached team list, auto-refresh on storage.onChanged.local.xbt_token. Suite still 6/6 PASS. |
