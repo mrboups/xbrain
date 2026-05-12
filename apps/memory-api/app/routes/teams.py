@@ -137,9 +137,50 @@ async def get_my_teams(
     principal: dict[str, Any] = Depends(get_current_principal),
     session: AsyncSession = Depends(get_session),
 ):
-    """Return all teams the caller belongs to. Used by the Chrome extension to populate the team dropdown."""
+    """Return all teams the caller belongs to.
+
+    Two sources are merged:
+      1. Explicit team_members rows (user was invited/joined directly).
+      2. GitHub-org-derived teams — if the user has `github_username` set
+         (linked via Phase 1b /v1/me/link-github), include teams whose
+         `github_org` matches an org the user belongs to. Phase 1b
+         (quick task 260512-glk) — gives Google-linked-to-GitHub users
+         transparent access to their org teams without explicit invitation.
+
+    Used by the Chrome extension to populate the team dropdown and the
+    "CortX OS" right-click context submenu.
+    """
     user = _require_user(principal)
     teams = await teams_repo.get_all_teams_for_user(session, user_id=user.id)
+    teams_by_id = {t.id: t for t in teams}
+
+    # Merge in GitHub-org-derived teams when linked. Soft-fail on any GitHub
+    # API error — we still return the user's explicit teams.
+    if settings.GITHUB_API_PAT and getattr(user, "github_username", None):
+        try:
+            all_org_teams = await teams_repo.get_teams_with_github_org(session)
+            org_teams_to_check = [
+                t for t in all_org_teams if t.id not in teams_by_id
+            ]
+            if org_teams_to_check:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    for team in org_teams_to_check:
+                        url = (
+                            f"https://api.github.com/orgs/{team.github_org}"
+                            f"/members/{user.github_username}"
+                        )
+                        r = await client.get(
+                            url,
+                            headers={
+                                "Authorization": f"Bearer {settings.GITHUB_API_PAT}",
+                                **_GH_HEADERS,
+                            },
+                        )
+                        if r.status_code == 204:
+                            teams_by_id[team.id] = team
+        except Exception:  # noqa: BLE001 — never fail my-teams on GitHub issues
+            pass
+
     return [
         TeamSearchOut(
             id=str(t.id),
@@ -148,7 +189,7 @@ async def get_my_teams(
             visibility=t.visibility,
             github_org=t.github_org,
         )
-        for t in teams
+        for t in teams_by_id.values()
     ]
 
 

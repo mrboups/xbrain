@@ -108,3 +108,64 @@ async def link_github(
         "github_id": github_id,
         "is_org_member": gh["is_org_member"],
     }
+
+
+class LinkGithubWithCodeBody(BaseModel):
+    code: str  # `code` returned by GitHub's OAuth /authorize redirect
+    redirect_uri: str  # Must match the redirect_uri sent at /authorize time
+
+
+@router.post("/me/link-github-with-code")
+async def link_github_with_code(
+    body: LinkGithubWithCodeBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Chrome extension entry point — exchange a GitHub OAuth `code` for a
+    `gho_` token server-side (so the client_secret never leaves memory-api)
+    then run the standard link flow.
+
+    Returns the same payload as POST /v1/me/link-github.
+
+    Auth: same — caller must be authenticated as `kind=user` (Google).
+    """
+    if principal["kind"] != "user":
+        raise HTTPException(403, "Only user principals can link a GitHub account")
+    if not settings.GITHUB_CLIENT_ID or not settings.GITHUB_CLIENT_SECRET:
+        raise HTTPException(
+            503,
+            "GitHub OAuth not configured on memory-api "
+            "(GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET missing)",
+        )
+
+    # Exchange the code for an access token.
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            tok_r = await client.post(
+                "https://github.com/login/oauth/access_token",
+                headers={"Accept": "application/json"},
+                data={
+                    "client_id": settings.GITHUB_CLIENT_ID,
+                    "client_secret": settings.GITHUB_CLIENT_SECRET,
+                    "code": body.code,
+                    "redirect_uri": body.redirect_uri,
+                },
+            )
+    except httpx.RequestError as exc:
+        raise HTTPException(502, f"Could not reach GitHub token endpoint: {exc}") from exc
+
+    if tok_r.status_code != 200:
+        raise HTTPException(400, f"GitHub token exchange failed: HTTP {tok_r.status_code}")
+    tok_json = tok_r.json()
+    access_token = tok_json.get("access_token")
+    if not access_token:
+        # GitHub returns 200 + {"error": "..."} on bad code
+        err = tok_json.get("error_description") or tok_json.get("error") or "no access_token"
+        raise HTTPException(400, f"GitHub token exchange failed: {err}")
+
+    # Delegate to the existing link flow using the freshly-exchanged token.
+    return await link_github(
+        LinkGithubBody(github_token=access_token),
+        principal=principal,
+        session=session,
+    )

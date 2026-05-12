@@ -95,6 +95,27 @@
   border-color: var(--xb-border-2);
 }
 
+/* Link GitHub button — accent fill so it stands out as a primary action. */
+#btn-link-github {
+  background: var(--xb-accent);
+  color: #fff;
+  border-color: var(--xb-accent);
+  font-weight: 600;
+  padding: 3px 12px;
+}
+
+#btn-link-github:hover {
+  background: var(--xb-accent-2);
+  color: #fff;
+  border-color: var(--xb-accent-2);
+}
+
+#btn-link-github:disabled {
+  background: var(--xb-border-2);
+  color: var(--xb-text-dim);
+  border-color: var(--xb-border-2);
+}
+
 .xb-hint {
   font-size: 11px;
   color: var(--xb-text-mute);

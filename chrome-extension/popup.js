@@ -398,6 +398,83 @@ async function maybeAutoMint() {
 async function renderSessions() {
   await renderWsStatus();
   await renderClaudeSessionInfo();
+  await renderGithubLinkState();
+}
+
+/**
+ * Toggle the GitHub link/linked rows based on the current user's
+ * github_username from /v1/me. Quick task 260512-glk.
+ */
+async function renderGithubLinkState() {
+  const linkRow = document.getElementById("github-link-row");
+  const linkedRow = document.getElementById("github-linked-row");
+  const linkedName = document.getElementById("github-linked-name");
+  if (!linkRow || !linkedRow) return;
+
+  const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+  if (!xbt_token) {
+    linkRow.hidden = true;
+    linkedRow.hidden = true;
+    return;
+  }
+  try {
+    const res = await fetch(`${MEMORY_API_BASE}/v1/me`, {
+      headers: { Authorization: `Bearer ${xbt_token}` },
+    });
+    if (!res.ok) {
+      linkRow.hidden = true;
+      linkedRow.hidden = true;
+      return;
+    }
+    const me = await res.json();
+    if (me.github_username) {
+      if (linkedName) linkedName.textContent = `@${me.github_username}`;
+      linkedRow.hidden = false;
+      linkRow.hidden = true;
+    } else {
+      linkedRow.hidden = true;
+      linkRow.hidden = false;
+    }
+  } catch {
+    // Network failure — leave the row state as-is rather than flicker.
+  }
+}
+
+async function handleLinkGithub() {
+  const btn = document.getElementById("btn-link-github");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "…";
+  }
+  setConnectStatus("Linking your GitHub account…", "loading");
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: "LINK_GITHUB" });
+    if (resp && resp.ok) {
+      setConnectStatus(
+        `Linked @${resp.github_username} ✓  —  team list refreshed`,
+        "success",
+      );
+      setTimeout(() => {
+        setConnectStatus("", "");
+        renderSessions();
+      }, 1500);
+    } else {
+      setConnectStatus(
+        `Link failed: ${(resp && resp.error) || "unknown error"}`,
+        "error",
+      );
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Link";
+      }
+    }
+  } catch (err) {
+    setConnectStatus(`Link failed: ${err.message}`, "error");
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Link";
+    }
+  }
 }
 
 async function renderWsStatus() {
@@ -604,6 +681,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   if (btnDisc) {
     btnDisc.addEventListener("click", handleDisconnect);
+  }
+  const btnLinkGh = document.getElementById("btn-link-github");
+  if (btnLinkGh) {
+    btnLinkGh.addEventListener("click", handleLinkGithub);
   }
   // Initial render — fail-soft if background.js isn't wired yet.
   renderConnectState().then(() => {

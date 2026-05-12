@@ -40,6 +40,108 @@ import {
 import { loadSettings, SETTINGS_KEY } from "./settings.js";
 
 const MEMORY_API_URL = "https://api.grooveos.app/v1/memory/upsert";
+// =========================================================================
+// GitHub OAuth — quick task 260512-glk (Link GitHub account).
+// =========================================================================
+//
+// Same OAuth app as LibreChat's GitHub sign-in (see GITHUB_CLIENT_ID in
+// memory-api settings). The redirect URI is the chromiumapp.org one Chrome
+// reserves per extension ID — must be added to the GitHub OAuth app's
+// "Authorization callback URL" list (manual one-time setup in
+// https://github.com/settings/applications/...).
+
+// VITE-style placeholder; production hardcodes the same value as memory-api.
+// Replace with your GitHub OAuth App client_id. Keep the secret server-side.
+const GITHUB_CLIENT_ID = "Ov23liVqXmHkS6JdYpcN";
+
+/**
+ * Run the GitHub OAuth user-authorization flow and return the `code` Chrome
+ * received from the redirect. The code is exchanged for a `gho_` token
+ * server-side by memory-api (POST /v1/me/link-github-with-code).
+ */
+async function getGithubAuthCode() {
+  const redirectUri = `https://${chrome.runtime.id}.chromiumapp.org/`;
+  const state =
+    Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  const u = new URL("https://github.com/login/oauth/authorize");
+  u.searchParams.set("client_id", GITHUB_CLIENT_ID);
+  u.searchParams.set("redirect_uri", redirectUri);
+  u.searchParams.set("scope", "read:user read:org user:email");
+  u.searchParams.set("state", state);
+
+  const redirectUrl = await new Promise((resolve, reject) => {
+    chrome.identity.launchWebAuthFlow(
+      { url: u.toString(), interactive: true },
+      (result) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (!result) {
+          reject(new Error("github auth flow returned no redirect URL"));
+          return;
+        }
+        resolve(result);
+      },
+    );
+  });
+
+  const parsed = new URL(redirectUrl);
+  const returnedState = parsed.searchParams.get("state");
+  if (returnedState !== state) {
+    throw new Error("github oauth: state mismatch — possible CSRF");
+  }
+  const code = parsed.searchParams.get("code");
+  if (!code) {
+    const err =
+      parsed.searchParams.get("error_description") ||
+      parsed.searchParams.get("error") ||
+      "no code in redirect URL";
+    throw new Error("github oauth: " + err);
+  }
+  return { code, redirect_uri: redirectUri };
+}
+
+/**
+ * Drive the full Link GitHub flow:
+ *   1. Mint a Google ID token (silent first, interactive fallback).
+ *   2. Launch GitHub OAuth → get authorization `code`.
+ *   3. POST {code, redirect_uri} to memory-api which exchanges + links.
+ *   4. Invalidate cached team list so the next context-menu refresh picks
+ *      up newly-accessible GitHub-org teams.
+ *
+ * Returns {ok: true, github_username, github_id, is_org_member} on success
+ * or {ok: false, error} on any failure. Never throws.
+ */
+async function linkGithubFlow() {
+  try {
+    const idToken = await getGoogleIdToken({ silent: false });
+    const { code, redirect_uri } = await getGithubAuthCode();
+    const r = await fetch(`${MEMORY_API_BASE}/v1/me/link-github-with-code`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ code, redirect_uri }),
+    });
+    if (!r.ok) {
+      const body = await r.text().catch(() => "");
+      return {
+        ok: false,
+        error: `link failed: ${r.status} ${body.slice(0, 200)}`,
+      };
+    }
+    const payload = await r.json();
+    // Force a context menu refresh so GitHub-org teams appear in the submenu.
+    await chrome.storage.local.remove([TEAMS_CACHE_KEY, TEAMS_CACHE_TS_KEY]);
+    refreshContextMenus();
+    return { ok: true, ...payload };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message ? e.message : e) };
+  }
+}
+
 // Google OAuth client (web application type — works with launchWebAuthFlow).
 // NOTE: chrome.identity.getAuthToken would require a "Chrome App" OAuth
 // client_id in Google Cloud Console (different type, requires extra setup
@@ -335,6 +437,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message && message.type === "DISCONNECT") {
     disconnectAuth().then(sendResponse);
+    return true; // async
+  }
+
+  // Quick task 260512-glk — Link GitHub account to the Google-authenticated user.
+  if (message && message.type === "LINK_GITHUB") {
+    linkGithubFlow().then(sendResponse);
     return true; // async
   }
 

@@ -33,6 +33,10 @@ async def me(principal: dict[str, Any] = Depends(get_current_principal)) -> dict
             "source_user_id": u.source_user_id,
             "email": u.email,
             "display_name": u.display_name,
+            # Phase 1b — extension uses these to decide whether to surface the
+            # "Link GitHub" button (null → not linked yet).
+            "github_username": getattr(u, "github_username", None),
+            "github_id": getattr(u, "github_id", None),
             "api_token_team_scope": principal.get("api_token_team_scope"),
         }
     if principal["kind"] == "user":
@@ -43,6 +47,8 @@ async def me(principal: dict[str, Any] = Depends(get_current_principal)) -> dict
             "source_user_id": u.source_user_id,
             "email": u.email,
             "display_name": u.display_name,
+            "github_username": getattr(u, "github_username", None),
+            "github_id": getattr(u, "github_id", None),
         }
     return {
         "kind": "bridge",

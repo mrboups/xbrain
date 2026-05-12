@@ -136,7 +136,9 @@ async def get_current_principal(
     if token.startswith("xbt_"):
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         row = (await session.execute(sa.text("""
-            SELECT t.id, t.user_id, t.team_scope, u.source_user_id, u.email, u.display_name
+            SELECT t.id, t.user_id, t.team_scope,
+                   u.source_user_id, u.email, u.display_name,
+                   u.github_username, u.github_id
             FROM user_api_tokens t
             JOIN users u ON u.id = t.user_id
             WHERE t.token_hash = :hash AND t.revoked_at IS NULL
@@ -150,6 +152,8 @@ async def get_current_principal(
             source_user_id=row["source_user_id"],
             email=row["email"],
             display_name=row["display_name"],
+            github_username=row["github_username"],
+            github_id=row["github_id"],
         )
         return {
             "kind": "user_api_token",

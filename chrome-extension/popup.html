@@ -321,6 +321,31 @@
           <button type="button" id="btn-disconnect-claude" title="Disconnect">✕</button>
         </div>
       </div>
+
+      <!-- Link GitHub row — only shown when github_username is null on the
+           current user (quick task 260512-glk). Clicking opens the GitHub
+           OAuth flow; success refreshes the team list + context menu so
+           GitHub-org teams appear immediately. -->
+      <div class="session-row" id="github-link-row" data-provider="github" hidden>
+        <span class="status-dot" id="github-dot"></span>
+        <div class="session-meta">
+          <strong>GitHub</strong>
+          <small id="github-status">Not linked — link to see your org teams</small>
+        </div>
+        <div class="session-actions">
+          <button type="button" id="btn-link-github" title="Link GitHub account">Link</button>
+        </div>
+      </div>
+
+      <!-- Linked GitHub display state (when github_username is set). -->
+      <div class="session-row" id="github-linked-row" data-provider="github-linked" hidden>
+        <span class="status-dot active"></span>
+        <div class="session-meta">
+          <strong>GitHub</strong>
+          <small id="github-linked-name">—</small>
+        </div>
+      </div>
+
       <p class="xb-hint" id="copy-paste-hint">
         Token auto-copied on connect. Paste it as the API key for the
         <strong>Claude Pro/Max</strong> endpoint in LibreChat.
