@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Route your Claude Pro/Max subscription quota into LibreChat through the xbrain Chrome extension and the bridge.grooveos.app session-bridge." />
+  <title>Sessions — Use your Claude Pro/Max subscription in LibreChat — GrooveOS Docs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root{--bg:#0D1117;--bg-2:#161B22;--bg-3:#21262D;--text:#E6EDF3;--muted:#8B949E;--accent:#58A6FF;--green:#3FB950;--amber:#D29922;--red:#F85149;--border:#30363D;--paid-bg:rgba(248,81,73,.12);--paid-col:#F85149;--tag-bg:rgba(88,166,255,.12)}
+    [data-theme="light"]{--bg:#FFFFFF;--bg-2:#F6F8FA;--bg-3:#EAEEF2;--text:#1F2328;--muted:#57606A;--accent:#0969DA;--green:#1A7F37;--amber:#9A6700;--red:#CF222E;--border:#D0D7DE;--paid-bg:rgba(207,34,46,.08);--paid-col:#CF222E;--tag-bg:rgba(9,105,218,.08)}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+    body{font-family:'JetBrains Mono','Courier New',monospace;background:var(--bg);color:var(--text);font-size:13.5px;line-height:1.7;transition:background .15s ease,color .15s ease}
+    a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+    code{background:var(--bg-3);color:var(--accent);padding:1px 6px;font-family:inherit;font-size:.9em}
+    .nav{position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid var(--border);padding:0 24px;height:46px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .nav__logo{font-size:15px;font-weight:700;color:var(--text);letter-spacing:.06em;white-space:nowrap}.nav__logo span{color:var(--accent)}
+    .nav__links{display:flex;align-items:center;gap:20px;flex:1;justify-content:center}
+    .nav__link{color:var(--muted);font-size:12.5px;transition:color .1s}.nav__link:hover{color:var(--text);text-decoration:none}
+    .nav__right{display:flex;align-items:center;gap:10px;white-space:nowrap}
+    .theme-btn{background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-family:inherit;font-size:11.5px;padding:3px 10px;border-radius:3px;transition:border-color .15s,color .15s}.theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+    .btn-cta{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff;padding:5px 14px;border-radius:3px;font-size:12.5px;font-weight:500;transition:opacity .15s;white-space:nowrap}.btn-cta:hover{opacity:.85;text-decoration:none}
+    @media(max-width:640px){.nav__links{display:none}}
+    .docs-layout{display:grid;grid-template-columns:220px 1fr;max-width:1100px;margin:0 auto;padding:32px 24px;gap:48px;align-items:start}
+    @media(max-width:768px){.docs-layout{grid-template-columns:1fr}.sidebar{display:none}}
+    .sidebar{position:sticky;top:62px}.sidebar__section{margin-bottom:24px}
+    .sidebar__group-label{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+    .sidebar__link{display:block;font-size:12.5px;color:var(--muted);padding:4px 0;text-decoration:none;transition:color .1s;border-left:2px solid transparent;padding-left:10px;margin-left:-10px}.sidebar__link:hover{color:var(--text)}.sidebar__link.active{color:var(--accent);border-left-color:var(--accent);font-weight:500}
+    .docs-content h1{font-size:24px;font-weight:700;color:var(--text);margin-bottom:16px;line-height:1.2}
+    .docs-content h2{font-size:16px;font-weight:700;color:var(--text);margin-top:40px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+    .docs-content h3{font-size:13.5px;font-weight:700;color:var(--text);margin-top:24px;margin-bottom:8px}
+    .docs-content p{color:var(--muted);font-size:13px;line-height:1.8;margin-bottom:14px}
+    .docs-content strong{color:var(--text);font-weight:500}
+    .docs-content ul,.docs-content ol{color:var(--muted);font-size:13px;line-height:1.8;margin:0 0 14px 20px}.docs-content li{margin-bottom:4px}
+    .docs-content a{color:var(--accent)}.docs-content a:hover{text-decoration:underline}
+    pre.code-block{background:var(--bg-2);border:1px solid var(--border);padding:16px 18px;overflow-x:auto;margin:16px 0;font-size:12.5px;color:var(--text);line-height:1.7}
+    pre.code-block code{background:none;padding:0;color:inherit;font-size:inherit}
+    .callout{border:1px solid var(--border);padding:14px 18px;margin:20px 0;position:relative;font-size:13px;color:var(--muted);line-height:1.7}
+    .callout::before{content:attr(data-label);position:absolute;top:-9px;left:14px;background:var(--bg);padding:0 6px;font-size:10.5px;letter-spacing:.08em;color:var(--muted)}
+    .callout--info{border-color:var(--accent)}.callout--info::before{color:var(--accent);background:var(--bg)}
+    .callout--tip{border-color:var(--green)}.callout--tip::before{color:var(--green);background:var(--bg)}
+    .callout--warn{border-color:var(--amber)}.callout--warn::before{color:var(--amber);background:var(--bg)}
+    .callout--danger{border-color:var(--red)}.callout--danger::before{color:var(--red);background:var(--bg)}
+    .callout__title{font-weight:700;color:var(--text);margin-bottom:4px;font-size:13px}
+    .docs-table{width:100%;border-collapse:collapse;font-size:12.5px;margin:16px 0}
+    .docs-table th{background:var(--bg-2);color:var(--muted);font-weight:600;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:10px 14px;text-align:left;border:1px solid var(--border)}
+    .docs-table td{padding:10px 14px;border:1px solid var(--border);color:var(--text);vertical-align:top}.docs-table tr:hover td{background:var(--bg-2)}
+    .breadcrumb{font-size:11.5px;color:var(--muted);margin-bottom:20px}.breadcrumb a{color:var(--muted)}.breadcrumb a:hover{color:var(--accent);text-decoration:none}.breadcrumb__separator{margin:0 6px}.breadcrumb__current{color:var(--text)}
+    .docs-meta{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:32px;font-size:11.5px;color:var(--muted);padding-bottom:16px;border-bottom:1px solid var(--border)}
+    .docs-meta__badge{padding:2px 8px;border:1px solid var(--border);font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--accent);border-color:var(--accent)}
+    .step{display:flex;gap:20px;margin-bottom:36px;align-items:flex-start}
+    .step__num{flex-shrink:0;width:32px;height:32px;border:1px solid var(--accent);color:var(--accent);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center}
+    .step__body{flex:1}
+    .step__title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:8px}
+    .xb-footer{border-top:1px solid var(--border);padding:32px 24px 20px;margin-top:64px}.xb-footer__inner{max-width:1100px;margin:0 auto}
+    .xb-footer__grid{display:grid;grid-template-columns:repeat(4,1fr);gap:32px;margin-bottom:24px}
+    @media(max-width:640px){.xb-footer__grid{grid-template-columns:repeat(2,1fr)}}
+    .xb-footer__col-title{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+    .xb-footer__links{list-style:none;display:flex;flex-direction:column;gap:8px}
+    .xb-footer__link{font-size:12px;color:var(--muted);text-decoration:none}.xb-footer__link:hover{color:var(--accent)}
+    .xb-footer__bottom{border-top:1px solid var(--border);padding-top:16px;font-size:11px;color:var(--muted)}
+  </style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="../index.html" class="nav__logo">GROOVE<span>OS</span></a>
+  <nav class="nav__links">
+    <a href="../index.html#features" class="nav__link">features</a>
+    <a href="../index.html#pricing" class="nav__link">pricing</a>
+    <a href="index.html" class="nav__link">docs</a>
+  </nav>
+  <div class="nav__right">
+    <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">◑ light</button>
+    <a href="mailto:team@grooveos.app?subject=GrooveOS early access" class="btn-cta">→ join waitlist</a>
+  </div>
+</header>
+
+<div class="docs-layout">
+
+  <aside class="sidebar">
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">Getting Started</div>
+      <a href="index.html" class="sidebar__link">Getting Started</a>
+      <a href="onboarding.html" class="sidebar__link">Onboarding Guide</a>
+    </div>
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">Features</div>
+      <a href="memory.html" class="sidebar__link">Memory &amp; Knowledge</a>
+      <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
+      <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
+      <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
+      <a href="drive-sync.html" class="sidebar__link">Drive Sync</a>
+      <a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a>
+      <a href="sessions.html" class="sidebar__link active">Sessions (Claude Pro/Max)</a>
+    </div>
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">Reference</div>
+      <a href="api.html" class="sidebar__link">API Reference</a>
+      <a href="billing.html" class="sidebar__link">Plans &amp; Billing</a>
+    </div>
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">On this page</div>
+      <a href="#how-it-works" class="sidebar__link">How it works</a>
+      <a href="#setup" class="sidebar__link">Setup (5 steps)</a>
+      <a href="#limits" class="sidebar__link">Limitations</a>
+      <a href="#tos" class="sidebar__link">Anthropic ToS &amp; ban risk</a>
+      <a href="#creds-rotation" class="sidebar__link">CREDS_KEY rotation</a>
+      <a href="#breakage" class="sidebar__link">Breakage cadence</a>
+      <a href="#troubleshooting" class="sidebar__link">Troubleshooting</a>
+    </div>
+  </aside>
+
+  <main class="docs-content">
+
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="index.html">Docs</a>
+      <span class="breadcrumb__separator">/</span>
+      <span class="breadcrumb__current">Sessions — Claude Pro/Max in LibreChat</span>
+    </nav>
+
+    <h1>Utiliser votre abonnement Claude Pro/Max dans LibreChat</h1>
+
+    <div class="docs-meta">
+      <span class="docs-meta__badge">Guide</span>
+      <span>6 min read</span>
+      <span>Updated May 2026 (Phase 9)</span>
+    </div>
+
+    <p>
+      Cette page explique comment router les requêtes Claude depuis LibreChat
+      à travers <strong>votre propre quota Claude Pro/Max</strong> au lieu de
+      consommer la clé API de l'équipe. Tout passe par l'extension Chrome
+      <strong>xbrain</strong> installée dans votre navigateur — qui détient déjà
+      vos cookies <code>claude.ai</code> — et par le microservice
+      <code>session-bridge</code> exposé sur <code>bridge.grooveos.app</code>.
+    </p>
+
+    <div class="callout callout--warn" data-label="// read this first">
+      <p class="callout__title">Zone grise vis-à-vis des CGU Anthropic</p>
+      <p>
+        Cette fonctionnalité automatise du trafic via votre abonnement
+        Claude.ai personnel — ce qui est une <strong>grey-area</strong> au regard
+        des Anthropic ToS (Terms of Service). Le <strong>risque de ban</strong>
+        de votre compte Claude vous incombe entièrement. xbrain ne couvre pas
+        cette responsabilité. Si vous préférez ne pas prendre ce risque,
+        utilisez les endpoints "Anthropic" ou "Claude Reasoning" classiques
+        (clé API team), pas "Claude (mon abonnement)".
+      </p>
+    </div>
+
+    <!-- HOW IT WORKS -->
+    <h2 id="how-it-works">Comment ça marche</h2>
+
+    <p>
+      Le chemin d'une requête, étape par étape :
+    </p>
+
+    <ol>
+      <li>Dans LibreChat, vous choisissez l'endpoint <strong>"Claude (mon abonnement)"</strong> et collez votre <code>xbt_</code> token comme API key.</li>
+      <li>LibreChat envoie un <code>POST /v1/chat/completions</code> à <code>bridge.grooveos.app</code> avec votre Bearer token.</li>
+      <li>Le service <code>session-bridge</code> valide le token contre memory-api, retrouve votre WebSocket persistante (ouverte par l'extension), et y pousse la requête.</li>
+      <li>L'extension Chrome fait un <code>fetch(api.claude.ai/.../completion, {credentials: 'include'})</code> — donc avec vos cookies <code>claude.ai</code> — et streame la réponse SSE chunk par chunk.</li>
+      <li>Le bridge traduit le SSE claude.ai en SSE OpenAI-compat et le relaye à LibreChat, qui l'affiche progressivement.</li>
+    </ol>
+
+    <p>
+      Conséquence directe : la requête est facturée à <strong>votre quota
+      Pro/Max</strong> (page <code>claude.ai/settings/usage</code>), pas à la
+      clé API team. Le serveur xbrain ne voit jamais vos credentials Claude —
+      ils restent dans vos cookies navigateur.
+    </p>
+
+    <!-- SETUP -->
+    <h2 id="setup">Mise en place (5 étapes)</h2>
+
+    <div class="step">
+      <div class="step__num">1</div>
+      <div class="step__body">
+        <p class="step__title">Installer l'extension xbrain (Chrome)</p>
+        <p>
+          Téléchargez le dossier <code>chrome-extension/</code> depuis le repo
+          xbrain (l'extension n'est pas publiée sur le Chrome Web Store). Ouvrez
+          <code>chrome://extensions/</code>, activez le <strong>Mode développeur</strong>,
+          cliquez <strong>Charger l'extension non empaquetée</strong> et
+          sélectionnez le dossier. Vérifiez que la version est <code>1.1.0</code>
+          ou supérieure (manifest requis pour le bridge WS).
+        </p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step__num">2</div>
+      <div class="step__body">
+        <p class="step__title">Se connecter à xbrain</p>
+        <p>
+          Ouvrez <a href="https://chat.grooveos.app">chat.grooveos.app</a>,
+          loggez-vous via Google. Votre <code>xbt_</code> token (token API
+          personnel scopé team) est automatiquement créé et stocké dans
+          <code>chrome.storage.session</code> par l'extension. La WebSocket
+          vers <code>wss://bridge.grooveos.app/ws/{user_sub}</code> s'ouvre
+          dans la seconde — vous pouvez le vérifier dans les DevTools du
+          service worker de l'extension.
+        </p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step__num">3</div>
+      <div class="step__body">
+        <p class="step__title">Se connecter à claude.ai</p>
+        <p>
+          Dans le <strong>même navigateur</strong> (sinon les cookies ne sont
+          pas accessibles à l'extension), ouvrez
+          <a href="https://claude.ai">claude.ai</a> et loggez-vous avec votre
+          compte Pro ou Max. L'extension vérifiera la présence du cookie de
+          session — vous verrez un 🟢 dans la popup, section "Sessions".
+        </p>
+        <div class="callout callout--tip" data-label="// tip">
+          <p>Si vous utilisez plusieurs profils Chrome (perso vs pro), assurez-vous d'être sur le même profil pour xbrain ET claude.ai. Sinon l'extension verra 🔴 et LibreChat retournera l'erreur <code>no_session</code>.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step__num">4</div>
+      <div class="step__body">
+        <p class="step__title">Choisir l'endpoint dans LibreChat</p>
+        <p>
+          Dans <a href="https://chat.grooveos.app">chat.grooveos.app</a>,
+          cliquez le sélecteur d'endpoint en haut. Vous devez voir
+          <strong>"Claude (mon abonnement)"</strong> dans la liste (à côté
+          des entrées Anthropic, OpenAI, xAI, Claude Reasoning existantes).
+          Sélectionnez-le.
+        </p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step__num">5</div>
+      <div class="step__body">
+        <p class="step__title">Coller votre xbt_ token comme API key</p>
+        <p>
+          LibreChat va vous demander une <strong>API Key</strong> pour cet
+          endpoint (BYOK pattern). Collez votre <code>xbt_</code> token —
+          celui de votre dashboard xbrain (Settings → API Tokens), pas une
+          clé Anthropic. LibreChat l'enverra comme
+          <code>Authorization: Bearer xbt_...</code> au bridge, qui le validera
+          contre memory-api.
+        </p>
+        <pre class="code-block"><code>xbt_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2</code></pre>
+        <p>
+          Envoyez un premier message. La réponse arrive token par token (SSE
+          streaming) — et apparaît dans votre dashboard
+          <code>claude.ai/settings/usage</code> comme une conversation Pro/Max
+          normale.
+        </p>
+      </div>
+    </div>
+
+    <!-- LIMITATIONS -->
+    <h2 id="limits">Limitations</h2>
+
+    <ul>
+      <li><strong>Extension active requise.</strong> Si Chrome est fermé ou l'extension désactivée, LibreChat retourne <code>503 no_session</code> avec un message qui vous demande de re-loger sur claude.ai. Pas de fallback silencieux sur la clé API team — c'est volontaire.</li>
+      <li><strong>Cookie claude.ai requis.</strong> Si vous êtes déconnecté de claude.ai (cookies expirés, navigation privée, etc.), l'extension détectera l'erreur 401 et la relayera à LibreChat. Reloggez-vous sur claude.ai et réessayez.</li>
+      <li><strong>Un device à la fois.</strong> Si vous installez l'extension sur deux machines (laptop + desktop), le bridge applique du <code>last-write-wins</code> : la WebSocket la plus récente remplace l'ancienne. Pas de round-robin en Phase 9 — déféré tant que personne ne réclame.</li>
+      <li><strong>Quota PERSONNEL, pas team.</strong> Vous consommez votre Pro/Max — pas la facture team. Si vous voulez l'inverse, utilisez l'endpoint "Anthropic" classique.</li>
+      <li><strong>Pas de ChatGPT en Phase 9.</strong> Le routing ChatGPT Plus est explicitement déféré à la Phase 10 (format différent, Arkose challenges, conversation state mapping).</li>
+    </ul>
+
+    <!-- TOS / BAN -->
+    <h2 id="tos">Anthropic ToS &amp; ban risk</h2>
+
+    <div class="callout callout--danger" data-label="// disclosure">
+      <p>
+        Acheminer du trafic depuis un outil tiers (LibreChat → extension → claude.ai)
+        en utilisant votre abonnement Pro/Max est une <strong>zone grise vis-à-vis
+        des CGU Anthropic</strong>. Anthropic n'a pas publié de règle explicite contre
+        ce pattern, mais leurs CGU interdisent l'usage "automated, scripted, or
+        otherwise non-human" du service consommateur.
+      </p>
+      <p>
+        <strong>Le risque de ban de votre compte Claude personnel vous incombe
+        entièrement.</strong> xbrain n'a pas de contrat avec Anthropic à ce sujet,
+        ne peut pas garantir l'absence de sanctions, et ne couvre pas le coût
+        de re-souscription si votre compte est suspendu. En activant le routing
+        "Claude (mon abonnement)" vous acceptez ce risque.
+      </p>
+      <p>
+        Si vous préférez l'éviter, sélectionnez plutôt l'endpoint
+        <strong>Anthropic</strong> dans LibreChat (clé API team officielle, sans
+        grey-area).
+      </p>
+    </div>
+
+    <!-- CREDS ROTATION -->
+    <h2 id="creds-rotation">Si <code>CREDS_KEY</code> ou <code>BRIDGE_SHARED_SECRET</code> est tournée</h2>
+
+    <p>
+      LibreChat chiffre les API keys que vous collez via <code>user_provided</code>
+      (BYOK) avec sa clé <code>CREDS_KEY</code> côté serveur. Si l'admin tourne
+      cette clé (incident de sécurité, rotation périodique, etc.), tous les
+      <code>xbt_</code> tokens stockés deviennent illisibles côté LibreChat.
+    </p>
+
+    <p>
+      Symptôme : vos messages "Claude (mon abonnement)" retournent
+      <code>401 unauthorized</code> au lieu de streamer.
+    </p>
+
+    <p>
+      <strong>Action requise :</strong> Re-aller dans LibreChat → endpoint
+      "Claude (mon abonnement)" → re-coller votre <code>xbt_</code> token comme
+      API key (vous pouvez réutiliser le même — c'est uniquement le chiffrement
+      côté LibreChat qui a changé, votre token reste valide).
+    </p>
+
+    <p>
+      De manière similaire, si l'admin tourne <code>BRIDGE_SHARED_SECRET</code>
+      (le secret HS256 que session-bridge utilise pour signer ses appels
+      memory-api), les WebSockets existantes peuvent rester ouvertes mais les
+      nouveaux <code>register</code> handshakes échoueront silencieusement. Un
+      rechargement de l'extension (chrome://extensions → reload) régénère la WS
+      avec le nouveau secret côté serveur.
+    </p>
+
+    <!-- BREAKAGE CADENCE -->
+    <h2 id="breakage">Cadence de casse estimée (~2-3 mois)</h2>
+
+    <p>
+      Anthropic peut changer le format interne de l'API <code>api.claude.ai</code>
+      à tout moment — ce n'est pas une API publique versionnée. Quand ça arrive,
+      l'extension cesse de fonctionner correctement (parsing SSE qui échoue,
+      404 sur l'URL, en-têtes nouveaux requis, etc.).
+    </p>
+
+    <p>
+      Sur la base de projets OSS similaires (par ex.
+      <a href="https://github.com/musistudio/claude-code-router" target="_blank" rel="noopener">claude-code-router</a>),
+      l'estimation est <strong>2-3 mois entre événements de casse</strong>.
+      Chaque casse demande 1-2 jours de dev xbrain pour patcher l'extension —
+      mise à jour publiée sur GitHub puis rechargement manuel via
+      <code>chrome://extensions</code>.
+    </p>
+
+    <p>
+      Pendant une période de casse : repassez sur l'endpoint Anthropic team
+      (clé API officielle, jamais en panne), envoyez un message Discord/email
+      pour signaler la rupture si elle n'a pas été détectée, et attendez le
+      patch.
+    </p>
+
+    <!-- TROUBLESHOOTING -->
+    <h2 id="troubleshooting">Troubleshooting</h2>
+
+    <table class="docs-table">
+      <thead>
+        <tr><th>Symptôme</th><th>Cause probable</th><th>Solution</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>LibreChat répond <code>503 no_session</code></td>
+          <td>Extension non chargée OU WebSocket fermée OU vous n'êtes pas loggé sur xbrain dans ce navigateur</td>
+          <td>Ouvrez chrome://extensions, rechargez la carte xbrain (↻), vérifiez la popup → Sessions → 🟢 active</td>
+        </tr>
+        <tr>
+          <td>Réponse vide / erreur "401 unauthorized" depuis claude.ai</td>
+          <td>Cookie claude.ai expiré ou navigation privée</td>
+          <td>Allez sur <a href="https://claude.ai">claude.ai</a>, reloggez-vous, retournez sur LibreChat</td>
+        </tr>
+        <tr>
+          <td>Popup affiche 🔴 mais l'extension est bien chargée</td>
+          <td>Pas de <code>xbt_</code> token dans <code>chrome.storage.session</code></td>
+          <td>Ouvrez <a href="https://chat.grooveos.app">chat.grooveos.app</a>, loggez-vous via Google — la WS s'ouvrira automatiquement</td>
+        </tr>
+        <tr>
+          <td>Erreur "anthropic-client-version required" ou format SSE inattendu</td>
+          <td>Anthropic a changé le format interne (cadence ~2-3 mois)</td>
+          <td>Repassez sur l'endpoint Anthropic team, signalez la casse à l'équipe xbrain, attendez le patch extension</td>
+        </tr>
+        <tr>
+          <td>Cloudflare 403 sur api.claude.ai</td>
+          <td>Détection fingerprint navigateur (rare)</td>
+          <td>Rechargez l'onglet claude.ai (un reload résout la grande majorité des cas), retentez</td>
+        </tr>
+        <tr>
+          <td>401 depuis LibreChat même avec un xbt_ token valide</td>
+          <td><code>CREDS_KEY</code> tournée côté serveur (voir section ci-dessus)</td>
+          <td>Re-coller le xbt_ token dans LibreChat → endpoint "Claude (mon abonnement)" → API Key</td>
+        </tr>
+        <tr>
+          <td>Tout marche, mais le quota n'augmente pas sur claude.ai/settings/usage</td>
+          <td>Vous êtes resté sur "Anthropic" classique au lieu de "Claude (mon abonnement)"</td>
+          <td>Re-vérifier le sélecteur d'endpoint en haut de LibreChat</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout--info" data-label="// support">
+      <p>
+        Pour signaler un bug ou demander de l'aide : ouvrez une issue sur
+        <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener">github.com/mrboups/xbrain</a>
+        ou envoyez un mail à <a href="mailto:team@grooveos.app">team@grooveos.app</a>
+        avec le label <code>phase-9 / session-bridge</code>.
+      </p>
+    </div>
+
+  </main>
+
+</div>
+
+<footer class="xb-footer">
+  <div class="xb-footer__inner">
+    <div class="xb-footer__grid">
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Product</p>
+        <ul class="xb-footer__links">
+          <li><a href="../index.html#features" class="xb-footer__link">Features</a></li>
+          <li><a href="../index.html#pricing" class="xb-footer__link">Pricing</a></li>
+        </ul>
+      </div>
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Docs</p>
+        <ul class="xb-footer__links">
+          <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
+          <li><a href="onboarding.html" class="xb-footer__link">Onboarding Guide</a></li>
+          <li><a href="sessions.html" class="xb-footer__link">Sessions (Pro/Max)</a></li>
+          <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
+          <li><a href="billing.html" class="xb-footer__link">Plans &amp; Billing</a></li>
+        </ul>
+      </div>
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Open Source</p>
+        <ul class="xb-footer__links">
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">xbrain (MIT) ↗</a></li>
+          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub ↗</a></li>
+        </ul>
+      </div>
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Contact</p>
+        <ul class="xb-footer__links">
+          <li><a href="mailto:team@grooveos.app" class="xb-footer__link">team@grooveos.app</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="xb-footer__bottom">© 2026 GrooveOS · powered by <a href="https://xbrain-marketing.web.app" style="color:var(--muted)" target="_blank">xbrain</a></div>
+  </div>
+</footer>
+
+<script>
+  const btn = document.getElementById('theme-toggle');
+  const html = document.documentElement;
+  function setTheme(t) {
+    html.setAttribute('data-theme', t);
+    btn.textContent = t === 'dark' ? '◑ light' : '◐ dark';
+    try { localStorage.setItem('xb-theme', t); } catch(e) {}
+  }
+  btn.addEventListener('click', () => {
+    setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+  try {
+    const saved = localStorage.getItem('xb-theme');
+    if (saved === 'light' || saved === 'dark') setTheme(saved);
+  } catch(e) {}
+</script>
+</body>
+</html>
