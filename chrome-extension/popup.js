@@ -1,18 +1,25 @@
 /**
  * xbrain Web Clipper — Popup script
  *
- * Flux :
- *  1. Au chargement : demander le texte sélectionné au content script via GET_SELECTION
- *  2. Sur click "Envoyer au brain" :
- *     a. Demander l'ID token au background service worker (GET_ID_TOKEN)
- *     b. Construire le payload avec les champs du formulaire
- *     c. Envoyer SEND_TO_BRAIN au background avec le token + payload
- *     d. Afficher le statut (succès ou erreur)
+ * Flow:
+ *  1. On load: ask the content script for selected text via GET_SELECTION
+ *  2. On "Send to brain" click:
+ *     a. Request the ID token from the background service worker (GET_ID_TOKEN)
+ *     b. Build the payload from the form fields
+ *     c. Send SEND_TO_BRAIN to the background with the token + payload
+ *     d. Display the status (success or error)
+ *
+ * Sessions section (Phase 9 + quick task 260512-eo1):
+ *  - On load, read chrome.storage.local for {xbt_token, user_sub}.
+ *  - If absent → show "Connect xbrain account" button (single-click onboarding).
+ *  - If present → show 🟢 + email + last seen + Disconnect.
+ *  - Connect → chrome.runtime.sendMessage({type: "MINT_AND_CONNECT"})
+ *  - Disconnect → chrome.runtime.sendMessage({type: "DISCONNECT"})
  */
 
 "use strict";
 
-/** Utilitaire : afficher un message de statut */
+/** Utility: show a status message in the Web Clipper status area. */
 function showStatus(message, type) {
   const el = document.getElementById("status");
   el.textContent = message;
@@ -26,8 +33,8 @@ function hideStatus() {
 }
 
 /**
- * Obtenir le tab actif de la fenêtre courante.
- * Retourne null si aucun tab accessible (ex: chrome:// pages).
+ * Return the active tab in the current window, or null if none accessible
+ * (e.g. chrome:// pages).
  */
 async function getActiveTab() {
   try {
@@ -39,13 +46,13 @@ async function getActiveTab() {
 }
 
 /**
- * Demander au content script le texte sélectionné + URL + titre.
- * Retourne { selectedText, url, title } ou null si le content script
- * n'est pas accessible (pages chrome://, extensions://, etc.).
+ * Ask the content script for the selected text + URL + title.
+ * Returns { selectedText, url, title } or null if the content script
+ * isn't reachable (chrome://, extensions://, etc.).
  */
 async function getSelectionFromPage(tab) {
   if (!tab || !tab.id) return null;
-  // Les content scripts ne fonctionnent pas sur les pages chrome:// ou about://
+  // Content scripts don't run on chrome:// or about:// pages.
   if (!tab.url || tab.url.startsWith("chrome://") || tab.url.startsWith("about:")) {
     return null;
   }
@@ -53,7 +60,7 @@ async function getSelectionFromPage(tab) {
   return new Promise((resolve) => {
     chrome.tabs.sendMessage(tab.id, { type: "GET_SELECTION" }, (response) => {
       if (chrome.runtime.lastError) {
-        // Content script non injecté (ex: page chargée avant installation de l'extension)
+        // Content script not injected (e.g. page loaded before the extension was installed).
         resolve(null);
         return;
       }
@@ -63,8 +70,8 @@ async function getSelectionFromPage(tab) {
 }
 
 /**
- * Extraire le hostname d'une URL pour le champ source.
- * Ex: "https://example.com/page" → "example.com"
+ * Extract the hostname from a URL for the `source` field.
+ * Example: "https://example.com/page" → "example.com"
  */
 function hostnameFromUrl(url) {
   try {
@@ -76,13 +83,13 @@ function hostnameFromUrl(url) {
 
 const MEMORY_API_BASE = "https://api.grooveos.app";
 
-/** État partagé */
+/** Shared state */
 let currentTabUrl = "";
 let currentTabTitle = "";
 
 /**
- * Charger les équipes de l'utilisateur via GET /v1/teams/my-teams.
- * Peuple le <select id="teamScope"> avec les vraies équipes du compte connecté.
+ * Load the user's teams via GET /v1/teams/my-teams.
+ * Populates the <select id="teamScope"> with the real teams of the connected account.
  */
 async function loadUserTeams(idToken) {
   const teamSelect = document.getElementById("teamScope");
@@ -97,7 +104,7 @@ async function loadUserTeams(idToken) {
     if (teams.length === 0) {
       const opt = document.createElement("option");
       opt.value = "";
-      opt.textContent = "— aucune équipe —";
+      opt.textContent = "— no team —";
       opt.disabled = true;
       opt.selected = true;
       teamSelect.appendChild(opt);
@@ -110,27 +117,27 @@ async function loadUserTeams(idToken) {
       opt.textContent = t.display_name || t.slug;
       teamSelect.appendChild(opt);
     }
-    // Auto-sélectionner si une seule équipe
+    // Auto-select if a single team is available.
     if (teams.length === 1) teamSelect.selectedIndex = 0;
   } catch (err) {
-    // Fail-soft : laisser le champ vide avec un message
-    teamSelect.innerHTML = `<option value="" disabled selected>Erreur chargement équipes</option>`;
+    // Fail-soft: leave the field empty with a message.
+    teamSelect.innerHTML = `<option value="" disabled selected>Failed to load teams</option>`;
     console.warn("loadUserTeams failed:", err);
   }
 }
 
-/** Initialisation au chargement du popup */
+/** Initialize on popup load. */
 document.addEventListener("DOMContentLoaded", async () => {
   const contentArea = document.getElementById("content");
   const sourceHint = document.getElementById("sourceHint");
   const sendBtn = document.getElementById("sendBtn");
   const teamSelect = document.getElementById("teamScope");
 
-  // Placeholder pendant le chargement
-  teamSelect.innerHTML = `<option value="" disabled selected>Connexion…</option>`;
+  // Placeholder while loading.
+  teamSelect.innerHTML = `<option value="" disabled selected>Connecting…</option>`;
   sendBtn.disabled = true;
 
-  // 1. Récupérer le tab actif + la sélection
+  // 1. Get the active tab + selection.
   const tab = await getActiveTab();
   if (tab) {
     currentTabUrl = tab.url || "";
@@ -142,20 +149,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     contentArea.value = selection.selectedText.trim();
   }
   if (currentTabUrl) {
-    sourceHint.textContent = `Source : ${hostnameFromUrl(currentTabUrl)}`;
+    sourceHint.textContent = `Source: ${hostnameFromUrl(currentTabUrl)}`;
   }
 
-  // 2. Authentification + chargement des équipes en parallèle
+  // 2. Authenticate + load teams in parallel.
   const tokenResponse = await chrome.runtime.sendMessage({ type: "GET_ID_TOKEN" });
   if (tokenResponse && tokenResponse.idToken) {
     await loadUserTeams(tokenResponse.idToken);
     sendBtn.disabled = false;
   } else {
-    teamSelect.innerHTML = `<option value="" disabled selected>Non connecté</option>`;
-    showStatus("Connexion Google requise — réessayez.", "error");
+    teamSelect.innerHTML = `<option value="" disabled selected>Not signed in</option>`;
+    showStatus("Google sign-in required — please retry.", "error");
   }
 
-  // 3. Écoute du bouton "Envoyer au brain"
+  // 3. Wire the "Send to brain" button.
   sendBtn.addEventListener("click", handleSend);
 });
 
@@ -167,33 +174,33 @@ async function handleSend() {
   const truthLevel = document.querySelector('input[name="truthLevel"]:checked')?.value || "EPHEMERAL";
 
   if (!content) {
-    showStatus("Le contenu ne peut pas être vide.", "error");
+    showStatus("Content cannot be empty.", "error");
     return;
   }
   if (!teamScope) {
-    showStatus("Sélectionnez une équipe.", "error");
+    showStatus("Please select a team.", "error");
     return;
   }
 
   sendBtn.disabled = true;
-  showStatus("Authentification en cours…", "loading");
+  showStatus("Authenticating…", "loading");
 
   try {
-    // a. Obtenir l'ID token depuis le background service worker
+    // a. Get the ID token from the background service worker.
     const tokenResponse = await chrome.runtime.sendMessage({ type: "GET_ID_TOKEN" });
 
     if (!tokenResponse || tokenResponse.error) {
-      const errMsg = tokenResponse?.error || "Impossible d'obtenir le token Google.";
-      showStatus(`Erreur d'authentification : ${errMsg}`, "error");
+      const errMsg = tokenResponse?.error || "Could not obtain Google token.";
+      showStatus(`Auth error: ${errMsg}`, "error");
       sendBtn.disabled = false;
       return;
     }
 
     const { idToken } = tokenResponse;
 
-    showStatus("Envoi au brain…", "loading");
+    showStatus("Sending to brain…", "loading");
 
-    // b. Construire le payload selon le contrat de tagging xbrain
+    // b. Build the payload per the xbrain tagging contract.
     const hostname = hostnameFromUrl(currentTabUrl);
     const payload = {
       content,
@@ -206,7 +213,7 @@ async function handleSend() {
       validation_status: "pending",
     };
 
-    // c. Envoyer via le background service worker
+    // c. Send via the background service worker.
     const sendResponse = await chrome.runtime.sendMessage({
       type: "SEND_TO_BRAIN",
       idToken,
@@ -214,42 +221,78 @@ async function handleSend() {
     });
 
     if (!sendResponse || sendResponse.error) {
-      const errMsg = sendResponse?.error || "Erreur réseau inconnue.";
+      const errMsg = sendResponse?.error || "Unknown network error.";
 
-      // Si token expiré (401), vider le cache et suggérer de réessayer
+      // On 401 (token expired), clear the cache and ask the user to retry.
       if (errMsg.includes("401")) {
         await chrome.storage.session.remove(["xbrain_id_token", "xbrain_id_token_expiry"]);
-        showStatus("Token expiré — veuillez réessayer pour vous reconnecter.", "error");
+        showStatus("Token expired — please retry to sign in again.", "error");
       } else {
-        showStatus(`Erreur : ${errMsg}`, "error");
+        showStatus(`Error: ${errMsg}`, "error");
       }
     } else {
-      // d. Succès
-      showStatus("Envoyé au brain !", "success");
-      // Réinitialiser le contenu après envoi réussi
+      // d. Success.
+      showStatus("Sent to brain!", "success");
+      // Reset content after a successful send.
       document.getElementById("content").value = "";
     }
   } catch (err) {
-    showStatus(`Erreur inattendue : ${err.message}`, "error");
+    showStatus(`Unexpected error: ${err.message}`, "error");
   } finally {
     sendBtn.disabled = false;
   }
 }
 
-// === Phase 9: Sessions section ===
+// === Phase 9 + quick task 260512-eo1: Sessions section ===
 //
-// Surfaces the bridge WebSocket state + the user's claude.ai login.
-// Contract (from plan 09-03 must-haves):
+// Surfaces the bridge WebSocket state + the user's xbrain bridge token.
+// Contracts:
 //   background.js answers chrome.runtime.sendMessage({kind: "ws_status_query"})
-//   with {readyState: number} where readyState matches WebSocket constants
-//   (0 CONNECTING, 1 OPEN, 2 CLOSING, 3 CLOSED, -1 no socket).
-// Contract (from plan 09-04):
+//     with {readyState: number} (0 CONNECTING, 1 OPEN, 2 CLOSING, 3 CLOSED, -1 no socket).
 //   GET /v1/me/external-sessions returns [{id, provider, extension_id, last_seen_at, metadata}]
-//   DELETE /v1/me/external-sessions/claude returns 204 / 404
-// xbt_ token lives in chrome.storage.session under key "xbt_token" (Phase 5/8 convention).
+//   chrome.runtime.sendMessage({type: "MINT_AND_CONNECT"}) → onboarding flow
+//   chrome.runtime.sendMessage({type: "DISCONNECT"}) → revoke + clear
 //
+// xbt_ token lives in chrome.storage.local under key "xbt_token" (canonical since 260512-eo1).
 // CRITICAL: use chrome.runtime.sendMessage, NOT window.postMessage (T-09-05-01 mitigation).
 // CRITICAL: never log the xbt_token raw value.
+
+/** Show the inline connect status block (loading / success / error). */
+function setConnectStatus(text, type) {
+  const el = document.getElementById("connect-status");
+  if (!el) return;
+  if (!text) {
+    el.hidden = true;
+    el.textContent = "";
+    el.className = "";
+    return;
+  }
+  el.hidden = false;
+  el.textContent = text;
+  el.className = type || "";
+}
+
+/**
+ * Toggle between the disconnected state (Connect button) and the connected
+ * state (session-row + Disconnect). Source of truth: chrome.storage.local.xbt_token.
+ */
+async function renderConnectState() {
+  const connectRow = document.getElementById("connect-row");
+  const sessionsList = document.getElementById("sessions-list");
+  const claudeHint = document.getElementById("claude-hint");
+
+  const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+  if (xbt_token) {
+    if (connectRow) connectRow.hidden = true;
+    if (sessionsList) sessionsList.hidden = false;
+    if (claudeHint) claudeHint.hidden = false;
+    await renderSessions();
+  } else {
+    if (connectRow) connectRow.hidden = false;
+    if (sessionsList) sessionsList.hidden = true;
+    if (claudeHint) claudeHint.hidden = true;
+  }
+}
 
 async function renderSessions() {
   await renderWsStatus();
@@ -282,9 +325,9 @@ async function renderClaudeSessionInfo() {
   const lastEl = document.getElementById("claude-last-seen");
   if (!emailEl || !lastEl) return;
 
-  const { xbt_token } = await chrome.storage.session.get(["xbt_token"]);
+  const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
   if (!xbt_token) {
-    emailEl.textContent = "non connecté";
+    emailEl.textContent = "not connected";
     lastEl.textContent = "";
     return;
   }
@@ -294,15 +337,15 @@ async function renderClaudeSessionInfo() {
       headers: { Authorization: `Bearer ${xbt_token}` },
     });
     if (!res.ok) {
-      emailEl.textContent = `erreur ${res.status}`;
+      emailEl.textContent = `error ${res.status}`;
       lastEl.textContent = "";
       return;
     }
     const sessions = await res.json();
     const claude = Array.isArray(sessions) ? sessions.find((s) => s.provider === "claude") : null;
     if (!claude) {
-      emailEl.textContent = "non détecté";
-      lastEl.textContent = "Logue-toi sur claude.ai dans ce navigateur";
+      emailEl.textContent = "not detected";
+      lastEl.textContent = "Log in to claude.ai in this browser";
       return;
     }
     const emailLogged =
@@ -310,9 +353,9 @@ async function renderClaudeSessionInfo() {
     emailEl.textContent = emailLogged;
     lastEl.textContent = `Last seen: ${formatRelative(claude.last_seen_at)}`;
   } catch (err) {
-    emailEl.textContent = `erreur réseau`;
+    emailEl.textContent = `network error`;
     lastEl.textContent = "";
-    // err.message intentionally NOT logged — could leak network probe info if a proxy injects it
+    // err.message intentionally NOT logged — could leak network probe info if a proxy injects it.
   }
 }
 
@@ -327,41 +370,66 @@ function formatRelative(isoStamp) {
   return then.toLocaleDateString();
 }
 
-async function disconnectClaude() {
-  const { xbt_token } = await chrome.storage.session.get(["xbt_token"]);
-  if (!xbt_token) return;
+async function handleConnect() {
+  const btn = document.getElementById("btn-connect-xbrain");
+  if (btn) btn.disabled = true;
+  setConnectStatus("Signing you in with Google…", "loading");
+
   try {
-    const res = await fetch(`${MEMORY_API_BASE}/v1/me/external-sessions/claude`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${xbt_token}` },
-    });
-    if (res.ok || res.status === 404) {
-      await renderSessions();
+    const resp = await chrome.runtime.sendMessage({ type: "MINT_AND_CONNECT" });
+    if (resp && resp.ok) {
+      setConnectStatus(`Connected as ${resp.email || "your account"} ✓`, "success");
+      // Give the WS layer a moment to reconnect via storage.onChanged.
+      setTimeout(() => {
+        setConnectStatus("", "");
+        renderConnectState();
+      }, 800);
     } else {
-      alert(`Disconnect failed: ${res.status}`);
+      const errMsg = (resp && resp.error) || "Unknown error.";
+      setConnectStatus(`Connection failed: ${errMsg}`, "error");
+      if (btn) btn.disabled = false;
     }
   } catch (err) {
-    alert(`Disconnect failed: ${err.message}`);
+    setConnectStatus(`Connection failed: ${err.message}`, "error");
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function handleDisconnect() {
+  if (
+    !confirm(
+      "Disconnect your xbrain account? Your personal API token will be revoked and you'll need to reconnect to use the Claude Pro/Max route.",
+    )
+  ) {
+    return;
+  }
+  setConnectStatus("Disconnecting…", "loading");
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: "DISCONNECT" });
+    if (resp && resp.ok) {
+      setConnectStatus("", "");
+      await renderConnectState();
+    } else {
+      setConnectStatus("Disconnect failed.", "error");
+    }
+  } catch (err) {
+    setConnectStatus(`Disconnect failed: ${err.message}`, "error");
   }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  const btnConnect = document.getElementById("btn-connect-xbrain");
   const btnRefresh = document.getElementById("btn-refresh-claude");
   const btnDisc = document.getElementById("btn-disconnect-claude");
+  if (btnConnect) {
+    btnConnect.addEventListener("click", handleConnect);
+  }
   if (btnRefresh) {
     btnRefresh.addEventListener("click", renderSessions);
   }
   if (btnDisc) {
-    btnDisc.addEventListener("click", () => {
-      if (
-        confirm(
-          "Déconnecter la session Claude ? Tu devras te reloguer sur claude.ai pour la réactiver."
-        )
-      ) {
-        disconnectClaude();
-      }
-    });
+    btnDisc.addEventListener("click", handleDisconnect);
   }
-  // Initial render — fail-soft if background.js isn't wired yet (Wave 2 sibling 09-03).
-  renderSessions();
+  // Initial render — fail-soft if background.js isn't wired yet.
+  renderConnectState();
 });
