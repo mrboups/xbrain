@@ -703,6 +703,36 @@ services:
       retries: 5
       start_period: 20s
 
+  # === session-bridge (Phase 9) — Pro/Max routing via Chrome extension ===
+  # Bridges LibreChat HTTP /v1/chat/completions to a per-user WebSocket from
+  # the xbrain Chrome extension. Validates xbt_ tokens via memory-api, signs a
+  # bridge JWT (BRIDGE_SHARED_SECRET) to upsert user_external_sessions on
+  # extension `register` frames. Single-instance (in-memory WS pool); fronted
+  # by nginx vhost bridge.grooveos.app (plan 09-04).
+  session-bridge:
+    build:
+      context: ../apps/session-bridge
+      dockerfile: Dockerfile
+    image: xbrain/session-bridge:phase9
+    container_name: xbrain-session-bridge
+    restart: unless-stopped
+    environment:
+      MEMORY_API_URL: http://memory-api:8000
+      BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
+      JWT_ALGORITHM: HS256
+      LOG_LEVEL: ${SESSION_BRIDGE_LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:8105:8105"
+    depends_on:
+      memory-api:
+        condition: service_healthy
+    networks: [xbrain_net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8105/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   # === graphiti-service (plan 05-01) — temporal fact extraction + contradiction detection ===
   graphiti-service:
     build:
