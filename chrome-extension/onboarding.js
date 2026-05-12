@@ -61,6 +61,40 @@ export async function readStoredAuth(storage) {
 export async function mintAndConnect(deps) {
   const { fetch: fetchFn, getIdToken, storage } = deps;
   try {
+    // Idempotence: if a token is already stored and still valid against
+    // memory-api, return success without re-minting. This makes a stuck or
+    // double-clicked Connect harmless and lets the popup recover state if
+    // it was killed mid-flow during the Google consent window.
+    const existing = await storage.get([
+      "xbt_token",
+      "user_sub",
+      "api_token_id",
+    ]);
+    if (existing.xbt_token && existing.user_sub) {
+      try {
+        const meRes = await fetchFn(`${MEMORY_API_BASE}/v1/me`, {
+          headers: { Authorization: `Bearer ${existing.xbt_token}` },
+        });
+        if (meRes.ok) {
+          const me = await meRes.json();
+          // Only short-circuit if the stored token still resolves to a user
+          // with the same source_user_id (defensive: stale token from another
+          // account would otherwise silently win).
+          if (me.source_user_id === existing.user_sub) {
+            return {
+              ok: true,
+              email: me.email || null,
+              source_user_id: existing.user_sub,
+              cached: true,
+            };
+          }
+        }
+        // Token rejected (revoked or 401) — fall through to fresh mint below.
+      } catch {
+        // Network error — try the full mint flow as a fallback.
+      }
+    }
+
     const idToken = await getIdToken();
 
     const mintRes = await fetchFn(`${MEMORY_API_BASE}/v1/me/api-token`, {

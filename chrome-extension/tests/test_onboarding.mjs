@@ -168,6 +168,103 @@ await test("mintAndConnect persists all 3 keys to storage on success", async () 
   assert.match(fetchSpy.calls[1].url, /\/v1\/me$/);
 });
 
+// ---------- 4b. mintAndConnect: idempotent on cached token ----------
+
+await test(
+  "mintAndConnect short-circuits when a valid token is already stored",
+  async () => {
+    const storage = makeStorageArea();
+    await storage.set({
+      xbt_token: "xbt_existing",
+      user_sub: "1234567890",
+      api_token_id: "tok-existing",
+    });
+    let mintCalled = false;
+    const fetchSpy = makeFetchSpy((url) => {
+      if (url.endsWith("/v1/me")) {
+        return makeJsonResponse(
+          {
+            kind: "user_api_token",
+            id: "user-42",
+            source_user_id: "1234567890",
+            email: "alice@example.com",
+          },
+          200,
+        );
+      }
+      if (url.endsWith("/v1/me/api-token")) {
+        mintCalled = true;
+        throw new Error("mint should NOT be called when token is cached");
+      }
+      throw new Error("unexpected url " + url);
+    });
+    const out = await mintAndConnect({
+      fetch: fetchSpy,
+      getIdToken: async () => {
+        throw new Error("getIdToken should NOT be called when token is cached");
+      },
+      storage,
+    });
+    assert.equal(out.ok, true);
+    assert.equal(out.cached, true);
+    assert.equal(out.email, "alice@example.com");
+    assert.equal(out.source_user_id, "1234567890");
+    assert.equal(mintCalled, false);
+    assert.equal(fetchSpy.calls.length, 1); // only the /v1/me probe
+  },
+);
+
+await test(
+  "mintAndConnect re-mints when stored token is rejected by /v1/me",
+  async () => {
+    const storage = makeStorageArea();
+    await storage.set({
+      xbt_token: "xbt_stale",
+      user_sub: "old-sub",
+      api_token_id: "tok-stale",
+    });
+    let mintCalled = false;
+    const fetchSpy = makeFetchSpy((url, init) => {
+      if (url.endsWith("/v1/me")) {
+        const auth = init && init.headers && init.headers.Authorization;
+        if (auth === "Bearer xbt_stale") {
+          // Stale token rejected
+          return makeJsonResponse({ detail: "Unauthorized" }, 401);
+        }
+        // Fresh idToken accepted
+        return makeJsonResponse(
+          {
+            kind: "user",
+            id: "user-99",
+            source_user_id: "new-sub",
+            email: "bob@example.com",
+          },
+          200,
+        );
+      }
+      if (url.endsWith("/v1/me/api-token")) {
+        mintCalled = true;
+        return makeJsonResponse({ id: "tok-fresh", token: "xbt_fresh" }, 201);
+      }
+      throw new Error("unexpected url " + url);
+    });
+    const out = await mintAndConnect({
+      fetch: fetchSpy,
+      getIdToken: async () => "id_token_fresh",
+      storage,
+    });
+    assert.equal(out.ok, true);
+    assert.equal(out.cached, undefined);
+    assert.equal(out.email, "bob@example.com");
+    assert.equal(out.source_user_id, "new-sub");
+    assert.equal(mintCalled, true);
+    const stored = await storage.get(["xbt_token", "user_sub", "api_token_id"]);
+    assert.equal(stored.xbt_token, "xbt_fresh");
+    assert.equal(stored.user_sub, "new-sub");
+    assert.equal(stored.api_token_id, "tok-fresh");
+  },
+);
+
 // ---------- 5. mintAndConnect: /v1/me failure → no partial write ----------
 
 await test(

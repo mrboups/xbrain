@@ -279,18 +279,15 @@ function setConnectStatus(text, type) {
 async function renderConnectState() {
   const connectRow = document.getElementById("connect-row");
   const sessionsList = document.getElementById("sessions-list");
-  const claudeHint = document.getElementById("claude-hint");
 
   const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
   if (xbt_token) {
     if (connectRow) connectRow.hidden = true;
     if (sessionsList) sessionsList.hidden = false;
-    if (claudeHint) claudeHint.hidden = false;
     await renderSessions();
   } else {
     if (connectRow) connectRow.hidden = false;
     if (sessionsList) sessionsList.hidden = true;
-    if (claudeHint) claudeHint.hidden = true;
   }
 }
 
@@ -320,6 +317,29 @@ async function renderWsStatus() {
   }
 }
 
+/**
+ * Best-effort claude.ai email lookup directly from the popup (decouples display
+ * from the SW register frame which may have fired before claude.ai cookies were
+ * available). Returns null on any failure — never throws.
+ */
+async function fetchClaudeEmailDirect() {
+  try {
+    const r = await fetch("https://claude.ai/api/auth/current_account", {
+      credentials: "include",
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return (
+      j.email_address ||
+      j.email ||
+      (j.account && (j.account.email_address || j.account.email)) ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
 async function renderClaudeSessionInfo() {
   const emailEl = document.getElementById("claude-email");
   const lastEl = document.getElementById("claude-last-seen");
@@ -332,28 +352,34 @@ async function renderClaudeSessionInfo() {
     return;
   }
 
+  // Query claude.ai directly first — that's the freshest source for the user's
+  // logged-in email. Fall back to whatever metadata the SW captured at register time.
+  const liveEmail = await fetchClaudeEmailDirect();
+
   try {
     const res = await fetch(`${MEMORY_API_BASE}/v1/me/external-sessions`, {
       headers: { Authorization: `Bearer ${xbt_token}` },
     });
     if (!res.ok) {
-      emailEl.textContent = `error ${res.status}`;
+      emailEl.textContent = liveEmail || `error ${res.status}`;
       lastEl.textContent = "";
       return;
     }
     const sessions = await res.json();
     const claude = Array.isArray(sessions) ? sessions.find((s) => s.provider === "claude") : null;
     if (!claude) {
-      emailEl.textContent = "not detected";
-      lastEl.textContent = "Log in to claude.ai in this browser";
+      emailEl.textContent = liveEmail || "not detected";
+      lastEl.textContent = liveEmail
+        ? "Bridge will register on next reconnect"
+        : "Log in to claude.ai in this browser";
       return;
     }
-    const emailLogged =
-      (claude.metadata && (claude.metadata.email_logged || claude.metadata.email)) || "—";
-    emailEl.textContent = emailLogged;
+    const metaEmail =
+      claude.metadata && (claude.metadata.email_logged || claude.metadata.email);
+    emailEl.textContent = liveEmail || metaEmail || "—";
     lastEl.textContent = `Last seen: ${formatRelative(claude.last_seen_at)}`;
   } catch (err) {
-    emailEl.textContent = `network error`;
+    emailEl.textContent = liveEmail || `network error`;
     lastEl.textContent = "";
     // err.message intentionally NOT logged — could leak network probe info if a proxy injects it.
   }
@@ -370,6 +396,23 @@ function formatRelative(isoStamp) {
   return then.toLocaleDateString();
 }
 
+/**
+ * Best-effort copy of the bridge token to the clipboard so the user can
+ * Ctrl+V it into LibreChat's "Claude Pro/Max" API key field. Returns true
+ * on success — failures (no permission, popup defocused) are silent because
+ * the token is also visible via the explicit Copy button on the connected row.
+ */
+async function copyTokenToClipboard() {
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    if (!xbt_token) return false;
+    await navigator.clipboard.writeText(xbt_token);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function handleConnect() {
   const btn = document.getElementById("btn-connect-xbrain");
   if (btn) btn.disabled = true;
@@ -378,12 +421,18 @@ async function handleConnect() {
   try {
     const resp = await chrome.runtime.sendMessage({ type: "MINT_AND_CONNECT" });
     if (resp && resp.ok) {
-      setConnectStatus(`Connected as ${resp.email || "your account"} ✓`, "success");
+      const copied = await copyTokenToClipboard();
+      setConnectStatus(
+        copied
+          ? `Connected as ${resp.email || "your account"} ✓  —  token copied to clipboard`
+          : `Connected as ${resp.email || "your account"} ✓`,
+        "success",
+      );
       // Give the WS layer a moment to reconnect via storage.onChanged.
       setTimeout(() => {
         setConnectStatus("", "");
         renderConnectState();
-      }, 800);
+      }, 1200);
     } else {
       const errMsg = (resp && resp.error) || "Unknown error.";
       setConnectStatus(`Connection failed: ${errMsg}`, "error");
@@ -392,6 +441,20 @@ async function handleConnect() {
   } catch (err) {
     setConnectStatus(`Connection failed: ${err.message}`, "error");
     if (btn) btn.disabled = false;
+  }
+}
+
+async function handleCopyToken() {
+  const btn = document.getElementById("btn-copy-token");
+  const ok = await copyTokenToClipboard();
+  if (btn) {
+    const original = btn.textContent;
+    btn.textContent = ok ? "✓" : "✕";
+    btn.title = ok ? "Token copied" : "Copy failed";
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.title = "Copy bridge token to clipboard";
+    }, 1500);
   }
 }
 
@@ -419,10 +482,14 @@ async function handleDisconnect() {
 
 document.addEventListener("DOMContentLoaded", () => {
   const btnConnect = document.getElementById("btn-connect-xbrain");
+  const btnCopy = document.getElementById("btn-copy-token");
   const btnRefresh = document.getElementById("btn-refresh-claude");
   const btnDisc = document.getElementById("btn-disconnect-claude");
   if (btnConnect) {
     btnConnect.addEventListener("click", handleConnect);
+  }
+  if (btnCopy) {
+    btnCopy.addEventListener("click", handleCopyToken);
   }
   if (btnRefresh) {
     btnRefresh.addEventListener("click", renderSessions);
@@ -432,4 +499,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   // Initial render — fail-soft if background.js isn't wired yet.
   renderConnectState();
+});
+
+// Keep the popup in sync when the SW finishes the mint flow asynchronously.
+// Without this, a user who closes the popup during the Google consent window
+// would need to click Connect a second time after re-opening the popup —
+// even though the token is already in chrome.storage.local. Listening on
+// storage.onChanged makes the connected state render automatically the
+// moment the SW writes the token.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  if (changes.xbt_token) {
+    renderConnectState();
+  }
 });

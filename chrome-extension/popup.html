@@ -252,15 +252,16 @@
           <small id="claude-last-seen">—</small>
         </div>
         <div class="session-actions">
+          <button type="button" id="btn-copy-token" title="Copy bridge token to clipboard">📋</button>
           <button type="button" id="btn-refresh-claude" title="Refresh">⟳</button>
           <button type="button" id="btn-disconnect-claude" title="Disconnect">✕</button>
         </div>
       </div>
+      <p class="xb-hint" id="copy-paste-hint">
+        Token auto-copied on connect. Paste it as the API key for the
+        <strong>Claude Pro/Max</strong> endpoint in LibreChat.
+      </p>
     </div>
-
-    <p class="xb-hint" id="claude-hint" hidden>
-      To enable this route: (1) install/activate the xbrain extension, (2) log in to claude.ai in this browser.
-    </p>
   </section>
 
   <script src="popup.js"></script>
