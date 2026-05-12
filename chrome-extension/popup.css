@@ -263,11 +263,35 @@
 }
 .xb-msg:hover { background: rgba(255, 255, 255, 0.02); }
 
-/* Subtle row tinting — even rows slightly lighter for natural zebra reading */
-.xb-msg.is-self { background: transparent; }
+/* Row tinting — user / agent stay LibreChat-flat, self gets WhatsApp/Telegram
+   treatment: avatar on the right, body in a right-aligned blue bubble. */
 .xb-msg.is-user { background: transparent; }
 .xb-msg.is-agent {
   background: rgba(196, 181, 253, 0.04); /* lavender wash for agent rows */
+}
+
+/* === Self messages — WhatsApp/Telegram style === */
+.xb-msg.is-self {
+  grid-template-columns: 1fr 28px;
+  background: transparent;
+}
+.xb-msg.is-self .xb-msg-avatar {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.xb-msg.is-self .xb-msg-meta {
+  grid-column: 1;
+  justify-content: flex-end;
+}
+.xb-msg.is-self .xb-msg-bubble {
+  grid-column: 1;
+  justify-self: end;
+  max-width: 80%;
+  padding: 8px 12px;
+  background: var(--xb-accent-bg);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 14px 14px 4px 14px;
+  text-align: left;
 }
 
 .xb-msg-avatar {
@@ -430,9 +454,17 @@
   font-family: inherit;
   outline: none;
   resize: none;
-  max-height: 140px;
+  /* 2 rows tall by default. font-size 14px × line-height 1.5 = 21px per row,
+     + top/bottom padding 8+8 = 16px → ~58px. line-height-based so the math
+     stays consistent if the font changes. */
+  min-height: calc(1.5em * 2 + 16px);
+  max-height: calc(1.5em * 8 + 16px); /* grows up to 8 rows */
   line-height: 1.5;
+  /* No visible scrollbar at min-height. JS bumps to `auto` once content
+     overflows the max-height. */
+  overflow-y: hidden;
 }
+#composer-input.is-overflowing { overflow-y: auto; }
 #composer-input::placeholder { color: var(--xb-text-dim); }
 
 /* ========================================================================

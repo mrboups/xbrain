@@ -309,7 +309,8 @@ async function loadInitialHistory() {
   $("chat-empty").hidden = true;
   for (const m of msgs) renderMessage(m, { prepend: false });
   state.oldestLoadedTs = msgs[0].created_at;
-  scrollToBottom();
+  // Initial load: pin to the latest message regardless of scrollTop.
+  scrollToBottom({ force: true });
 }
 
 async function loadOlderPage() {
@@ -484,12 +485,20 @@ function buildBubbleNode(msg) {
   return wrapper;
 }
 
-function scrollToBottom() {
+function scrollToBottom({ force = false } = {}) {
   const el = $("chat-scroll");
-  // Only auto-scroll if user is near the bottom (don't yank them up if they
-  // scrolled history to read something).
-  const nearBottom =
-    el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  // Force=true: always pin to bottom (use this on initial chat load so the
+  // user lands on the latest message right above the composer).
+  // Force=false (default): only auto-scroll if the user is near the bottom —
+  // don't yank them up if they scrolled history to read something older.
+  if (force) {
+    // Defer to next frame so layout has settled (avatar grid + body sizes).
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    return;
+  }
+  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   if (nearBottom) {
     el.scrollTop = el.scrollHeight;
   }
@@ -516,8 +525,19 @@ function wireComposer() {
 }
 
 function autoResize(el) {
+  // Let CSS min-height set the 2-row floor; we just grow up to max-height.
+  // Reset height to "auto" first so scrollHeight reflects the true content size.
   el.style.height = "auto";
-  el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  // Read the CSS max-height ceiling so JS + CSS stay in sync.
+  const maxH = parseFloat(getComputedStyle(el).maxHeight) || 200;
+  const target = Math.min(el.scrollHeight, maxH);
+  el.style.height = target + "px";
+  // Toggle scrollbar visibility — hidden while content fits, auto when not.
+  if (el.scrollHeight > maxH) {
+    el.classList.add("is-overflowing");
+  } else {
+    el.classList.remove("is-overflowing");
+  }
 }
 
 async function sendMessage() {
