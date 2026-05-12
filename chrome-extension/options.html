@@ -141,6 +141,53 @@
       line-height: 1.5;
     }
 
+    h2.section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--xb-text);
+      margin: 28px 0 4px 0;
+    }
+
+    input[type="text"]#opt-clip-project {
+      width: 100%;
+      max-width: 320px;
+      margin-top: 8px;
+      background: var(--xb-bg);
+      color: var(--xb-text);
+      border: 1px solid var(--xb-border-2);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+    }
+    input[type="text"]#opt-clip-project:focus { border-color: var(--xb-accent); }
+
+    .opt-radio-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .opt-radio-row label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      border: 1px solid var(--xb-border-2);
+      border-radius: 5px;
+      background: var(--xb-bg);
+      font-size: 12px;
+      color: var(--xb-text-mute);
+      cursor: pointer;
+    }
+    .opt-radio-row label:has(input:checked) {
+      border-color: var(--xb-accent);
+      background: var(--xb-accent-bg);
+      color: var(--xb-text);
+    }
+    .opt-radio-row input[type="radio"] { accent-color: var(--xb-accent); margin: 0; }
+
     /* Scrollbar */
     ::-webkit-scrollbar { width: 10px; height: 10px; }
     ::-webkit-scrollbar-track { background: var(--xb-bg); }
@@ -180,6 +227,48 @@
           On <code>chat.grooveos.app</code>, when the API key dialog appears for
           the <strong>Claude Pro/Max</strong> endpoint, pre-fill it with your
           xbrain bridge token. No more copy-paste.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Clip defaults (quick task 260512-tcr Wave 3.5) -->
+  <h2 class="section-title">Clip defaults</h2>
+  <p class="subtitle">
+    Pre-fill values when you click the 📎 button in the chat. Set these and
+    optionally tick "Skip overlay" to make the clip flow a single click.
+  </p>
+
+  <div class="settings-card">
+    <div class="setting">
+      <div class="setting-body" style="flex:1">
+        <label class="setting-title" for="opt-clip-project">Default project</label>
+        <p class="setting-help">Pre-filled in the clip overlay. Leave empty to pick per clip.</p>
+        <input type="text" id="opt-clip-project" placeholder="e.g. fundraising" autocomplete="off" />
+      </div>
+    </div>
+
+    <div class="setting">
+      <div class="setting-body" style="flex:1">
+        <label class="setting-title">Default truth level</label>
+        <p class="setting-help">Truth level applied to clipped content unless changed in the overlay.</p>
+        <div class="opt-radio-row">
+          <label><input type="radio" name="opt-clip-truth" value="EPHEMERAL" /> EPHEMERAL</label>
+          <label><input type="radio" name="opt-clip-truth" value="WORKING" /> WORKING</label>
+          <label><input type="radio" name="opt-clip-truth" value="VALIDATED" /> VALIDATED</label>
+          <label><input type="radio" name="opt-clip-truth" value="CANONICAL" /> CANONICAL</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="setting">
+      <input type="checkbox" id="opt-clip-skip-overlay" />
+      <div class="setting-body">
+        <label class="setting-title" for="opt-clip-skip-overlay">Skip overlay (auto-send with defaults)</label>
+        <p class="setting-help">
+          When ON and a default project is set, clicking 📎 sends after a 1.5s
+          confirm window — instead of opening the overlay every time. Cancel
+          during the window to abort.
         </p>
       </div>
     </div>
