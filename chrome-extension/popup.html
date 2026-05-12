@@ -32,14 +32,28 @@
 
     *, *::before, *::after { box-sizing: border-box; }
 
+    /*
+     * Width strategy:
+     *   - Side panel: width is set by Chrome (user-resizable). body fills 100%.
+     *   - Toolbar popup: Chrome uses the body's natural width. min-width keeps
+     *     it from collapsing.
+     *   - Inner content (.xb-content) caps at 480px and centers, so an
+     *     extra-wide side panel doesn't stretch forms to unreadable lengths.
+     */
     body {
       font-family: system-ui, -apple-system, sans-serif;
-      width: 320px;
+      width: 100%;
+      min-width: 320px;
       margin: 0;
-      padding: 12px;
+      padding: 14px 16px;
       background: var(--xb-bg);
       color: var(--xb-text);
       font-size: 13px;
+    }
+
+    .xb-content {
+      max-width: 480px;
+      margin: 0 auto;
     }
 
     h1 {
@@ -216,6 +230,7 @@
   </style>
 </head>
 <body>
+  <div class="xb-content">
   <h1>xbrain Web Clipper</h1>
 
   <!-- team_scope — populated dynamically by popup.js via GET /v1/teams/my-teams -->
@@ -312,6 +327,7 @@
       </p>
     </div>
   </section>
+  </div><!-- /.xb-content -->
 
   <script src="popup.js"></script>
 </body>
