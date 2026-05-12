@@ -58,6 +58,21 @@ endpoints:
       titleModel: "claude-haiku-4-5-20251001"
       modelDisplayLabel: "Claude Reasoning"
 
+    # Phase 9 — session-bridge route through user's Chrome extension
+    # so the user's own Claude Pro/Max subscription quota is consumed.
+    # apiKey: user_provided → LibreChat sends what the user pastes as
+    # Authorization: Bearer <xbt_token>. session-bridge validates against
+    # memory-api /v1/me, looks up the user's WS, relays the chat.
+    - name: "Claude (mon abonnement)"
+      apiKey: "user_provided"
+      baseURL: "https://bridge.grooveos.app/v1"
+      models:
+        default: ["claude-opus-4-7", "claude-sonnet-4-6"]
+        fetch: false
+      titleConvo: true
+      titleModel: "claude-sonnet-4-6"
+      modelDisplayLabel: "Claude (Pro/Max)"
+
 # MCP settings — Phase 4 (plan 04-03)
 # allowedDomains is required to permit internal Docker network hosts.
 # LibreChat v0.8.5 has SSRF protection that blocks non-public domains by default.
