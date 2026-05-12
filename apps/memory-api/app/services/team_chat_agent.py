@@ -29,6 +29,7 @@ import asyncio
 import json
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -54,10 +55,33 @@ MODEL_SONNET = "claude-sonnet-4-6"
 MAX_OUTPUT_TOKENS = 4000
 SYSTEM_PROMPT_PREAMBLE = (
     "You are Claude, embedded in the xbrain team chat for team {team_slug}. "
-    "Answer based on the team's memory items and the recent chat history below. "
-    "Be concise, factual, and reference specific items when relevant. "
-    "If you don't know, say so — do not hallucinate."
+    "Answer based on the product knowledge base below, the team's memory "
+    "items, and the recent chat history. Be concise, factual, and reference "
+    "specific items when relevant. If you don't know, say so — do not "
+    "hallucinate."
 )
+
+# Path to the markdown product KB shipped in the repo. Loaded once at module
+# import; restart memory-api to pick up edits. Anthropic cache_control:
+# ephemeral makes this block free on every follow-up call within ~5 minutes.
+_KB_PATH = Path(__file__).parent.parent / "knowledge" / "xbrain_product_kb.md"
+
+
+def _load_product_kb() -> str:
+    """Load the product KB markdown once at module import.
+
+    Returns an empty string on failure so the agent still works (just without
+    the product-context block). Logs a warning so ops can spot a deploy with
+    the KB file missing.
+    """
+    try:
+        return _KB_PATH.read_text(encoding="utf-8")
+    except Exception as e:  # noqa: BLE001
+        log.warning("team_chat_agent.kb.load_failed", path=str(_KB_PATH), err=str(e))
+        return ""
+
+
+_PRODUCT_KB = _load_product_kb()
 
 
 # --- Public entry point ------------------------------------------------------
@@ -354,6 +378,32 @@ def _sign_bridge_jwt_acting(acting_user_sub: str, ttl_s: int = 120) -> str:
 # --- Streaming via Pro/Max bridge --------------------------------------------
 
 
+def _build_system_blocks(system_prompt: str, cached_memory_block: str) -> list[dict[str, Any]]:
+    """Compose the system block list with up to 3 cache_control breakpoints:
+      1. Preamble (no cache — small, role description with team slug)
+      2. Product KB (CACHED — byte-stable across all teams and mentions)
+      3. Team memory bundle (CACHED — 5-min TTL per team)
+
+    Anthropic accepts up to 4 cache_control breakpoints per request, and they
+    are matched as prefix segments. Putting the KB BEFORE the team memory
+    means cross-team mentions still hit the KB cache even when the team
+    memory differs.
+    """
+    blocks: list[dict[str, Any]] = [{"type": "text", "text": system_prompt}]
+    if _PRODUCT_KB:
+        blocks.append({
+            "type": "text",
+            "text": f"## xbrain product knowledge base\n\n{_PRODUCT_KB}",
+            "cache_control": {"type": "ephemeral"},
+        })
+    blocks.append({
+        "type": "text",
+        "text": cached_memory_block,
+        "cache_control": {"type": "ephemeral"},
+    })
+    return blocks
+
+
 async def _stream_via_promax(
     *,
     triggering_user_sub: str,
@@ -363,11 +413,11 @@ async def _stream_via_promax(
 ):
     """POST bridge /v1/chat/completions with a bridge JWT acting_user_sub.
 
-    The bridge will look up the user's WS pool entry and route the request
-    via their claude.ai WebSocket. Returns an async generator of (chunk, usage).
+    The bridge looks up the user's WS pool entry and routes the request via
+    their claude.ai WebSocket. Yields (chunk_text, usage_dict) tuples.
     """
     bridge_jwt = _sign_bridge_jwt_acting(triggering_user_sub)
-    user_message = chat_history_block  # the last message in chat_history IS the @claude mention
+    user_message = chat_history_block  # last message in chat_history IS the @claude mention
     body = {
         "model": MODEL_SONNET,
         "stream": True,
@@ -375,20 +425,11 @@ async def _stream_via_promax(
         "messages": [
             {
                 "role": "system",
-                "content": [
-                    {"type": "text", "text": system_prompt},
-                    {
-                        "type": "text",
-                        "text": cached_memory_block,
-                        "cache_control": {"type": "ephemeral"},
-                    },
-                ],
+                "content": _build_system_blocks(system_prompt, cached_memory_block),
             },
             {"role": "user", "content": user_message},
         ],
     }
-    # session-bridge is internal; URL via env, matches what bridge exposes
-    # internally on port 8105.
     bridge_url = "http://session-bridge:8105/v1/chat/completions"
 
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -418,14 +459,12 @@ async def _stream_via_promax(
                     chunk = json.loads(payload)
                 except json.JSONDecodeError:
                     continue
-                # OpenAI-style choices[].delta.content
                 choices = chunk.get("choices") or []
                 if choices:
                     delta = choices[0].get("delta", {})
                     text = delta.get("content")
                     if text:
                         yield (text, {})
-                # Some bridges emit token usage at the end
                 usage = chunk.get("usage")
                 if usage:
                     yield ("", {"usage": usage})
@@ -453,14 +492,7 @@ async def _stream_via_anthropic_api(
     async with client.messages.stream(
         model=MODEL_SONNET,
         max_tokens=MAX_OUTPUT_TOKENS,
-        system=[
-            {"type": "text", "text": system_prompt},
-            {
-                "type": "text",
-                "text": cached_memory_block,
-                "cache_control": {"type": "ephemeral"},
-            },
-        ],
+        system=_build_system_blocks(system_prompt, cached_memory_block),
         messages=[{"role": "user", "content": chat_history_block}],
     ) as stream:
         async for event in stream:
