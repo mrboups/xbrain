@@ -728,9 +728,71 @@ async function fetchJson(url, token, method = "GET", body = null) {
 
 function renderEmptyTeams() {
   $("teamSelector").innerHTML = `<option disabled selected>No teams yet</option>`;
-  $("chat-empty").hidden = false;
-  $("chat-empty").textContent =
-    "You don't belong to a team yet. Visit chat.grooveos.app to join or create one.";
+  const emptyEl = $("chat-empty");
+  emptyEl.hidden = false;
+  emptyEl.innerHTML = "";
+
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText =
+    "display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;max-width:320px;";
+
+  const msg = document.createElement("p");
+  msg.style.cssText = "margin:0;color:var(--xb-text-mute);line-height:1.5;";
+  msg.textContent =
+    "You don't belong to a team yet. Create your solo workspace to start clipping memory and chatting with Claude — you can invite teammates later.";
+  wrapper.appendChild(msg);
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "connect-btn";
+  btn.style.maxWidth = "260px";
+  btn.textContent = "✨ Create my solo workspace";
+  btn.addEventListener("click", () => createSoloTeam(btn));
+  wrapper.appendChild(btn);
+
+  const hint = document.createElement("p");
+  hint.style.cssText =
+    "margin:0;font-size:11px;color:var(--xb-text-dim);line-height:1.45;";
+  hint.innerHTML =
+    "If you're part of a GitHub org, <strong>link GitHub above</strong> to discover org teams automatically.";
+  wrapper.appendChild(hint);
+
+  emptyEl.appendChild(wrapper);
+  emptyEl.style.pointerEvents = "auto";
+}
+
+async function createSoloTeam(btn) {
+  btn.disabled = true;
+  btn.textContent = "Creating…";
+  try {
+    // /v1/teams/self-solo requires kind=user (Google ID token), NOT xbt_.
+    // Reuse the SW silent path that already mints Google tokens for the
+    // mint-and-connect flow.
+    const tokenResp = await chrome.runtime.sendMessage({
+      type: "GET_ID_TOKEN",
+      silent: false,
+    });
+    const idToken = tokenResp && tokenResp.idToken;
+    if (!idToken) {
+      throw new Error(
+        (tokenResp && tokenResp.error) || "could not get Google token",
+      );
+    }
+    await fetchJson(
+      `${MEMORY_API_BASE}/v1/teams/self-solo`,
+      idToken,
+      "POST",
+      {},
+    );
+    // Re-boot so the new team appears in the selector and the chat connects.
+    btn.textContent = "Ready ✓";
+    setTimeout(() => boot(), 500);
+  } catch (e) {
+    console.warn("[xbrain] self-solo failed:", e);
+    alert(`Could not create solo workspace: ${e.message}`);
+    btn.disabled = false;
+    btn.textContent = "✨ Create my solo workspace";
+  }
 }
 
 // ---------- React to storage changes (token mint, GitHub link) ----------
