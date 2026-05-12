@@ -155,11 +155,19 @@ async function renderClaudeSession() {
     status.textContent = "no response from service worker";
     return;
   }
+  const diag = document.getElementById("claude-session-diag");
+  const diagBody = document.getElementById("claude-session-diag-body");
   if (!info.signed_in) {
     status.textContent = "Not signed in on claude.ai in this Chrome browser";
     if (dot) {
       dot.classList.remove("is-unknown", "is-online");
       dot.classList.add("is-offline");
+    }
+    // Expose the diagnostic dump so the user can see what came back from
+    // claude.ai and why we concluded "not signed in".
+    if (diag && diagBody) {
+      diag.hidden = false;
+      diagBody.textContent = JSON.stringify(info.debug || {}, null, 2);
     }
     return;
   }
@@ -172,6 +180,8 @@ async function renderClaudeSession() {
     dot.classList.remove("is-unknown", "is-offline");
     dot.classList.add("is-online");
   }
+  // Hide diagnostics on success.
+  if (diag) diag.hidden = true;
 }
 
 async function refreshClaudeSession() {

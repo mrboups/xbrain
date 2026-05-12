@@ -485,11 +485,19 @@ let lastOpenAt = 0;
  *   {
  *     signed_in: bool,
  *     email: string|null,
- *     subscription: "Pro" | "Max" | "Max 5x" | "Max 20x" | "Free" | "Team" | "Unknown",
+ *     subscription: string ("Pro" / "Max" / "Max 5x" / ... / "Unknown"),
  *     organization_name: string|null,
  *     organization_uuid: string|null,
+ *     debug: {                       // for Settings diagnostics
+ *       account_status: number|"err"
+ *       account_body_keys: string[]
+ *       orgs_status: number|"err"
+ *       orgs_first_keys: string[]
+ *       capabilities: string[]
+ *     }
  *   }
- * Never throws — failures map to {signed_in: false}.
+ * Never throws — every failure path surfaces enough info to debug from
+ * the UI without opening the SW devtools.
  */
 async function fetchClaudeSessionInfo() {
   const out = {
@@ -498,40 +506,71 @@ async function fetchClaudeSessionInfo() {
     subscription: "Unknown",
     organization_name: null,
     organization_uuid: null,
+    debug: {
+      account_status: null,
+      account_body_keys: [],
+      orgs_status: null,
+      orgs_first_keys: [],
+      capabilities: [],
+    },
   };
-  // 1. Email from current_account
-  try {
-    const r = await fetch("https://claude.ai/api/auth/current_account", {
-      credentials: "include",
-    });
-    if (r.ok) {
+  // Some claude.ai endpoints require the platform header set on web; without
+  // it some responses come back as 403 even with valid cookies.
+  const headers = {
+    Accept: "application/json",
+    "anthropic-client-platform": "web_claude_ai",
+  };
+
+  // 1. Try /api/account (newer surface) then fall back to /api/auth/current_account
+  for (const url of [
+    "https://claude.ai/api/account",
+    "https://claude.ai/api/auth/current_account",
+  ]) {
+    try {
+      const r = await fetch(url, { credentials: "include", headers });
+      out.debug.account_status = r.status;
+      if (!r.ok) continue;
       const j = await r.json();
-      out.email =
+      out.debug.account_body_keys = Object.keys(j || {});
+      const email =
         j.email_address ||
         j.email ||
         (j.account && (j.account.email_address || j.account.email)) ||
+        (j.user && (j.user.email_address || j.user.email)) ||
         null;
-      out.signed_in = Boolean(out.email);
+      if (email) {
+        out.email = email;
+        out.signed_in = true;
+        break;
+      }
+    } catch (e) {
+      out.debug.account_status = "err:" + (e && e.message ? e.message : String(e));
     }
-  } catch {
-    // not signed in — leave defaults
   }
-  if (!out.signed_in) return out;
 
   // 2. Subscription from /api/organizations capabilities
   try {
     const r = await fetch("https://claude.ai/api/organizations", {
       credentials: "include",
+      headers,
     });
+    out.debug.orgs_status = r.status;
     if (r.ok) {
       const orgs = await r.json();
       if (Array.isArray(orgs) && orgs.length) {
         const o = orgs[0];
+        out.debug.orgs_first_keys = Object.keys(o);
         out.organization_uuid = o.uuid || o.id || null;
         out.organization_name = o.name || null;
         const caps = (o.capabilities || []).map((c) => String(c).toLowerCase());
-        // Heuristic — claude.ai changes these strings over time. Prefer the
-        // most specific match.
+        out.debug.capabilities = caps;
+        // If we hadn't gotten an email from /api/account, fall back to the org's
+        // billing_email or capabilities-based heuristic.
+        if (!out.email && (o.billing_email || o.email)) {
+          out.email = o.billing_email || o.email;
+          out.signed_in = true;
+        }
+        // Most-specific match first.
         if (caps.some((c) => c.includes("max_20x"))) out.subscription = "Max 20x";
         else if (caps.some((c) => c.includes("max_5x"))) out.subscription = "Max 5x";
         else if (caps.some((c) => c.includes("max"))) out.subscription = "Max";
@@ -539,10 +578,15 @@ async function fetchClaudeSessionInfo() {
         else if (caps.some((c) => c.includes("team"))) out.subscription = "Team";
         else if (caps.some((c) => c.includes("enterprise"))) out.subscription = "Enterprise";
         else if (caps.length === 0 || caps.every((c) => c === "chat")) out.subscription = "Free";
+        // If we have an org but still no email, assume signed_in (Workspace
+        // sessions sometimes omit email at the account endpoint).
+        if (!out.signed_in && out.organization_uuid) {
+          out.signed_in = true;
+        }
       }
     }
-  } catch {
-    // keep "Unknown"
+  } catch (e) {
+    out.debug.orgs_status = "err:" + (e && e.message ? e.message : String(e));
   }
   return out;
 }

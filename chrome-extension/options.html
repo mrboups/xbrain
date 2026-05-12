@@ -393,6 +393,32 @@
           <button type="button" id="btn-refresh-claude-session" class="xb-btn-primary-options">🔄 Refresh session</button>
           <span id="claude-session-action-status"></span>
         </div>
+
+        <!-- Diagnostics — only visible when the session can't be detected. -->
+        <details id="claude-session-diag" style="margin-top: 14px;" hidden>
+          <summary style="cursor:pointer;font-size:12px;color:var(--xb-text-mute);">
+            Why is this showing "Not signed in"?
+          </summary>
+          <pre id="claude-session-diag-body" style="
+            margin: 8px 0 0 0;
+            padding: 8px 10px;
+            background: var(--xb-bg);
+            border: 1px solid var(--xb-border);
+            border-radius: 4px;
+            font-size: 11px;
+            color: var(--xb-text-mute);
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          "></pre>
+          <p style="font-size:11px;color:var(--xb-text-dim);line-height:1.5;margin-top:8px;">
+            Common causes: you're signed into claude.ai in a different Chrome
+            profile, your cookies were cleared, or you're on a workspace that
+            uses a different auth endpoint. Try reloading
+            <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a>
+            in this Chrome window, then click Refresh again.
+          </p>
+        </details>
       </div>
     </div>
   </div>
