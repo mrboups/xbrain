@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>xbrain Web Clipper</title>
+  <link rel="stylesheet" href="popup.css" />
   <style>
     *, *::before, *::after { box-sizing: border-box; }
 
@@ -224,6 +225,28 @@
   <button id="sendBtn">Envoyer au brain</button>
 
   <div id="status"></div>
+
+  <!-- Phase 9: Sessions section — surfaces the WebSocket bridge state + claude.ai login -->
+  <section class="xb-sessions">
+    <h3>Sessions</h3>
+    <div id="sessions-list">
+      <div class="session-row" data-provider="claude">
+        <span class="status-dot" id="ws-dot"></span>
+        <div class="session-meta">
+          <strong>Claude (mon abonnement)</strong>
+          <small id="claude-email">—</small>
+          <small id="claude-last-seen">—</small>
+        </div>
+        <div class="session-actions">
+          <button type="button" id="btn-refresh-claude" title="Refresh">⟳</button>
+          <button type="button" id="btn-disconnect-claude" title="Disconnect">✕</button>
+        </div>
+      </div>
+    </div>
+    <p class="xb-hint" id="claude-hint">
+      Pour activer cette route : (1) installer / activer l'extension xbrain, (2) être logué sur claude.ai dans ce navigateur.
+    </p>
+  </section>
 
   <script src="popup.js"></script>
 </body>
