@@ -58,12 +58,16 @@ async def ws_endpoint(
         await websocket.close(code=4401, reason="auth error")
         return
 
-    if me.get("sub") != user_sub:
+    # memory-api /v1/me returns `source_user_id` (the OIDC sub stored at signup);
+    # the WS path param is named `user_sub` for legacy reasons but semantically
+    # holds the same value. See apps/memory-api/app/routes/me.py.
+    token_source_user_id = me.get("source_user_id")
+    if token_source_user_id != user_sub:
         log.info(
             "ws.rejected",
             reason="sub_mismatch",
             path_sub=user_sub,
-            token_sub=me.get("sub"),
+            token_source_user_id=token_source_user_id,
             token_fp=fingerprint,
         )
         await websocket.close(code=4403, reason="sub mismatch")
