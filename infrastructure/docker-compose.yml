@@ -733,6 +733,32 @@ services:
       timeout: 5s
       retries: 3
 
+  # === centrifugo (quick task 260512-tcr) — realtime WS broker for team chat ===
+  # MIT-licensed Go binary. Channels `team:<id>` (broadcast) + `user:<sub>` (Phase 2).
+  # JWT auth via CENTRIFUGO_TOKEN_HMAC_SECRET, server-side publish via CENTRIFUGO_API_KEY.
+  # Fronted by nginx vhost centrifugo.grooveos.app.
+  centrifugo:
+    image: centrifugo/centrifugo:v6
+    container_name: xbrain-centrifugo
+    restart: unless-stopped
+    command: centrifugo -c /centrifugo/config.json
+    volumes:
+      - ../infrastructure/centrifugo/config.json:/centrifugo/config.json:ro
+    environment:
+      # Secrets injected via env so the config.json stays committable.
+      CENTRIFUGO_TOKEN_HMAC_SECRET: ${CENTRIFUGO_TOKEN_HMAC_SECRET}
+      CENTRIFUGO_API_KEY: ${CENTRIFUGO_API_KEY}
+    ports:
+      - "127.0.0.1:8106:8000"
+    networks: [xbrain_net]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   # === graphiti-service (plan 05-01) — temporal fact extraction + contradiction detection ===
   graphiti-service:
     build:
