@@ -32,6 +32,7 @@ from app.routes import (
     promotions,
     system_prompt,
     tasks,
+    team_chat,
     teams,
     waitlist,
 )
@@ -108,3 +109,4 @@ app.include_router(granola_integration.router, prefix="/v1", tags=["granola"])
 app.include_router(waitlist.router, prefix="/v1", tags=["waitlist"])
 app.include_router(agents.router, prefix="/v1", tags=["agents"])
 app.include_router(external_sessions.router, prefix="/v1", tags=["external-sessions"])
+app.include_router(team_chat.router, prefix="/v1", tags=["team-chat"])

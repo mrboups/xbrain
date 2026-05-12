@@ -85,6 +85,10 @@ class Settings(BaseSettings):
     # TTL on the client connection token issued by /v1/me/centrifugo-token.
     # 1h matches our other JWTs.
     CENTRIFUGO_CLIENT_TOKEN_TTL_S: int = 3600
+    # Internal URL to agent-runtime — POSTed on @claude mentions to enqueue
+    # an agent task. Fire-and-forget; failures must NOT block the message
+    # insert response.
+    AGENT_RUNTIME_INTERNAL_URL: str = "http://agent-runtime:8200"
 
     @property
     def admin_user_subs(self) -> set[str]:
