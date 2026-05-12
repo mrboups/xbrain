@@ -202,10 +202,9 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 12px;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
 .xb-history-loader {
@@ -218,7 +217,7 @@
 #message-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
 }
 
 .xb-chat-empty {
@@ -242,53 +241,91 @@
   color: var(--xb-text);
 }
 
-/* === Message bubbles === */
+/* === Message rows — LibreChat-style flat layout ===
+ *
+ * No bubbles. Each message is a vertical row with:
+ *   [avatar circle]  Sender · time · [provenance]
+ *                    Message body (full width, generous padding)
+ *
+ * User and assistant rows alternate subtle background tints to give
+ * visual separation without borders. Hover lifts the row slightly.
+ */
 
 .xb-msg {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-width: 100%;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  padding: 12px 14px;
+  border-radius: 0;
+  transition: background 0.1s;
+}
+.xb-msg:hover { background: rgba(255, 255, 255, 0.02); }
+
+/* Subtle row tinting — even rows slightly lighter for natural zebra reading */
+.xb-msg.is-self { background: transparent; }
+.xb-msg.is-user { background: transparent; }
+.xb-msg.is-agent {
+  background: rgba(196, 181, 253, 0.04); /* lavender wash for agent rows */
 }
 
-.xb-msg-meta {
+.xb-msg-avatar {
+  grid-row: 1 / span 2;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--xb-text-mute);
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--xb-surface-2);
+  flex-shrink: 0;
+  user-select: none;
 }
-.xb-msg-author { color: var(--xb-text); font-weight: 600; }
-.xb-msg-author.is-agent { color: #c4b5fd; } /* lavender for agents — readable on dark */
-.xb-msg-time { color: var(--xb-text-dim); }
+.xb-msg.is-self .xb-msg-avatar    { background: var(--xb-accent); }
+.xb-msg.is-user .xb-msg-avatar    { background: #4b5563; }
+.xb-msg.is-agent .xb-msg-avatar   { background: #7c3aed; font-size: 14px; }
+
+.xb-msg-meta {
+  grid-column: 2;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+.xb-msg-author { color: var(--xb-text); font-weight: 600; font-size: 13px; }
+.xb-msg-author.is-agent { color: #c4b5fd; }
+.xb-msg-time { color: var(--xb-text-dim); font-size: 11px; }
 
 .xb-msg-provenance {
   font-size: 10px;
   color: var(--xb-text-dim);
-  padding: 1px 5px;
-  border-radius: 3px;
+  padding: 1px 6px;
+  border-radius: 9999px;
   background: var(--xb-surface-2);
 }
-.xb-msg-provenance.via-promax { color: var(--xb-success); }
+.xb-msg-provenance.via-promax {
+  color: var(--xb-success);
+  background: var(--xb-success-bg);
+}
 
+/* Body — no bubble, just flowing text. */
 .xb-msg-bubble {
-  padding: 8px 11px;
-  background: var(--xb-surface);
-  border: 1px solid var(--xb-border);
-  border-radius: var(--xb-radius);
+  grid-column: 2;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   white-space: pre-wrap;
   word-wrap: break-word;
-  line-height: 1.45;
-  font-size: 13px;
+  line-height: 1.6;
+  font-size: 14px;
   color: var(--xb-text);
-}
-.xb-msg-bubble.is-self {
-  background: var(--xb-accent-bg);
-  border-color: rgba(59, 130, 246, 0.3);
-}
-.xb-msg-bubble.is-agent {
-  background: rgba(196, 181, 253, 0.08);
-  border-color: rgba(196, 181, 253, 0.2);
 }
 
 /* Streaming cursor — pulsing block at the end of an in-flight agent message. */
@@ -306,65 +343,96 @@
 }
 
 /* ========================================================================
- * Composer (input + clip + send)
+ * Composer — LibreChat-style rounded pill container
+ *
+ * Single bordered surface that houses the textarea + clip + send. Icons
+ * are flush with the input on the left/right, no visible borders on the
+ * inner buttons. Focus state lifts the whole pill border to accent.
  * ====================================================================== */
 
 .xb-composer {
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 10px 12px 14px;
   background: var(--xb-bg);
-  border-top: 1px solid var(--xb-border);
   flex-shrink: 0;
+}
+
+.xb-composer-pill {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  background: var(--xb-surface);
+  border: 1px solid var(--xb-border-2);
+  border-radius: 18px;
+  padding: 4px 4px 4px 6px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.xb-composer-pill:focus-within {
+  border-color: var(--xb-border-2);
+  background: var(--xb-surface-2);
 }
 
 .xb-clip-btn,
 .xb-send-btn {
   flex-shrink: 0;
-  background: var(--xb-surface);
-  color: var(--xb-text);
-  border: 1px solid var(--xb-border-2);
-  border-radius: 8px;
-  padding: 7px 10px;
-  font-size: 14px;
+  background: transparent;
+  color: var(--xb-text-mute);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
   cursor: pointer;
   transition: all 0.15s;
   line-height: 1;
-  height: 36px;
+  padding: 0;
 }
-.xb-clip-btn:hover { background: var(--xb-surface-2); }
+.xb-clip-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--xb-text);
+}
 .xb-send-btn {
-  background: var(--xb-accent);
-  color: #fff;
-  border-color: var(--xb-accent);
-  font-weight: 600;
+  background: var(--xb-text);
+  color: var(--xb-bg);
+  width: 32px;
+  height: 32px;
+  font-weight: 700;
 }
-.xb-send-btn:hover { background: var(--xb-accent-2); border-color: var(--xb-accent-2); }
-.xb-send-btn:disabled,
-.xb-clip-btn:disabled {
+.xb-send-btn:hover {
+  background: #fff;
+}
+.xb-send-btn:disabled {
   background: var(--xb-border-2);
   color: var(--xb-text-dim);
-  border-color: var(--xb-border-2);
+  cursor: not-allowed;
+}
+.xb-clip-btn:disabled {
+  color: var(--xb-text-dim);
+  background: transparent;
   cursor: not-allowed;
 }
 
 #composer-input {
   flex: 1;
   min-width: 0;
-  background: var(--xb-surface);
+  background: transparent;
   color: var(--xb-text);
-  border: 1px solid var(--xb-border-2);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 13px;
+  border: none;
+  border-radius: 0;
+  padding: 8px 4px;
+  font-size: 14px;
   font-family: inherit;
   outline: none;
   resize: none;
-  max-height: 120px;
-  line-height: 1.4;
+  max-height: 140px;
+  line-height: 1.5;
 }
-#composer-input:focus { border-color: var(--xb-accent); background: var(--xb-surface-2); }
 #composer-input::placeholder { color: var(--xb-text-dim); }
 
 /* ========================================================================

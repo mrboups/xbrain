@@ -425,10 +425,28 @@ function renderAgentBubble({ id, agent_name, routed_via, streaming }) {
 }
 
 function buildBubbleNode(msg) {
+  // Row layout — LibreChat-style flat grid: avatar | (meta + body).
+  const rowClass = bubbleClass(msg, state.me?.id); // is-self / is-user / is-agent
   const wrapper = document.createElement("div");
-  wrapper.className = "xb-msg";
+  wrapper.className = `xb-msg ${rowClass}`;
   wrapper.dataset.msgId = msg.id;
 
+  // Avatar — letter for users, 🤖 for agents
+  const avatar = document.createElement("div");
+  avatar.className = "xb-msg-avatar";
+  if (msg.kind === "agent") {
+    avatar.textContent = "🤖";
+  } else {
+    const label = authorLabel({
+      msg,
+      selfUserId: state.me?.id,
+      nameCache: state.nameCache,
+    });
+    avatar.textContent = (label[0] || "?").toUpperCase();
+  }
+  wrapper.appendChild(avatar);
+
+  // Meta row (sender + time + provenance)
   const meta = document.createElement("div");
   meta.className = "xb-msg-meta";
 
@@ -455,13 +473,14 @@ function buildBubbleNode(msg) {
     provSpan.textContent = prov.text;
     meta.appendChild(provSpan);
   }
-
-  const bubble = document.createElement("div");
-  bubble.className = `xb-msg-bubble ${bubbleClass(msg, state.me?.id)}`;
-  bubble.textContent = msg.content || "";
-
   wrapper.appendChild(meta);
-  wrapper.appendChild(bubble);
+
+  // Body (no bubble — flat text per LibreChat)
+  const body = document.createElement("div");
+  body.className = "xb-msg-bubble";
+  body.textContent = msg.content || "";
+  wrapper.appendChild(body);
+
   return wrapper;
 }
 

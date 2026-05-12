@@ -97,18 +97,22 @@
       </div>
     </main>
 
-    <!-- Footer — clip + composer -->
+    <!-- Footer — clip + composer pill (LibreChat-style rounded container) -->
     <footer class="xb-composer">
-      <button type="button" id="btn-clip" class="xb-clip-btn" title="Send current page or selection to xbrain">📎</button>
-      <textarea
-        id="composer-input"
-        rows="1"
-        placeholder="Type a message — use @claude to ask the brain"
-        aria-label="Compose message"
-      ></textarea>
-      <button type="button" id="btn-send" class="xb-send-btn" title="Send (Ctrl+Enter)">
-        <span aria-hidden="true">⏎</span>
-      </button>
+      <div class="xb-composer-pill">
+        <button type="button" id="btn-clip" class="xb-clip-btn" title="Send current page or selection to xbrain" aria-label="Clip page">
+          <span aria-hidden="true">📎</span>
+        </button>
+        <textarea
+          id="composer-input"
+          rows="1"
+          placeholder="Message your team — use @claude to ask the brain"
+          aria-label="Compose message"
+        ></textarea>
+        <button type="button" id="btn-send" class="xb-send-btn" title="Send (Ctrl+Enter)" aria-label="Send">
+          <span aria-hidden="true">↑</span>
+        </button>
+      </div>
     </footer>
   </div>
 
