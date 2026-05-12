@@ -3,7 +3,7 @@
   "name": "xbrain Web Clipper",
   "version": "1.2.0",
   "description": "Clip web content into your team's xbrain memory + route Claude Pro/Max via session-bridge (Phase 9)",
-  "permissions": ["identity", "activeTab", "storage", "alarms", "sidePanel", "clipboardWrite"],
+  "permissions": ["identity", "activeTab", "storage", "alarms", "sidePanel", "clipboardWrite", "contextMenus", "notifications"],
   "background": {
     "service_worker": "background.js",
     "type": "module"

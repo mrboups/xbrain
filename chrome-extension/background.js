@@ -100,23 +100,39 @@ function launchAuthFlow({ interactive, promptMode }) {
   });
 }
 
+// Module-level in-flight promise for getGoogleIdToken. Two concurrent calls
+// (e.g. Web Clipper team-load + auto-mint firing at popup open) used to each
+// trigger their own launchWebAuthFlow → two consent popups. Sharing one
+// promise makes them coalesce into a single auth flow.
+// Reset to null in `finally` so cache misses on later calls work correctly.
+let _pendingTokenPromise = null;
+
 /**
  * Get a Google OIDC ID token (JWT, signed by Google).
  *
- * Strategy (quick task 260512-zca polish):
+ * @param {Object} opts
+ * @param {boolean} opts.silent  When true, only attempt the silent
+ *   (interactive:false) auth flow. If silent fails, throw — DO NOT escalate
+ *   to interactive. Used by auto-mint and the Web Clipper team-load so the
+ *   extension never opens a consent popup without an explicit user click.
+ *
+ * Strategy:
  *   1. Check our chrome.storage.session cache (1h TTL).
- *   2. Try launchWebAuthFlow with `interactive: false` — silent, no window.
- *      Succeeds if the user already granted consent + has a live Google
- *      session in Chrome.
- *   3. Fall back to `interactive: true` (opens a small Chrome popup for
- *      consent / account picker). Used on the very first connect and after
- *      `chrome.identity.removeCachedAuthToken`-style revokes.
+ *   2. Try launchWebAuthFlow with `interactive: false` — no window opens.
+ *      Succeeds if user is signed into Google in Chrome AND has previously
+ *      granted consent to this extension.
+ *   3. If `opts.silent` is true → throw on silent failure.
+ *      Otherwise fall back to `interactive: true` (small Chrome popup).
+ *
+ * Concurrent calls share one in-flight promise (no duplicate consent popups).
  *
  * Memory-api accepts both Google ID tokens and OAuth2 access tokens since
  * 27e0a8d — we ship ID tokens here because launchWebAuthFlow returns them.
  */
-async function getGoogleIdToken() {
-  // 1. Cache hit?
+async function getGoogleIdToken(opts = {}) {
+  const silent = opts.silent === true;
+
+  // 1. Cache hit — return synchronously without involving _pendingTokenPromise.
   const stored = await chrome.storage.session.get([
     TOKEN_CACHE_KEY,
     TOKEN_EXPIRY_KEY,
@@ -129,31 +145,47 @@ async function getGoogleIdToken() {
     return stored[TOKEN_CACHE_KEY];
   }
 
-  // 2. Silent attempt — no window if user already granted consent.
-  let idToken = null;
+  // 2. Concurrent dedup — coalesce parallel auth flows into one.
+  // If a silent call is already in flight and the new caller wants
+  // interactive, we wait for the silent result; if it fails, the caller
+  // sees the error (they can retry interactively).
+  if (_pendingTokenPromise) {
+    return _pendingTokenPromise;
+  }
+
+  _pendingTokenPromise = (async () => {
+    let idToken = null;
+    try {
+      idToken = await launchAuthFlow({
+        interactive: false,
+        promptMode: "none",
+      });
+    } catch {
+      // Silent path failed — fall through.
+    }
+
+    if (!idToken) {
+      if (silent) {
+        throw new Error("silent auth failed (no consent yet, or not signed into Chrome)");
+      }
+      idToken = await launchAuthFlow({
+        interactive: true,
+        promptMode: "select_account",
+      });
+    }
+
+    await chrome.storage.session.set({
+      [TOKEN_CACHE_KEY]: idToken,
+      [TOKEN_EXPIRY_KEY]: Date.now() + TOKEN_TTL_MS,
+    });
+    return idToken;
+  })();
+
   try {
-    idToken = await launchAuthFlow({
-      interactive: false,
-      promptMode: "none",
-    });
-  } catch {
-    // Silent path failed → fall through to interactive.
+    return await _pendingTokenPromise;
+  } finally {
+    _pendingTokenPromise = null;
   }
-
-  // 3. Interactive fallback (one-time small Chrome popup).
-  if (!idToken) {
-    idToken = await launchAuthFlow({
-      interactive: true,
-      promptMode: "select_account",
-    });
-  }
-
-  // 4. Cache for an hour.
-  await chrome.storage.session.set({
-    [TOKEN_CACHE_KEY]: idToken,
-    [TOKEN_EXPIRY_KEY]: Date.now() + TOKEN_TTL_MS,
-  });
-  return idToken;
 }
 
 /**
@@ -212,10 +244,12 @@ async function readStoredAuth() {
   return readStoredAuthPure(chrome.storage);
 }
 
-async function mintAndConnect() {
+async function mintAndConnect({ silent = false } = {}) {
   return mintAndConnectPure({
     fetch,
-    getIdToken: getGoogleIdToken,
+    // When silent=true, never escalate to an interactive Chrome popup —
+    // the caller (auto-mint on popup open) only wants the zero-click path.
+    getIdToken: () => getGoogleIdToken({ silent }),
     storage: chrome.storage.local,
   });
 }
@@ -248,7 +282,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "GET_ID_TOKEN") {
-    getGoogleIdToken()
+    // Callers can opt into silent-only behavior (no consent popup) by
+    // passing { silent: true }. Default is the legacy behavior (silent
+    // first, interactive fallback) — preserves the manual Send-to-brain UX.
+    const silent = message.silent === true;
+    getGoogleIdToken({ silent })
       .then((idToken) => sendResponse({ idToken }))
       .catch((err) => sendResponse({ error: err.message }));
     return true; // sendResponse will be called asynchronously
@@ -276,8 +314,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   // Quick task 260512-eo1 — single-click onboarding.
+  // Quick task 260512-cmu — silent flag forwarded so the popup's auto-mint
+  // path never opens a consent popup without an explicit user click.
   if (message && message.type === "MINT_AND_CONNECT") {
-    mintAndConnect().then(sendResponse);
+    const silent = message.silent === true;
+    mintAndConnect({ silent }).then(sendResponse);
     return true; // async
   }
 
@@ -533,3 +574,106 @@ chrome.storage.onChanged.addListener((changes, area) => {
     applyPanelBehavior();
   }
 });
+
+// ===========================================================================
+// Quick task 260512-cmu — "Add to xbrain" context menu (right-click selection)
+// ===========================================================================
+//
+// Right-click any selected text on a web page → "Add to xbrain" → the
+// selection lands in the popup/side panel's Content field, ready to send.
+//
+// Flow:
+//   1. User right-clicks selection → onClicked fires with info.selectionText.
+//   2. We stash {selectedText, url, title} in chrome.storage.session under
+//      key "pending_selection". The popup reads + clears this on open.
+//   3. We open the side panel (or popup, per the user setting). For the
+//      side panel path we use chrome.sidePanel.open({tabId}) which requires
+//      a user gesture — the context menu click counts.
+//   4. If the user isn't connected yet, the popup shows the standard
+//      Connect button as usual; the pending selection is preserved until
+//      they connect.
+
+const CONTEXT_MENU_ID = "xbrain_add_to_brain";
+
+function registerContextMenu() {
+  if (!chrome.contextMenus || !chrome.contextMenus.create) return;
+  // create() is fail-loud on duplicates → wrap in try.
+  try {
+    chrome.contextMenus.create(
+      {
+        id: CONTEXT_MENU_ID,
+        title: "Add selection to xbrain",
+        contexts: ["selection"],
+      },
+      () => {
+        // Swallow "duplicate id" error after extension reload.
+        void chrome.runtime.lastError;
+      },
+    );
+  } catch (e) {
+    console.warn(
+      "[xbrain] registerContextMenu failed:",
+      e && e.message ? e.message : e,
+    );
+  }
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  registerContextMenu();
+});
+
+// SW boot path — onInstalled fires only on install/update; recreate the menu
+// on every boot in case the SW was killed.
+registerContextMenu();
+
+chrome.contextMenus &&
+  chrome.contextMenus.onClicked &&
+  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+    if (info.menuItemId !== CONTEXT_MENU_ID) return;
+    const selectedText = (info.selectionText || "").trim();
+    if (!selectedText) return;
+
+    // Stash the selection so the popup reads it on init.
+    await chrome.storage.session.set({
+      pending_selection: {
+        selectedText,
+        url: (tab && tab.url) || info.pageUrl || "",
+        title: (tab && tab.title) || "",
+        captured_at: Date.now(),
+      },
+    });
+
+    // Open side panel if the user opted in, otherwise the toolbar popup.
+    // chrome.action.openPopup() needs a user gesture — the context menu
+    // click is a valid gesture per Chrome's policy. sidePanel.open requires
+    // either a tabId or windowId (we have tabId from the event).
+    try {
+      const settings = await loadSettings(chrome.storage.sync);
+      if (settings.openInSidePanel && chrome.sidePanel && chrome.sidePanel.open) {
+        await chrome.sidePanel.open({ tabId: tab.id });
+        return;
+      }
+      if (chrome.action && chrome.action.openPopup) {
+        await chrome.action.openPopup();
+        return;
+      }
+    } catch (e) {
+      console.warn(
+        "[xbrain] context menu open failed:",
+        e && e.message ? e.message : e,
+      );
+    }
+
+    // Last-resort fallback — show a notification telling the user to click
+    // the toolbar icon to finish. Happens on Chrome < 127 (no
+    // chrome.action.openPopup) or when both APIs fail.
+    if (chrome.notifications && chrome.notifications.create) {
+      chrome.notifications.create({
+        type: "basic",
+        iconUrl: "icon128.png",
+        title: "xbrain — selection captured",
+        message: "Click the xbrain icon to send it to your brain.",
+        priority: 1,
+      });
+    }
+  });

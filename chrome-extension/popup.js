@@ -144,22 +144,46 @@ document.addEventListener("DOMContentLoaded", async () => {
     currentTabTitle = tab.title || "";
   }
 
-  const selection = await getSelectionFromPage(tab);
-  if (selection && selection.selectedText && selection.selectedText.trim()) {
-    contentArea.value = selection.selectedText.trim();
+  // Prefer a selection captured via the right-click context menu (quick task
+  // 260512-cmu) — it survives across popup opens until the user clicks Send.
+  // Otherwise, ask the active tab's content script for the current selection.
+  let prefilledText = "";
+  const pending = await chrome.storage.session.get(["pending_selection"]);
+  if (pending && pending.pending_selection && pending.pending_selection.selectedText) {
+    prefilledText = pending.pending_selection.selectedText.trim();
+    if (pending.pending_selection.url) currentTabUrl = pending.pending_selection.url;
+    if (pending.pending_selection.title) currentTabTitle = pending.pending_selection.title;
+    // Clear so the next popup open doesn't replay it.
+    await chrome.storage.session.remove(["pending_selection"]);
+  } else {
+    const selection = await getSelectionFromPage(tab);
+    if (selection && selection.selectedText && selection.selectedText.trim()) {
+      prefilledText = selection.selectedText.trim();
+    }
+  }
+  if (prefilledText) {
+    contentArea.value = prefilledText;
   }
   if (currentTabUrl) {
     sourceHint.textContent = `Source: ${hostnameFromUrl(currentTabUrl)}`;
   }
 
-  // 2. Authenticate + load teams in parallel.
-  const tokenResponse = await chrome.runtime.sendMessage({ type: "GET_ID_TOKEN" });
+  // 2. Authenticate (silent only — no popup on extension open) + load teams.
+  // If the user isn't signed in, leave the field as "Not signed in" and let
+  // them sign in via the Connect button below. Interactive auth only fires
+  // on Send to brain (explicit user action).
+  const tokenResponse = await chrome.runtime.sendMessage({
+    type: "GET_ID_TOKEN",
+    silent: true,
+  });
   if (tokenResponse && tokenResponse.idToken) {
     await loadUserTeams(tokenResponse.idToken);
     sendBtn.disabled = false;
   } else {
     teamSelect.innerHTML = `<option value="" disabled selected>Not signed in</option>`;
-    showStatus("Google sign-in required — please retry.", "error");
+    // No error toast — silent failure here is expected for first-time users.
+    // They'll see the Connect button below and the Send to brain button will
+    // re-trigger auth interactively when clicked.
   }
 
   // 3. Wire the "Send to brain" button.
@@ -292,24 +316,20 @@ async function renderConnectState() {
 }
 
 /**
- * Zero-click onboarding: when the popup opens and no xbt_token is stored,
- * try the silent path automatically.
+ * Zero-click onboarding — silent path ONLY.
  *
- * Combined with chrome.identity.getAuthToken (quick task 260512-zca Task B),
- * this means the very first time a user opens the side panel after Chrome
- * sign-in, they see a brief loading state and then 🟢 — no clicks required.
+ * When the popup opens and no xbt_token is stored, try a fully silent
+ * mint. If silent succeeds (user is Chrome-signed-in AND has previously
+ * granted consent), the state flips to connected automatically. If silent
+ * fails, we DO NOT escalate to a consent popup — the manual Connect button
+ * stays visible so the user can opt in explicitly.
  *
- * Behavior:
- *   - If a token is already stored → no-op (renderConnectState renders connected).
- *   - If not stored and `auto` mode hasn't already attempted this session →
- *     dispatch MINT_AND_CONNECT and show the loading status. If the SW
- *     succeeds silently (user is Chrome-signed-in, consent already granted),
- *     the state flips to connected automatically via storage.onChanged.
- *   - If the silent attempt fails (e.g. user not signed into Chrome) → the
- *     Connect button stays visible so the user can opt in manually.
+ * This was tightened in quick task 260512-cmu after user feedback that
+ * an auto-popup on side panel open felt "a bit violent". Now: zero-click
+ * when possible, one-click otherwise. Never zero-interaction with a popup.
  *
  * Guard `_autoMintAttempted` prevents an infinite loop if the SW returns
- * {ok: false} (e.g. user cancelled the consent prompt).
+ * {ok: false} during a single popup open.
  */
 let _autoMintAttempted = false;
 
@@ -322,10 +342,16 @@ async function maybeAutoMint() {
 
   const btn = document.getElementById("btn-connect-xbrain");
   if (btn) btn.disabled = true;
-  setConnectStatus("Connecting your xbrain account…", "loading");
+  setConnectStatus("Trying silent sign-in…", "loading");
 
   try {
-    const resp = await chrome.runtime.sendMessage({ type: "MINT_AND_CONNECT" });
+    // silent: true → SW will NEVER open a consent popup. If the user isn't
+    // already authenticated, the SW returns {ok: false} with an "silent auth
+    // failed" error and we cleanly show the Connect button instead.
+    const resp = await chrome.runtime.sendMessage({
+      type: "MINT_AND_CONNECT",
+      silent: true,
+    });
     if (resp && resp.ok) {
       const copied = await copyTokenToClipboard();
       setConnectStatus(
@@ -339,8 +365,7 @@ async function maybeAutoMint() {
         renderConnectState();
       }, 1200);
     } else {
-      // Silent path failed (likely user cancelled the consent prompt). Leave
-      // the Connect button enabled so they can retry intentionally.
+      // Silent failed — clear the loader, surface the manual Connect button.
       setConnectStatus("", "");
       if (btn) btn.disabled = false;
     }
@@ -478,7 +503,11 @@ async function handleConnect() {
   setConnectStatus("Signing you in with Google…", "loading");
 
   try {
-    const resp = await chrome.runtime.sendMessage({ type: "MINT_AND_CONNECT" });
+    // Explicit user click → allow the interactive Google consent popup.
+    const resp = await chrome.runtime.sendMessage({
+      type: "MINT_AND_CONNECT",
+      silent: false,
+    });
     if (resp && resp.ok) {
       const copied = await copyTokenToClipboard();
       setConnectStatus(
