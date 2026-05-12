@@ -16,7 +16,7 @@ registration:
     - "gmail.com"
     # Note: no domain filter for GitHub — org membership is enforced in memory-api (plan 05-02)
 
-# Endpoints LLM (les API keys viennent de .env via variables référencées)
+# LLM endpoints (API keys are pulled from .env via referenced variables).
 endpoints:
   custom:
     - name: "Anthropic"
@@ -63,7 +63,7 @@ endpoints:
     # apiKey: user_provided → LibreChat sends what the user pastes as
     # Authorization: Bearer <xbt_token>. session-bridge validates against
     # memory-api /v1/me, looks up the user's WS, relays the chat.
-    - name: "Claude (mon abonnement)"
+    - name: "Claude Pro/Max"
       apiKey: "user_provided"
       baseURL: "https://bridge.grooveos.app/v1"
       models:
@@ -71,7 +71,7 @@ endpoints:
         fetch: false
       titleConvo: true
       titleModel: "claude-sonnet-4-6"
-      modelDisplayLabel: "Claude (Pro/Max)"
+      modelDisplayLabel: "Claude Pro/Max"
 
 # MCP settings — Phase 4 (plan 04-03)
 # allowedDomains is required to permit internal Docker network hosts.
@@ -98,7 +98,7 @@ mcpServers:
       # Consumed by mcp-gateway in Phase 5 for sub resolution via memory-api /v1/me.
       X-LibreChat-User-Email: "{{LIBRECHAT_USER_EMAIL}}"
 
-# File handling (CHAT-04 partiel — upload accepté, RAG vraie en Phase 2)
+# File handling (CHAT-04 partial — upload accepted; real RAG comes in Phase 2).
 fileConfig:
   endpoints:
     Anthropic:

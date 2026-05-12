@@ -9,7 +9,7 @@
 #   4. nginx vhost 50-bridge.conf loaded (server_name bridge.grooveos.app present in nginx -T)
 #   5. WebSocket reachable end-to-end via the bridge (SKIPPED if VERIFY_XBT_TOKEN unset)
 #   6. user_external_sessions table exists in postgres (migration 0014)
-#   7. librechat.yaml contains "Claude (mon abonnement)" custom endpoint
+#   7. librechat.yaml contains "Claude Pro/Max" custom endpoint
 #   8. chrome-extension/tests/run_tests.mjs exits 0
 #
 # Exit code:
@@ -181,7 +181,7 @@ test_06_migration_0014() {
 # -----------------------------------------------------------------------------
 test_07_librechat_endpoint() {
   echo
-  echo "[7/8] librechat.yaml contains \"Claude (mon abonnement)\" custom endpoint"
+  echo "[7/8] librechat.yaml contains \"Claude Pro/Max\" custom endpoint"
   # Prefer reading from the container (true post-restart state), fall back to host file
   local content=""
   if docker ps --filter "name=${LIBRECHAT_CONTAINER}" --format "{{.Names}}" 2>/dev/null | grep -q "${LIBRECHAT_CONTAINER}"; then
@@ -190,10 +190,10 @@ test_07_librechat_endpoint() {
   if [[ -z "$content" ]] && [[ -f infrastructure/librechat/librechat.yaml ]]; then
     content=$(cat infrastructure/librechat/librechat.yaml)
   fi
-  if echo "$content" | grep -q 'Claude (mon abonnement)'; then
-    ok "endpoint 'Claude (mon abonnement)' present"
+  if echo "$content" | grep -q 'Claude Pro/Max'; then
+    ok "endpoint 'Claude Pro/Max' present"
   else
-    ko "endpoint 'Claude (mon abonnement)' NOT present in librechat.yaml"
+    ko "endpoint 'Claude Pro/Max' NOT present in librechat.yaml"
   fi
 }
 

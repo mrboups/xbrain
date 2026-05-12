@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "xbrain Web Clipper",
   "version": "1.1.0",
-  "description": "Envoyez du contenu web dans le brain xbrain de votre équipe + routez Claude Pro/Max via session-bridge (Phase 9)",
+  "description": "Clip web content into your team's xbrain memory + route Claude Pro/Max via session-bridge (Phase 9)",
   "permissions": ["identity", "activeTab", "storage", "alarms"],
   "background": {
     "service_worker": "background.js",
