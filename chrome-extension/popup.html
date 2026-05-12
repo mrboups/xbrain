@@ -125,20 +125,13 @@
       </header>
 
       <div class="xb-overlay-body">
-        <!-- Source toggle -->
+        <!-- What will be clipped (auto-detected: selection if any, else page) -->
         <div class="xb-field">
-          <label>Source</label>
-          <div class="xb-radio-row">
-            <label class="xb-radio-pill">
-              <input type="radio" name="clipSource" value="page" checked />
-              📄 Current page
-            </label>
-            <label class="xb-radio-pill" id="clip-source-selection-row">
-              <input type="radio" name="clipSource" value="selection" />
-              ✂️ Selection
-            </label>
+          <label>What will be sent</label>
+          <div class="xb-clip-preview" id="clip-preview">
+            <span class="xb-clip-preview-mode" id="clip-preview-mode">📄 Page</span>
+            <span class="xb-clip-preview-detail" id="clip-preview-detail">—</span>
           </div>
-          <div class="xb-source-preview" id="clip-source-preview">—</div>
         </div>
 
         <!-- Project -->

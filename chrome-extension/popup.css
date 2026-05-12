@@ -533,6 +533,33 @@
   white-space: nowrap;
 }
 
+/* Clip overlay — auto-detected "what will be sent" panel */
+.xb-clip-preview {
+  background: var(--xb-bg);
+  border: 1px solid var(--xb-border-2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.xb-clip-preview-mode {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--xb-text);
+}
+.xb-clip-preview-detail {
+  font-size: 11px;
+  color: var(--xb-text-mute);
+  line-height: 1.4;
+  word-break: break-word;
+  /* Multi-line ellipsis at 3 lines for selection previews. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .xb-field input[type="text"] {
   background: var(--xb-bg);
   color: var(--xb-text);

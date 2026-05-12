@@ -603,19 +603,17 @@ async function openClipOverlay() {
     if (radio) radio.checked = true;
   }
 
-  // Source preview.
+  // Resolve active tab + selection — source is auto-determined:
+  //   selection text present → ✂️ Selection mode
+  //   else                   → 📄 Page mode
   let tab = null;
   try {
     [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   } catch {
     /* ignore */
   }
-  $("clip-source-preview").textContent = tab
-    ? `${tab.title || "(no title)"} — ${hostnameFromUrl(tab.url || "")}`
-    : "No active tab";
 
-  // Try to detect selection on the page.
-  let hasSelection = false;
+  let selectedText = "";
   if (tab && tab.id && tab.url && !tab.url.startsWith("chrome://")) {
     try {
       const sel = await new Promise((resolve) => {
@@ -624,27 +622,37 @@ async function openClipOverlay() {
           else resolve(resp);
         });
       });
-      hasSelection = Boolean(sel && sel.selectedText && sel.selectedText.trim());
+      selectedText = (sel && sel.selectedText && sel.selectedText.trim()) || "";
     } catch {
       /* ignore */
     }
   }
-  const selRow = $("clip-source-selection-row");
-  if (selRow) {
-    if (hasSelection) {
-      selRow.style.opacity = "1";
-      selRow.style.pointerEvents = "auto";
-    } else {
-      selRow.style.opacity = "0.4";
-      selRow.style.pointerEvents = "none";
-    }
+
+  // Stash on the overlay so submitClip doesn't need to re-query the tab.
+  const overlayEl = $("clip-overlay");
+  overlayEl.dataset.clipMode = selectedText ? "selection" : "page";
+  overlayEl.dataset.clipUrl = (tab && tab.url) || "";
+  overlayEl.dataset.clipTitle = (tab && tab.title) || "";
+  overlayEl.dataset.clipSelection = selectedText;
+
+  // Render the "what will be sent" preview.
+  const modeEl = $("clip-preview-mode");
+  const detailEl = $("clip-preview-detail");
+  if (selectedText) {
+    modeEl.textContent = "✂️ Selection";
+    detailEl.textContent =
+      selectedText.length > 240
+        ? selectedText.slice(0, 240).trim() + "…"
+        : selectedText;
+  } else {
+    modeEl.textContent = "📄 Page";
+    detailEl.textContent = tab
+      ? `${tab.title || "(no title)"} — ${hostnameFromUrl(tab.url || "")}`
+      : "No active tab";
   }
 
-  // If a settings.skipClipOverlay is true AND defaults are full → send immediately.
+  // If skip overlay is ON and defaults are present → auto-send after 1.5s grace.
   if (settings.clipSkipOverlay && settings.clipDefaultProject != null) {
-    // Don't actually skip the overlay — instead pre-confirm with a 1.5s
-    // delay & give the user a chance to cancel. Saves us from "I clicked
-    // by accident" support tickets.
     setClipStatus("Sending in 1.5s — click Cancel to stop…", "loading");
     setTimeout(() => {
       if ($("clip-overlay").hidden) return;
@@ -654,7 +662,7 @@ async function openClipOverlay() {
     setClipStatus("", "");
   }
 
-  $("clip-overlay").hidden = false;
+  overlayEl.hidden = false;
 }
 
 function closeClipOverlay() {
@@ -680,31 +688,36 @@ async function submitClip() {
   sendBtn.disabled = true;
   setClipStatus("Sending…", "loading");
   try {
-    const sourceMode = document.querySelector(
-      'input[name="clipSource"]:checked',
-    ).value;
+    const overlayEl = $("clip-overlay");
+    const mode = overlayEl.dataset.clipMode || "page";
+    const tabUrl = overlayEl.dataset.clipUrl || "";
+    const tabTitle = overlayEl.dataset.clipTitle || "";
+    const selectedText = overlayEl.dataset.clipSelection || "";
+
     const truthLevel = document.querySelector(
       'input[name="clipTruthLevel"]:checked',
     ).value;
     const project = $("clip-project").value.trim() || null;
     const useDefaults = $("clip-use-defaults").checked;
 
-    let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    // Content shape — the URL is ALWAYS attached so the memory item is
+    // self-contained when listed later.
     let content = "";
-    let source = "chrome:unknown";
-    if (sourceMode === "selection" && tab && tab.id) {
-      const sel = await new Promise((resolve) => {
-        chrome.tabs.sendMessage(tab.id, { type: "GET_SELECTION" }, (resp) => {
-          if (chrome.runtime.lastError) resolve(null);
-          else resolve(resp);
-        });
-      });
-      content = (sel && sel.selectedText) || "";
-      source = `chrome:${hostnameFromUrl(tab.url || "")}`;
+    if (mode === "selection") {
+      // Selection mode: link + selection only. Title surfaced as context.
+      const header = tabTitle
+        ? `From ${tabTitle} <${tabUrl}>`
+        : `From ${tabUrl}`;
+      content = `${header}\n\n${selectedText}`;
     } else {
-      content = `${tab?.title || ""}\n${tab?.url || ""}`;
-      source = `chrome:${hostnameFromUrl(tab?.url || "")}`;
+      // Page mode: title + URL. (Phase 2 could add og:description / page
+      // excerpt from a content script; for v1, title is the "data".)
+      content = tabTitle
+        ? `${tabTitle}\n${tabUrl}`
+        : tabUrl;
     }
+    const source = `chrome:${hostnameFromUrl(tabUrl)}`;
+
     if (!content.trim()) {
       setClipStatus("Nothing to send", "error");
       sendBtn.disabled = false;

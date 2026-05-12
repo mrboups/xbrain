@@ -920,18 +920,25 @@ async function saveCachedTeams(teams) {
  * Always rebuild from scratch via removeAll() — contextMenus has no "update
  * the children" API and tracking individual ids gets fragile across reloads.
  */
+// Three contexts handled — Chrome routes the click into our handler with the
+// matching info shape:
+//   page      → info.pageUrl, no selection / no media
+//   selection → info.selectionText set
+//   image     → info.mediaType === "image", info.srcUrl set
+const CONTEXT_MENU_CONTEXTS = ["page", "selection", "image"];
+
 async function rebuildContextMenu(teams) {
   if (!chrome.contextMenus || !chrome.contextMenus.create) return;
   await new Promise((resolve) =>
     chrome.contextMenus.removeAll(() => resolve()),
   );
 
-  // Parent
+  // Parent — visible on page (no selection / no image), text selection, OR image.
   chrome.contextMenus.create(
     {
       id: CONTEXT_MENU_PARENT_ID,
       title: "CortX OS",
-      contexts: ["selection"],
+      contexts: CONTEXT_MENU_CONTEXTS,
     },
     () => void chrome.runtime.lastError,
   );
@@ -942,8 +949,11 @@ async function rebuildContextMenu(teams) {
         {
           id: CONTEXT_MENU_TEAM_PREFIX + t.slug,
           parentId: CONTEXT_MENU_PARENT_ID,
-          title: `Add selection to ${t.display_name}`,
-          contexts: ["selection"],
+          // Generic "Send to <Team>" — Chrome shows the same label across
+          // all three contexts. The handler picks the right payload based
+          // on info.mediaType / info.selectionText.
+          title: `Send to ${t.display_name}`,
+          contexts: CONTEXT_MENU_CONTEXTS,
         },
         () => void chrome.runtime.lastError,
       );
@@ -954,7 +964,7 @@ async function rebuildContextMenu(teams) {
         id: CONTEXT_MENU_CONNECT_ID,
         parentId: CONTEXT_MENU_PARENT_ID,
         title: "Connect xbrain account…",
-        contexts: ["selection"],
+        contexts: CONTEXT_MENU_CONTEXTS,
       },
       () => void chrome.runtime.lastError,
     );
@@ -996,33 +1006,130 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
+/**
+ * Build the memory_items payload for a right-click clip event.
+ * Picks the mode based on what the user actually right-clicked:
+ *   image     → "Image: <srcUrl>\n\nFrom <title> <pageUrl>"     source=chrome:image:<host>
+ *   selection → "From <title> <pageUrl>\n\n<selectionText>"     source=chrome:<host>
+ *   page      → "<title>\n<pageUrl>"                            source=chrome:<host>
+ * In all three modes the page URL is always attached so the memory item
+ * is self-contained when listed later.
+ */
+function _buildRightClickPayload(info, tab) {
+  const pageUrl = info.pageUrl || (tab && tab.url) || "";
+  const pageTitle = (tab && tab.title) || "";
+  let host = "unknown";
+  try { host = new URL(pageUrl).hostname; } catch {}
+
+  if (info.mediaType === "image" && info.srcUrl) {
+    const header = pageTitle
+      ? `From ${pageTitle} <${pageUrl}>`
+      : `From ${pageUrl}`;
+    return {
+      content: `Image: ${info.srcUrl}\n\n${header}`,
+      source: `chrome:image:${host}`,
+      mode: "image",
+    };
+  }
+  const selection = (info.selectionText || "").trim();
+  if (selection) {
+    const header = pageTitle
+      ? `From ${pageTitle} <${pageUrl}>`
+      : `From ${pageUrl}`;
+    return {
+      content: `${header}\n\n${selection}`,
+      source: `chrome:${host}`,
+      mode: "selection",
+    };
+  }
+  return {
+    content: pageTitle ? `${pageTitle}\n${pageUrl}` : pageUrl,
+    source: `chrome:${host}`,
+    mode: "page",
+  };
+}
+
+function _notify(title, message) {
+  if (!chrome.notifications || !chrome.notifications.create) return;
+  chrome.notifications.create({
+    type: "basic",
+    iconUrl: "icon128.png",
+    title,
+    message,
+    priority: 1,
+  });
+}
+
 chrome.contextMenus &&
   chrome.contextMenus.onClicked &&
   chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const id = String(info.menuItemId || "");
-    const selectedText = (info.selectionText || "").trim();
 
-    // Branch 1: "Connect xbrain account…" — no selection processing, just
-    // surface the side panel so the user can hit the Connect button.
+    // Branch 1: "Connect xbrain account…" — surface the side panel.
     if (id === CONTEXT_MENU_CONNECT_ID) {
       await openPanelOrPopup(tab);
       return;
     }
 
-    // Branch 2: a team item — stash with team_scope set.
+    // Branch 2: a team item — direct-send to memory-api, then notify.
     if (id.startsWith(CONTEXT_MENU_TEAM_PREFIX)) {
-      if (!selectedText) return;
       const teamScope = id.slice(CONTEXT_MENU_TEAM_PREFIX.length);
-      await chrome.storage.session.set({
-        pending_selection: {
-          selectedText,
+      const payload = _buildRightClickPayload(info, tab);
+      if (!payload.content.trim()) {
+        _notify("xbrain — nothing to clip", "No URL, title, selection or image found.");
+        return;
+      }
+
+      // Need a Google ID token for /v1/memory/upsert (kind=user requirement).
+      // Use silent path so the right-click never opens a Google consent popup
+      // unexpectedly. If silent fails (not connected), fall back to opening
+      // the panel so the user can sign in — selection is stashed so it isn't
+      // lost.
+      let idToken = null;
+      try {
+        idToken = await getGoogleIdToken({ silent: true });
+      } catch {
+        idToken = null;
+      }
+      if (!idToken) {
+        await chrome.storage.session.set({
+          pending_selection: {
+            selectedText: payload.content,
+            team_scope: teamScope,
+            url: info.pageUrl || (tab && tab.url) || "",
+            title: (tab && tab.title) || "",
+            captured_at: Date.now(),
+          },
+        });
+        await openPanelOrPopup(tab);
+        return;
+      }
+
+      // Pull clip defaults (project + truth_level) from sync settings.
+      const settings = await loadSettings(chrome.storage.sync);
+
+      try {
+        await sendToBrain(idToken, {
+          content: payload.content,
           team_scope: teamScope,
-          url: (tab && tab.url) || info.pageUrl || "",
-          title: (tab && tab.title) || "",
-          captured_at: Date.now(),
-        },
-      });
-      await openPanelOrPopup(tab);
+          project_scope: settings.clipDefaultProject || null,
+          visibility: "team",
+          confidence: 1.0,
+          truth_level: settings.clipDefaultTruthLevel || "EPHEMERAL",
+          source: payload.source,
+          validation_status: "pending",
+        });
+        const modeLabel =
+          payload.mode === "image"
+            ? "Image"
+            : payload.mode === "selection"
+            ? "Selection"
+            : "Page";
+        _notify(`xbrain — ${modeLabel} clipped ✓`, `Sent to ${teamScope}`);
+      } catch (e) {
+        console.warn("[xbrain] right-click clip failed:", e);
+        _notify("xbrain — clip failed", String(e && e.message ? e.message : e));
+      }
       return;
     }
   });
