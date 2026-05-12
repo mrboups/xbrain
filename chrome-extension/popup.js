@@ -291,6 +291,65 @@ async function renderConnectState() {
   }
 }
 
+/**
+ * Zero-click onboarding: when the popup opens and no xbt_token is stored,
+ * try the silent path automatically.
+ *
+ * Combined with chrome.identity.getAuthToken (quick task 260512-zca Task B),
+ * this means the very first time a user opens the side panel after Chrome
+ * sign-in, they see a brief loading state and then 🟢 — no clicks required.
+ *
+ * Behavior:
+ *   - If a token is already stored → no-op (renderConnectState renders connected).
+ *   - If not stored and `auto` mode hasn't already attempted this session →
+ *     dispatch MINT_AND_CONNECT and show the loading status. If the SW
+ *     succeeds silently (user is Chrome-signed-in, consent already granted),
+ *     the state flips to connected automatically via storage.onChanged.
+ *   - If the silent attempt fails (e.g. user not signed into Chrome) → the
+ *     Connect button stays visible so the user can opt in manually.
+ *
+ * Guard `_autoMintAttempted` prevents an infinite loop if the SW returns
+ * {ok: false} (e.g. user cancelled the consent prompt).
+ */
+let _autoMintAttempted = false;
+
+async function maybeAutoMint() {
+  if (_autoMintAttempted) return;
+  _autoMintAttempted = true;
+
+  const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+  if (xbt_token) return; // already connected, nothing to do
+
+  const btn = document.getElementById("btn-connect-xbrain");
+  if (btn) btn.disabled = true;
+  setConnectStatus("Connecting your xbrain account…", "loading");
+
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: "MINT_AND_CONNECT" });
+    if (resp && resp.ok) {
+      const copied = await copyTokenToClipboard();
+      setConnectStatus(
+        copied
+          ? `Connected as ${resp.email || "your account"} ✓  —  token copied to clipboard`
+          : `Connected as ${resp.email || "your account"} ✓`,
+        "success",
+      );
+      setTimeout(() => {
+        setConnectStatus("", "");
+        renderConnectState();
+      }, 1200);
+    } else {
+      // Silent path failed (likely user cancelled the consent prompt). Leave
+      // the Connect button enabled so they can retry intentionally.
+      setConnectStatus("", "");
+      if (btn) btn.disabled = false;
+    }
+  } catch {
+    setConnectStatus("", "");
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function renderSessions() {
   await renderWsStatus();
   await renderClaudeSessionInfo();
@@ -498,7 +557,12 @@ document.addEventListener("DOMContentLoaded", () => {
     btnDisc.addEventListener("click", handleDisconnect);
   }
   // Initial render — fail-soft if background.js isn't wired yet.
-  renderConnectState();
+  renderConnectState().then(() => {
+    // Zero-click onboarding: if we land in the disconnected state, try the
+    // silent mint path automatically. Skips itself if a token is already
+    // stored. See maybeAutoMint() docstring.
+    maybeAutoMint();
+  });
 });
 
 // Keep the popup in sync when the SW finishes the mint flow asynchronously.
