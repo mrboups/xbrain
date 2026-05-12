@@ -37,7 +37,9 @@ There are no build, lint, or test commands yet — nothing to build. Once Phase 
 
 ## Language
 
-The user works in French. Reply in French unless the content is purely technical or they switch to English.
+- **Conversation with the user:** French. Reply in French unless the content is purely technical or they switch to English.
+- **Product / app / code:** English **only**. All user-facing UI strings, button labels, popup copy, error messages, logs, comments, identifiers, and documentation in the product itself MUST be in English — including the Chrome extension, LibreChat custom labels, memory-api responses, MCP tool descriptions, etc. The extension popup currently has French strings (legacy) — migrate to English on next touch.
+- **Planning artifacts (`.planning/`):** English. They are shared with subagents and other tools that assume English.
 
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
