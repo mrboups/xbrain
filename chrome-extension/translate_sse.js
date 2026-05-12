@@ -12,8 +12,14 @@
  * Bump CLAUDE_AI_API_VERSION on every observed format change.
  */
 
-// Decision locked in 09-CAPTURE.md ## Decisions for plan 09-02
-export const CLAUDE_AI_API_VERSION = "2026-05-capture";
+// Decision locked in 09-CAPTURE.md ## Decisions for plan 09-02.
+// Bumped 2026-05-12 after live capture validated A1/A3/A10 and surfaced two diffs:
+//   - A1 DIVERGED: completion endpoint is claude.ai/api/... NOT api.claude.ai/api/...
+//     (patched in claude_ai_client.js COMPLETION_URL).
+//   - A3 PARTIALLY DIVERGED: only Messages-style observed (no legacy `event: completion`),
+//     and a new `event: message_limit` event appears — silently dropped by the
+//     `if (!text && !finish) return null` guard below. Translator works as-is.
+export const CLAUDE_AI_API_VERSION = "2026-05-12-capture-v2";
 
 /**
  * Parse a single SSE "block" (everything between two "\n\n" separators).

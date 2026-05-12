@@ -30,12 +30,13 @@ const ORGS_URL = "https://claude.ai/api/organizations";
 const CONV_CREATE_URL = (orgId) =>
   `https://claude.ai/api/organizations/${encodeURIComponent(orgId)}/chat_conversations`;
 const COMPLETION_URL = (orgId, convUuid) =>
-  `https://api.claude.ai/api/organizations/${encodeURIComponent(orgId)}/chat_conversations/${encodeURIComponent(convUuid)}/completion`;
+  `https://claude.ai/api/organizations/${encodeURIComponent(orgId)}/chat_conversations/${encodeURIComponent(convUuid)}/completion`;
 
 // --- Static lint hint — observed-needed host_permissions for plan 09-03's manifest ---
 // host_permissions:
 //   "https://claude.ai/*"
-//   "https://api.claude.ai/*"
+// (api.claude.ai is NOT used — A1 DIVERGED 2026-05-12 capture: completion endpoint
+// lives on claude.ai, not api.claude.ai. See 09-CAPTURE.md Divergence Patches.)
 
 /**
  * GET /api/organizations on claude.ai. Returns the first org's UUID.

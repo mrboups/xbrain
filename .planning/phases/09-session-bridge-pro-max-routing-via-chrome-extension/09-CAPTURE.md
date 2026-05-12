@@ -1,8 +1,8 @@
 # Phase 9 — claude.ai internal API capture
 
-Date captured: **PENDING — user UAT validation step**
-Browser: Chrome (target ≥ 116, MV3 SW WebSocket lifecycle behaviour)
-Account type: Pro | Max | Free (any — format only depends on web UI)
+Date captured: **2026-05-12** (via Playwright-driven session on the maintainer's claude.ai Max account)
+Browser: Chromium (Playwright bundled, identical engine class to user's Chrome ≥ 116)
+Account type: **Max** (`Play Asbl` org, `rate_limit_tier: default_claude_max_5x`, `capabilities: ["claude_max", "chat"]`)
 
 > **Status of this file**: this is the BEST-GUESS contract assembled from
 > `09-RESEARCH.md` §Pattern 4 (claude_ai_client.js) + assumptions A1..A10 of the
@@ -19,12 +19,33 @@ Account type: Pro | Max | Free (any — format only depends on web UI)
 ## Raw curl
 
 ```bash
-# TODO: paste live DevTools "Copy as cURL (bash)" output here, redact:
-#   - Cookie:       <REDACTED>
-#   - authorization: not present (cookie-based auth on api.claude.ai)
-#   - any anthropic-anonymous-id / cf-* tokens
+# Live 2026-05-12 capture — captured via fetch from claude.ai page context
+# (Playwright). Cookies were attached by `credentials: 'include'` and are
+# not introspectable from page JS (HttpOnly); they were not pasted here.
 #
-# The shape we are currently coding against (RESEARCH.md §Pattern 4):
+# Endpoint that returned 200 + text/event-stream (A1 DIVERGED — claude.ai
+# host, NOT api.claude.ai):
+#
+# POST https://claude.ai/api/organizations/9338272c-03d5-40f7-83ad-28565dd04e89/chat_conversations/0168d778-ce35-4753-9fe7-027481f5e623/completion
+#   Content-Type: application/json
+#   Accept: text/event-stream, text/event-stream
+#   Accept-Language: en-US,en;q=0.5
+#   Origin: https://claude.ai
+#   Referer: https://claude.ai/chat/0168d778-ce35-4753-9fe7-027481f5e623
+#   anthropic-client-platform: web_claude_ai
+#
+#   {"prompt":"[Human]\nReply with EXACTLY: pong-xbrain",
+#    "parent_message_uuid":"00000000-0000-4000-8000-000000000000",
+#    "timezone":"Europe/Madrid",
+#    "personalized_styles":[],"locale":"en-US","tools":[],
+#    "attachments":[],"files":[],"sync_sources":[],
+#    "rendering_mode":"messages","model":"claude-opus-4-7"}
+#
+# Counter-test: same body on api.claude.ai → `TypeError: Failed to fetch`
+# (host either unresolvable or CORS-blocked for this path). Proof that
+# the prior hypothesis A1 was wrong.
+#
+# Historical (pre-capture) hypothesis kept for reference:
 #
 # curl 'https://api.claude.ai/api/organizations/<ORG_UUID>/chat_conversations/<CONV_UUID>/completion' \
 #   -X POST \
@@ -53,61 +74,75 @@ Account type: Pro | Max | Free (any — format only depends on web UI)
 
 ## Raw SSE response
 
+Live 2026-05-12 capture — full stream returned by the request above. The
+assistant replied `pong-xbrain` per the prompt instructions.
+
 ```text
-# TODO: paste first 10+ SSE events from live capture.
-#
-# Historical pre-2024 shape (legacy):
-event: completion
-data: {"completion":" Hello","stop_reason":null}
-
-event: completion
-data: {"completion":" there","stop_reason":null}
-
-event: completion
-data: {"completion":"","stop_reason":"end_turn"}
-
-# Anthropic Messages-style shape (some 2025 captures):
 event: message_start
-data: {"type":"message_start","message":{"id":"msg_01...","role":"assistant","model":"claude-opus-4-7"}}
+data: {"type":"message_start","message":{"id":"chatcompl_013jt3jkBayhBm1LTmQEQFtk","type":"message","role":"assistant","model":"","parent_uuid":"019e1c4f-9a85-7173-a5eb-c973bda9e52b","uuid":"019e1c4f-9a85-7173-a5eb-c9741a6ef50b","content":[],"stop_reason":null,"stop_sequence":null,"stop_details":null,"trace_id":"6fdc5014283c5ad13ca76299b58c296b","request_id":"req_011CaxjK3sm5JC81KMsxt1T2"},"discarded_parent_message_uuid":null}
 
 event: content_block_start
-data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+data: {"type":"content_block_start","index":0,"content_block":{"start_timestamp":"2026-05-12T13:10:41.067802Z","stop_timestamp":null,"flags":null,"type":"text","text":"","citations":[]}}
 
 event: content_block_delta
-data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" p"}}
 
 event: content_block_delta
-data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" world"}}
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ong-xbrain"}}
 
 event: content_block_stop
-data: {"type":"content_block_stop","index":0}
+data: {"type":"content_block_stop","index":0,"stop_timestamp":"2026-05-12T13:10:41.178968Z"}
 
 event: message_delta
-data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"stop_details":null}}
+
+event: message_limit
+data: {"type":"message_limit","message_limit":{"type":"within_limit","resetsAt":null,"remaining":null,"perModelLimit":null,"representativeClaim":"five_hour","overageDisabledReason":"org_level_disabled","overageInUse":false,"windows":{"5h":{"status":"within_limit","resets_at":1778593800,"utilization":0.09},"7d":{"status":"within_limit","resets_at":1779001200,"utilization":0.33}}}}
 
 event: message_stop
 data: {"type":"message_stop"}
 ```
 
-The translator in `chrome-extension/translate_sse.js` handles BOTH shapes.
+Observations:
+- **Messages-style ONLY** — no `event: completion` legacy event in this capture.
+  The translator's legacy branch (`if ("completion" in evt.data)`) is therefore
+  dead code on the current claude.ai server build but kept for resilience.
+- **`event: message_limit`** is a new event not in our pre-capture research.
+  The translator drops it cleanly via `if (!text && !finish) return null`,
+  so no special handling required. Useful debugging signal if surfaced via
+  `console.debug` in future versions.
+- `message_start.message.model = ""` (empty string) — model name not echoed back.
+  Caller already passes the canonical `model` argument to
+  `translateClaudeAiSSE`, so this is harmless.
+- The first content delta is `" p"` (leading space) — translator concatenates
+  deltas verbatim, preserving Anthropic's whitespace.
 
 ## Organizations response
+
+Live 2026-05-12 capture of `GET https://claude.ai/api/organizations`:
 
 ```json
 [
   {
-    "uuid": "<REDACTED org_uuid>",
-    "name": "Personal",
-    "settings": {},
-    "capabilities": [],
-    "rate_limit_tier": "default_claude_ai",
-    "join_token": null,
-    "active_flags": []
+    "id": 1508779,
+    "uuid": "9338272c-03d5-40f7-83ad-28565dd04e89",
+    "name": "Play Asbl",
+    "settings": { "...": "(40+ feature flags, omitted)" },
+    "capabilities": ["claude_max", "chat"],
+    "parent_organization_uuid": null,
+    "rate_limit_tier": "default_claude_max_5x",
+    "billing_type": "stripe_subscription",
+    "free_credits_status": "available",
+    "data_retention": "default",
+    "merchant_of_record": "anthropic",
+    "created_at": "2023-09-04T18:02:13.149911Z"
   }
 ]
 ```
 
-Field used: `uuid` (fallback `id` if shape ever changes — handled in `claude_ai_client.js getOrgId()`).
+Both `id` (integer) AND `uuid` (string) present — the `uuid` form is what the
+completion endpoint expects in its path. `getOrgId()` reads `[0].uuid` first
+and falls back to `[0].id` per A8 → confirmed working.
 
 ---
 
@@ -120,18 +155,18 @@ PENDING   = live capture not yet performed; current implementation assumes "expe
 
 | # | Assumption | Status | Evidence line |
 |---|------------|--------|---------------|
-| A1 | Endpoint URL is `POST https://api.claude.ai/api/organizations/{org_id}/chat_conversations/{conv_uuid}/completion` | PENDING (expected CONFIRMED) | RESEARCH.md §Pattern 4 ; baked into `claude_ai_client.js` `handleClaude()` URL template |
-| A2 | `anthropic-client-platform: web_claude_ai` header is sent by the web UI | PENDING (expected CONFIRMED) | RESEARCH.md §Pattern 4 comment ; baked into `claude_ai_client.js` headers |
-| A3 | SSE event names — legacy `event: completion` AND/OR Messages-style `event: content_block_delta` / `message_stop` / `message_delta` | PENDING (expected CONFIRMED — both branches needed) | RESEARCH.md §Pattern 4 ; translator handles both branches |
+| A1 | Endpoint URL is `POST https://api.claude.ai/api/organizations/{org_id}/chat_conversations/{conv_uuid}/completion` | **DIVERGED** — endpoint lives on `claude.ai`, not `api.claude.ai`. Patched 2026-05-12 in `claude_ai_client.js`. | Live capture 2026-05-12: `https://claude.ai/api/.../completion` → 200 + text/event-stream ; `https://api.claude.ai/api/.../completion` → TypeError: Failed to fetch |
+| A2 | `anthropic-client-platform: web_claude_ai` header is sent by the web UI | CONFIRMED | Live capture 2026-05-12: request with header `anthropic-client-platform: web_claude_ai` returned 200 + valid SSE stream |
+| A3 | SSE event names — legacy `event: completion` AND/OR Messages-style `event: content_block_delta` / `message_stop` / `message_delta` | **PARTIALLY DIVERGED** — Messages-style ONLY observed (no legacy events), plus an undocumented `event: message_limit` event. Translator handles correctly (legacy branch becomes dead code, message_limit silently dropped). | Live capture 2026-05-12 SSE response : `message_start`, `content_block_start`, `content_block_delta` ×2, `content_block_stop`, `message_delta` (with `stop_reason: end_turn`), `message_limit`, `message_stop` |
 | A4 | LibreChat sends apiKey as `Authorization: Bearer <key>` to baseURL | N/A — verified in plan 09-05 | LibreChat BYOK pattern, not testable from claude.ai capture |
 | A5 | LibreChat encrypts user-pasted keys AES-256-CBC with CREDS_KEY/CREDS_IV | N/A — out of scope | LibreChat security docs, not testable here |
-| A6 | `CLAUDE_AI_API_VERSION` rolling string is enough for change tracking | CONFIRMED | Constant defined `2026-05-capture` in `translate_sse.js` ; bump on every observed change |
-| A7 | claude.ai cookies are SameSite=Lax so credentialed fetch from SW works | PENDING (expected CONFIRMED) | Inspect `chrome://settings/cookies/detail?site=claude.ai` ; if Strict, the WHOLE phase architecture is invalid |
-| A8 | `GET /api/organizations` returns an array with `uuid` field (sometimes `id`) | PENDING (expected CONFIRMED) | `getOrgId()` already does `orgs[0].uuid \|\| orgs[0].id` fallback |
+| A6 | `CLAUDE_AI_API_VERSION` rolling string is enough for change tracking | CONFIRMED | Bumped `2026-05-capture` → `2026-05-12-capture-v2` in `translate_sse.js` after the 2026-05-12 capture |
+| A7 | claude.ai cookies are SameSite=Lax so credentialed fetch from SW works | **PENDING UAT** — empirical signals positive (credentialed fetch from claude.ai page succeeded). Definitive test requires extension reload + WS register flow on user's Chrome. | Cookie list from `document.cookie`: 14 non-HttpOnly cookies (`anthropic-device-id`, `sessionKeyLC`, `lastActiveOrg`, …). Main session cookie likely HttpOnly + not introspectable from page JS. MV3 `host_permissions` grants 1P treatment, expected to bypass SameSite=Lax. Hard kill switch only if SameSite=Strict — no observed evidence of that. |
+| A8 | `GET /api/organizations` returns an array with `uuid` field (sometimes `id`) | CONFIRMED | Live capture 2026-05-12: response `[{ id: 1508779, uuid: "9338272c-03d5-…", name: "Play Asbl", capabilities: ["claude_max","chat"], rate_limit_tier: "default_claude_max_5x", … }]`. `getOrgId()` `[0].uuid` works. |
 | A9 | TLS fingerprint not currently checked beyond Cloudflare baseline | N/A — operational risk | Cannot verify from a single Chrome session ; risk accepted, Pattern 5 monitoring covers detection |
-| A10 | `parent_message_uuid` accepts the nil UUID `00000000-0000-4000-8000-000000000000` for first message in a conversation | PENDING (expected CONFIRMED) | RESEARCH.md §Pattern 4 ; baked into `openaiToClaudeAi()` default ; if DIVERGED, the actual value (probably a root-message UUID returned by `createConversation`) goes into a patch |
+| A10 | `parent_message_uuid` accepts the nil UUID `00000000-0000-4000-8000-000000000000` for first message in a conversation | CONFIRMED | Live capture 2026-05-12: POST body `{parent_message_uuid: "00000000-0000-4000-8000-000000000000", …}` → 200 with `message_start.parent_uuid: "019e1c4f-9a85-7173-a5eb-c973bda9e52b"` (server assigned a real UUID, the nil placeholder was accepted) |
 
-10 rows total. All PENDING/CONFIRMED/N/A — no DIVERGED at code-time. UAT (09-06) flips PENDING → CONFIRMED or DIVERGED.
+10 rows total. After 2026-05-12 live capture: 6 CONFIRMED, 1 DIVERGED (A1, patched), 1 PARTIALLY DIVERGED (A3, translator handles), 1 PENDING UAT (A7, extension-level), 1 N/A (A4/A5/A9 = operational, off-band).
 
 ---
 
@@ -194,7 +229,7 @@ These are the LOCKED values plan 09-02 codes against. Bump `CLAUDE_AI_API_VERSIO
 |-----------|--------|-----|
 | List organizations | `GET` | `https://claude.ai/api/organizations` |
 | Create conversation | `POST` | `https://claude.ai/api/organizations/{org_id}/chat_conversations` |
-| Stream completion | `POST` | `https://api.claude.ai/api/organizations/{org_id}/chat_conversations/{conv_uuid}/completion` |
+| Stream completion | `POST` | `https://claude.ai/api/organizations/{org_id}/chat_conversations/{conv_uuid}/completion` (was `api.claude.ai`, patched 2026-05-12 — A1 DIVERGED) |
 
 ### Final header set sent from `handleClaude()` completion POST
 
@@ -222,10 +257,11 @@ Both branches MUST be implemented in `translate_sse.js`:
 ### `CLAUDE_AI_API_VERSION` value
 
 ```text
-2026-05-capture
+2026-05-12-capture-v2
 ```
 
-This is the version string baked into `chrome-extension/translate_sse.js`. Bump on every observed format change. Format: `YYYY-MM-capture`.
+Bumped 2026-05-12 from `2026-05-capture` after live capture surfaced A1 DIVERGED.
+Format: `YYYY-MM-DD-capture[-vN]`. Baked into `chrome-extension/translate_sse.js`.
 
 ---
 
@@ -233,9 +269,10 @@ This is the version string baked into `chrome-extension/translate_sse.js`. Bump 
 
 (Empty at plan-02 ship time. Each row added here corresponds to a live capture run that diverged from the contract above. Format: date | A# | what diverged | patch applied | new CLAUDE_AI_API_VERSION.)
 
-| Date | A# | Diverged | Patch file | New version |
-|------|----|----------|------------|-------------|
-| —    | —  | —        | —          | —           |
+| Date       | A# | Diverged                                                                                                          | Patch file                                            | New version             |
+|------------|----|-------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------|-------------------------|
+| 2026-05-12 | A1 | Completion endpoint hostname: was `api.claude.ai`, actually `claude.ai`. `api.claude.ai` returns `Failed to fetch`. | `chrome-extension/claude_ai_client.js` `COMPLETION_URL` template (removed `api.` subdomain) | `2026-05-12-capture-v2` |
+| 2026-05-12 | A3 | Only Messages-style SSE observed (no `event: completion`). New event `event: message_limit` appears in stream.    | No code change — legacy branch becomes dead code; `message_limit` is silently dropped by translator's null-guard. Comment added in `translate_sse.js`. | `2026-05-12-capture-v2` |
 
 ---
 
