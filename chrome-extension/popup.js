@@ -92,6 +92,21 @@ async function boot() {
 
   // 4. Subscribe to the active team channel + load initial history.
   await switchTeam(state.activeTeamId);
+
+  // 5. Drop the cursor in the composer so the user can start typing
+  //    immediately. Side panel never grabs focus by default; popup does
+  //    but only on the first interactive element — explicit focus
+  //    here is the safe path for both surfaces.
+  focusComposer();
+}
+
+function focusComposer() {
+  const input = document.getElementById("composer-input");
+  if (input) {
+    // requestAnimationFrame so the focus call runs after the layout
+    // settles (composer pill mounted, no autofill race).
+    requestAnimationFrame(() => input.focus());
+  }
 }
 
 // ---------- Header ----------
@@ -510,10 +525,12 @@ function wireComposer() {
   const input = $("composer-input");
   input.addEventListener("input", () => autoResize(input));
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      sendMessage();
-    }
+    if (e.key !== "Enter") return;
+    // SHIFT+ENTER → newline (textarea default, don't intercept)
+    if (e.shiftKey) return;
+    // Plain ENTER or CTRL/META+ENTER → send
+    e.preventDefault();
+    sendMessage();
   });
   $("btn-send").addEventListener("click", sendMessage);
   $("btn-clip").addEventListener("click", openClipOverlay);
