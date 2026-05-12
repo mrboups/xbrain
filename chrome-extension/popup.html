@@ -3,9 +3,33 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
   <title>xbrain Web Clipper</title>
   <link rel="stylesheet" href="popup.css" />
   <style>
+    /* xbrain dark palette — aligned with LibreChat's dark theme.
+       Tokens kept in popup.css; this <style> only restyles the legacy
+       Web Clipper UI that still lives inline. */
+    :root {
+      color-scheme: dark;
+      --xb-bg:        #171717;
+      --xb-surface:   #212121;
+      --xb-surface-2: #2a2a2a;
+      --xb-border:    #2f2f2f;
+      --xb-border-2:  #3a3a3a;
+      --xb-text:      #ececec;
+      --xb-text-mute: #a0a0a0;
+      --xb-text-dim:  #6b6b6b;
+      --xb-accent:    #3b82f6;
+      --xb-accent-2:  #2563eb;
+      --xb-accent-bg: rgba(59, 130, 246, 0.16);
+      --xb-success:   #10b981;
+      --xb-success-bg:rgba(16, 185, 129, 0.14);
+      --xb-error:     #ef4444;
+      --xb-error-bg:  rgba(239, 68, 68, 0.14);
+      --xb-radius:    8px;
+    }
+
     *, *::before, *::after { box-sizing: border-box; }
 
     body {
@@ -13,8 +37,8 @@
       width: 320px;
       margin: 0;
       padding: 12px;
-      background: #fff;
-      color: #1e293b;
+      background: var(--xb-bg);
+      color: var(--xb-text);
       font-size: 13px;
     }
 
@@ -22,7 +46,7 @@
       font-size: 15px;
       font-weight: 600;
       margin: 0 0 12px 0;
-      color: #3b82f6;
+      color: var(--xb-text);
       display: flex;
       align-items: center;
       gap: 6px;
@@ -41,29 +65,38 @@
       display: block;
       font-weight: 500;
       margin-bottom: 4px;
-      color: #374151;
+      color: var(--xb-text-mute);
     }
 
     select,
     input[type="text"],
     textarea {
       width: 100%;
-      padding: 6px 8px;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
+      padding: 7px 9px;
+      border: 1px solid var(--xb-border-2);
+      border-radius: var(--xb-radius);
       font-size: 13px;
       font-family: inherit;
-      color: #1e293b;
-      background: #f9fafb;
+      color: var(--xb-text);
+      background: var(--xb-surface);
       outline: none;
-      transition: border-color 0.15s;
+      transition: border-color 0.15s, background 0.15s;
     }
 
     select:focus,
     input[type="text"]:focus,
     textarea:focus {
-      border-color: #3b82f6;
-      background: #fff;
+      border-color: var(--xb-accent);
+      background: var(--xb-surface-2);
+    }
+
+    select option {
+      background: var(--xb-surface);
+      color: var(--xb-text);
+    }
+
+    ::placeholder {
+      color: var(--xb-text-dim);
     }
 
     textarea {
@@ -71,7 +104,7 @@
       min-height: 90px;
     }
 
-    /* Radio group pour truth_level */
+    /* Radio group for truth_level */
     .radio-group {
       display: flex;
       gap: 6px;
@@ -85,32 +118,33 @@
       font-weight: 400;
       cursor: pointer;
       padding: 4px 8px;
-      border: 1px solid #d1d5db;
-      border-radius: 4px;
-      background: #f9fafb;
+      border: 1px solid var(--xb-border-2);
+      border-radius: 6px;
+      background: var(--xb-surface);
+      color: var(--xb-text-mute);
       transition: all 0.15s;
       margin: 0;
     }
 
     .radio-group input[type="radio"] {
-      accent-color: #3b82f6;
+      accent-color: var(--xb-accent);
       width: auto;
     }
 
     .radio-group label:has(input:checked) {
-      border-color: #3b82f6;
-      background: #eff6ff;
-      color: #1d4ed8;
+      border-color: var(--xb-accent);
+      background: var(--xb-accent-bg);
+      color: var(--xb-text);
       font-weight: 500;
     }
 
     button#sendBtn {
       width: 100%;
-      padding: 8px;
-      background: #3b82f6;
+      padding: 9px;
+      background: var(--xb-accent);
       color: #fff;
       border: none;
-      border-radius: 6px;
+      border-radius: var(--xb-radius);
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
@@ -119,51 +153,66 @@
     }
 
     button#sendBtn:hover {
-      background: #2563eb;
+      background: var(--xb-accent-2);
     }
 
     button#sendBtn:disabled {
-      background: #93c5fd;
+      background: var(--xb-border-2);
+      color: var(--xb-text-dim);
       cursor: not-allowed;
     }
 
     #status {
       margin-top: 8px;
       padding: 6px 8px;
-      border-radius: 6px;
+      border-radius: var(--xb-radius);
       font-size: 12px;
       display: none;
     }
 
     #status.success {
       display: block;
-      background: #dcfce7;
-      color: #166534;
-      border: 1px solid #86efac;
+      background: var(--xb-success-bg);
+      color: var(--xb-success);
+      border: 1px solid rgba(16, 185, 129, 0.4);
     }
 
     #status.error {
       display: block;
-      background: #fee2e2;
-      color: #991b1b;
-      border: 1px solid #fca5a5;
+      background: var(--xb-error-bg);
+      color: var(--xb-error);
+      border: 1px solid rgba(239, 68, 68, 0.4);
     }
 
     #status.loading {
       display: block;
-      background: #eff6ff;
-      color: #1d4ed8;
-      border: 1px solid #bfdbfe;
+      background: var(--xb-accent-bg);
+      color: var(--xb-accent);
+      border: 1px solid rgba(59, 130, 246, 0.4);
     }
 
     .source-hint {
       font-size: 11px;
-      color: #9ca3af;
+      color: var(--xb-text-dim);
       margin-top: 2px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+
+    code {
+      background: var(--xb-surface-2);
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 11px;
+      color: var(--xb-text);
+    }
+
+    /* Scrollbar — make it blend into the dark surface */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--xb-bg); }
+    ::-webkit-scrollbar-thumb { background: var(--xb-border-2); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #4a4a4a; }
   </style>
 </head>
 <body>

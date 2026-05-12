@@ -3,58 +3,86 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
   <title>xbrain — Settings</title>
   <style>
+    /* Dark palette — aligned with LibreChat */
+    :root {
+      color-scheme: dark;
+      --xb-bg:        #171717;
+      --xb-surface:   #212121;
+      --xb-surface-2: #2a2a2a;
+      --xb-border:    #2f2f2f;
+      --xb-border-2:  #3a3a3a;
+      --xb-text:      #ececec;
+      --xb-text-mute: #a0a0a0;
+      --xb-text-dim:  #6b6b6b;
+      --xb-accent:    #3b82f6;
+      --xb-accent-bg: rgba(59, 130, 246, 0.16);
+      --xb-success:   #10b981;
+      --xb-radius:    8px;
+    }
+
     *, *::before, *::after { box-sizing: border-box; }
+
+    html, body {
+      background: var(--xb-bg);
+    }
 
     body {
       font-family: system-ui, -apple-system, sans-serif;
-      max-width: 560px;
-      margin: 24px auto;
-      padding: 0 16px;
-      color: #1e293b;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 32px 24px;
+      color: var(--xb-text);
       font-size: 14px;
-      line-height: 1.5;
+      line-height: 1.55;
     }
 
     h1 {
-      font-size: 18px;
+      font-size: 20px;
       font-weight: 600;
       margin: 0 0 4px 0;
-      color: #3b82f6;
+      color: var(--xb-text);
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
 
     h1::before {
       content: "🧠";
-      font-size: 18px;
+      font-size: 20px;
     }
 
     .subtitle {
-      color: #6b7280;
-      font-size: 12px;
+      color: var(--xb-text-mute);
+      font-size: 13px;
       margin: 0 0 24px 0;
+    }
+
+    .settings-card {
+      background: var(--xb-surface);
+      border: 1px solid var(--xb-border);
+      border-radius: var(--xb-radius);
+      overflow: hidden;
     }
 
     .setting {
       display: flex;
       align-items: flex-start;
       gap: 12px;
-      padding: 14px 0;
-      border-top: 1px solid #e5e7eb;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--xb-border);
     }
 
-    .setting:last-of-type {
-      border-bottom: 1px solid #e5e7eb;
-      margin-bottom: 16px;
+    .setting:last-child {
+      border-bottom: none;
     }
 
     .setting input[type="checkbox"] {
       flex-shrink: 0;
       margin-top: 2px;
-      accent-color: #3b82f6;
+      accent-color: var(--xb-accent);
       width: 18px;
       height: 18px;
       cursor: pointer;
@@ -66,41 +94,58 @@
 
     .setting-title {
       font-weight: 600;
-      color: #111827;
+      color: var(--xb-text);
       cursor: pointer;
       display: block;
     }
 
     .setting-help {
       font-size: 12px;
-      color: #6b7280;
-      margin-top: 2px;
+      color: var(--xb-text-mute);
+      margin-top: 4px;
+      line-height: 1.5;
     }
 
     .pill {
       display: inline-block;
-      padding: 1px 6px;
+      padding: 1px 7px;
       border-radius: 9999px;
-      background: #eff6ff;
-      color: #1d4ed8;
+      background: var(--xb-accent-bg);
+      color: var(--xb-accent);
       font-size: 10px;
       font-weight: 600;
       margin-left: 6px;
       vertical-align: 1px;
     }
 
+    code {
+      background: var(--xb-surface-2);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--xb-text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
     #status {
       font-size: 12px;
-      color: #166534;
-      padding: 4px 0;
+      color: var(--xb-success);
+      padding: 12px 0 4px 0;
       min-height: 18px;
     }
 
     .footer-note {
-      font-size: 11px;
-      color: #9ca3af;
-      margin-top: 16px;
+      font-size: 12px;
+      color: var(--xb-text-dim);
+      margin-top: 20px;
+      line-height: 1.5;
     }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: var(--xb-bg); }
+    ::-webkit-scrollbar-thumb { background: var(--xb-border-2); border-radius: 5px; }
+    ::-webkit-scrollbar-thumb:hover { background: #4a4a4a; }
   </style>
 </head>
 <body>
@@ -109,32 +154,34 @@
     Saved automatically. Settings sync across devices via your Chrome profile.
   </p>
 
-  <div class="setting">
-    <input type="checkbox" id="opt-side-panel" />
-    <div class="setting-body">
-      <label class="setting-title" for="opt-side-panel">
-        Open as side panel
-        <span class="pill">Chrome 114+</span>
-      </label>
-      <p class="setting-help">
-        Show the xbrain UI in Chrome's side panel instead of a floating popup.
-        Side panel stays open during the Google sign-in flow — no more
-        "had to click Connect twice".
-      </p>
+  <div class="settings-card">
+    <div class="setting">
+      <input type="checkbox" id="opt-side-panel" />
+      <div class="setting-body">
+        <label class="setting-title" for="opt-side-panel">
+          Open as side panel
+          <span class="pill">Chrome 114+</span>
+        </label>
+        <p class="setting-help">
+          Show the xbrain UI in Chrome's side panel instead of a floating popup.
+          Side panel stays open during the Google sign-in flow — no more
+          "had to click Connect twice".
+        </p>
+      </div>
     </div>
-  </div>
 
-  <div class="setting">
-    <input type="checkbox" id="opt-autofill-librechat" />
-    <div class="setting-body">
-      <label class="setting-title" for="opt-autofill-librechat">
-        Auto-fill API key in LibreChat
-      </label>
-      <p class="setting-help">
-        On <code>chat.grooveos.app</code>, when the API key dialog appears for
-        the <strong>Claude Pro/Max</strong> endpoint, pre-fill it with your
-        xbrain bridge token. No more copy-paste.
-      </p>
+    <div class="setting">
+      <input type="checkbox" id="opt-autofill-librechat" />
+      <div class="setting-body">
+        <label class="setting-title" for="opt-autofill-librechat">
+          Auto-fill API key in LibreChat
+        </label>
+        <p class="setting-help">
+          On <code>chat.grooveos.app</code>, when the API key dialog appears for
+          the <strong>Claude Pro/Max</strong> endpoint, pre-fill it with your
+          xbrain bridge token. No more copy-paste.
+        </p>
+      </div>
     </div>
   </div>
 

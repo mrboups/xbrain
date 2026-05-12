@@ -1,27 +1,37 @@
 /* xbrain extension — popup.css
  *
- * Phase 9: styles for the Sessions section appended to popup.html.
- * Inline styles for the Web Clipper UI remain in popup.html <style>.
- * Only the new Sessions block lives here.
+ * Phase 9 + quick task 260512-eo1/spx: styles for the Sessions section
+ * appended to popup.html. Color tokens are defined in popup.html's
+ * <style> :root block so this file just consumes var(--xb-*).
+ *
+ * Dark theme aligned with LibreChat's default look:
+ *   bg #171717, surfaces #212121 / #2a2a2a, borders #2f2f2f / #3a3a3a,
+ *   text #ececec primary / #a0a0a0 muted, accent #3b82f6.
  */
 
 .xb-sessions {
-  margin-top: 12px;
-  padding-top: 8px;
-  border-top: 1px solid #e5e7eb;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--xb-border);
 }
 
 .xb-sessions h3 {
-  font-size: 13px;
-  margin: 0 0 6px 0;
-  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: var(--xb-text-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .session-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
+  gap: 10px;
+  padding: 10px;
+  background: var(--xb-surface);
+  border: 1px solid var(--xb-border);
+  border-radius: var(--xb-radius);
 }
 
 .status-dot {
@@ -29,15 +39,17 @@
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: #9ca3af;
+  background: var(--xb-text-dim);
 }
 
 .status-dot.active {
-  background: #10b981;
+  background: var(--xb-success);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
 }
 
 .status-dot.idle {
-  background: #ef4444;
+  background: var(--xb-error);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
 }
 
 .session-meta {
@@ -49,12 +61,13 @@
 
 .session-meta strong {
   font-size: 12px;
-  color: #111827;
+  font-weight: 600;
+  color: var(--xb-text);
 }
 
 .session-meta small {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--xb-text-mute);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -67,23 +80,39 @@
 
 .session-actions button {
   background: transparent;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  padding: 2px 6px;
+  border: 1px solid var(--xb-border-2);
+  border-radius: 6px;
+  padding: 3px 7px;
   font-size: 12px;
   cursor: pointer;
-  color: #374151;
+  color: var(--xb-text-mute);
+  transition: all 0.15s;
 }
 
 .session-actions button:hover {
-  background: #f3f4f6;
+  background: var(--xb-surface-2);
+  color: var(--xb-text);
+  border-color: var(--xb-border-2);
 }
 
 .xb-hint {
   font-size: 11px;
-  color: #6b7280;
-  margin: 6px 0 0 0;
-  line-height: 1.3;
+  color: var(--xb-text-mute);
+  margin: 8px 0 0 0;
+  line-height: 1.4;
+}
+
+.xb-hint strong {
+  color: var(--xb-text);
+  font-weight: 600;
+}
+
+.xb-hint code {
+  background: var(--xb-surface-2);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--xb-text);
 }
 
 #connect-row {
@@ -92,11 +121,11 @@
 
 .connect-btn {
   width: 100%;
-  padding: 8px;
-  background: #3b82f6;
+  padding: 10px;
+  background: var(--xb-accent);
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--xb-radius);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -104,35 +133,36 @@
 }
 
 .connect-btn:hover {
-  background: #2563eb;
+  background: var(--xb-accent-2);
 }
 
 .connect-btn:disabled {
-  background: #93c5fd;
+  background: var(--xb-border-2);
+  color: var(--xb-text-dim);
   cursor: not-allowed;
 }
 
 #connect-status {
   margin-top: 8px;
-  padding: 6px 8px;
-  border-radius: 6px;
+  padding: 7px 9px;
+  border-radius: var(--xb-radius);
   font-size: 12px;
 }
 
 #connect-status.loading {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
+  background: var(--xb-accent-bg);
+  color: var(--xb-accent);
+  border: 1px solid rgba(59, 130, 246, 0.4);
 }
 
 #connect-status.success {
-  background: #dcfce7;
-  color: #166534;
-  border: 1px solid #86efac;
+  background: var(--xb-success-bg);
+  color: var(--xb-success);
+  border: 1px solid rgba(16, 185, 129, 0.4);
 }
 
 #connect-status.error {
-  background: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fca5a5;
+  background: var(--xb-error-bg);
+  color: var(--xb-error);
+  border: 1px solid rgba(239, 68, 68, 0.4);
 }
