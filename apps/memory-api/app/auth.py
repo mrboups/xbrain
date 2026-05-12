@@ -8,9 +8,16 @@ from authlib.jose import JsonWebKey, jwt
 from app.config import settings
 
 GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
+GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 GOOGLE_ISSUERS = ("https://accounts.google.com", "accounts.google.com")
 
 _jwks_cache: dict = {"keys": None, "ts": 0.0}
+
+# Cache resolved Google access tokens for 5 minutes so a typical request burst
+# (popup open → mint → /v1/me → mint again on race) doesn't hit Google's
+# userinfo endpoint repeatedly. Key = access token; value = (expires_at, claims).
+_google_userinfo_cache: dict[str, tuple[float, dict]] = {}
+_GOOGLE_USERINFO_TTL = 300.0
 
 
 async def _fetch_google_jwks() -> JsonWebKey:
@@ -40,6 +47,63 @@ async def verify_google_id_token(token: str, client_id: str) -> dict:
     )
     claims.validate()
     return dict(claims)
+
+
+async def verify_google_access_token(token: str) -> dict:
+    """Resolve a Google OAuth2 access token to a userinfo claims dict.
+
+    Used by the Chrome extension's chrome.identity.getAuthToken flow (silent
+    auth when the user is already signed into Chrome). The access token is
+    opaque (not a JWT), so we must call Google's userinfo endpoint to retrieve
+    the user identity.
+
+    Returns a dict shaped like an OIDC ID token claims payload — at minimum
+    {sub, email, email_verified, name} — so callers in deps.py can treat it
+    interchangeably with a verified ID token.
+
+    Raises ValueError on any failure (404, 401, network error, unverified email,
+    missing sub). Never returns a partial result.
+    """
+    if not token:
+        raise ValueError("empty access token")
+
+    now = time.time()
+    cached = _google_userinfo_cache.get(token)
+    if cached and cached[0] > now:
+        return cached[1]
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.get(
+            GOOGLE_USERINFO_URL,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    if r.status_code != 200:
+        raise ValueError(f"google userinfo failed: {r.status_code}")
+    data = r.json()
+    sub = data.get("sub")
+    if not sub:
+        raise ValueError("google userinfo missing sub")
+    # The userinfo endpoint only returns verified email accounts, but be defensive:
+    # if the field is explicitly false, reject so the principal lookup doesn't
+    # mint a row for a spoofable email.
+    if data.get("email") and data.get("email_verified") is False:
+        raise ValueError("google userinfo email is not verified")
+    claims = {
+        "sub": sub,
+        "email": data.get("email"),
+        "email_verified": data.get("email_verified", True),
+        "name": data.get("name") or data.get("given_name"),
+        "given_name": data.get("given_name"),
+        "picture": data.get("picture"),
+        "iss": "https://accounts.google.com",
+    }
+    _google_userinfo_cache[token] = (now + _GOOGLE_USERINFO_TTL, claims)
+    return claims
+
+
+def _reset_google_userinfo_cache_for_tests() -> None:
+    """Test helper — clear the module-level userinfo cache between cases."""
+    _google_userinfo_cache.clear()
 
 
 def verify_bridge_jwt(token: str, secret: str) -> dict:

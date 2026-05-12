@@ -13,7 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from xbrain_memory import MemoryProvider
 
-from app.auth import check_github_org_membership, verify_bridge_jwt, verify_google_id_token
+from app.auth import (
+    check_github_org_membership,
+    verify_bridge_jwt,
+    verify_google_access_token,
+    verify_google_id_token,
+)
 from app.config import settings
 from app.db.session import async_session_factory
 from app.repos.teams import get_membership
@@ -47,8 +52,8 @@ async def get_current_principal(
         raise HTTPException(401, "Missing Bearer token")
     token = authorization.removeprefix("Bearer ")
 
-    # Try Google ID token first.
-    if settings.GOOGLE_CLIENT_ID:
+    # Try Google ID token first (JWT shape: header.payload.signature).
+    if settings.GOOGLE_CLIENT_ID and token.count(".") == 2:
         try:
             claims = await verify_google_id_token(token, settings.GOOGLE_CLIENT_ID)
             user = await get_or_create_user(
@@ -68,6 +73,34 @@ async def get_current_principal(
             }
         except Exception:
             # Fall through to GitHub OAuth token attempt
+            pass
+
+    # Try Google OAuth2 access token (opaque, no JWT shape). Used by the
+    # Chrome extension's chrome.identity.getAuthToken flow — silent when the
+    # user is already signed into Chrome.
+    if (
+        not token.startswith("xbt_")
+        and not token.startswith("gho_")
+        and "." not in token  # access tokens are opaque; bridge JWTs / ID tokens have dots
+    ):
+        try:
+            claims = await verify_google_access_token(token)
+            user = await get_or_create_user(
+                session,
+                source_user_id=claims["sub"],
+                email=claims.get("email") or "",
+                display_name=claims.get("name") or claims.get("given_name"),
+            )
+            await session.commit()
+            return {
+                "kind": "user",
+                "user": user,
+                "claims": claims,
+                "sub": claims["sub"],
+                "github_is_org_member": None,
+            }
+        except Exception:
+            # Fall through to other auth methods
             pass
 
     # Try GitHub OAuth token (tokens start with "gho_" prefix).
