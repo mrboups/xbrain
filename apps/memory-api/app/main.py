@@ -20,6 +20,7 @@ from app.routes import (
     conversations,
     crm,
     drive_webhook,
+    external_sessions,
     github_repos,
     granola_integration,
     graph,
@@ -106,3 +107,4 @@ app.include_router(github_repos.router, prefix="/v1", tags=["github"])
 app.include_router(granola_integration.router, prefix="/v1", tags=["granola"])
 app.include_router(waitlist.router, prefix="/v1", tags=["waitlist"])
 app.include_router(agents.router, prefix="/v1", tags=["agents"])
+app.include_router(external_sessions.router, prefix="/v1", tags=["external-sessions"])
