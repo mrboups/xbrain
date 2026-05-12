@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: active
-stopped_at: Phase 9 added to roadmap (Session Bridge — Pro/Max routing via Chrome extension). Ready for /gsd:plan-phase 9.
-last_updated: "2026-05-11T00:30:00.000Z"
-last_activity: 2026-05-11 -- Phase 9 scope added to ROADMAP.md (session-bridge microservice + extension WebSocket + LibreChat custom endpoint + nginx vhost + DB table). ChatGPT Plus routing déféré Phase 10.
+status: executing
+stopped_at: Lot 2 LLM stack quick wins shipped (260511-0jb). Grok-3 + Claude Reasoning endpoint in LibreChat, second-opinion now 3-way (Sonnet+Opus 4.7+Grok-3), Anthropic prompt caching activated on 6 extraction call sites across 5 services. Verified 5/5.
+last_updated: "2026-05-12T04:30:00.000Z"
+last_activity: 2026-05-12 -- Phase 09 plan 05 complete (LibreChat 'Claude (mon abonnement)' + popup Sessions section)
 progress:
-  total_phases: 8
+  total_phases: 9
   completed_phases: 8
-  total_plans: 59
-  completed_plans: 59
-  percent: 89
+  total_plans: 73
+  completed_plans: 67
+  percent: 92
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 8 in progress — onboarding + universal extraction + platform agents
+**Current focus:** Phase 09 — session-bridge-pro-max-routing-via-chrome-extension
 
 ## Current Position
 
-Phase: 8 — COMPLETE
-Plan: 8/8 plans done — 08-01 through 08-08
-Status: Phases 1-8 complete. verify-phase8.sh PASS: 7/7 on VM.
-Last activity: 2026-05-09 -- Phase 8 complete: all 8 plans executed. VM rebuilt (memory-api, granola-sync, librechat, librechat-bridge). PASS: 7/7.
+Phase: 09 (session-bridge-pro-max-routing-via-chrome-extension) — EXECUTING
+Plan: 5 of 6 (09-05 complete; Wave 2 done with 09-03 + 09-05; awaiting 09-06 verify gate)
+Status: Executing Phase 09
+Last activity: 2026-05-12 -- Phase 09 plan 05 complete (LibreChat 'Claude (mon abonnement)' + popup Sessions section)
 
 Progress: [██████████] 100% — ALL v1.0 PHASES COMPLETE — Phase 8 post-v1 COMPLETE (2026-05-09)
 
@@ -124,6 +124,7 @@ None yet.
 - **VM disk** : Était à 99% le 2026-05-07. Résolu par agrandissement disque + `docker system prune`. Surveiller si rebuild containers échoue de nouveau.
 
 **Resolved (archivé):**
+
 - ~~Phase 2 entry gate POC~~ — Phases 2-7 complètes, mem0 + native memory-api retenu
 - ~~Phase 3 entry gate POC Memori~~ — Phase 3 complète, fallback LangGraph utilisé
 - ~~OOM Risk Phase 1~~ — VM upgradée e2-standard-2 (8 GB) depuis Phase 2
