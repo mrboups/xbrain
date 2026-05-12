@@ -10,6 +10,12 @@
  *   body so the only scrollbar is the chat history.
  */
 
+/* CRITICAL — the HTML `hidden` attribute sets display:none via the
+   user-agent stylesheet, but ANY explicit display: rule below would
+   silently override it. Force-hide hidden elements at the top so
+   our flex/grid layouts can't accidentally show them. */
+[hidden] { display: none !important; }
+
 /* ========================================================================
  * App shell
  * ====================================================================== */
