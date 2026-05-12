@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 Phase: 09 (session-bridge-pro-max-routing-via-chrome-extension) — **SHIPPED 2026-05-12**
 Plan: 6 of 6 (09-06 complete; verify-phase9.sh + sessions.html + 09-UAT.md shipped)
 Status: Phase 9 code SHIPPED — residual: VM deploy + Cloudflare DNS + 09-UAT.md walk
-Last activity: 2026-05-12 -- Quick task 260512-zca SHIPPED — zero-click extension onboarding. memory-api now accepts Google OAuth access tokens (auth.py + 6 new pytest cases), extension switched to chrome.identity.getAuthToken (silent after first consent), popup auto-mints xbt_ on first open. End-state: open side panel → 🟢 in ~1s, no clicks.
+Last activity: 2026-05-12 -- Quick task 260512-cmu SHIPPED — extension UX polish: silent-only auto-mint (no more violent auto-popup at open), promise dedup for concurrent auth (kills double-popup bug), and right-click "Add selection to xbrain" context menu. Extension suite still 6/6 PASS.
 
 Progress: [██████████] 100% — ALL 9 PHASES COMPLETE (Phase 9 SHIPPED 2026-05-12)
 
@@ -152,3 +152,4 @@ Resume file: None
 | 260512-eo1-extension-onboarding | 2026-05-12 | 5809d8b | Verified | Chrome extension single-click Connect/Disconnect (mints xbt_, persists to chrome.storage.local, revokes on disconnect) + popup/LibreChat FR→EN migration ("Claude Pro/Max"). 8 new tests PASS, phase-9 verify 6/6 PASS on VM. |
 | 260512-spx-extension-sidepanel-libchat-autofill | 2026-05-12 | 7179d61 | Verified | Extension v1.2.0 — Chrome side panel mode (Chrome 114+) + LibreChat API key auto-fill on chat.grooveos.app, both toggleable via new Options page (`chrome.storage.sync`). 13 new tests PASS; suite at 6 test files / 53 assertions. |
 | 260512-zca-extension-zero-click-auth | 2026-05-12 | a4dae12 | Verified | Zero-click onboarding — memory-api accepts Google OAuth access tokens (auth.py verify_google_access_token + deps.py auto-detect); extension uses chrome.identity.getAuthToken (silent post-consent); popup auto-mints on first open. memory-api 10/10 auth unit tests PASS; extension suite 6/6 still PASS. |
+| 260512-cmu-extension-context-menu-silent-ux | 2026-05-12 | 2e3ca29 | Verified | Silent-only auto-mint (no consent popup at open without user click); in-flight promise dedup for concurrent getGoogleIdToken (kills double-popup); right-click "Add selection to xbrain" context menu opens side panel with text pre-filled. Suite still 6/6 PASS. |
