@@ -195,10 +195,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (option) teamSelect.value = pendingTeamScope;
     }
   } else {
-    teamSelect.innerHTML = `<option value="" disabled selected>Not signed in</option>`;
+    teamSelect.innerHTML = `<option value="" disabled selected>Sign in to load teams</option>`;
     // No error toast — silent failure here is expected for first-time users.
-    // They'll see the Connect button below and the Send to brain button will
-    // re-trigger auth interactively when clicked.
+    // We KEEP sendBtn enabled even without a token so clicking Send to brain
+    // triggers the full interactive auth path (handleSend uses the default
+    // silent: false GET_ID_TOKEN). The user has two entry points to sign in:
+    //   1. The Connect xbrain account button in the Sessions section below.
+    //   2. Clicking Send to brain (auth fires inline before the upsert).
+    sendBtn.disabled = false;
   }
 
   // 3. Wire the "Send to brain" button.
@@ -355,14 +359,16 @@ async function maybeAutoMint() {
   const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
   if (xbt_token) return; // already connected, nothing to do
 
-  const btn = document.getElementById("btn-connect-xbrain");
-  if (btn) btn.disabled = true;
+  // IMPORTANT: keep the Connect button ENABLED during the silent attempt so
+  // the user can click it at any moment to take the interactive path. If the
+  // silent attempt eventually succeeds, storage.onChanged will flip the UI
+  // to connected. If it fails, this status clears.
   setConnectStatus("Trying silent sign-in…", "loading");
 
   try {
     // silent: true → SW will NEVER open a consent popup. If the user isn't
-    // already authenticated, the SW returns {ok: false} with an "silent auth
-    // failed" error and we cleanly show the Connect button instead.
+    // already authenticated, the SW returns {ok: false} and we just clear
+    // the loader. The user can still click the manual Connect button.
     const resp = await chrome.runtime.sendMessage({
       type: "MINT_AND_CONNECT",
       silent: true,
@@ -380,13 +386,12 @@ async function maybeAutoMint() {
         renderConnectState();
       }, 1200);
     } else {
-      // Silent failed — clear the loader, surface the manual Connect button.
+      // Silent failed — clear the loader. Connect button is already visible
+      // and enabled (we never touched its `disabled` state).
       setConnectStatus("", "");
-      if (btn) btn.disabled = false;
     }
   } catch {
     setConnectStatus("", "");
-    if (btn) btn.disabled = false;
   }
 }
 

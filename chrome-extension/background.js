@@ -155,13 +155,24 @@ async function getGoogleIdToken(opts = {}) {
 
   _pendingTokenPromise = (async () => {
     let idToken = null;
+    // 5-second timeout so a hung launchAuthFlow can't keep the popup's
+    // loading state stuck indefinitely. Chrome MV3 has known edge cases where
+    // interactive:false hangs instead of erroring; the timeout converts that
+    // into a clean "silent failed" signal so the manual Connect button
+    // surfaces immediately.
+    const SILENT_TIMEOUT_MS = 5000;
     try {
-      idToken = await launchAuthFlow({
-        interactive: false,
-        promptMode: "none",
-      });
+      idToken = await Promise.race([
+        launchAuthFlow({ interactive: false, promptMode: "none" }),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("silent auth timeout")),
+            SILENT_TIMEOUT_MS,
+          ),
+        ),
+      ]);
     } catch {
-      // Silent path failed — fall through.
+      // Silent path failed or timed out — fall through.
     }
 
     if (!idToken) {
