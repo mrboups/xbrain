@@ -40,69 +40,132 @@ import {
 import { loadSettings, SETTINGS_KEY } from "./settings.js";
 
 const MEMORY_API_URL = "https://api.grooveos.app/v1/memory/upsert";
+// Google OAuth client (web application type — works with launchWebAuthFlow).
+// NOTE: chrome.identity.getAuthToken would require a "Chrome App" OAuth
+// client_id in Google Cloud Console (different type, requires extra setup
+// in the console). We use launchWebAuthFlow with a silent-first strategy to
+// achieve the same zero-popup UX without that extra config.
+const CLIENT_ID = "50097563098-rdh24v05dcp0ees8o4kqviuuoi5sup3n.apps.googleusercontent.com";
+const TOKEN_CACHE_KEY = "xbrain_id_token";
+const TOKEN_EXPIRY_KEY = "xbrain_id_token_expiry";
+const TOKEN_TTL_MS = 3600 * 1000; // 1 hour
+
 /**
- * Get a Google OAuth2 access token via chrome.identity.getAuthToken.
- *
- * Silent when:
- *   - The user is already signed into Chrome with a Google profile.
- *   - The extension's required scopes (declared in manifest.oauth2.scopes)
- *     have been granted previously.
- * Opens a Chrome-native consent prompt only on the very first call. After
- * that, getAuthToken returns the cached token from Chrome's identity provider
- * with transparent refresh — no need for our own chrome.storage.session cache.
- *
- * Memory-api accepts both Google ID tokens (legacy launchWebAuthFlow path)
- * AND OAuth2 access tokens since quick task 260512-zca (commit 27e0a8d) —
- * verify_google_access_token() calls /oauth2/v3/userinfo to resolve identity.
- *
- * Returns the access token string. Throws on user-cancel or chrome.identity
- * errors.
+ * Build a Google OAuth /authorize URL for the implicit ID-token flow.
  */
-async function getGoogleIdToken() {
+function buildGoogleAuthUrl({ promptMode }) {
+  const redirectUri = `https://${chrome.runtime.id}.chromiumapp.org/`;
+  const nonce =
+    Math.random().toString(36).substring(2) +
+    Math.random().toString(36).substring(2);
+  const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  u.searchParams.set("client_id", CLIENT_ID);
+  u.searchParams.set("response_type", "id_token");
+  u.searchParams.set("redirect_uri", redirectUri);
+  u.searchParams.set("scope", "openid email profile");
+  u.searchParams.set("nonce", nonce);
+  if (promptMode) u.searchParams.set("prompt", promptMode);
+  return u.toString();
+}
+
+/**
+ * Run launchWebAuthFlow and extract the id_token from the redirect URL hash.
+ * `interactive: false` runs silently — no window opens. If the user hasn't
+ * granted consent yet (or hasn't been re-prompted since revoke), the call
+ * fails synchronously and the caller can fall back to interactive mode.
+ */
+function launchAuthFlow({ interactive, promptMode }) {
   return new Promise((resolve, reject) => {
-    chrome.identity.getAuthToken({ interactive: true }, (result) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
-      }
-      // Chrome 116+ returns { token, grantedScopes }; older Chrome returns the
-      // token string directly. Normalize both shapes.
-      const token =
-        result && typeof result === "object" ? result.token : result;
-      if (!token) {
-        reject(new Error("getAuthToken returned no token"));
-        return;
-      }
-      resolve(token);
-    });
+    chrome.identity.launchWebAuthFlow(
+      { url: buildGoogleAuthUrl({ promptMode }), interactive },
+      (redirectUrl) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (!redirectUrl) {
+          reject(new Error("auth flow returned no redirect URL"));
+          return;
+        }
+        const hash = new URL(redirectUrl).hash.substring(1);
+        const params = new URLSearchParams(hash);
+        const idToken = params.get("id_token");
+        if (!idToken) {
+          reject(new Error("redirect URL missing id_token"));
+          return;
+        }
+        resolve(idToken);
+      },
+    );
   });
 }
 
 /**
- * Revoke and clear Chrome's cached Google access token. Called from the
- * disconnect flow so a subsequent connect doesn't silently reuse the stale
- * token (which is harmless on Chrome's side but prevents account switching).
+ * Get a Google OIDC ID token (JWT, signed by Google).
+ *
+ * Strategy (quick task 260512-zca polish):
+ *   1. Check our chrome.storage.session cache (1h TTL).
+ *   2. Try launchWebAuthFlow with `interactive: false` — silent, no window.
+ *      Succeeds if the user already granted consent + has a live Google
+ *      session in Chrome.
+ *   3. Fall back to `interactive: true` (opens a small Chrome popup for
+ *      consent / account picker). Used on the very first connect and after
+ *      `chrome.identity.removeCachedAuthToken`-style revokes.
+ *
+ * Memory-api accepts both Google ID tokens and OAuth2 access tokens since
+ * 27e0a8d — we ship ID tokens here because launchWebAuthFlow returns them.
+ */
+async function getGoogleIdToken() {
+  // 1. Cache hit?
+  const stored = await chrome.storage.session.get([
+    TOKEN_CACHE_KEY,
+    TOKEN_EXPIRY_KEY,
+  ]);
+  if (
+    stored[TOKEN_CACHE_KEY] &&
+    stored[TOKEN_EXPIRY_KEY] &&
+    Date.now() < stored[TOKEN_EXPIRY_KEY]
+  ) {
+    return stored[TOKEN_CACHE_KEY];
+  }
+
+  // 2. Silent attempt — no window if user already granted consent.
+  let idToken = null;
+  try {
+    idToken = await launchAuthFlow({
+      interactive: false,
+      promptMode: "none",
+    });
+  } catch {
+    // Silent path failed → fall through to interactive.
+  }
+
+  // 3. Interactive fallback (one-time small Chrome popup).
+  if (!idToken) {
+    idToken = await launchAuthFlow({
+      interactive: true,
+      promptMode: "select_account",
+    });
+  }
+
+  // 4. Cache for an hour.
+  await chrome.storage.session.set({
+    [TOKEN_CACHE_KEY]: idToken,
+    [TOKEN_EXPIRY_KEY]: Date.now() + TOKEN_TTL_MS,
+  });
+  return idToken;
+}
+
+/**
+ * Clear the locally-cached Google ID token. Called on disconnect so a
+ * subsequent silent attempt doesn't reuse a token tied to the prior account.
+ *
+ * NOTE: with launchWebAuthFlow there's no Chrome-side cache to revoke (unlike
+ * getAuthToken's removeCachedAuthToken). The token only exists in our own
+ * chrome.storage.session, so clearing that is sufficient.
  */
 async function clearGoogleAuthToken() {
-  return new Promise((resolve) => {
-    if (!chrome.identity || !chrome.identity.getAuthToken) {
-      resolve();
-      return;
-    }
-    chrome.identity.getAuthToken({ interactive: false }, (result) => {
-      if (chrome.runtime.lastError) {
-        resolve();
-        return;
-      }
-      const token =
-        result && typeof result === "object" ? result.token : result;
-      if (!token) {
-        resolve();
-        return;
-      }
-      chrome.identity.removeCachedAuthToken({ token }, () => resolve());
-    });
-  });
+  await chrome.storage.session.remove([TOKEN_CACHE_KEY, TOKEN_EXPIRY_KEY]);
 }
 
 /**
