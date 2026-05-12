@@ -103,6 +103,107 @@ async function init() {
       );
     });
   }
+
+  // === Claude Pro/Max session ===
+  await renderClaudeSession();
+  const btnRefreshClaude = document.getElementById("btn-refresh-claude-session");
+  if (btnRefreshClaude) {
+    btnRefreshClaude.addEventListener("click", refreshClaudeSession);
+  }
+}
+
+const SUB_PILL_CLASSES = {
+  Pro: "is-pro",
+  Max: "is-max",
+  "Max 5x": "is-max",
+  "Max 20x": "is-max",
+  Free: "is-free",
+  Team: "is-pro",
+  Enterprise: "is-pro",
+  Unknown: "",
+};
+
+async function renderClaudeSession() {
+  const dot = document.getElementById("claude-session-dot");
+  const status = document.getElementById("claude-session-status");
+  const email = document.getElementById("claude-session-email");
+  const sub = document.getElementById("claude-session-sub");
+  const org = document.getElementById("claude-session-org");
+  if (!status || !email || !sub || !org) return;
+
+  status.textContent = "Loading…";
+  email.textContent = "—";
+  sub.textContent = "—";
+  org.textContent = "—";
+  if (dot) {
+    dot.classList.remove("is-online", "is-offline");
+    dot.classList.add("is-unknown");
+  }
+
+  let info = null;
+  try {
+    info = await chrome.runtime.sendMessage({ type: "GET_CLAUDE_SESSION_INFO" });
+  } catch (e) {
+    status.textContent = `error: ${e.message}`;
+    if (dot) {
+      dot.classList.remove("is-unknown", "is-online");
+      dot.classList.add("is-offline");
+    }
+    return;
+  }
+  if (!info) {
+    status.textContent = "no response from service worker";
+    return;
+  }
+  if (!info.signed_in) {
+    status.textContent = "Not signed in on claude.ai in this Chrome browser";
+    if (dot) {
+      dot.classList.remove("is-unknown", "is-online");
+      dot.classList.add("is-offline");
+    }
+    return;
+  }
+  status.textContent = "Connected";
+  email.textContent = info.email || "—";
+  sub.textContent = info.subscription || "Unknown";
+  sub.className = "sub-pill " + (SUB_PILL_CLASSES[info.subscription] || "");
+  org.textContent = info.organization_name || "—";
+  if (dot) {
+    dot.classList.remove("is-unknown", "is-offline");
+    dot.classList.add("is-online");
+  }
+}
+
+async function refreshClaudeSession() {
+  const btn = document.getElementById("btn-refresh-claude-session");
+  const actionStatus = document.getElementById("claude-session-action-status");
+  if (btn) btn.disabled = true;
+  if (actionStatus) actionStatus.textContent = "Reconnecting bridge…";
+  try {
+    const resp = await chrome.runtime.sendMessage({
+      type: "REFRESH_CLAUDE_SESSION",
+    });
+    if (resp && resp.ok) {
+      if (actionStatus) actionStatus.textContent = "Reconnected ✓ — fetching session…";
+      // Give the WS a beat to finish the register frame, then re-introspect.
+      setTimeout(async () => {
+        await renderClaudeSession();
+        if (actionStatus) actionStatus.textContent = "Refreshed ✓";
+        setTimeout(() => {
+          if (actionStatus) actionStatus.textContent = "";
+        }, 1500);
+        if (btn) btn.disabled = false;
+      }, 800);
+    } else {
+      if (actionStatus) {
+        actionStatus.textContent = `Refresh failed: ${(resp && resp.error) || "unknown"}`;
+      }
+      if (btn) btn.disabled = false;
+    }
+  } catch (e) {
+    if (actionStatus) actionStatus.textContent = `Refresh failed: ${e.message}`;
+    if (btn) btn.disabled = false;
+  }
 }
 
 document.addEventListener("DOMContentLoaded", init);

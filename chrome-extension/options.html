@@ -188,6 +188,90 @@
     }
     .opt-radio-row input[type="radio"] { accent-color: var(--xb-accent); margin: 0; }
 
+    /* Claude session card */
+    .claude-session-grid {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      row-gap: 8px;
+      column-gap: 14px;
+      margin: 6px 0 14px 0;
+    }
+    .claude-session-label {
+      font-size: 11px;
+      color: var(--xb-text-mute);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding-top: 2px;
+    }
+    .claude-session-value {
+      font-size: 13px;
+      color: var(--xb-text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .session-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .session-dot.is-online   { background: var(--xb-success); box-shadow: 0 0 0 2px rgba(16,185,129,0.2); }
+    .session-dot.is-offline  { background: var(--xb-error);   box-shadow: 0 0 0 2px rgba(239,68,68,0.2); }
+    .session-dot.is-unknown  { background: var(--xb-text-dim); }
+
+    .sub-pill {
+      display: inline-block;
+      padding: 1px 10px;
+      border-radius: 9999px;
+      background: var(--xb-surface-2);
+      color: var(--xb-text-mute);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .sub-pill.is-pro {
+      background: var(--xb-accent-bg);
+      color: var(--xb-accent);
+    }
+    .sub-pill.is-max {
+      background: rgba(196, 181, 253, 0.16);
+      color: #c4b5fd;
+    }
+    .sub-pill.is-free {
+      background: var(--xb-surface-2);
+      color: var(--xb-text-mute);
+    }
+
+    .claude-session-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .xb-btn-primary-options {
+      background: var(--xb-accent);
+      color: #fff;
+      border: 1px solid var(--xb-accent);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .xb-btn-primary-options:hover { background: var(--xb-accent-2); border-color: var(--xb-accent-2); }
+    .xb-btn-primary-options:disabled {
+      background: var(--xb-border-2);
+      border-color: var(--xb-border-2);
+      color: var(--xb-text-dim);
+      cursor: not-allowed;
+    }
+    #claude-session-action-status {
+      font-size: 12px;
+      color: var(--xb-text-mute);
+    }
+
     /* Scrollbar */
     ::-webkit-scrollbar { width: 10px; height: 10px; }
     ::-webkit-scrollbar-track { background: var(--xb-bg); }
@@ -270,6 +354,45 @@
           confirm window — instead of opening the overlay every time. Cancel
           during the window to abort.
         </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Claude Pro/Max session (quick task — switching subscription) -->
+  <h2 class="section-title">Claude Pro/Max session</h2>
+  <p class="subtitle">
+    The Claude account currently bridged through your <code>claude.ai</code>
+    cookies in this Chrome browser. To switch to another subscription, sign
+    out on <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a>,
+    sign in with the other account, then click <strong>Refresh</strong> below.
+  </p>
+
+  <div class="settings-card">
+    <div class="setting">
+      <div class="setting-body" style="flex:1">
+        <div class="claude-session-grid">
+          <div class="claude-session-label">Status</div>
+          <div class="claude-session-value">
+            <span id="claude-session-dot" class="session-dot is-unknown" aria-hidden="true"></span>
+            <span id="claude-session-status">Loading…</span>
+          </div>
+
+          <div class="claude-session-label">Email</div>
+          <div class="claude-session-value" id="claude-session-email">—</div>
+
+          <div class="claude-session-label">Subscription</div>
+          <div class="claude-session-value">
+            <span class="sub-pill" id="claude-session-sub">—</span>
+          </div>
+
+          <div class="claude-session-label">Organization</div>
+          <div class="claude-session-value" id="claude-session-org">—</div>
+        </div>
+
+        <div class="claude-session-actions">
+          <button type="button" id="btn-refresh-claude-session" class="xb-btn-primary-options">🔄 Refresh session</button>
+          <span id="claude-session-action-status"></span>
+        </div>
       </div>
     </div>
   </div>

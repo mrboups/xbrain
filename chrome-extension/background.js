@@ -446,6 +446,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // async
   }
 
+  // Settings page — read current claude.ai session info (email + subscription).
+  if (message && message.type === "GET_CLAUDE_SESSION_INFO") {
+    fetchClaudeSessionInfo().then(sendResponse);
+    return true; // async
+  }
+
+  // Settings page — force the bridge WS to reconnect so the register frame
+  // re-detects the active claude.ai session (after the user switched account).
+  if (message && message.type === "REFRESH_CLAUDE_SESSION") {
+    refreshClaudeSession().then(sendResponse);
+    return true; // async
+  }
+
   // Unknown message — don't block.
   return false;
 });
@@ -466,6 +479,95 @@ let lastOpenAt = 0;
  * (non-blocking — the register frame goes out with email_logged=null if the
  * request fails, e.g. when the user isn't logged into claude.ai yet).
  */
+/**
+ * Best-effort introspection of the user's claude.ai session.
+ * Returns:
+ *   {
+ *     signed_in: bool,
+ *     email: string|null,
+ *     subscription: "Pro" | "Max" | "Max 5x" | "Max 20x" | "Free" | "Team" | "Unknown",
+ *     organization_name: string|null,
+ *     organization_uuid: string|null,
+ *   }
+ * Never throws — failures map to {signed_in: false}.
+ */
+async function fetchClaudeSessionInfo() {
+  const out = {
+    signed_in: false,
+    email: null,
+    subscription: "Unknown",
+    organization_name: null,
+    organization_uuid: null,
+  };
+  // 1. Email from current_account
+  try {
+    const r = await fetch("https://claude.ai/api/auth/current_account", {
+      credentials: "include",
+    });
+    if (r.ok) {
+      const j = await r.json();
+      out.email =
+        j.email_address ||
+        j.email ||
+        (j.account && (j.account.email_address || j.account.email)) ||
+        null;
+      out.signed_in = Boolean(out.email);
+    }
+  } catch {
+    // not signed in — leave defaults
+  }
+  if (!out.signed_in) return out;
+
+  // 2. Subscription from /api/organizations capabilities
+  try {
+    const r = await fetch("https://claude.ai/api/organizations", {
+      credentials: "include",
+    });
+    if (r.ok) {
+      const orgs = await r.json();
+      if (Array.isArray(orgs) && orgs.length) {
+        const o = orgs[0];
+        out.organization_uuid = o.uuid || o.id || null;
+        out.organization_name = o.name || null;
+        const caps = (o.capabilities || []).map((c) => String(c).toLowerCase());
+        // Heuristic — claude.ai changes these strings over time. Prefer the
+        // most specific match.
+        if (caps.some((c) => c.includes("max_20x"))) out.subscription = "Max 20x";
+        else if (caps.some((c) => c.includes("max_5x"))) out.subscription = "Max 5x";
+        else if (caps.some((c) => c.includes("max"))) out.subscription = "Max";
+        else if (caps.some((c) => c.includes("pro"))) out.subscription = "Pro";
+        else if (caps.some((c) => c.includes("team"))) out.subscription = "Team";
+        else if (caps.some((c) => c.includes("enterprise"))) out.subscription = "Enterprise";
+        else if (caps.length === 0 || caps.every((c) => c === "chat")) out.subscription = "Free";
+      }
+    }
+  } catch {
+    // keep "Unknown"
+  }
+  return out;
+}
+
+/**
+ * Tear down the current bridge WS, clear cached claude.ai introspection
+ * state, then re-open the WS so the server-side register frame gets a
+ * fresh email + org_id. Use after the user has logged into a different
+ * claude.ai account in this Chrome window.
+ */
+async function refreshClaudeSession() {
+  try {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      ws.close(1000, "user requested refresh");
+    }
+    ws = null;
+    // Give the close a tick to flush before reconnecting.
+    await new Promise((r) => setTimeout(r, 200));
+    await openBridgeWS();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message ? e.message : e) };
+  }
+}
+
 async function fetchClaudeEmail() {
   try {
     const r = await fetch("https://claude.ai/api/auth/current_account", {
