@@ -62,6 +62,30 @@ class Settings(BaseSettings):
     # Set to http://librechat:3080 in .env on the VM. Without it, /v1/github/repos returns 503.
     LIBRECHAT_INTERNAL_URL: str = ""
 
+    # Quick task 260512-tcr — team chat realtime
+    # HMAC secret for client JWT tokens issued by memory-api so the Chrome
+    # extension / PWA can connect to Centrifugo. MUST match Centrifugo's
+    # client.token.hmac_secret_key (set via CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY).
+    CENTRIFUGO_TOKEN_HMAC_SECRET: str = ""
+    # API key for server-side publish/presence/history calls from memory-api +
+    # agent-runtime. MUST match Centrifugo's http_api.key.
+    CENTRIFUGO_API_KEY: str = ""
+    # Internal Docker network URL (memory-api → centrifugo container).
+    CENTRIFUGO_HTTP_URL_INTERNAL: str = "http://centrifugo:8000"
+    # Public WSS URL the Chrome extension + PWA connect to.
+    CENTRIFUGO_WS_URL_PUBLIC: str = "wss://centrifugo.grooveos.app/connection/websocket"
+    # TTL for the team memory context bundle cached in-process. 5 minutes
+    # matches the Anthropic prompt cache window (cache_control: ephemeral
+    # holds ~5min before eviction in practice).
+    TEAM_CONTEXT_CACHE_TTL_S: int = 300
+    # How many memory items to include in each context bundle. Phase 2 swaps
+    # this for Qdrant top-K retrieval; for v1 we send the latest 100
+    # truth_level>=WORKING items in reverse chronological order.
+    TEAM_CONTEXT_MAX_ITEMS: int = 100
+    # TTL on the client connection token issued by /v1/me/centrifugo-token.
+    # 1h matches our other JWTs.
+    CENTRIFUGO_CLIENT_TOKEN_TTL_S: int = 3600
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}
