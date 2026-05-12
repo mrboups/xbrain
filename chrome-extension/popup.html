@@ -4,19 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="dark" />
-  <title>xbrain Web Clipper</title>
+  <title>xbrain — team chat</title>
   <link rel="stylesheet" href="popup.css" />
   <style>
-    /* xbrain dark palette — aligned with LibreChat's dark theme.
-       Tokens kept in popup.css; this <style> only restyles the legacy
-       Web Clipper UI that still lives inline. */
+    /* Design tokens — dark theme aligned with LibreChat.
+       Kept here in addition to popup.css so the inline elements (button
+       resets, scrollbars) get the same palette without an external load. */
     :root {
       color-scheme: dark;
       --xb-bg:        #171717;
       --xb-surface:   #212121;
       --xb-surface-2: #2a2a2a;
       --xb-border:    #2f2f2f;
-      --xb-border-2:  #3a3a3a;
+      --xb-border-2: #3a3a3a;
       --xb-text:      #ececec;
       --xb-text-mute: #a0a0a0;
       --xb-text-dim:  #6b6b6b;
@@ -29,200 +29,19 @@
       --xb-error-bg:  rgba(239, 68, 68, 0.14);
       --xb-radius:    8px;
     }
-
     *, *::before, *::after { box-sizing: border-box; }
-
-    /*
-     * Width strategy:
-     *   - Side panel: width is set by Chrome (user-resizable). body fills 100%.
-     *   - Toolbar popup: Chrome uses the body's natural width. min-width keeps
-     *     it from collapsing.
-     *   - Inner content (.xb-content) caps at 480px and centers, so an
-     *     extra-wide side panel doesn't stretch forms to unreadable lengths.
-     */
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
+    html, body {
+      margin: 0;
+      padding: 0;
       width: 100%;
       min-width: 320px;
-      margin: 0;
-      padding: 14px 16px;
+      height: 100vh;
       background: var(--xb-bg);
       color: var(--xb-text);
+      font-family: system-ui, -apple-system, sans-serif;
       font-size: 13px;
-    }
-
-    .xb-content {
-      max-width: 480px;
-      margin: 0 auto;
-    }
-
-    h1 {
-      font-size: 15px;
-      font-weight: 600;
-      margin: 0 0 12px 0;
-      color: var(--xb-text);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    h1::before {
-      content: "🧠";
-      font-size: 16px;
-    }
-
-    .field {
-      margin-bottom: 10px;
-    }
-
-    label {
-      display: block;
-      font-weight: 500;
-      margin-bottom: 4px;
-      color: var(--xb-text-mute);
-    }
-
-    select,
-    input[type="text"],
-    textarea {
-      width: 100%;
-      padding: 7px 9px;
-      border: 1px solid var(--xb-border-2);
-      border-radius: var(--xb-radius);
-      font-size: 13px;
-      font-family: inherit;
-      color: var(--xb-text);
-      background: var(--xb-surface);
-      outline: none;
-      transition: border-color 0.15s, background 0.15s;
-    }
-
-    select:focus,
-    input[type="text"]:focus,
-    textarea:focus {
-      border-color: var(--xb-accent);
-      background: var(--xb-surface-2);
-    }
-
-    select option {
-      background: var(--xb-surface);
-      color: var(--xb-text);
-    }
-
-    ::placeholder {
-      color: var(--xb-text-dim);
-    }
-
-    textarea {
-      resize: vertical;
-      min-height: 90px;
-    }
-
-    /* Radio group for truth_level */
-    .radio-group {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-
-    .radio-group label {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-weight: 400;
-      cursor: pointer;
-      padding: 4px 8px;
-      border: 1px solid var(--xb-border-2);
-      border-radius: 6px;
-      background: var(--xb-surface);
-      color: var(--xb-text-mute);
-      transition: all 0.15s;
-      margin: 0;
-    }
-
-    .radio-group input[type="radio"] {
-      accent-color: var(--xb-accent);
-      width: auto;
-    }
-
-    .radio-group label:has(input:checked) {
-      border-color: var(--xb-accent);
-      background: var(--xb-accent-bg);
-      color: var(--xb-text);
-      font-weight: 500;
-    }
-
-    button#sendBtn {
-      width: 100%;
-      padding: 9px;
-      background: var(--xb-accent);
-      color: #fff;
-      border: none;
-      border-radius: var(--xb-radius);
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      margin-top: 4px;
-      transition: background 0.15s;
-    }
-
-    button#sendBtn:hover {
-      background: var(--xb-accent-2);
-    }
-
-    button#sendBtn:disabled {
-      background: var(--xb-border-2);
-      color: var(--xb-text-dim);
-      cursor: not-allowed;
-    }
-
-    #status {
-      margin-top: 8px;
-      padding: 6px 8px;
-      border-radius: var(--xb-radius);
-      font-size: 12px;
-      display: none;
-    }
-
-    #status.success {
-      display: block;
-      background: var(--xb-success-bg);
-      color: var(--xb-success);
-      border: 1px solid rgba(16, 185, 129, 0.4);
-    }
-
-    #status.error {
-      display: block;
-      background: var(--xb-error-bg);
-      color: var(--xb-error);
-      border: 1px solid rgba(239, 68, 68, 0.4);
-    }
-
-    #status.loading {
-      display: block;
-      background: var(--xb-accent-bg);
-      color: var(--xb-accent);
-      border: 1px solid rgba(59, 130, 246, 0.4);
-    }
-
-    .source-hint {
-      font-size: 11px;
-      color: var(--xb-text-dim);
-      margin-top: 2px;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
     }
-
-    code {
-      background: var(--xb-surface-2);
-      padding: 1px 4px;
-      border-radius: 3px;
-      font-size: 11px;
-      color: var(--xb-text);
-    }
-
-    /* Scrollbar — make it blend into the dark surface */
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: var(--xb-bg); }
     ::-webkit-scrollbar-thumb { background: var(--xb-border-2); border-radius: 4px; }
@@ -230,130 +49,144 @@
   </style>
 </head>
 <body>
-  <div class="xb-content">
-  <h1>xbrain Web Clipper</h1>
+  <!-- App shell — full-height column layout. Header, body, footer. -->
+  <div id="app">
 
-  <!-- team_scope — populated dynamically by popup.js via GET /v1/teams/my-teams -->
-  <div class="field">
-    <label for="teamScope">Team</label>
-    <select id="teamScope">
-      <option value="" disabled selected>Connecting…</option>
-    </select>
-  </div>
+    <!-- Header — team selector + presence + settings + LibreChat opener -->
+    <header class="xb-header">
+      <div class="xb-header-left">
+        <span class="xb-logo" aria-hidden="true">🧠</span>
+        <select id="teamSelector" class="xb-team-select" aria-label="Active team">
+          <option value="" disabled selected>Loading…</option>
+        </select>
+        <span class="xb-presence" id="presenceBadge" title="Members online" hidden>
+          <span class="xb-presence-dot"></span><span id="presenceCount">0</span>
+        </span>
+      </div>
+      <div class="xb-header-right">
+        <button type="button" id="btn-settings" class="xb-icon-btn" title="Settings">⚙️</button>
+        <button type="button" id="btn-open-librechat" class="xb-icon-btn" title="Open LibreChat in new tab">💬</button>
+      </div>
+    </header>
 
-  <!-- project_scope (optional) -->
-  <div class="field">
-    <label for="projectScope">Project (optional)</label>
-    <input
-      type="text"
-      id="projectScope"
-      placeholder="e.g. fundraising"
-      autocomplete="off"
-    />
-  </div>
-
-  <!-- truth_level -->
-  <div class="field">
-    <label>Truth level</label>
-    <div class="radio-group">
-      <label>
-        <input type="radio" name="truthLevel" value="EPHEMERAL" checked />
-        EPHEMERAL
-      </label>
-      <label>
-        <input type="radio" name="truthLevel" value="WORKING" />
-        WORKING
-      </label>
-      <label>
-        <input type="radio" name="truthLevel" value="VALIDATED" />
-        VALIDATED
-      </label>
-      <label>
-        <input type="radio" name="truthLevel" value="CANONICAL" />
-        CANONICAL
-      </label>
-    </div>
-  </div>
-
-  <!-- Content to clip -->
-  <div class="field">
-    <label for="content">Content</label>
-    <textarea
-      id="content"
-      rows="6"
-      placeholder="Select text on the page or paste content here…"
-    ></textarea>
-    <div class="source-hint" id="sourceHint"></div>
-  </div>
-
-  <button id="sendBtn">Send to brain</button>
-
-  <div id="status"></div>
-
-  <!-- Phase 9: Sessions section — surfaces the WebSocket bridge state + claude.ai login -->
-  <section class="xb-sessions">
-    <h3>Sessions</h3>
-
-    <!-- Disconnected state: single-click onboarding -->
-    <div id="connect-row" hidden>
-      <button type="button" id="btn-connect-xbrain" class="connect-btn">🔑 Connect xbrain account</button>
+    <!-- Connection card — shown only on first launch (no xbt_token). -->
+    <section id="connection-card" class="xb-card" hidden>
+      <h3>Connect xbrain</h3>
       <p class="xb-hint">
-        One click: signs in with Google, mints a personal API token,
-        and opens the bridge connection to your Claude Pro/Max subscription.
+        Sign in with Google to start chatting with your team.
       </p>
-    </div>
-
-    <!-- Inline status (loading / error / success) for the connect flow -->
-    <div id="connect-status" hidden></div>
-
-    <!-- Connected state: session-row + disconnect -->
-    <div id="sessions-list" hidden>
-      <div class="session-row" data-provider="claude">
-        <span class="status-dot" id="ws-dot"></span>
-        <div class="session-meta">
-          <strong>Claude Pro/Max</strong>
-          <small id="claude-email">—</small>
-          <small id="claude-last-seen">—</small>
-        </div>
-        <div class="session-actions">
-          <button type="button" id="btn-copy-token" title="Copy bridge token to clipboard">📋</button>
-          <button type="button" id="btn-refresh-claude" title="Refresh">⟳</button>
-          <button type="button" id="btn-disconnect-claude" title="Disconnect">✕</button>
-        </div>
-      </div>
-
-      <!-- Link GitHub row — only shown when github_username is null on the
-           current user (quick task 260512-glk). Clicking opens the GitHub
-           OAuth flow; success refreshes the team list + context menu so
-           GitHub-org teams appear immediately. -->
-      <div class="session-row" id="github-link-row" data-provider="github" hidden>
-        <span class="status-dot" id="github-dot"></span>
-        <div class="session-meta">
+      <button type="button" id="btn-connect-xbrain" class="connect-btn">🔑 Connect xbrain account</button>
+      <div id="connect-status" hidden></div>
+      <div id="github-link-row" hidden>
+        <div class="xb-subcard">
           <strong>GitHub</strong>
-          <small id="github-status">Not linked — link to see your org teams</small>
-        </div>
-        <div class="session-actions">
-          <button type="button" id="btn-link-github" title="Link GitHub account">Link</button>
+          <small>Link to see your org teams</small>
+          <button type="button" id="btn-link-github" class="link-btn">Link</button>
         </div>
       </div>
+    </section>
 
-      <!-- Linked GitHub display state (when github_username is set). -->
-      <div class="session-row" id="github-linked-row" data-provider="github-linked" hidden>
-        <span class="status-dot active"></span>
-        <div class="session-meta">
-          <strong>GitHub</strong>
-          <small id="github-linked-name">—</small>
+    <!-- Chat body — message stream -->
+    <main id="chat-body" class="xb-chat-body" aria-live="polite">
+      <div id="chat-scroll" class="xb-chat-scroll">
+        <div id="history-loader" class="xb-history-loader" hidden>Loading older messages…</div>
+        <div id="message-list"></div>
+      </div>
+      <div id="chat-empty" class="xb-chat-empty" hidden>
+        No messages yet. Be the first to say hello — or mention <code>@claude</code> to ask the team brain a question.
+      </div>
+    </main>
+
+    <!-- Footer — clip + composer -->
+    <footer class="xb-composer">
+      <button type="button" id="btn-clip" class="xb-clip-btn" title="Send current page or selection to xbrain">📎</button>
+      <textarea
+        id="composer-input"
+        rows="1"
+        placeholder="Type a message — use @claude to ask the brain"
+        aria-label="Compose message"
+      ></textarea>
+      <button type="button" id="btn-send" class="xb-send-btn" title="Send (Ctrl+Enter)">
+        <span aria-hidden="true">⏎</span>
+      </button>
+    </footer>
+  </div>
+
+  <!-- Clip overlay — opens on 📎 click -->
+  <div id="clip-overlay" class="xb-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="clip-overlay-title">
+    <div class="xb-overlay-card">
+      <header class="xb-overlay-header">
+        <h3 id="clip-overlay-title">📎 Send to xbrain</h3>
+        <button type="button" id="btn-clip-close" class="xb-icon-btn" title="Close">✕</button>
+      </header>
+
+      <div class="xb-overlay-body">
+        <!-- Source toggle -->
+        <div class="xb-field">
+          <label>Source</label>
+          <div class="xb-radio-row">
+            <label class="xb-radio-pill">
+              <input type="radio" name="clipSource" value="page" checked />
+              📄 Current page
+            </label>
+            <label class="xb-radio-pill" id="clip-source-selection-row">
+              <input type="radio" name="clipSource" value="selection" />
+              ✂️ Selection
+            </label>
+          </div>
+          <div class="xb-source-preview" id="clip-source-preview">—</div>
         </div>
+
+        <!-- Project -->
+        <div class="xb-field">
+          <label for="clip-project">Project (optional)</label>
+          <input type="text" id="clip-project" placeholder="e.g. fundraising" autocomplete="off" />
+        </div>
+
+        <!-- Truth level -->
+        <div class="xb-field">
+          <label>Truth level</label>
+          <div class="xb-radio-row">
+            <label class="xb-radio-pill">
+              <input type="radio" name="clipTruthLevel" value="EPHEMERAL" checked />
+              EPHEMERAL
+            </label>
+            <label class="xb-radio-pill">
+              <input type="radio" name="clipTruthLevel" value="WORKING" />
+              WORKING
+            </label>
+            <label class="xb-radio-pill">
+              <input type="radio" name="clipTruthLevel" value="VALIDATED" />
+              VALIDATED
+            </label>
+            <label class="xb-radio-pill">
+              <input type="radio" name="clipTruthLevel" value="CANONICAL" />
+              CANONICAL
+            </label>
+          </div>
+        </div>
+
+        <!-- Use-defaults toggle -->
+        <div class="xb-field">
+          <label class="xb-checkbox-row">
+            <input type="checkbox" id="clip-use-defaults" />
+            Use these as defaults next time (skip this overlay)
+          </label>
+        </div>
+
+        <div id="clip-status" hidden></div>
       </div>
 
-      <p class="xb-hint" id="copy-paste-hint">
-        Token auto-copied on connect. Paste it as the API key for the
-        <strong>Claude Pro/Max</strong> endpoint in LibreChat.
-      </p>
+      <footer class="xb-overlay-footer">
+        <button type="button" id="btn-clip-cancel" class="xb-btn-secondary">Cancel</button>
+        <button type="button" id="btn-clip-send" class="xb-btn-primary">Send</button>
+      </footer>
     </div>
-  </section>
-  </div><!-- /.xb-content -->
+  </div>
 
-  <script src="popup.js"></script>
+  <!-- centrifuge-js: globalThis.Centrifuge -->
+  <script src="vendor/centrifuge.js"></script>
+  <!-- chat client + UI wiring -->
+  <script src="popup.js" type="module"></script>
 </body>
 </html>
