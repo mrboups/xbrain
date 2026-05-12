@@ -44,7 +44,7 @@ async def link_github(
     The caller must already be authenticated (Google ID token in Authorization header).
     Bridge tokens (service principals) are not allowed to link GitHub accounts.
     """
-    if principal["kind"] != "user":
+    if principal.get("kind") not in ("user", "user_api_token"):
         raise HTTPException(403, "Only user principals can link a GitHub account")
 
     # Fetch github username + org membership
@@ -129,7 +129,7 @@ async def link_github_with_code(
 
     Auth: same — caller must be authenticated as `kind=user` (Google).
     """
-    if principal["kind"] != "user":
+    if principal.get("kind") not in ("user", "user_api_token"):
         raise HTTPException(403, "Only user principals can link a GitHub account")
     if not settings.GITHUB_CLIENT_ID or not settings.GITHUB_CLIENT_SECRET:
         raise HTTPException(

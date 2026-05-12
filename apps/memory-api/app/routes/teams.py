@@ -20,7 +20,14 @@ router = APIRouter()
 
 
 def _require_user(principal: dict[str, Any]):
-    if principal["kind"] != "user":
+    # Accept both kind=user (Google ID token / GitHub OAuth) AND
+    # kind=user_api_token (xbt_). Both map to the same User row (the SimpleNamespace
+    # built in deps.py for user_api_token exposes the same fields: id,
+    # source_user_id, email, display_name, github_username, github_id).
+    # Without this, the Chrome extension (which holds xbt_, not the Google ID
+    # token) gets 403 on /v1/teams/my-teams, /v1/teams/self-solo, etc.
+    kind = principal.get("kind")
+    if kind not in ("user", "user_api_token"):
         raise HTTPException(403, "user-only endpoint")
     return principal["user"]
 
