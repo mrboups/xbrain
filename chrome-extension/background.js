@@ -37,6 +37,7 @@ import {
   mintAndConnect as mintAndConnectPure,
   disconnectAuth as disconnectAuthPure,
 } from "./onboarding.js";
+import { loadSettings, SETTINGS_KEY } from "./settings.js";
 
 const MEMORY_API_URL = "https://api.grooveos.app/v1/memory/upsert";
 // Remplacer __GOOGLE_CLIENT_ID__ par le même client_id que LibreChat Google OAuth
@@ -431,7 +432,48 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // to handle install/upgrade.
 chrome.runtime.onStartup.addListener(() => {
   openBridgeWS();
+  applyPanelBehavior();
 });
 
 // Open on SW boot
 openBridgeWS();
+
+// ===========================================================================
+// Quick task 260512-spx — side panel mode (Chrome 114+)
+// ===========================================================================
+//
+// chrome.sidePanel.setPanelBehavior({openPanelOnActionClick: true}) makes
+// clicking the toolbar icon open the side panel instead of the popup.
+// When the user toggles the setting OFF, falling back to popup mode is
+// achieved by setting openPanelOnActionClick: false (the action.default_popup
+// in manifest.json then takes effect).
+
+/**
+ * Read the current setting and configure side panel behavior accordingly.
+ * No-op (and silently caught) on Chrome < 114 where chrome.sidePanel is absent.
+ */
+async function applyPanelBehavior() {
+  try {
+    if (!chrome.sidePanel || !chrome.sidePanel.setPanelBehavior) return;
+    const settings = await loadSettings(chrome.storage.sync);
+    await chrome.sidePanel.setPanelBehavior({
+      openPanelOnActionClick: settings.openInSidePanel === true,
+    });
+  } catch (e) {
+    console.warn(
+      "[xbrain] applyPanelBehavior failed:",
+      e && e.message ? e.message : e,
+    );
+  }
+}
+
+// Apply once on SW boot.
+applyPanelBehavior();
+
+// React to settings changes (Options page writes to chrome.storage.sync).
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "sync") return;
+  if (changes[SETTINGS_KEY]) {
+    applyPanelBehavior();
+  }
+});

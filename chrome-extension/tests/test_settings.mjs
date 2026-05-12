@@ -1,0 +1,101 @@
+/**
+ * Tests for chrome-extension/settings.js (quick task 260512-spx).
+ *
+ * Verifies the schema invariants:
+ *   1. Defaults: both toggles ON when storage is empty.
+ *   2. Persisted booleans win over defaults.
+ *   3. saveSettings merges patches (partial updates don't reset other keys).
+ *   4. mergeSettings strips unknown keys + ignores non-boolean values.
+ */
+
+import assert from "node:assert/strict";
+import {
+  SETTINGS_KEY,
+  DEFAULT_SETTINGS,
+  loadSettings,
+  saveSettings,
+  mergeSettings,
+} from "../settings.js";
+
+function makeStorageArea() {
+  const store = new Map();
+  return {
+    _store: store,
+    async get(keys) {
+      const out = {};
+      const arr = Array.isArray(keys) ? keys : [keys];
+      for (const k of arr) if (store.has(k)) out[k] = store.get(k);
+      return out;
+    },
+    async set(obj) {
+      for (const [k, v] of Object.entries(obj)) store.set(k, v);
+    },
+  };
+}
+
+let passed = 0;
+let failed = 0;
+async function test(name, body) {
+  try {
+    await body();
+    console.log(`  PASS: ${name}`);
+    passed++;
+  } catch (e) {
+    console.error(`  FAIL: ${name}`);
+    console.error(`    ${e.stack || e.message}`);
+    failed++;
+  }
+}
+
+await test("DEFAULT_SETTINGS has both toggles ON", () => {
+  assert.equal(DEFAULT_SETTINGS.openInSidePanel, true);
+  assert.equal(DEFAULT_SETTINGS.autoFillLibreChat, true);
+});
+
+await test("loadSettings returns defaults when storage empty", async () => {
+  const s = await loadSettings(makeStorageArea());
+  assert.deepEqual(s, { openInSidePanel: true, autoFillLibreChat: true });
+});
+
+await test("loadSettings honors persisted false values", async () => {
+  const storage = makeStorageArea();
+  await storage.set({
+    [SETTINGS_KEY]: { openInSidePanel: false, autoFillLibreChat: true },
+  });
+  const s = await loadSettings(storage);
+  assert.equal(s.openInSidePanel, false);
+  assert.equal(s.autoFillLibreChat, true);
+});
+
+await test("saveSettings patches without losing other keys", async () => {
+  const storage = makeStorageArea();
+  await saveSettings(storage, { openInSidePanel: false });
+  let s = await loadSettings(storage);
+  assert.equal(s.openInSidePanel, false);
+  assert.equal(s.autoFillLibreChat, true); // unchanged default
+
+  await saveSettings(storage, { autoFillLibreChat: false });
+  s = await loadSettings(storage);
+  assert.equal(s.openInSidePanel, false); // still false from prior save
+  assert.equal(s.autoFillLibreChat, false);
+});
+
+await test("mergeSettings strips unknown keys and non-booleans", () => {
+  const out = mergeSettings({
+    openInSidePanel: false,
+    autoFillLibreChat: "yes please", // not a boolean → ignored
+    unknownKey: true, // not in schema → stripped
+  });
+  assert.equal(out.openInSidePanel, false);
+  assert.equal(out.autoFillLibreChat, true); // ignored → default
+  assert.equal(out.unknownKey, undefined);
+});
+
+await test("mergeSettings handles null/undefined input safely", () => {
+  assert.deepEqual(mergeSettings(null), DEFAULT_SETTINGS);
+  assert.deepEqual(mergeSettings(undefined), DEFAULT_SETTINGS);
+  assert.deepEqual(mergeSettings({}), DEFAULT_SETTINGS);
+});
+
+console.log(`\n${passed} passed, ${failed} failed`);
+process.exit(failed === 0 ? 0 : 1);
