@@ -235,3 +235,133 @@ async function handleSend() {
     sendBtn.disabled = false;
   }
 }
+
+// === Phase 9: Sessions section ===
+//
+// Surfaces the bridge WebSocket state + the user's claude.ai login.
+// Contract (from plan 09-03 must-haves):
+//   background.js answers chrome.runtime.sendMessage({kind: "ws_status_query"})
+//   with {readyState: number} where readyState matches WebSocket constants
+//   (0 CONNECTING, 1 OPEN, 2 CLOSING, 3 CLOSED, -1 no socket).
+// Contract (from plan 09-04):
+//   GET /v1/me/external-sessions returns [{id, provider, extension_id, last_seen_at, metadata}]
+//   DELETE /v1/me/external-sessions/claude returns 204 / 404
+// xbt_ token lives in chrome.storage.session under key "xbt_token" (Phase 5/8 convention).
+//
+// CRITICAL: use chrome.runtime.sendMessage, NOT window.postMessage (T-09-05-01 mitigation).
+// CRITICAL: never log the xbt_token raw value.
+
+async function renderSessions() {
+  await renderWsStatus();
+  await renderClaudeSessionInfo();
+}
+
+async function renderWsStatus() {
+  const dot = document.getElementById("ws-dot");
+  if (!dot) return;
+  try {
+    const resp = await chrome.runtime.sendMessage({ kind: "ws_status_query" });
+    dot.classList.remove("active", "idle");
+    if (resp && resp.readyState === 1) {
+      dot.classList.add("active");
+      dot.title = "WebSocket connected to bridge";
+    } else {
+      dot.classList.add("idle");
+      const state = resp && typeof resp.readyState === "number" ? resp.readyState : "unknown";
+      dot.title = `WebSocket state: ${state}`;
+    }
+  } catch (err) {
+    dot.classList.remove("active");
+    dot.classList.add("idle");
+    dot.title = `WS query failed: ${err.message}`;
+  }
+}
+
+async function renderClaudeSessionInfo() {
+  const emailEl = document.getElementById("claude-email");
+  const lastEl = document.getElementById("claude-last-seen");
+  if (!emailEl || !lastEl) return;
+
+  const { xbt_token } = await chrome.storage.session.get(["xbt_token"]);
+  if (!xbt_token) {
+    emailEl.textContent = "non connecté";
+    lastEl.textContent = "";
+    return;
+  }
+
+  try {
+    const res = await fetch(`${MEMORY_API_BASE}/v1/me/external-sessions`, {
+      headers: { Authorization: `Bearer ${xbt_token}` },
+    });
+    if (!res.ok) {
+      emailEl.textContent = `erreur ${res.status}`;
+      lastEl.textContent = "";
+      return;
+    }
+    const sessions = await res.json();
+    const claude = Array.isArray(sessions) ? sessions.find((s) => s.provider === "claude") : null;
+    if (!claude) {
+      emailEl.textContent = "non détecté";
+      lastEl.textContent = "Logue-toi sur claude.ai dans ce navigateur";
+      return;
+    }
+    const emailLogged =
+      (claude.metadata && (claude.metadata.email_logged || claude.metadata.email)) || "—";
+    emailEl.textContent = emailLogged;
+    lastEl.textContent = `Last seen: ${formatRelative(claude.last_seen_at)}`;
+  } catch (err) {
+    emailEl.textContent = `erreur réseau`;
+    lastEl.textContent = "";
+    // err.message intentionally NOT logged — could leak network probe info if a proxy injects it
+  }
+}
+
+function formatRelative(isoStamp) {
+  if (!isoStamp) return "—";
+  const then = new Date(isoStamp);
+  if (isNaN(then.getTime())) return "—";
+  const diffSec = Math.max(0, (Date.now() - then.getTime()) / 1000);
+  if (diffSec < 60) return `${Math.floor(diffSec)}s ago`;
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  return then.toLocaleDateString();
+}
+
+async function disconnectClaude() {
+  const { xbt_token } = await chrome.storage.session.get(["xbt_token"]);
+  if (!xbt_token) return;
+  try {
+    const res = await fetch(`${MEMORY_API_BASE}/v1/me/external-sessions/claude`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${xbt_token}` },
+    });
+    if (res.ok || res.status === 404) {
+      await renderSessions();
+    } else {
+      alert(`Disconnect failed: ${res.status}`);
+    }
+  } catch (err) {
+    alert(`Disconnect failed: ${err.message}`);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const btnRefresh = document.getElementById("btn-refresh-claude");
+  const btnDisc = document.getElementById("btn-disconnect-claude");
+  if (btnRefresh) {
+    btnRefresh.addEventListener("click", renderSessions);
+  }
+  if (btnDisc) {
+    btnDisc.addEventListener("click", () => {
+      if (
+        confirm(
+          "Déconnecter la session Claude ? Tu devras te reloguer sur claude.ai pour la réactiver."
+        )
+      ) {
+        disconnectClaude();
+      }
+    });
+  }
+  // Initial render — fail-soft if background.js isn't wired yet (Wave 2 sibling 09-03).
+  renderSessions();
+});
