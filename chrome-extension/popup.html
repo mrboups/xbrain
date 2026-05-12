@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -169,28 +169,28 @@
 <body>
   <h1>xbrain Web Clipper</h1>
 
-  <!-- team_scope — peuplé dynamiquement par popup.js via GET /v1/teams/my-teams -->
+  <!-- team_scope — populated dynamically by popup.js via GET /v1/teams/my-teams -->
   <div class="field">
-    <label for="teamScope">Équipe</label>
+    <label for="teamScope">Team</label>
     <select id="teamScope">
-      <option value="" disabled selected>Connexion…</option>
+      <option value="" disabled selected>Connecting…</option>
     </select>
   </div>
 
-  <!-- project_scope (optionnel) -->
+  <!-- project_scope (optional) -->
   <div class="field">
-    <label for="projectScope">Projet (optionnel)</label>
+    <label for="projectScope">Project (optional)</label>
     <input
       type="text"
       id="projectScope"
-      placeholder="ex: fundraising"
+      placeholder="e.g. fundraising"
       autocomplete="off"
     />
   </div>
 
   <!-- truth_level -->
   <div class="field">
-    <label>Niveau de vérité</label>
+    <label>Truth level</label>
     <div class="radio-group">
       <label>
         <input type="radio" name="truthLevel" value="EPHEMERAL" checked />
@@ -211,29 +211,43 @@
     </div>
   </div>
 
-  <!-- Contenu à clipper -->
+  <!-- Content to clip -->
   <div class="field">
-    <label for="content">Contenu</label>
+    <label for="content">Content</label>
     <textarea
       id="content"
       rows="6"
-      placeholder="Sélectionnez du texte sur la page ou saisissez du contenu ici…"
+      placeholder="Select text on the page or paste content here…"
     ></textarea>
     <div class="source-hint" id="sourceHint"></div>
   </div>
 
-  <button id="sendBtn">Envoyer au brain</button>
+  <button id="sendBtn">Send to brain</button>
 
   <div id="status"></div>
 
   <!-- Phase 9: Sessions section — surfaces the WebSocket bridge state + claude.ai login -->
   <section class="xb-sessions">
     <h3>Sessions</h3>
-    <div id="sessions-list">
+
+    <!-- Disconnected state: single-click onboarding -->
+    <div id="connect-row" hidden>
+      <button type="button" id="btn-connect-xbrain" class="connect-btn">🔑 Connect xbrain account</button>
+      <p class="xb-hint">
+        One click: signs in with Google, mints a personal API token,
+        and opens the bridge connection to your Claude Pro/Max subscription.
+      </p>
+    </div>
+
+    <!-- Inline status (loading / error / success) for the connect flow -->
+    <div id="connect-status" hidden></div>
+
+    <!-- Connected state: session-row + disconnect -->
+    <div id="sessions-list" hidden>
       <div class="session-row" data-provider="claude">
         <span class="status-dot" id="ws-dot"></span>
         <div class="session-meta">
-          <strong>Claude (mon abonnement)</strong>
+          <strong>Claude Pro/Max</strong>
           <small id="claude-email">—</small>
           <small id="claude-last-seen">—</small>
         </div>
@@ -243,8 +257,9 @@
         </div>
       </div>
     </div>
-    <p class="xb-hint" id="claude-hint">
-      Pour activer cette route : (1) installer / activer l'extension xbrain, (2) être logué sur claude.ai dans ce navigateur.
+
+    <p class="xb-hint" id="claude-hint" hidden>
+      To enable this route: (1) install/activate the xbrain extension, (2) log in to claude.ai in this browser.
     </p>
   </section>
 
