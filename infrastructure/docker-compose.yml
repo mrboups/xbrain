@@ -109,6 +109,13 @@ services:
       # Phase 8: Granola per-user key encryption + GitHub repos proxy
       FERNET_KEY: ${FERNET_KEY:-${OAUTH_CREDENTIALS_ENCRYPTION_KEY}}
       LIBRECHAT_INTERNAL_URL: ${LIBRECHAT_INTERNAL_URL:-http://librechat:3080}
+      # Phase 7 — Anthropic SDK fallback when @claude mentioner has no Pro/Max bridge.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Quick task 260512-tcr — team chat realtime via Centrifugo.
+      CENTRIFUGO_TOKEN_HMAC_SECRET: ${CENTRIFUGO_TOKEN_HMAC_SECRET:-}
+      CENTRIFUGO_API_KEY: ${CENTRIFUGO_API_KEY:-}
+      CENTRIFUGO_HTTP_URL_INTERNAL: ${CENTRIFUGO_HTTP_URL_INTERNAL:-http://centrifugo:8000}
+      CENTRIFUGO_WS_URL_PUBLIC: ${CENTRIFUGO_WS_URL_PUBLIC:-wss://centrifugo.grooveos.app/connection/websocket}
     networks: [xbrain_net]
     mem_limit: 384m
     depends_on:

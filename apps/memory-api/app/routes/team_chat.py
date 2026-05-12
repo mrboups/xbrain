@@ -61,7 +61,10 @@ async def _resolve_team_and_check_membership(
     team = (await session.execute(select(Team).where(Team.id == team_id))).scalar_one_or_none()
     if team is None:
         raise HTTPException(404, "team not found")
-    membership = await teams_repo.get_membership(session, team_id=team_id, user_id=user_id)
+    # get_membership() uses (user_id, team_slug) — call it with team.slug we just resolved.
+    membership = await teams_repo.get_membership(
+        session, user_id=user_id, team_slug=team.slug,
+    )
     if membership is None:
         raise HTTPException(403, "not a member of this team")
     return team
