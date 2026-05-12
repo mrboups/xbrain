@@ -452,6 +452,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // async
   }
 
+  // Popup signals "I just created/joined a team — please rebuild the right-
+  // click context menu so my new team shows up in the CortX OS submenu".
+  if (message && message.type === "REFRESH_TEAMS_MENU") {
+    refreshContextMenus()
+      .then(() => sendResponse({ ok: true }))
+      .catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }));
+    return true; // async
+  }
+
   // Settings page — force the bridge WS to reconnect so the register frame
   // re-detects the active claude.ai session (after the user switched account).
   if (message && message.type === "REFRESH_CLAUDE_SESSION") {
@@ -866,20 +875,17 @@ const TEAMS_CACHE_TTL_MS = 24 * 3600 * 1000; // 24h — teams change rarely
  * Fetch the user's teams from memory-api. Returns null on auth failure or
  * network error so the caller can fall back to a "connect first" menu.
  *
- * Uses getGoogleIdToken({silent: true}) — never opens a consent popup. If the
- * user hasn't connected yet, this returns null and the menu shows the
- * connect-first item.
+ * Uses the persistent xbt_ token from chrome.storage.local — survives
+ * browser restarts where the in-memory Google ID token cache would be
+ * empty. /v1/teams/my-teams accepts both Google ID tokens and xbt_
+ * since commit 019d936.
  */
 async function fetchUserTeams() {
-  let idToken;
-  try {
-    idToken = await getGoogleIdToken({ silent: true });
-  } catch {
-    return null;
-  }
+  const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+  if (!xbt_token) return null;
   try {
     const r = await fetch(`${MEMORY_API_BASE}/v1/teams/my-teams`, {
-      headers: { Authorization: `Bearer ${idToken}` },
+      headers: { Authorization: `Bearer ${xbt_token}` },
     });
     if (!r.ok) return null;
     const teams = await r.json();

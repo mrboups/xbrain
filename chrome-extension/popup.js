@@ -853,6 +853,10 @@ async function createSoloTeam(btn) {
       "POST",
       {},
     );
+    // Tell the SW to rebuild the CortX OS right-click submenu so the new
+    // solo team appears there too. Fire-and-forget — the menu refresh is
+    // a nice-to-have, not blocking the popup reboot.
+    chrome.runtime.sendMessage({ type: "REFRESH_TEAMS_MENU" }).catch(() => {});
     // Re-boot so the new team appears in the selector and the chat connects.
     btn.textContent = "Ready ✓";
     setTimeout(() => boot(), 500);
