@@ -1,21 +1,28 @@
 /**
  * xbrain Web Clipper + Session Bridge — Background Service Worker (Manifest V3)
  *
- * Responsabilités (Phase 4/8 — Web Clipper) :
- *   - Obtenir un ID token Google via launchWebAuthFlow (Solution A — RESEARCH.md Q6)
- *   - Stocker le token en cache dans chrome.storage.session (TTL 3600s)
- *   - Envoyer le payload à memory-api (https://api.grooveos.app/v1/memory/upsert)
+ * Responsibilities (Phase 4/8 — Web Clipper):
+ *   - Obtain a Google ID token via launchWebAuthFlow (Solution A — RESEARCH.md Q6)
+ *   - Cache the token in chrome.storage.session (TTL 3600s)
+ *   - POST clipped payloads to memory-api (https://api.grooveos.app/v1/memory/upsert)
  *
- * Responsabilités (Phase 9 — Session Bridge) :
- *   - Maintenir une WebSocket persistante vers wss://bridge.grooveos.app/ws/{user_sub}
- *   - Envoyer une frame `register` à l'ouverture (provider/email_logged/org_id)
- *   - Dispatcher chaque `chat_request` du bridge vers handleClaude (claude_ai_client.js)
- *   - Reconnexion exponentielle avec jitter, keepalive ping 20s, chrome.alarms watchdog
+ * Responsibilities (Phase 9 — Session Bridge):
+ *   - Maintain a persistent WebSocket to wss://bridge.grooveos.app/ws/{user_sub}
+ *   - Send a `register` frame on open (provider/email_logged/org_id)
+ *   - Dispatch every `chat_request` from the bridge to handleClaude (claude_ai_client.js)
+ *   - Exponential reconnect with jitter, 20s keepalive ping, chrome.alarms watchdog
  *
- * Messages écoutés via chrome.runtime.onMessage :
- *   { type: "GET_ID_TOKEN" }           → retourne { idToken: "..." } ou { error: "..." }
- *   { type: "SEND_TO_BRAIN", payload } → retourne { ok: true } ou { error: "..." }
- *   { kind: "ws_status_query" }        → retourne { readyState: ws ? ws.readyState : -1 }
+ * Responsibilities (Quick task 260512-eo1 — onboarding):
+ *   - One-click mint of an xbt_ personal API token + persistent storage in
+ *     chrome.storage.local so the WS bridge survives browser restarts.
+ *   - Disconnect flow that revokes the token and clears storage.
+ *
+ * Runtime message handlers:
+ *   { type: "GET_ID_TOKEN" }           → { idToken } | { error }
+ *   { type: "SEND_TO_BRAIN", payload } → { ok, result } | { error }
+ *   { kind: "ws_status_query" }        → { readyState }
+ *   { type: "MINT_AND_CONNECT" }       → { ok, email, source_user_id } | { ok: false, error }
+ *   { type: "DISCONNECT" }             → { ok }
  */
 
 import { handleClaude, getOrgId } from "./claude_ai_client.js";
@@ -25,6 +32,11 @@ import {
   WATCHDOG_PERIOD_MIN,
   MAX_ATTEMPT,
 } from "./ws_keepalive.js";
+import {
+  readStoredAuth as readStoredAuthPure,
+  mintAndConnect as mintAndConnectPure,
+  disconnectAuth as disconnectAuthPure,
+} from "./onboarding.js";
 
 const MEMORY_API_URL = "https://api.grooveos.app/v1/memory/upsert";
 // Remplacer __GOOGLE_CLIENT_ID__ par le même client_id que LibreChat Google OAuth
@@ -137,11 +149,43 @@ async function sendToBrain(idToken, payload) {
   return response.json();
 }
 
+// ===========================================================================
+// Quick task 260512-eo1 — onboarding glue
+// Pure logic lives in ./onboarding.js so node tests can import it without
+// polyfilling chrome.*. The wrappers below bind chrome.storage + global fetch.
+// ===========================================================================
+
+async function readStoredAuth() {
+  return readStoredAuthPure(chrome.storage);
+}
+
+async function mintAndConnect() {
+  return mintAndConnectPure({
+    fetch,
+    getIdToken: getGoogleIdToken,
+    storage: chrome.storage.local,
+  });
+}
+
+async function disconnectAuth() {
+  return disconnectAuthPure({
+    fetch,
+    storage: chrome.storage.local,
+    sessionStorage: chrome.storage.session,
+    closeWs: () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close(1000, "user disconnected");
+      }
+    },
+  });
+}
+
 /**
- * Écouter les messages depuis le popup et les autres composants de l'extension.
+ * Runtime message dispatcher — listens for messages from the popup and other
+ * extension components.
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Threat T-09-03-02: refuser tout message ne provenant pas de l'extension elle-même.
+  // Threat T-09-03-02: reject any message not from this extension itself.
   if (sender && sender.id && sender.id !== chrome.runtime.id) {
     return false;
   }
@@ -150,7 +194,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     getGoogleIdToken()
       .then((idToken) => sendResponse({ idToken }))
       .catch((err) => sendResponse({ error: err.message }));
-    return true; // indique que sendResponse sera appelé de manière asynchrone
+    return true; // sendResponse will be called asynchronously
   }
 
   if (message.type === "SEND_TO_BRAIN") {
@@ -162,19 +206,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendToBrain(idToken, payload)
       .then((result) => sendResponse({ ok: true, result }))
       .catch((err) => sendResponse({ error: err.message }));
-    return true; // asynchrone
+    return true; // async
   }
 
-  // Phase 9 — consommé par popup.js (plan 09-05) pour afficher 🟢/🔴.
+  // Phase 9 — consumed by popup.js (plan 09-05) to render 🟢/🔴.
   if (message && message.kind === "ws_status_query") {
     sendResponse({
       readyState: ws ? ws.readyState : -1,
       last_open_ms: lastOpenAt,
     });
-    return false; // réponse synchrone
+    return false; // synchronous reply
   }
 
-  // Message inconnu — ne pas bloquer
+  // Quick task 260512-eo1 — single-click onboarding.
+  if (message && message.type === "MINT_AND_CONNECT") {
+    mintAndConnect().then(sendResponse);
+    return true; // async
+  }
+
+  if (message && message.type === "DISCONNECT") {
+    disconnectAuth().then(sendResponse);
+    return true; // async
+  }
+
+  // Unknown message — don't block.
   return false;
 });
 
@@ -190,9 +245,9 @@ let reconnectTimer = null;
 let lastOpenAt = 0;
 
 /**
- * Best-effort fetch de l'email loggé sur claude.ai. Renvoie null sur échec
- * (non-bloquant — la frame register part avec email_logged=null si la requête
- * échoue, p.ex. si l'utilisateur n'est pas encore connecté à claude.ai).
+ * Best-effort fetch of the email logged into claude.ai. Returns null on failure
+ * (non-blocking — the register frame goes out with email_logged=null if the
+ * request fails, e.g. when the user isn't logged into claude.ai yet).
  */
 async function fetchClaudeEmail() {
   try {
@@ -213,8 +268,8 @@ async function fetchClaudeEmail() {
 }
 
 /**
- * Ouvre (ou réutilise) la WebSocket vers session-bridge.
- * Idempotent : ne ré-ouvre pas si une socket est déjà OPEN/CONNECTING.
+ * Open (or reuse) the WebSocket to session-bridge.
+ * Idempotent — does not reopen if a socket is already OPEN/CONNECTING.
  */
 async function openBridgeWS() {
   if (
@@ -223,10 +278,7 @@ async function openBridgeWS() {
   ) {
     return; // idempotent
   }
-  const { xbt_token, user_sub } = await chrome.storage.session.get([
-    "xbt_token",
-    "user_sub",
-  ]);
+  const { xbt_token, user_sub } = await readStoredAuth();
   if (!xbt_token || !user_sub) {
     console.warn("[xbrain] no token/sub yet, deferring WS open");
     return;
@@ -244,7 +296,7 @@ async function openBridgeWS() {
     lastOpenAt = Date.now();
     startPing();
 
-    // Threat T-09-03-04: jamais throw — register en best-effort, nulls autorisés.
+    // Threat T-09-03-04: never throw — register is best-effort, nulls allowed.
     let org_id = null;
     let email_logged = null;
     try {
@@ -309,7 +361,7 @@ async function openBridgeWS() {
     console.warn("[xbrain] WS closed", event.code, event.reason);
     stopPing();
     ws = null;
-    // 4401/4403 = auth failure — ne pas retry tant que le token n'a pas été refreshé.
+    // 4401/4403 = auth failure — don't retry until the token has been refreshed.
     if (event.code !== 4401 && event.code !== 4403) {
       scheduleReconnect();
     }
@@ -349,7 +401,7 @@ function scheduleReconnect() {
   }, delay);
 }
 
-// chrome.alarms watchdog — ré-ouvre la WS si le SW a été tué (MV3 idle).
+// chrome.alarms watchdog — reopens the WS if the SW was killed (MV3 idle).
 chrome.alarms.create("xbrain_ws_watchdog", {
   periodInMinutes: WATCHDOG_PERIOD_MIN,
 });
@@ -361,9 +413,11 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
-// Ré-ouvre la WS dès que xbt_token ou user_sub apparaît / change dans le storage.
+// Reopen the WS whenever xbt_token or user_sub appears / changes in storage.
+// Listen on both `local` (canonical since quick task 260512-eo1) and `session`
+// (legacy bootstrap) so manually-bootstrapped sessions still trigger a reconnect.
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== "session") return;
+  if (area !== "local" && area !== "session") return;
   if (
     (changes.xbt_token || changes.user_sub) &&
     (!ws || ws.readyState === WebSocket.CLOSED)
@@ -372,9 +426,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
-// Démarrage navigateur — chrome.runtime.onStartup tire AVANT que le SW soit
-// ré-instancié sur idle, mais on déclenche openBridgeWS() au top-level aussi
-// pour gérer le cas d'install/upgrade.
+// Browser startup — chrome.runtime.onStartup fires BEFORE the SW is
+// re-instantiated on idle, but we also trigger openBridgeWS() at top-level
+// to handle install/upgrade.
 chrome.runtime.onStartup.addListener(() => {
   openBridgeWS();
 });
