@@ -745,9 +745,11 @@ services:
     volumes:
       - ../infrastructure/centrifugo/config.json:/centrifugo/config.json:ro
     environment:
-      # Secrets injected via env so the config.json stays committable.
-      CENTRIFUGO_TOKEN_HMAC_SECRET: ${CENTRIFUGO_TOKEN_HMAC_SECRET}
-      CENTRIFUGO_API_KEY: ${CENTRIFUGO_API_KEY}
+      # Centrifugo v6 env var names — overlay config.json keys.
+      # Maps our project env names (CENTRIFUGO_TOKEN_HMAC_SECRET / CENTRIFUGO_API_KEY)
+      # to the path-derived var names Centrifugo expects.
+      CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY: ${CENTRIFUGO_TOKEN_HMAC_SECRET}
+      CENTRIFUGO_HTTP_API_KEY: ${CENTRIFUGO_API_KEY}
     ports:
       - "127.0.0.1:8106:8000"
     networks: [xbrain_net]

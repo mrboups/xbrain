@@ -1,10 +1,4 @@
 {
-  "_comment": "xbrain Centrifugo v6 config — quick task 260512-tcr. HMAC token secret and API key are loaded from env vars (CENTRIFUGO_TOKEN_HMAC_SECRET, CENTRIFUGO_API_KEY) injected by docker-compose. Channel namespaces enforce presence + history for team chat.",
-  "log_level": "info",
-  "http_server": {
-    "address": "0.0.0.0",
-    "port": 8000
-  },
   "client": {
     "allowed_origins": [
       "chrome-extension://*",
@@ -12,27 +6,24 @@
       "https://app.grooveos.app",
       "https://xbrain-495115.web.app"
     ],
-    "allow_anonymous_connect_without_token": false,
-    "ping_interval": "25s",
-    "ping_pong_buffer_size": 5
+    "token": {
+      "hmac_secret_key": ""
+    },
+    "ping_interval": "25s"
+  },
+  "http_api": {
+    "key": ""
   },
   "channel": {
-    "without_namespace": {
-      "publish": false,
-      "subscribe_for_anonymous": false
-    },
     "namespaces": [
       {
         "name": "team",
         "presence": true,
-        "presence_disconnect_on_inactive": true,
         "join_leave": true,
         "force_push_join_leave": true,
         "history_size": 100,
         "history_ttl": "604800s",
-        "history_meta_ttl": "604800s",
-        "force_recovery": true,
-        "allowed_delta_types": ["fossil"]
+        "force_recovery": true
       },
       {
         "name": "user",
@@ -42,16 +33,10 @@
       }
     ]
   },
-  "rpc": {
-    "without_namespace": {
-      "proxy_enabled": false
-    }
-  },
-  "admin": {
-    "enabled": false
-  },
   "prometheus": {
     "enabled": true
   },
-  "shutdown_timeout": "30s"
+  "health": {
+    "enabled": true
+  }
 }
