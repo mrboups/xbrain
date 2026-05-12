@@ -40,79 +40,68 @@ import {
 import { loadSettings, SETTINGS_KEY } from "./settings.js";
 
 const MEMORY_API_URL = "https://api.grooveos.app/v1/memory/upsert";
-// Remplacer __GOOGLE_CLIENT_ID__ par le même client_id que LibreChat Google OAuth
-// Format attendu : "XXXXXXXXXX.apps.googleusercontent.com"
-const CLIENT_ID = "50097563098-rdh24v05dcp0ees8o4kqviuuoi5sup3n.apps.googleusercontent.com";
-const TOKEN_CACHE_KEY = "xbrain_id_token";
-const TOKEN_EXPIRY_KEY = "xbrain_id_token_expiry";
-const TOKEN_TTL_MS = 3600 * 1000; // 1 heure en millisecondes
-
 /**
- * Obtenir un ID token Google via launchWebAuthFlow avec response_type=id_token.
- * Utilise chrome.storage.session pour le cache (TTL 3600s).
- * L'ID token retourné est un JWT signé par Google, compatible avec
- * verify_google_id_token dans apps/memory-api/app/auth.py.
+ * Get a Google OAuth2 access token via chrome.identity.getAuthToken.
  *
- * Pré-requis Google Cloud Console :
- *   Ajouter https://<chrome.runtime.id>.chromiumapp.org/ dans les
- *   Authorized redirect URIs du client OAuth.
+ * Silent when:
+ *   - The user is already signed into Chrome with a Google profile.
+ *   - The extension's required scopes (declared in manifest.oauth2.scopes)
+ *     have been granted previously.
+ * Opens a Chrome-native consent prompt only on the very first call. After
+ * that, getAuthToken returns the cached token from Chrome's identity provider
+ * with transparent refresh — no need for our own chrome.storage.session cache.
+ *
+ * Memory-api accepts both Google ID tokens (legacy launchWebAuthFlow path)
+ * AND OAuth2 access tokens since quick task 260512-zca (commit 27e0a8d) —
+ * verify_google_access_token() calls /oauth2/v3/userinfo to resolve identity.
+ *
+ * Returns the access token string. Throws on user-cancel or chrome.identity
+ * errors.
  */
 async function getGoogleIdToken() {
-  // 1. Vérifier le cache
-  const stored = await chrome.storage.session.get([TOKEN_CACHE_KEY, TOKEN_EXPIRY_KEY]);
-  const cachedToken = stored[TOKEN_CACHE_KEY];
-  const cachedExpiry = stored[TOKEN_EXPIRY_KEY];
-
-  if (cachedToken && cachedExpiry && Date.now() < cachedExpiry) {
-    return cachedToken;
-  }
-
-  // 2. Obtenir un nouveau token via launchWebAuthFlow
-  const redirectUri = `https://${chrome.runtime.id}.chromiumapp.org/`;
-  const nonce = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
-
-  const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  authUrl.searchParams.set("client_id", CLIENT_ID);
-  authUrl.searchParams.set("response_type", "id_token");
-  authUrl.searchParams.set("redirect_uri", redirectUri);
-  authUrl.searchParams.set("scope", "openid email profile");
-  authUrl.searchParams.set("nonce", nonce);
-  // prompt=select_account force la sélection de compte si plusieurs comptes connectés
-  authUrl.searchParams.set("prompt", "select_account");
-
   return new Promise((resolve, reject) => {
-    chrome.identity.launchWebAuthFlow(
-      { url: authUrl.toString(), interactive: true },
-      async (redirectUrl) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-        if (!redirectUrl) {
-          reject(new Error("Auth flow cancelled or no redirect URL returned"));
-          return;
-        }
-
-        // Extraire l'ID token du fragment (#id_token=...)
-        const hash = new URL(redirectUrl).hash.substring(1); // supprimer le '#'
-        const params = new URLSearchParams(hash);
-        const idToken = params.get("id_token");
-
-        if (!idToken) {
-          reject(new Error("No id_token found in redirect URL fragment"));
-          return;
-        }
-
-        // 3. Mettre en cache dans chrome.storage.session
-        const expiry = Date.now() + TOKEN_TTL_MS;
-        await chrome.storage.session.set({
-          [TOKEN_CACHE_KEY]: idToken,
-          [TOKEN_EXPIRY_KEY]: expiry,
-        });
-
-        resolve(idToken);
+    chrome.identity.getAuthToken({ interactive: true }, (result) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
       }
-    );
+      // Chrome 116+ returns { token, grantedScopes }; older Chrome returns the
+      // token string directly. Normalize both shapes.
+      const token =
+        result && typeof result === "object" ? result.token : result;
+      if (!token) {
+        reject(new Error("getAuthToken returned no token"));
+        return;
+      }
+      resolve(token);
+    });
+  });
+}
+
+/**
+ * Revoke and clear Chrome's cached Google access token. Called from the
+ * disconnect flow so a subsequent connect doesn't silently reuse the stale
+ * token (which is harmless on Chrome's side but prevents account switching).
+ */
+async function clearGoogleAuthToken() {
+  return new Promise((resolve) => {
+    if (!chrome.identity || !chrome.identity.getAuthToken) {
+      resolve();
+      return;
+    }
+    chrome.identity.getAuthToken({ interactive: false }, (result) => {
+      if (chrome.runtime.lastError) {
+        resolve();
+        return;
+      }
+      const token =
+        result && typeof result === "object" ? result.token : result;
+      if (!token) {
+        resolve();
+        return;
+      }
+      chrome.identity.removeCachedAuthToken({ token }, () => resolve());
+    });
   });
 }
 
@@ -169,6 +158,10 @@ async function mintAndConnect() {
 }
 
 async function disconnectAuth() {
+  // Also drop Chrome's cached Google access token so a subsequent connect
+  // can pick a different account (otherwise getAuthToken would silently
+  // reuse the same identity).
+  await clearGoogleAuthToken();
   return disconnectAuthPure({
     fetch,
     storage: chrome.storage.local,
