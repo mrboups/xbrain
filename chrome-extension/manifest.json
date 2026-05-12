@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "xbrain Web Clipper",
-  "version": "1.0.0",
-  "description": "Envoyez du contenu web dans le brain xbrain de votre équipe",
-  "permissions": ["identity", "activeTab", "storage"],
+  "version": "1.1.0",
+  "description": "Envoyez du contenu web dans le brain xbrain de votre équipe + routez Claude Pro/Max via session-bridge (Phase 9)",
+  "permissions": ["identity", "activeTab", "storage", "alarms"],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "action": {
     "default_popup": "popup.html",
@@ -25,6 +26,9 @@
     "scopes": ["openid", "email", "profile"]
   },
   "host_permissions": [
-    "https://api.grooveos.app/*"
+    "https://api.grooveos.app/*",
+    "https://bridge.grooveos.app/*",
+    "https://claude.ai/*",
+    "https://api.claude.ai/*"
   ]
 }
