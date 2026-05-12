@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Lot 2 LLM stack quick wins shipped (260511-0jb). Grok-3 + Claude Reasoning endpoint in LibreChat, second-opinion now 3-way (Sonnet+Opus 4.7+Grok-3), Anthropic prompt caching activated on 6 extraction call sites across 5 services. Verified 5/5.
-last_updated: "2026-05-12T04:30:00.000Z"
-last_activity: 2026-05-12 -- Phase 09 plan 05 complete (LibreChat 'Claude (mon abonnement)' + popup Sessions section)
+status: shipped
+stopped_at: Phase 9 SHIPPED 2026-05-12 — session-bridge Pro/Max routing code complete (all 6 plans, 3 waves). verify-phase9.sh ready (8 SKIP-aware tests). Residual: VM deploy + Cloudflare DNS + 09-UAT.md walk by user.
+last_updated: "2026-05-12T18:00:00.000Z"
+last_activity: 2026-05-12 -- Phase 09 plan 06 complete (verify-phase9.sh + sessions.html + 09-UAT.md) — Phase 9 code SHIPPED
 progress:
   total_phases: 9
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 73
-  completed_plans: 67
-  percent: 92
+  completed_plans: 73
+  percent: 100
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 
 ## Current Position
 
-Phase: 09 (session-bridge-pro-max-routing-via-chrome-extension) — EXECUTING
-Plan: 5 of 6 (09-05 complete; Wave 2 done with 09-03 + 09-05; awaiting 09-06 verify gate)
-Status: Executing Phase 09
-Last activity: 2026-05-12 -- Phase 09 plan 05 complete (LibreChat 'Claude (mon abonnement)' + popup Sessions section)
+Phase: 09 (session-bridge-pro-max-routing-via-chrome-extension) — **SHIPPED 2026-05-12**
+Plan: 6 of 6 (09-06 complete; verify-phase9.sh + sessions.html + 09-UAT.md shipped)
+Status: Phase 9 code SHIPPED — residual: VM deploy + Cloudflare DNS + 09-UAT.md walk
+Last activity: 2026-05-12 -- Phase 09 plan 06 complete (verify gate + docs + UAT checklist)
 
-Progress: [██████████] 100% — ALL v1.0 PHASES COMPLETE — Phase 8 post-v1 COMPLETE (2026-05-09)
+Progress: [██████████] 100% — ALL 9 PHASES COMPLETE (Phase 9 SHIPPED 2026-05-12)
 
 ## Performance Metrics
 
