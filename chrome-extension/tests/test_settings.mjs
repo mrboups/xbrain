@@ -54,7 +54,13 @@ await test("DEFAULT_SETTINGS has both toggles ON", () => {
 
 await test("loadSettings returns defaults when storage empty", async () => {
   const s = await loadSettings(makeStorageArea());
-  assert.deepEqual(s, { openInSidePanel: true, autoFillLibreChat: true });
+  assert.deepEqual(s, {
+    openInSidePanel: true,
+    autoFillLibreChat: true,
+    clipDefaultProject: null,
+    clipDefaultTruthLevel: "EPHEMERAL",
+    clipSkipOverlay: false,
+  });
 });
 
 await test("loadSettings honors persisted false values", async () => {
@@ -80,15 +86,33 @@ await test("saveSettings patches without losing other keys", async () => {
   assert.equal(s.autoFillLibreChat, false);
 });
 
-await test("mergeSettings strips unknown keys and non-booleans", () => {
+await test("mergeSettings strips unknown keys and wrong-typed values", () => {
   const out = mergeSettings({
     openInSidePanel: false,
     autoFillLibreChat: "yes please", // not a boolean → ignored
     unknownKey: true, // not in schema → stripped
+    clipDefaultProject: 42, // wrong type for string|null → ignored
+    clipDefaultTruthLevel: null, // null not allowed for required string → ignored
   });
   assert.equal(out.openInSidePanel, false);
   assert.equal(out.autoFillLibreChat, true); // ignored → default
   assert.equal(out.unknownKey, undefined);
+  assert.equal(out.clipDefaultProject, null); // default
+  assert.equal(out.clipDefaultTruthLevel, "EPHEMERAL"); // default
+});
+
+await test("mergeSettings accepts string + null for nullable keys", () => {
+  const out = mergeSettings({
+    clipDefaultProject: "fundraising",
+    clipDefaultTruthLevel: "VALIDATED",
+    clipSkipOverlay: true,
+  });
+  assert.equal(out.clipDefaultProject, "fundraising");
+  assert.equal(out.clipDefaultTruthLevel, "VALIDATED");
+  assert.equal(out.clipSkipOverlay, true);
+
+  const out2 = mergeSettings({ clipDefaultProject: null });
+  assert.equal(out2.clipDefaultProject, null); // null explicitly OK
 });
 
 await test("mergeSettings handles null/undefined input safely", () => {

@@ -23,6 +23,13 @@ export const SETTINGS_KEY = "xbrain_settings_v1";
 export const DEFAULT_SETTINGS = Object.freeze({
   openInSidePanel: true,
   autoFillLibreChat: true,
+  // Clip defaults (quick task 260512-tcr Wave 3.3/3.5). null means "no
+  // default set — overlay opens fresh". When clipSkipOverlay is true and
+  // both defaults are present, the 📎 click sends immediately after a
+  // 1.5s confirm grace window.
+  clipDefaultProject: null,
+  clipDefaultTruthLevel: "EPHEMERAL",
+  clipSkipOverlay: false,
 });
 
 /**
@@ -58,11 +65,30 @@ export async function saveSettings(storageArea, patch) {
  * DEFAULT_SETTINGS. Only known keys are kept, and only boolean values pass
  * through — defensive against schema drift in chrome.storage.sync.
  */
+// Per-key expected types — drives the defensive merge below. null-defaulted
+// keys (clipDefaultProject) accept "string" OR null; boolean keys accept
+// only boolean; string keys (clipDefaultTruthLevel) accept only string.
+const _SCHEMA = {
+  openInSidePanel: ["boolean"],
+  autoFillLibreChat: ["boolean"],
+  clipDefaultProject: ["string", "null"],
+  clipDefaultTruthLevel: ["string"],
+  clipSkipOverlay: ["boolean"],
+};
+
+function _isAllowed(value, allowedTypes) {
+  if (value === null) return allowedTypes.includes("null");
+  return allowedTypes.includes(typeof value);
+}
+
 export function mergeSettings(raw) {
   const out = { ...DEFAULT_SETTINGS };
   if (raw && typeof raw === "object") {
     for (const k of Object.keys(DEFAULT_SETTINGS)) {
-      if (typeof raw[k] === "boolean") out[k] = raw[k];
+      const allowed = _SCHEMA[k] || ["boolean"];
+      if (k in raw && _isAllowed(raw[k], allowed)) {
+        out[k] = raw[k];
+      }
     }
   }
   return out;
