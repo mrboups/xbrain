@@ -193,6 +193,47 @@ Plans:
 - [ ] 09-06-PLAN.md — verify-phase9.sh (8 tests) + .env.example + docs/sessions.html + 09-UAT.md
 **UI hint**: yes (extension popup + LibreChat endpoint dropdown + settings page session status)
 
+### Phase 10: GitHub-Primary Auth + Org-Driven Team Membership
+**Goal**: GitHub devient l'identité principale de xbrain. Un user signe avec GitHub OAuth, ses team memberships sont auto-créées depuis les org GitHub matchant `teams.github_org`, et un admin peut bloquer un user spécifique même s'il est membre de l'org. Google reste un lien secondaire (Drive/Calendar/email lookup), pas l'auth principale. Les user rows orphelines (signé en Google puis GitHub, ou inverse) sont auto-mergées sur link/sign-in.
+**Depends on**: Phase 5 (team platform), Phase 7 (SMTP notifications déjà wired dans `notifications.py`)
+**Entry gate**: Auth Google-primary fonctionnelle (current state). Endpoint `POST /v1/me/link-github-with-code` shipped. SMTP fail-soft helper dispo dans `app/services/notifications.py`. Migration `0007_github_users` appliquée (colonnes `users.github_id`, `users.github_username`). Table `team_members` avec `joined_at`.
+**Requirements**: (phase post-v1 — nouvelles capacités hors scope 73 REQ-IDs v1) — GHA-01 à GHA-08
+- GHA-01: GitHub OAuth code exchange endpoint qui mint un `xbt_` directement (pas de Google requis en amont)
+- GHA-02: Auto-grant team membership au 1er sign-in via GitHub org match (`teams.github_org` = un des orgs GitHub du user)
+- GHA-03: Block/unblock d'un member existant (admin endpoint), persiste même si re-sign via org match
+- GHA-04: Pré-block d'un GitHub login pas encore signé (table `team_org_blocks`)
+- GHA-05: Email admin sur auto-grant (via `notifications.py` fail-soft)
+- GHA-06: Auto-merge des user rows orphelines (Google ↔ GitHub) sur link/sign-in, migration `team_members` + soft-delete
+- GHA-07: Sign-in GitHub primaire dans `chrome-extension/popup.html`
+- GHA-08: Sign-in GitHub primaire dans `app-site/account/teams/index.html`
+
+**Success Criteria** (what must be TRUE):
+  1. Un user sans compte Google peut signer dans l'extension popup ET sur `grooveos.app/account/teams/` en cliquant "Sign in with GitHub" → un `xbt_` token est minté, stocké en `chrome.storage.local` ou `localStorage`, et il voit ses teams immédiatement via `/v1/teams/my-teams`
+  2. Quand un user GitHub appartient à org `acme-corp` (vérifié via GitHub `/user/orgs`) et qu'une team xbrain existe avec `github_org='acme-corp'`, son 1er sign-in déclenche `INSERT team_members(role='member')` automatiquement — sauf si une ligne `team_org_blocks(team_id, github_login)` existe pour lui
+  3. L'admin d'une team peut bloquer un member existant via `POST /v1/teams/{id}/members/{user_id}/block` (set `team_members.blocked_at`) ou pré-bloquer un GitHub login pas encore signé via `POST /v1/teams/{id}/org-blocks {github_login}` ; un user bloqué reçoit 403 sur toute route team-scoped même s'il est dans l'org
+  4. Quand un user signe en GitHub et qu'une autre user row existe avec le même `github_id` (linkée précédemment depuis un compte Google), les `team_members` de la row orpheline sont migrés vers la row primary et la row orpheline est soft-deleted (`users.merged_into_user_id` set) — idempotent, sûr en cas de re-sign
+  5. Sur auto-grant déclenché par GHA-02, un email est envoyé à tous les admins de la team via `send_member_autojoined_email()` (fail-soft si `SMTP_HOST` vide) avec le username GitHub + lien vers `grooveos.app/account/teams/` pour Block
+  6. Le bouton "Sign in with GitHub" est le bouton primaire (visuellement dominant) dans `chrome-extension/popup.html` ET `app-site/account/teams/index.html` ; "Sign in with Google" reste accessible mais secondaire ("More options" ou lien plus petit)
+  7. `bash infrastructure/scripts/verify-phase10.sh` retourne `PASS: N / N` (count TBD au planning) — au minimum : (a) `/v1/auth/github/exchange` mint un xbt_ pour un user sans compte Google préalable, (b) auto-grant respecte `team_org_blocks`, (c) `POST /block` refuse principal non-admin (403), (d) auto-merge migre `team_members` et soft-delete row orpheline, (e) email admin déclenché sur auto-grant (capté via SMTP mock)
+**Plans**: 6 plans
+Plans:
+- [ ] 10-01-PLAN.md — Migrations 0016 (team_members.blocked_at + team_org_blocks + users.merged_into_user_id) + ORM + repo helpers + merge_user_rows
+- [ ] 10-02-PLAN.md — POST /v1/auth/github/signin + auto-grant service + identity merge (GHA-01/02/05/06)
+- [ ] 10-03-PLAN.md — Admin block/unblock + GitHub-login pre-block endpoints + 403 enforcement (GHA-03/04)
+- [ ] 10-04-PLAN.md — app-site GitHub primary sign-in via Option B redirect + state-aware banners (GHA-08)
+- [ ] 10-05-PLAN.md — Chrome extension popup GitHub-primary + background SIGNIN_GITHUB + options.html Block/Pre-block UI (GHA-07)
+- [ ] 10-06-PLAN.md — verify-phase10.sh + KB article + docs/auth.html + UAT + SUMMARY template
+
+**Wave order**: 1 (10-01) → 2a (10-02) → 2b (10-03) → 3 (10-04 + 10-05 parallel) → 4 (10-06)
+
+(REVISION 1 / M-2: 10-02 and 10-03 both edit `deps.py:get_team_scope` and
+`routes/teams.py`. They must run sequentially — 2a before 2b — to avoid the
+guaranteed merge conflict that parallel execution produces. 10-04 and 10-05
+touch independent file trees (app-site vs chrome-extension) and remain
+parallel in wave 3.)
+
+**UI hint**: yes (chrome-extension popup + chrome-extension options.html Settings, app-site /account/teams/)
+
 ### Phase 7: CRM + Granola + Task Intelligence
 **Goal**: Le brain devient actif. Une équipe peut (1) consulter un CRM populé automatiquement depuis tout ce qui passe par le brain (chats, agents, meetings Granola), (2) voir chaque réunion Granola ingérée comme source de mémoire de premier ordre (résumé + participants + actions + décisions), et (3) gérer un backlog de tâches auto-générées depuis les action items Granola et les outputs agents — chaque tâche assignée à un contact CRM déclenche une notification email.
 **Depends on**: Phase 6
@@ -221,7 +262,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 → 8
+Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 → 8 → 9 → 10
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -234,6 +275,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 6. Marketing Site + Documentation | 8/8 | ✅ Complete | 2026-05-07 |
 | 7. CRM + Granola + Task Intelligence | 9/9 | ✅ Complete | 2026-05-07 |
 | 8. Granola Per-User + Universal Extraction + Platform Agents | 1/8 (plan 08-01 done, VM migration pending) | 🟡 In Progress | — |
+| 9. Session Bridge — Pro/Max Routing via Chrome Extension | 0/6 | ⚪ Planned | — |
+| 10. GitHub-Primary Auth + Org-Driven Team Membership | 0/TBD | ⚪ Planned | — |
 
 ---
 
