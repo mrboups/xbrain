@@ -272,6 +272,203 @@
       color: var(--xb-text-mute);
     }
 
+    /* === Team management cards (Stage 2) === */
+    .team-card {
+      background: var(--xb-surface);
+      border: 1px solid var(--xb-border);
+      border-radius: var(--xb-radius);
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .team-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.1s;
+    }
+    .team-card-header:hover { background: var(--xb-surface-2); }
+    .team-card-title {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .team-card-title strong { font-size: 14px; color: var(--xb-text); }
+    .team-card-title small {
+      font-size: 11px;
+      color: var(--xb-text-mute);
+    }
+    .team-role-pill {
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .team-role-pill.is-admin {
+      background: var(--xb-accent-bg);
+      color: var(--xb-accent);
+    }
+    .team-role-pill.is-member {
+      background: var(--xb-surface-2);
+      color: var(--xb-text-mute);
+    }
+    .team-card-chevron {
+      font-size: 11px;
+      color: var(--xb-text-dim);
+      transition: transform 0.2s;
+    }
+    .team-card-header.is-open .team-card-chevron { transform: rotate(180deg); }
+
+    .team-card-body {
+      border-top: 1px solid var(--xb-border);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .team-members-label {
+      font-size: 11px;
+      color: var(--xb-text-mute);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin: 0 0 6px 0;
+    }
+    .team-member-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 0;
+    }
+    .team-member-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--xb-surface-2);
+      color: var(--xb-text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .team-member-info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
+    }
+    .team-member-info strong { font-size: 13px; color: var(--xb-text); }
+    .team-member-info small {
+      font-size: 11px;
+      color: var(--xb-text-mute);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .team-member-role {
+      font-size: 11px;
+      color: var(--xb-text-mute);
+    }
+    .team-member-remove {
+      background: transparent;
+      border: 1px solid var(--xb-border-2);
+      color: var(--xb-text-mute);
+      border-radius: 4px;
+      padding: 3px 8px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+    .team-member-remove:hover {
+      background: var(--xb-error-bg);
+      border-color: var(--xb-error);
+      color: var(--xb-error);
+    }
+    .team-member-remove:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .team-invite-form {
+      display: flex;
+      gap: 6px;
+      align-items: stretch;
+    }
+    .team-invite-form input[type="email"] {
+      flex: 1;
+      min-width: 0;
+      background: var(--xb-bg);
+      color: var(--xb-text);
+      border: 1px solid var(--xb-border-2);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+    }
+    .team-invite-form input[type="email"]:focus { border-color: var(--xb-accent); }
+    .team-invite-form select {
+      background: var(--xb-bg);
+      color: var(--xb-text);
+      border: 1px solid var(--xb-border-2);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .team-invite-btn {
+      background: var(--xb-accent);
+      color: #fff;
+      border: 1px solid var(--xb-accent);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .team-invite-btn:hover { background: var(--xb-accent-2); border-color: var(--xb-accent-2); }
+    .team-invite-btn:disabled {
+      background: var(--xb-border-2);
+      border-color: var(--xb-border-2);
+      color: var(--xb-text-dim);
+      cursor: not-allowed;
+    }
+
+    .team-leave-btn {
+      align-self: flex-start;
+      background: transparent;
+      color: var(--xb-error);
+      border: 1px solid var(--xb-error);
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .team-leave-btn:hover {
+      background: var(--xb-error-bg);
+    }
+    .team-leave-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .team-action-status {
+      font-size: 12px;
+      color: var(--xb-text-mute);
+      min-height: 16px;
+    }
+    .team-action-status.is-success { color: var(--xb-success); }
+    .team-action-status.is-error   { color: var(--xb-error); }
+
     /* Scrollbar */
     ::-webkit-scrollbar { width: 10px; height: 10px; }
     ::-webkit-scrollbar-track { background: var(--xb-bg); }
@@ -430,6 +627,34 @@
       </div>
     </div>
   </div>
+
+  <!-- Team management (quick task 260513-tmu Stage 2) -->
+  <h2 class="section-title">My teams</h2>
+  <p class="subtitle">
+    Click a team to see its members. Admins can invite by email and remove
+    members; everyone can leave a team (except the last admin).
+  </p>
+
+  <div id="teams-empty" class="settings-card" hidden>
+    <div class="setting">
+      <div class="setting-body" style="flex:1">
+        <p class="setting-help" style="margin:0;">
+          You don't belong to any team yet. Open the extension popup and
+          click <strong>Create my solo workspace</strong> to get started.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div id="teams-loading" class="settings-card" hidden>
+    <div class="setting">
+      <div class="setting-body" style="flex:1">
+        <p class="setting-help" style="margin:0;">Loading your teams…</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="teams-list"></div>
 
   <div id="status"></div>
 

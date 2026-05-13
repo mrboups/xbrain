@@ -110,6 +110,348 @@ async function init() {
   if (btnRefreshClaude) {
     btnRefreshClaude.addEventListener("click", refreshClaudeSession);
   }
+
+  // === Team management (Stage 2) ===
+  await renderTeamsList();
+}
+
+// ─── Team management ────────────────────────────────────────────────────────
+
+const MEMORY_API_BASE = "https://api.grooveos.app";
+
+const teamState = {
+  me: null,           // /v1/me result {id, source_user_id, email, ...}
+  teams: [],          // [{id, slug, display_name, ...}]
+  membersByTeam: {},  // teamId → list of MemberOut
+  expanded: new Set(), // set of expanded team_ids
+};
+
+async function _xbtFetch(path, { method = "GET", body = null } = {}) {
+  const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+  if (!xbt_token) throw new Error("not signed in");
+  const opts = {
+    method,
+    headers: {
+      Authorization: `Bearer ${xbt_token}`,
+      "Content-Type": "application/json",
+    },
+  };
+  if (body !== null) opts.body = JSON.stringify(body);
+  const r = await fetch(`${MEMORY_API_BASE}${path}`, opts);
+  if (!r.ok) {
+    const text = await r.text().catch(() => "");
+    const err = new Error(`HTTP ${r.status}: ${text.slice(0, 300)}`);
+    err.status = r.status;
+    err.body = text;
+    throw err;
+  }
+  if (r.status === 204) return null;
+  return r.json();
+}
+
+async function renderTeamsList() {
+  const list = document.getElementById("teams-list");
+  const empty = document.getElementById("teams-empty");
+  const loading = document.getElementById("teams-loading");
+  if (!list || !empty || !loading) return;
+
+  list.innerHTML = "";
+  empty.hidden = true;
+  loading.hidden = false;
+
+  try {
+    teamState.me = await _xbtFetch("/v1/me");
+    teamState.teams = await _xbtFetch("/v1/teams/my-teams");
+  } catch (e) {
+    loading.hidden = true;
+    list.innerHTML = "";
+    const card = document.createElement("div");
+    card.className = "settings-card";
+    card.innerHTML = `
+      <div class="setting">
+        <div class="setting-body" style="flex:1">
+          <p class="setting-help" style="margin:0;color:var(--xb-error)">
+            Couldn't load teams: ${escapeHtml(e.message || "unknown error")}.
+            Sign in via the extension popup and try again.
+          </p>
+        </div>
+      </div>`;
+    list.appendChild(card);
+    return;
+  }
+
+  loading.hidden = true;
+  if (!teamState.teams || teamState.teams.length === 0) {
+    empty.hidden = false;
+    return;
+  }
+
+  for (const t of teamState.teams) {
+    list.appendChild(buildTeamCard(t));
+  }
+}
+
+function buildTeamCard(team) {
+  const card = document.createElement("div");
+  card.className = "team-card";
+  card.dataset.teamId = team.id;
+
+  // Header
+  const header = document.createElement("div");
+  header.className = "team-card-header";
+  header.innerHTML = `
+    <div class="team-card-title">
+      <strong>${escapeHtml(team.display_name || team.slug)}</strong>
+      <small>${escapeHtml(team.slug)}${team.github_org ? " · github:" + escapeHtml(team.github_org) : ""}</small>
+    </div>
+    <span class="team-role-pill" data-role-pill>…</span>
+    <span class="team-card-chevron" aria-hidden="true">▾</span>
+  `;
+  card.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "team-card-body";
+  body.hidden = true;
+  card.appendChild(body);
+
+  header.addEventListener("click", () => toggleTeamCard(team, header, body));
+
+  // If already expanded (e.g. after invite re-renders), keep it open.
+  if (teamState.expanded.has(team.id)) {
+    header.classList.add("is-open");
+    body.hidden = false;
+    void fillTeamBody(team, body);
+  }
+  return card;
+}
+
+async function toggleTeamCard(team, header, body) {
+  const opening = body.hidden;
+  body.hidden = !opening;
+  header.classList.toggle("is-open", opening);
+  if (opening) {
+    teamState.expanded.add(team.id);
+    await fillTeamBody(team, body);
+  } else {
+    teamState.expanded.delete(team.id);
+  }
+}
+
+async function fillTeamBody(team, body) {
+  body.innerHTML = `<p class="setting-help" style="margin:0">Loading members…</p>`;
+  let members;
+  try {
+    members = await _xbtFetch(`/v1/teams/${team.id}/members`);
+  } catch (e) {
+    body.innerHTML = `<p class="setting-help" style="margin:0;color:var(--xb-error)">
+      Couldn't load members: ${escapeHtml(e.message)}
+    </p>`;
+    return;
+  }
+  teamState.membersByTeam[team.id] = members;
+
+  const meMember = members.find((m) => m.user_id === teamState.me.id);
+  const myRole = meMember ? meMember.role : "member";
+  const isAdmin = myRole === "admin";
+
+  // Update header pill
+  const card = body.parentElement;
+  const pill = card.querySelector("[data-role-pill]");
+  if (pill) {
+    pill.textContent = myRole;
+    pill.className = `team-role-pill ${isAdmin ? "is-admin" : "is-member"}`;
+  }
+  const sub = card.querySelector(".team-card-title small");
+  if (sub) {
+    sub.textContent =
+      `${team.slug}${team.github_org ? " · github:" + team.github_org : ""}` +
+      ` · ${members.length} member${members.length === 1 ? "" : "s"}`;
+  }
+
+  // Build body
+  body.innerHTML = "";
+
+  // Members list
+  const membersLabel = document.createElement("p");
+  membersLabel.className = "team-members-label";
+  membersLabel.textContent = "Members";
+  body.appendChild(membersLabel);
+
+  const adminCount = members.filter((m) => m.role === "admin").length;
+
+  for (const m of members) {
+    const row = document.createElement("div");
+    row.className = "team-member-row";
+
+    const av = document.createElement("div");
+    av.className = "team-member-avatar";
+    const initial = ((m.display_name || m.email || "?").charAt(0) || "?").toUpperCase();
+    av.textContent = initial;
+    row.appendChild(av);
+
+    const info = document.createElement("div");
+    info.className = "team-member-info";
+    const label = m.display_name || (m.email ? m.email.split("@")[0] : "Member");
+    const isMe = m.user_id === teamState.me.id;
+    info.innerHTML = `
+      <strong>${escapeHtml(label)}${isMe ? " (you)" : ""}</strong>
+      <small>${escapeHtml(m.email || m.source_user_id || m.user_id)}</small>
+    `;
+    row.appendChild(info);
+
+    const roleSpan = document.createElement("span");
+    roleSpan.className = "team-member-role";
+    roleSpan.textContent = m.role;
+    row.appendChild(roleSpan);
+
+    if (isAdmin && !isMe) {
+      const rmBtn = document.createElement("button");
+      rmBtn.className = "team-member-remove";
+      rmBtn.type = "button";
+      rmBtn.textContent = "Remove";
+      // Block removing last admin client-side too (server enforces, this just keeps UX clear)
+      if (m.role === "admin" && adminCount <= 1) {
+        rmBtn.disabled = true;
+        rmBtn.title = "Can't remove the last admin";
+      }
+      rmBtn.addEventListener("click", () => removeMember(team, m));
+      row.appendChild(rmBtn);
+    }
+    body.appendChild(row);
+  }
+
+  // Admin actions: invite form
+  if (isAdmin) {
+    const inviteLabel = document.createElement("p");
+    inviteLabel.className = "team-members-label";
+    inviteLabel.style.marginTop = "8px";
+    inviteLabel.textContent = "Invite by email";
+    body.appendChild(inviteLabel);
+
+    const form = document.createElement("div");
+    form.className = "team-invite-form";
+    form.innerHTML = `
+      <input type="email" placeholder="teammate@example.com" autocomplete="off" />
+      <select>
+        <option value="member" selected>member</option>
+        <option value="admin">admin</option>
+      </select>
+      <button type="button" class="team-invite-btn">Invite</button>
+    `;
+    body.appendChild(form);
+
+    const input = form.querySelector("input");
+    const sel = form.querySelector("select");
+    const btn = form.querySelector("button");
+
+    btn.addEventListener("click", () => inviteMember(team, input, sel, btn));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") inviteMember(team, input, sel, btn);
+    });
+  }
+
+  // Per-team status line + leave button
+  const statusEl = document.createElement("div");
+  statusEl.className = "team-action-status";
+  statusEl.dataset.teamStatus = team.id;
+  body.appendChild(statusEl);
+
+  const leaveBtn = document.createElement("button");
+  leaveBtn.className = "team-leave-btn";
+  leaveBtn.type = "button";
+  leaveBtn.textContent = "Leave team";
+  if (isAdmin && adminCount <= 1) {
+    leaveBtn.disabled = true;
+    leaveBtn.title = "You're the only admin — promote another member first";
+  }
+  leaveBtn.addEventListener("click", () => leaveTeam(team, leaveBtn, statusEl));
+  body.appendChild(leaveBtn);
+}
+
+async function inviteMember(team, input, sel, btn) {
+  const email = (input.value || "").trim();
+  if (!email) {
+    setTeamStatus(team.id, "Enter an email first", "error");
+    return;
+  }
+  btn.disabled = true;
+  setTeamStatus(team.id, "Inviting…", "loading");
+  try {
+    await _xbtFetch(`/v1/teams/${team.id}/invite`, {
+      method: "POST",
+      body: { email, role: sel.value },
+    });
+    setTeamStatus(team.id, `Invited ${email} ✓`, "success");
+    input.value = "";
+    // Re-fetch members so the new row appears.
+    const card = document.querySelector(`[data-team-id="${team.id}"]`);
+    const body = card && card.querySelector(".team-card-body");
+    if (body) await fillTeamBody(team, body);
+  } catch (e) {
+    const msg =
+      e.status === 404
+        ? `${email} isn't registered yet — ask them to sign in once first.`
+        : `Invite failed: ${e.message}`;
+    setTeamStatus(team.id, msg, "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function removeMember(team, member) {
+  const label = member.display_name || member.email || "this member";
+  if (!confirm(`Remove ${label} from ${team.display_name}?`)) return;
+  setTeamStatus(team.id, `Removing ${label}…`, "loading");
+  try {
+    await _xbtFetch(`/v1/teams/${team.id}/members/${member.user_id}`, {
+      method: "DELETE",
+    });
+    setTeamStatus(team.id, `${label} removed ✓`, "success");
+    const card = document.querySelector(`[data-team-id="${team.id}"]`);
+    const body = card && card.querySelector(".team-card-body");
+    if (body) await fillTeamBody(team, body);
+  } catch (e) {
+    setTeamStatus(team.id, `Remove failed: ${e.message}`, "error");
+  }
+}
+
+async function leaveTeam(team, btn, statusEl) {
+  if (!confirm(`Leave ${team.display_name}? You'll lose access to its chat and memory.`)) return;
+  btn.disabled = true;
+  setTeamStatus(team.id, "Leaving…", "loading");
+  try {
+    await _xbtFetch(`/v1/teams/${team.id}/members/me`, { method: "DELETE" });
+    setTeamStatus(team.id, "Left ✓", "success");
+    // Tell the SW to rebuild the right-click menu so the team disappears.
+    chrome.runtime.sendMessage({ type: "REFRESH_TEAMS_MENU" }).catch(() => {});
+    // Re-render the whole list (the team is gone now).
+    setTimeout(() => renderTeamsList(), 600);
+  } catch (e) {
+    const msg =
+      e.status === 409
+        ? "You're the only admin — promote another member to admin before leaving."
+        : `Leave failed: ${e.message}`;
+    setTeamStatus(team.id, msg, "error");
+    btn.disabled = false;
+  }
+}
+
+function setTeamStatus(teamId, text, type = "info") {
+  const el = document.querySelector(`[data-team-status="${teamId}"]`);
+  if (!el) return;
+  el.textContent = text;
+  el.classList.remove("is-success", "is-error");
+  if (type === "success") el.classList.add("is-success");
+  if (type === "error") el.classList.add("is-error");
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 const SUB_PILL_CLASSES = {
