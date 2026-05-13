@@ -36,3 +36,19 @@ async def get_or_create_user(
 async def get_user_by_id(session: AsyncSession, user_id: UUID) -> User | None:
     result = await session.execute(select(User).where(User.id == user_id))
     return result.scalar_one_or_none()
+
+
+async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
+    """Case-insensitive email lookup. Returns the first match or None.
+
+    Used by the invite-by-email flow (quick task 260513-tmu) — admins type
+    an email, we look up the user record. If the invitee hasn't signed
+    in yet (no row), the caller surfaces a "user not registered" error.
+    """
+    if not email:
+        return None
+    from sqlalchemy import func
+    result = await session.execute(
+        select(User).where(func.lower(User.email) == email.strip().lower())
+    )
+    return result.scalar_one_or_none()

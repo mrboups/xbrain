@@ -13,6 +13,7 @@ from app.audit import write_audit
 from app.auth import is_admin
 from app.config import settings
 from app.deps import get_current_principal, get_session
+from app.models.team import Team  # forward-typing for _require_team_admin
 from app.repos import teams as teams_repo
 from app.repos import users as users_repo
 
@@ -36,6 +37,30 @@ def _require_admin_user(principal: dict[str, Any]):
     user = _require_user(principal)
     if not is_admin(user.source_user_id):
         raise HTTPException(403, "admin-only endpoint")
+    return user
+
+
+async def _require_team_admin(
+    principal: dict[str, Any],
+    team: Team,
+    session: AsyncSession,
+):
+    """Per-team admin check — caller must have role='admin' in this team's
+    team_members (NOT the global env admin list).
+
+    Used by invite/remove/manage member endpoints so a regular team admin
+    can actually administer their team without being in ADMIN_USER_SUBS.
+    Global env admins (is_admin) are also accepted as a backdoor for ops.
+    """
+    user = _require_user(principal)
+    # Backdoor for ops — global env admins can manage any team.
+    if is_admin(user.source_user_id):
+        return user
+    membership = await teams_repo.get_membership(
+        session, user_id=user.id, team_slug=team.slug
+    )
+    if membership is None or membership.role != "admin":
+        raise HTTPException(403, "team admin required")
     return user
 
 
@@ -66,9 +91,24 @@ class MemberInviteBody(BaseModel):
     role: str = Field(default="member", pattern=r"^(admin|member)$")
 
 
+class MemberInviteByEmailBody(BaseModel):
+    """Invite-by-email body — used by the extension Settings + app-site UI
+    where the admin only knows the invitee's email, not their OIDC sub.
+    """
+    model_config = ConfigDict(extra="forbid")
+    email: str = Field(..., min_length=1, max_length=256)
+    role: str = Field(default="member", pattern=r"^(admin|member)$")
+
+
 class MemberOut(BaseModel):
     user_id: str
     role: str
+    # Enriched fields (quick task 260513-tmu) — populated by list_members /
+    # invite endpoints. Older clients ignore the extra keys.
+    email: str | None = None
+    display_name: str | None = None
+    source_user_id: str | None = None
+    github_username: str | None = None
 
 
 class TeamSelfCreateBody(BaseModel):
@@ -432,20 +472,29 @@ async def invite_member(
     principal: dict[str, Any] = Depends(get_current_principal),
     session: AsyncSession = Depends(get_session),
 ):
-    actor = _require_admin_user(principal)
+    """Legacy invite endpoint — requires source_user_id (OIDC sub). Kept for
+    backward compatibility with the LibreChat onboarding modal. New UIs
+    should use /v1/teams/{id}/invite (invite-by-email, below)."""
     team = await teams_repo.get_team_by_id(session, team_id)
     if team is None:
         raise HTTPException(404, "team not found")
+    actor = await _require_team_admin(principal, team, session)
     invitee = await users_repo.get_or_create_user(
         session,
         source_user_id=body.source_user_id,
         email=body.email,
         display_name=body.display_name,
     )
-    # Idempotent: if already member, return current row
     existing = await teams_repo.get_membership(session, user_id=invitee.id, team_slug=team.slug)
     if existing is not None:
-        return MemberOut(user_id=str(invitee.id), role=existing.role)
+        return MemberOut(
+            user_id=str(invitee.id),
+            role=existing.role,
+            email=invitee.email,
+            display_name=invitee.display_name,
+            source_user_id=invitee.source_user_id,
+            github_username=getattr(invitee, "github_username", None),
+        )
     member = await teams_repo.add_member(
         session, team_id=team.id, user_id=invitee.id, role=body.role
     )
@@ -458,7 +507,75 @@ async def invite_member(
         payload={"role": body.role, "email": body.email},
     )
     await session.commit()
-    return MemberOut(user_id=str(member.user_id), role=member.role)
+    return MemberOut(
+        user_id=str(member.user_id),
+        role=member.role,
+        email=invitee.email,
+        display_name=invitee.display_name,
+        source_user_id=invitee.source_user_id,
+        github_username=getattr(invitee, "github_username", None),
+    )
+
+
+@router.post("/teams/{team_id}/invite", response_model=MemberOut, status_code=201)
+async def invite_by_email(
+    team_id: UUID,
+    body: MemberInviteByEmailBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Invite an existing user (by email) to this team.
+
+    Quick task 260513-tmu — used by the extension Settings + app-site Teams
+    page. The invitee MUST already have a row in `users` (i.e. they've
+    signed into xbrain at least once). If not, returns 404 with a clear
+    message so the UI can surface "ask them to sign in first".
+
+    Auth: team admin only (role='admin' in this team OR global env admin).
+    """
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    actor = await _require_team_admin(principal, team, session)
+
+    invitee = await users_repo.get_user_by_email(session, body.email)
+    if invitee is None:
+        raise HTTPException(
+            404,
+            f"No xbrain user with email {body.email}. Ask them to sign in once first.",
+        )
+
+    existing = await teams_repo.get_membership(session, user_id=invitee.id, team_slug=team.slug)
+    if existing is not None:
+        return MemberOut(
+            user_id=str(invitee.id),
+            role=existing.role,
+            email=invitee.email,
+            display_name=invitee.display_name,
+            source_user_id=invitee.source_user_id,
+            github_username=getattr(invitee, "github_username", None),
+        )
+
+    member = await teams_repo.add_member(
+        session, team_id=team.id, user_id=invitee.id, role=body.role
+    )
+    await write_audit(
+        session,
+        actor_user_id=actor.id,
+        team_scope=team.slug,
+        action="members.invite_by_email",
+        target_id=str(invitee.id),
+        payload={"role": body.role, "email": body.email},
+    )
+    await session.commit()
+    return MemberOut(
+        user_id=str(member.user_id),
+        role=member.role,
+        email=invitee.email,
+        display_name=invitee.display_name,
+        source_user_id=invitee.source_user_id,
+        github_username=getattr(invitee, "github_username", None),
+    )
 
 
 @router.get("/teams/{team_id}/members", response_model=list[MemberOut])
@@ -475,8 +592,61 @@ async def list_members(
     membership = await teams_repo.get_membership(session, user_id=user.id, team_slug=team.slug)
     if membership is None:
         raise HTTPException(403, "not a member")
-    members = await teams_repo.list_members(session, team_id=team_id)
-    return [MemberOut(user_id=str(m.user_id), role=m.role) for m in members]
+    # JOIN with users so the UI gets email + display_name in one round-trip.
+    rows = await teams_repo.list_members_with_user_info(session, team_id=team_id)
+    return [
+        MemberOut(
+            user_id=str(m.user_id),
+            role=m.role,
+            email=u.email,
+            display_name=u.display_name,
+            source_user_id=u.source_user_id,
+            github_username=getattr(u, "github_username", None),
+        )
+        for (m, u) in rows
+    ]
+
+
+@router.delete("/teams/{team_id}/members/me", status_code=204)
+async def leave_team(
+    team_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Leave a team — caller removes their own membership.
+
+    Quick task 260513-tmu. Refuses to remove the last admin so a team
+    can't be orphaned (the UI surfaces this as "Promote another member
+    to admin before leaving").
+    """
+    user = _require_user(principal)
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    membership = await teams_repo.get_membership(
+        session, user_id=user.id, team_slug=team.slug
+    )
+    if membership is None:
+        raise HTTPException(404, "not a member")
+
+    if membership.role == "admin":
+        admin_count = await teams_repo.count_admins(session, team_id=team_id)
+        if admin_count <= 1:
+            raise HTTPException(
+                409,
+                "you are the only admin — promote another member to admin before leaving",
+            )
+
+    await teams_repo.remove_member(session, team_id=team_id, user_id=user.id)
+    await write_audit(
+        session,
+        actor_user_id=user.id,
+        team_scope=team.slug,
+        action="members.leave",
+        target_id=str(user.id),
+        payload={"role": membership.role},
+    )
+    await session.commit()
 
 
 @router.delete("/teams/{team_id}/members/{user_id}", status_code=204)
@@ -486,10 +656,25 @@ async def remove_member(
     principal: dict[str, Any] = Depends(get_current_principal),
     session: AsyncSession = Depends(get_session),
 ):
-    actor = _require_admin_user(principal)
     team = await teams_repo.get_team_by_id(session, team_id)
     if team is None:
         raise HTTPException(404, "team not found")
+    actor = await _require_team_admin(principal, team, session)
+
+    # Block removing the last admin (same guardrail as leave_team).
+    target = await teams_repo.get_membership(
+        session, user_id=user_id, team_slug=team.slug
+    )
+    if target is None:
+        raise HTTPException(404, "not a member of this team")
+    if target.role == "admin":
+        admin_count = await teams_repo.count_admins(session, team_id=team_id)
+        if admin_count <= 1:
+            raise HTTPException(
+                409,
+                "cannot remove the last admin — promote another member first",
+            )
+
     await teams_repo.remove_member(session, team_id=team_id, user_id=user_id)
     await write_audit(
         session,

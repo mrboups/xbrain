@@ -75,6 +75,36 @@ async def list_members(session: AsyncSession, *, team_id: UUID) -> list[TeamMemb
     return list(result.scalars().all())
 
 
+async def list_members_with_user_info(
+    session: AsyncSession, *, team_id: UUID
+) -> list[tuple[TeamMember, "User"]]:
+    """Return [(TeamMember, User)] tuples — JOIN with users so the UI can show
+    email + display_name without N+1 round-trips.
+
+    Quick task 260513-tmu — extension Settings + app-site Teams page surface
+    a member list per team; opaque user_id was unhelpful.
+    """
+    from app.models.user import User as UserModel
+
+    result = await session.execute(
+        sa.select(TeamMember, UserModel)
+        .join(UserModel, UserModel.id == TeamMember.user_id)
+        .where(TeamMember.team_id == team_id)
+    )
+    return [(m, u) for (m, u) in result.all()]
+
+
+async def count_admins(session: AsyncSession, *, team_id: UUID) -> int:
+    """Number of admins in the team — used by the leave-team endpoint to
+    prevent the last admin from leaving (which would orphan the team)."""
+    result = await session.execute(
+        sa.select(sa.func.count())
+        .select_from(TeamMember)
+        .where((TeamMember.team_id == team_id) & (TeamMember.role == "admin"))
+    )
+    return int(result.scalar_one() or 0)
+
+
 async def get_membership(
     session: AsyncSession,
     *,
