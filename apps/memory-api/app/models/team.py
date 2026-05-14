@@ -45,6 +45,17 @@ class TeamMember(Base):
     joined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # Phase 10 — per-member soft-block (GHA-04). NULL = active member.
+    # blocked_at MUST be set via Python datetime in repos.teams.block_member —
+    # the DDL server_default=func.now() is consulted only on INSERT.
+    blocked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    blocked_by: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
 
 class TeamApiKey(Base):
@@ -87,3 +98,29 @@ class TeamJoinRequest(Base):
     def __init__(self, **kwargs: object) -> None:
         kwargs.setdefault("status", "pending")
         super().__init__(**kwargs)
+
+
+class TeamOrgBlock(Base):
+    """Phase 10 — pre-block table (GHA-05).
+
+    Stores (team_id, github_login) entries for users who have NOT yet signed
+    up with GitHub. On their first GitHub sign-in, the auto-grant flow checks
+    this table BEFORE granting org-derived membership and skips matching teams.
+    """
+
+    __tablename__ = "team_org_blocks"
+
+    team_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("teams.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    github_login: Mapped[str] = mapped_column(String(256), primary_key=True)
+    blocked_by: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    blocked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
