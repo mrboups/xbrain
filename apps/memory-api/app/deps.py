@@ -240,7 +240,14 @@ async def get_team_scope(
     x_team_scope: str = Header(..., alias="X-Team-Scope"),
     session: AsyncSession = Depends(get_session),
 ) -> str:
-    """Verify the principal is allowed to operate within X-Team-Scope. Returns the slug."""
+    """Verify the principal is allowed to operate within X-Team-Scope. Returns the slug.
+
+    Phase 10 (REVISION 1 B-3): blocked_at on team_members ALWAYS raises 403 —
+    both in the user (gho_/Google) branch AND the user_api_token (xbt_) branch.
+    Without the xbt_-side check, a user blocked AFTER minting a scoped token
+    could keep using that pre-minted token to bypass enforcement on every
+    team-scoped endpoint. The block check now fires before any return.
+    """
     if principal["kind"] == "bridge":
         if principal["team_scope"] != x_team_scope:
             raise HTTPException(403, "Bridge JWT team_scope mismatch with header")
@@ -256,9 +263,25 @@ async def get_team_scope(
         if scope and scope != x_team_scope:
             raise HTTPException(403, "API token team_scope mismatch with X-Team-Scope header")
         if scope:
-            # Single-team scoped token — match confirmed, return.
+            # Single-team scoped token — scope match confirmed. Phase 10 B-3:
+            # we MUST still consult team_members.blocked_at here. Without this
+            # check, a user blocked after the token was minted bypasses the
+            # block entirely (the bypass is total and silent).
+            user = principal["user"]
+            member = await get_membership(
+                session, user_id=user.id, team_slug=x_team_scope
+            )
+            if member is not None and member.blocked_at is not None:
+                raise HTTPException(
+                    403, f"Member blocked from team {x_team_scope}"
+                )
+            # We do NOT require membership existence in the scoped xbt_ branch
+            # (the token was minted with this scope by an admin path that
+            # already validated it). The block check is the only added
+            # enforcement here.
             return x_team_scope
-        # Multi-team token: fall through to membership check below.
+        # Multi-team token (empty-string sentinel): fall through to membership
+        # check below — that path also enforces blocked_at.
 
     # T-05-02-02: GitHub users who are not org members cannot access team-scoped routes.
     # github_is_org_member=False means non-member; None means Google user (D7 — always allowed).
@@ -269,6 +292,9 @@ async def get_team_scope(
     membership = await get_membership(session, user_id=user.id, team_slug=x_team_scope)
     if membership is None:
         raise HTTPException(403, f"Not a member of team {x_team_scope}")
+    # Phase 10 GHA-03 — block enforcement in the user (and multi-team xbt_) branch.
+    if membership.blocked_at is not None:
+        raise HTTPException(403, f"Member blocked from team {x_team_scope}")
     return x_team_scope
 
 
