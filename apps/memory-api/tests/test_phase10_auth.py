@@ -333,3 +333,105 @@ async def test_signin_existing_blocked_membership_no_regrant(
     assert r.status_code == 200, r.text
     # Not in newly_joined teams.
     assert "team-a" not in r.json()["user"]["teams_joined"]
+
+
+async def test_orphan_token_lands_on_survivor(client, session, seeded_two_teams):
+    """REVISION 1 M-3 — SC-7(h) end-to-end follow-pointer test at the HTTP layer.
+
+    Scenario:
+      1. Create an orphan user row (source_user_id="github:johndoe", own
+         email + display_name, no Google linkage yet).
+      2. Mint an xbt_ token directly for the orphan (mirrors what the legacy
+         "GitHub-only" sign-in path would have produced before Phase 10's
+         auto-merge was in place).
+      3. Create a survivor user row (Google identity, real verified email).
+      4. Trigger merge via merge_user_rows(orphan, survivor) — this MUST
+         re-point user_api_tokens.user_id to the survivor (Plan 10-01
+         M-3 fix) AND deps.py xbt_ branch MUST follow merge_into_user_id
+         when resolving the principal (Plan 10-02 Task 5).
+      5. Use the ORIGINAL orphan xbt_ token to call GET /v1/me.
+      6. Assert: response id == survivor.id (NOT orphan.id) and
+         response email == survivor.email — proves the auth path resolved
+         to the survivor identity end-to-end.
+
+    If this test fails with the orphan's identity in the response, the
+    follow-merge-pointer logic in deps.py is missing or the
+    user_api_tokens FK re-parent in merge_user_rows did not run.
+    """
+    import hashlib
+    import secrets
+
+    from app.repos import users as users_repo
+    from app.repos.merge import merge_user_rows
+
+    # 1. Create the orphan with GitHub identity.
+    orphan = await users_repo.get_or_create_user(
+        session,
+        source_user_id="github:johndoe",
+        email="johndoe@users.noreply.github.com",
+        display_name="John Doe (orphan)",
+    )
+    # Add github metadata to the orphan to mirror a real pre-merge state.
+    orphan.github_username = "johndoe"
+    orphan.github_id = 88001
+    await session.flush()
+
+    # 2. Mint xbt_ token for the orphan (same shape as 10-02 _mint_xbt_for_user).
+    raw_token = "xbt_" + secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    await session.execute(sa.text("""
+        INSERT INTO user_api_tokens (id, user_id, token_hash, team_scope, name, created_at)
+        VALUES (gen_random_uuid(), :user_id, :hash, '', 'pre-merge', now())
+    """), {"user_id": orphan.id, "hash": token_hash})
+
+    # 3. Create the survivor row (Google identity, will adopt github after merge).
+    survivor = await users_repo.get_or_create_user(
+        session,
+        source_user_id="google:johndoe-google",
+        email="john.doe@real.com",
+        display_name="John Doe",
+    )
+
+    # Clear orphan github fields BEFORE merge so the survivor can take ownership
+    # without violating the github_id unique constraint (mirrors the B-2 fix
+    # in _resolve_or_merge_user — see test_merge_does_not_violate_github_id_unique).
+    orphan.github_id = None
+    orphan.github_username = None
+    await session.flush()
+    survivor.github_id = 88001
+    survivor.github_username = "johndoe"
+    await session.flush()
+
+    # 4. Trigger merge. merge_user_rows MUST re-point user_api_tokens.user_id
+    # to the survivor (the M-3 partner test in test_phase10_repos.py asserts
+    # this at SQL level; here we rely on it).
+    await merge_user_rows(session, orphan_id=orphan.id, survivor_id=survivor.id)
+    await session.commit()
+
+    # 5. Call GET /v1/me with the ORIGINAL orphan token. deps.py xbt_ branch
+    # MUST follow merge_into_user_id and resolve to the survivor identity.
+    r = await client.get(
+        "/v1/me",
+        headers={"Authorization": f"Bearer {raw_token}"},
+    )
+    assert r.status_code == 200, (
+        f"M-3 regression: orphan token returned {r.status_code} after merge. "
+        f"Either user_api_tokens.user_id was not re-parented (10-01 M-3 fix) "
+        f"or deps.py xbt_ branch is not following merge_into_user_id "
+        f"(10-02 Task 5). Body: {r.text}"
+    )
+
+    # 6. Assert survivor identity is returned, NOT orphan identity.
+    body = r.json()
+    survivor_id_str = str(survivor.id)
+    orphan_id_str = str(orphan.id)
+    returned_id = body.get("id") or body.get("user_id")
+    returned_email = body.get("email")
+    assert returned_id == survivor_id_str, (
+        f"M-3 regression: orphan xbt_ resolved to {returned_id} "
+        f"(expected survivor {survivor_id_str}, orphan was {orphan_id_str})."
+    )
+    assert returned_email == survivor.email, (
+        f"M-3 regression: orphan xbt_ resolved to email {returned_email} "
+        f"(expected survivor {survivor.email})."
+    )
