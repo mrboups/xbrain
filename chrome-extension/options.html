@@ -397,6 +397,113 @@
       cursor: not-allowed;
     }
 
+    /* Phase 10 GHA-03 — block/unblock controls on member rows + blocked badge. */
+    .team-member-block {
+      background: transparent;
+      border: 1px solid var(--xb-border-2);
+      color: var(--xb-text-mute);
+      border-radius: 4px;
+      padding: 3px 8px;
+      cursor: pointer;
+      font-size: 11px;
+      margin-left: 4px;
+    }
+    .team-member-block:hover {
+      background: var(--xb-error-bg);
+      border-color: var(--xb-error);
+      color: var(--xb-error);
+    }
+    .team-member-block.is-blocked {
+      border-color: var(--xb-success);
+      color: var(--xb-success);
+    }
+    .team-member-block.is-blocked:hover {
+      background: var(--xb-success-bg, rgba(16,185,129,0.14));
+    }
+    .team-member-block:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .team-role-pill.is-blocked {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--xb-error);
+      margin-left: 6px;
+    }
+
+    /* Phase 10 GHA-05 — pre-block by GitHub login form + list. */
+    .org-block-form {
+      margin-top: 4px;
+      border-top: 1px solid var(--xb-border);
+      padding-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .org-block-form input[type="text"] {
+      flex: 1;
+      min-width: 0;
+      background: var(--xb-bg);
+      color: var(--xb-text);
+      border: 1px solid var(--xb-border-2);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+    }
+    .org-block-form input[type="text"]:focus { border-color: var(--xb-accent); }
+    .org-block-form .invite-form-row {
+      display: flex;
+      gap: 6px;
+    }
+    .org-block-btn {
+      background: var(--xb-accent);
+      color: #fff;
+      border: 1px solid var(--xb-accent);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .org-block-btn:hover { background: var(--xb-accent-2); border-color: var(--xb-accent-2); }
+    .org-block-btn:disabled {
+      background: var(--xb-border-2);
+      border-color: var(--xb-border-2);
+      color: var(--xb-text-dim);
+      cursor: not-allowed;
+    }
+    .org-blocks-list {
+      margin-top: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .org-block-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      font-size: 12px;
+      color: var(--xb-text-mute);
+    }
+    .org-block-item .org-block-login { color: var(--xb-text); }
+    .org-block-item .org-block-meta { font-size: 11px; color: var(--xb-text-dim); }
+    .org-block-remove {
+      background: transparent;
+      border: 1px solid var(--xb-border-2);
+      color: var(--xb-text-mute);
+      border-radius: 4px;
+      padding: 2px 8px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+    .org-block-remove:hover {
+      background: var(--xb-error-bg);
+      border-color: var(--xb-error);
+      color: var(--xb-error);
+    }
+
     .team-invite-form {
       display: flex;
       gap: 6px;

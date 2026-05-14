@@ -305,6 +305,22 @@ async function fillTeamBody(team, body) {
     row.appendChild(roleSpan);
 
     if (isAdmin && !isMe) {
+      // Phase 10 GHA-03 — Block/Unblock toggle. Always visible to admins;
+      // a "blocked" pill renders next to the role pill when blocked_at is set.
+      const blockBtn = document.createElement("button");
+      blockBtn.className = "team-member-block";
+      blockBtn.type = "button";
+      if (m.blocked_at) {
+        blockBtn.textContent = "Unblock";
+        blockBtn.classList.add("is-blocked");
+        blockBtn.title = "Lift the block — member regains team access";
+      } else {
+        blockBtn.textContent = "Block";
+        blockBtn.title = "Block this member — keeps the row, denies all scoped API access";
+      }
+      blockBtn.addEventListener("click", () => toggleMemberBlock(team, m, blockBtn));
+      row.appendChild(blockBtn);
+
       const rmBtn = document.createElement("button");
       rmBtn.className = "team-member-remove";
       rmBtn.type = "button";
@@ -316,6 +332,16 @@ async function fillTeamBody(team, body) {
       }
       rmBtn.addEventListener("click", () => removeMember(team, m));
       row.appendChild(rmBtn);
+    }
+
+    // Show a "blocked" pill on every viewer's row (admins + members) so it's
+    // visible that a teammate is blocked, even to non-admins.
+    if (m.blocked_at) {
+      const blockedPill = document.createElement("span");
+      blockedPill.className = "team-role-pill is-blocked";
+      blockedPill.textContent = "blocked";
+      blockedPill.title = `Blocked at ${m.blocked_at}`;
+      row.appendChild(blockedPill);
     }
     body.appendChild(row);
   }
@@ -348,6 +374,39 @@ async function fillTeamBody(team, body) {
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") inviteMember(team, input, sel, btn);
     });
+
+    // Phase 10 GHA-05 — Pre-block by GitHub login. Admin-only. Lets an admin
+    // ban a github_login BEFORE that user has signed into xbrain — when they
+    // later complete the GitHub OAuth flow, auto-grant pipeline consults
+    // team_org_blocks and skips this team.
+    const blockSection = document.createElement("div");
+    blockSection.className = "org-block-form";
+    blockSection.innerHTML = `
+      <label style="font-size:11px;color:var(--xb-text-mute);text-transform:uppercase;letter-spacing:0.04em;">
+        Pre-block by GitHub login
+      </label>
+      <div class="invite-form-row">
+        <input type="text" placeholder="github-login (e.g. octocat)" autocomplete="off" />
+        <button type="button" class="org-block-btn">Pre-block</button>
+      </div>
+      <div class="org-blocks-list"></div>
+    `;
+    body.appendChild(blockSection);
+
+    const blockInput = blockSection.querySelector("input");
+    const blockBtn = blockSection.querySelector("button");
+    const blocksList = blockSection.querySelector(".org-blocks-list");
+
+    const trySubmitBlock = () =>
+      submitOrgBlock(team, blockInput, blockBtn, blocksList);
+    blockBtn.addEventListener("click", trySubmitBlock);
+    blockInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") trySubmitBlock();
+    });
+
+    // Initial load of existing pre-blocks. Fire-and-forget; errors render
+    // inline inside loadOrgBlocks itself.
+    void loadOrgBlocks(team, blocksList);
   }
 
   // Per-team status line + leave button
@@ -410,6 +469,129 @@ async function removeMember(team, member) {
     const card = document.querySelector(`[data-team-id="${team.id}"]`);
     const body = card && card.querySelector(".team-card-body");
     if (body) await fillTeamBody(team, body);
+  } catch (e) {
+    setTeamStatus(team.id, `Remove failed: ${e.message}`, "error");
+  }
+}
+
+// ─── Phase 10 GHA-03 — Block / Unblock member ──────────────────────────────
+
+async function toggleMemberBlock(team, member, btn) {
+  const action = member.blocked_at ? "unblock" : "block";
+  const label = member.display_name || member.email || "this member";
+  if (!confirm(
+    action === "block"
+      ? `Block ${label}? They'll keep their row but be denied access to ${team.display_name}.`
+      : `Unblock ${label}? They'll regain access to ${team.display_name}.`,
+  )) return;
+  btn.disabled = true;
+  setTeamStatus(team.id, `${action === "block" ? "Blocking" : "Unblocking"} ${label}…`, "loading");
+  try {
+    await _xbtFetch(
+      `/v1/teams/${team.id}/members/${member.user_id}/${action}`,
+      { method: "POST", body: {} },
+    );
+    setTeamStatus(
+      team.id,
+      action === "block" ? `${label} blocked ✓` : `${label} unblocked ✓`,
+      "success",
+    );
+    // Re-fetch members so blocked_at / button state picks up the change.
+    const card = document.querySelector(`[data-team-id="${team.id}"]`);
+    const body = card && card.querySelector(".team-card-body");
+    if (body) await fillTeamBody(team, body);
+  } catch (e) {
+    setTeamStatus(team.id, `${action} failed: ${e.message}`, "error");
+    btn.disabled = false;
+  }
+}
+
+// ─── Phase 10 GHA-05 — Pre-block by GitHub login ───────────────────────────
+
+async function loadOrgBlocks(team, listEl) {
+  listEl.innerHTML = `<p class="setting-help" style="margin:0;font-size:11px;">Loading pre-blocks…</p>`;
+  let blocks;
+  try {
+    blocks = await _xbtFetch(`/v1/teams/${team.id}/org-blocks`);
+  } catch (e) {
+    listEl.innerHTML = `<p class="setting-help" style="margin:0;color:var(--xb-error);font-size:11px;">
+      Couldn't load pre-blocks: ${escapeHtml(e.message)}
+    </p>`;
+    return;
+  }
+  listEl.innerHTML = "";
+  if (!blocks || blocks.length === 0) {
+    const hint = document.createElement("p");
+    hint.className = "setting-help";
+    hint.style.cssText = "margin:0;font-size:11px;color:var(--xb-text-dim);";
+    hint.textContent = "No pre-blocks yet.";
+    listEl.appendChild(hint);
+    return;
+  }
+  for (const b of blocks) {
+    const item = document.createElement("div");
+    item.className = "org-block-item";
+
+    const left = document.createElement("span");
+    left.innerHTML = `
+      <span class="org-block-login">@${escapeHtml(b.github_login)}</span>
+      <span class="org-block-meta"> · ${escapeHtml((b.blocked_at || "").slice(0, 10))}${b.blocked_by_email ? " by " + escapeHtml(b.blocked_by_email) : ""}</span>
+    `;
+    item.appendChild(left);
+
+    const rm = document.createElement("button");
+    rm.className = "org-block-remove";
+    rm.type = "button";
+    rm.textContent = "Remove";
+    rm.title = `Lift the pre-block on @${b.github_login}`;
+    rm.addEventListener("click", () => removeOrgBlock(team, b.github_login, listEl));
+    item.appendChild(rm);
+
+    listEl.appendChild(item);
+  }
+}
+
+async function submitOrgBlock(team, input, btn, listEl) {
+  const login = (input.value || "").trim().replace(/^@+/, "");
+  if (!login) {
+    setTeamStatus(team.id, "Enter a GitHub login first", "error");
+    return;
+  }
+  // GitHub logins: ASCII letters / digits / hyphens, 1-39 chars, no leading
+  // hyphen. Reject obvious garbage client-side; server validates too.
+  if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,38})$/.test(login)) {
+    setTeamStatus(team.id, "Invalid GitHub login format", "error");
+    return;
+  }
+  btn.disabled = true;
+  setTeamStatus(team.id, `Pre-blocking @${login}…`, "loading");
+  try {
+    await _xbtFetch(`/v1/teams/${team.id}/org-blocks`, {
+      method: "POST",
+      body: { github_login: login },
+    });
+    setTeamStatus(team.id, `Pre-blocked @${login} ✓`, "success");
+    input.value = "";
+    await loadOrgBlocks(team, listEl);
+  } catch (e) {
+    setTeamStatus(team.id, `Pre-block failed: ${e.message}`, "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function removeOrgBlock(team, githubLogin, listEl) {
+  if (!confirm(`Lift the pre-block on @${githubLogin}? They'll be auto-granted to ${team.display_name} on next GitHub sign-in if they match an org.`)) {
+    return;
+  }
+  setTeamStatus(team.id, `Removing pre-block on @${githubLogin}…`, "loading");
+  try {
+    await _xbtFetch(
+      `/v1/teams/${team.id}/org-blocks/${encodeURIComponent(githubLogin)}`,
+      { method: "DELETE" },
+    );
+    setTeamStatus(team.id, `Pre-block on @${githubLogin} removed ✓`, "success");
+    await loadOrgBlocks(team, listEl);
   } catch (e) {
     setTeamStatus(team.id, `Remove failed: ${e.message}`, "error");
   }
