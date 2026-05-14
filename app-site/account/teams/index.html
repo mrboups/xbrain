@@ -154,6 +154,53 @@
       padding: 3px 9px;
     }
 
+    /* GitHub primary sign-in button (Phase 10 GHA-08) */
+    .btn-github {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: #24292f;
+      color: #fff;
+      border: 1px solid #1f2328;
+      border-radius: 6px;
+      padding: 12px 22px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      min-width: 240px;
+    }
+    .btn-github:hover { background: #2f363d; }
+    .btn-github:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-github svg { width: 18px; height: 18px; fill: currentColor; }
+
+    .signin-or {
+      margin: 18px 0 14px;
+      color: var(--dim);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* Link / status banner (post-auth CTAs) */
+    .auth-banner {
+      background: var(--bg-3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 12.5px;
+    }
+    .auth-banner.is-ok { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+    .auth-banner.is-error { border-color: var(--red); color: var(--red); background: var(--red-bg); }
+    .auth-banner__msg { flex: 1; min-width: 0; }
+
     /* Team card */
     .team-card {
       background: var(--bg-2);
@@ -343,7 +390,15 @@
     <!-- Sign-in card (shown when no xbt_token) -->
     <div id="signin-section" class="card signin-card" hidden>
       <h3>Sign in</h3>
-      <p>Sign in with Google to manage your xbrain teams.</p>
+      <p>Sign in with GitHub to manage your xbrain teams. Your org memberships will determine which teams you join.</p>
+      <div id="signin-error" class="auth-banner is-error" hidden style="text-align:left;margin:0 auto 16px;max-width:360px;">
+        <span class="auth-banner__msg" id="signin-error-msg">—</span>
+      </div>
+      <button type="button" id="github-signin-btn" class="btn-github">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2 .37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        Sign in with GitHub
+      </button>
+      <div class="signin-or">or use Google (legacy)</div>
       <div id="google-signin-btn"></div>
       <p style="margin-top:16px;font-size:11px;color:var(--dim);">
         Your token lives in this browser's localStorage only — never on our servers.
@@ -352,6 +407,23 @@
 
     <!-- Authenticated content -->
     <div id="auth-section" hidden>
+      <div id="cta-link-google" class="auth-banner" hidden>
+        <span class="auth-banner__msg">
+          <strong>Add Google</strong> to enable Drive sync + calendar features.
+        </span>
+        <button type="button" id="btn-link-google" class="btn btn-sm">Link Google</button>
+      </div>
+      <div id="cta-link-github" class="auth-banner" hidden>
+        <span class="auth-banner__msg">
+          <strong>Add GitHub</strong> to auto-join org-based teams.
+        </span>
+        <button type="button" id="btn-link-github" class="btn btn-sm">Link GitHub</button>
+      </div>
+      <div id="status-both-connected" class="auth-banner is-ok" hidden>
+        <span class="auth-banner__msg">
+          Connected: <span id="status-gh-handle">—</span> · Google linked
+        </span>
+      </div>
       <h2 class="section">My teams</h2>
       <div id="teams-loading" class="loading" hidden>Loading your teams…</div>
       <div id="teams-empty" class="card" hidden>
