@@ -40,6 +40,14 @@ import {
 import { loadSettings, SETTINGS_KEY } from "./settings.js";
 
 const MEMORY_API_URL = "https://api.grooveos.app/v1/memory/upsert";
+// Phase 10 GHA-07 — base URL for memory-api. Used by linkGithubFlow,
+// signinGithubFlow, and fetchUserTeams. Mirrors the constant in
+// onboarding.js / popup.js / options.js; keep them in sync if you change
+// the host. (Pre-existing Rule 3 fix: `MEMORY_API_BASE` was referenced at
+// lines 120 and 887 but never declared in this file — this declaration
+// removes the ReferenceError that prevented linkGithubFlow + fetchUserTeams
+// from running.)
+const MEMORY_API_BASE = "https://api.grooveos.app";
 // =========================================================================
 // GitHub OAuth — quick task 260512-glk (Link GitHub account).
 // =========================================================================
@@ -137,6 +145,106 @@ async function linkGithubFlow() {
     await chrome.storage.local.remove([TEAMS_CACHE_KEY, TEAMS_CACHE_TS_KEY]);
     refreshContextMenus();
     return { ok: true, ...payload };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message ? e.message : e) };
+  }
+}
+
+/**
+ * Phase 10 GHA-07 — sign in via GitHub directly, no Google required.
+ *
+ *   1. Launch GitHub OAuth → get authorization `code` (reuses getGithubAuthCode).
+ *   2. POST {code, redirect_uri, state} to memory-api /v1/auth/github/signin.
+ *   3. Receive xbt_token + user info, store in chrome.storage.local UNDER
+ *      THE CANONICAL KEYS xbt_token / user_sub / api_token_id (matches
+ *      onboarding.js + every reader in the extension).
+ *   4. Force context-menu refresh so org-derived teams appear.
+ *
+ * Returns {ok: true, source_user_id, email, github_username} or {ok: false, error}.
+ *
+ * REVISION 1 B-1 fix — CANONICAL chrome.storage keys.
+ *
+ * These EXACT key names are required by every reader in the extension:
+ *   - background.js:884 reads xbt_token (fetchUserTeams)
+ *   - background.js:653 reads xbt_token + user_sub (openBridgeWS)
+ *   - background.js:794 watches changes.xbt_token (WS reconnect trigger)
+ *   - popup.js (5 sites), options.js, librechat_autofill.js all read xbt_token
+ *   - onboarding.js writes {xbt_token, user_sub, api_token_id}
+ *
+ * If we wrote `xbrain_xbt_token` etc., the WS reconnect listener would never
+ * fire, the popup chat UI would stay unauthenticated, and right-click context
+ * menus would not refresh. The endpoint would succeed but the UX would read
+ * as broken. DO NOT rename to "xbrain_*" prefixes — see PLAN-CHECK.md B-1.
+ *
+ * user_sub semantics: the source_user_id of the user row ("github:<login>"
+ * for GitHub-primary users). The bridge keys its WS connection on this value.
+ *
+ * Server contract: /v1/auth/github/signin response shape is currently
+ *   { xbt_token, user: {id, email, display_name, github_username, teams_joined} }
+ * — it does NOT yet surface source_user_id or api_token_id. We derive
+ * user_sub from github_username (canonical "github:<login>" format) and
+ * leave api_token_id null. If a future 10-02 patch surfaces these fields
+ * directly, the code below picks them up automatically.
+ */
+async function signinGithubFlow() {
+  try {
+    const { code, redirect_uri } = await getGithubAuthCode();
+    // getGithubAuthCode generates and validates its own state internally
+    // (CSRF for the extension trust boundary). The state field on the
+    // signin body is required by the memory-api Pydantic model but is not
+    // used for re-validation server-side — generate a fresh one for the
+    // wire payload (logged for audit only).
+    const state =
+      Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const r = await fetch(`${MEMORY_API_BASE}/v1/auth/github/signin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, redirect_uri, state }),
+    });
+    if (!r.ok) {
+      const body = await r.text().catch(() => "");
+      return {
+        ok: false,
+        error: `signin failed: ${r.status} ${body.slice(0, 200)}`,
+      };
+    }
+    const { xbt_token, user } = await r.json();
+    if (!xbt_token) {
+      return { ok: false, error: "signin response missing xbt_token" };
+    }
+
+    // === CANONICAL chrome.storage keys (DO NOT rename — see B-1 above). ===
+    // Prefer server-provided source_user_id / api_token_id if present (future
+    // 10-02 patch), else fall back to deriving from github_username.
+    const user_sub =
+      (user && user.source_user_id) ||
+      (user && user.github_username ? `github:${user.github_username}` : null);
+    const api_token_id = (user && user.api_token_id) || null;
+
+    if (!user_sub) {
+      return {
+        ok: false,
+        error: "signin response missing github_username (cannot derive user_sub)",
+      };
+    }
+
+    await chrome.storage.local.set({
+      xbt_token: xbt_token, // canonical — watched by background.js storage.onChanged
+      user_sub: user_sub, // canonical — used for WS connection URL
+      api_token_id: api_token_id, // canonical — used for revoke flow (null OK)
+    });
+    // Invalidate cached teams and refresh context menus so org-derived teams
+    // (newly auto-granted via auto_grant_via_org_match) appear in the
+    // right-click "CortX OS" submenu.
+    await chrome.storage.local.remove([TEAMS_CACHE_KEY, TEAMS_CACHE_TS_KEY]);
+    refreshContextMenus();
+    return {
+      ok: true,
+      source_user_id: user_sub,
+      email: user && user.email,
+      github_username: user && user.github_username,
+      teams_joined: (user && user.teams_joined) || [],
+    };
   } catch (e) {
     return { ok: false, error: String(e && e.message ? e.message : e) };
   }
@@ -424,6 +532,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       last_open_ms: lastOpenAt,
     });
     return false; // synchronous reply
+  }
+
+  // Phase 10 GHA-07 — sign in via GitHub directly (no Google required).
+  // Placed BEFORE MINT_AND_CONNECT so the GitHub-primary popup button has
+  // priority dispatch. Mirrors the LINK_GITHUB shape (async sendResponse,
+  // return true to keep the channel open).
+  if (message && message.type === "SIGNIN_GITHUB") {
+    signinGithubFlow().then(sendResponse);
+    return true; // async
   }
 
   // Quick task 260512-eo1 — single-click onboarding.
