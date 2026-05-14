@@ -12,15 +12,17 @@
 - A **universal `truth_level` contract** — the tagging contract from CLAUDE.md now applies to **every** entity type written by xbrain, not just the memory layer. Migration backfills sensible defaults per entity type.
 - **Soft delete** with 30-day retention on every entity, enforced at retrieval across all existing routes (memory search, tasks list, CRM list, etc.), with a daily janitor cron that hard-purges Postgres + Qdrant + Neo4j after retention expires.
 - **Author + admin authorization** — author can edit/delete their own items; team admin can edit/delete any item in the team.
+- **Superadmin dashboard at `app-site/account/admin/`** (ADDED 2026-05-14 via in-flight scope expansion) — 4 sections covering: (1) cross-team Counts × truth_level × entity_type matrix, (2) Storage size per team (Postgres rows + Qdrant points + MinIO bytes), (3) Activity time-series events/day per team on 30-day window, (4) Top sources breakdown per team (LibreChat / OWUI / Granola / agent / API). Superadmin can also drill-down into any team's brain monitor (full content visibility v1 — break-glass / opt-in workflow deferred to v2).
 
 **What this phase does NOT deliver:**
 - No extension popup UI (web app-site only — locked by user).
 - No real-time SSE/WebSocket stream — polling at 30 s is the v1 mechanism.
 - No truth_level promotion *automation* (manual edits only — automated promotion stays in memory layer Phase 2 logic).
-- No multi-team aggregated view — strictly scoped to one team via `X-Team-Scope`.
 - No export/download of brain data (out of scope; could be a v2 add-on).
-- No analytics / aggregate charts of brain activity (just a list/feed, not a dashboard).
 - No tracker for what was *deleted by whom* beyond the `deleted_by` column (no full audit feed UI — but `audit_log` already captures it backend-side).
+- **No break-glass / opt-in approval workflow for superadmin content drill-down** — v1 grants superadmin full content visibility unconditionally (every drill-down still writes an `audit_log` entry but team admins are NOT pre-notified). Break-glass model (option C from scope-expansion) deferred to a later phase.
+- **No system-health metrics** (janitor lag, soft-delete backlog, orphan rows, MCP error rate) — Pack L was explicitly rejected; Pack M only.
+- **No top-contributors metric** (top users/agents per team) — Pack L was rejected.
 
 </domain>
 
@@ -204,12 +206,58 @@
 
 - **Real-time SSE/WebSocket stream** — deferred to Phase 12+ if polling latency proves insufficient.
 - **truth_level promotion automation for non-memory entities** — Phase 2's logic only applies to memory layer. Extending to tasks/contacts/messages is a separate design problem (what triggers a task being promoted from WORKING to VALIDATED?).
-- **Aggregate analytics dashboard** (counts per entity_type, truth_level distribution) — out of scope; could be `/account/teams/[slug]/brain/stats` in v2.
+- ~~**Aggregate analytics dashboard**~~ — **PROMOTED IN-FLIGHT to Phase 11 scope (2026-05-14)** as the superadmin dashboard. See "Superadmin dashboard" decisions section below.
 - **Export brain to JSON/CSV** — out of scope.
 - **Per-team configurable retention** — option C from question 6, rejected in favor of global 30 days. Can be revisited later.
 - **Hard delete escape hatch on UI** — option C from question 4, rejected. All deletes go through soft delete.
 - **Bulk import / restore from backup** — out of scope.
-- **Multi-team aggregated view (xbrain admin)** — out of scope. The monitor is strictly per-team.
+- ~~**Multi-team aggregated view (xbrain admin)**~~ — **PROMOTED IN-FLIGHT to Phase 11 scope (2026-05-14)** as the superadmin dashboard at `/account/admin/`. See "Superadmin dashboard" decisions section below.
+
+---
+
+## Superadmin dashboard (in-flight scope addition — 2026-05-14)
+
+### Identity model
+- A **superadmin** is a principal whose `sub` (or post-Phase-10: `email`) is in the `ADMIN_USER_SUBS` env list. Reuses the existing `_is_admin()` helper at `apps/memory-api/app/deps.py:266-277` — already returns `True` for bridge JWTs (service trust) and for admin subs. **No new identity primitive needed.** Phase 10's identity merge makes Google `sub` ↔ GitHub login ↔ user-row interchangeable, so `_is_admin()` already covers GitHub-primary superadmins as long as their `sub` value (whatever its shape — `email:...` or `github:...` or Google numeric) is listed in the env var.
+- Document in 11-RESEARCH addendum (and KB): admin onboarding for a new superadmin = add their `sub` to `ADMIN_USER_SUBS` and restart memory-api.
+
+### Privacy decision (LOCKED — option B in v1, option C deferred)
+- **V1:** Superadmin has **full content visibility** across all teams. Drill-down into any team's brain monitor + cross-team aggregates with no consent gate. Every read of another team's data writes an `audit_log` entry (`actor_id`, `target_team_id`, `endpoint`, `params`) — non-blocking but auditable after the fact.
+- **V2 (deferred):** Break-glass / opt-in workflow where the superadmin requests access, the target team admin approves via UI/email, access expires 24 h. Tracked as a follow-up phase requirement — NOT in Phase 11.
+
+### Surface (LOCKED — option A)
+- New route: `app-site/account/admin/index.html` (gated server-side by 403 if non-superadmin hits `/v1/admin/brain/...`).
+- 4 sub-sections rendered as accordions or tabs in a single page:
+  1. **Brain Overview** — Counts × truth_level × entity_type matrix per team (table)
+  2. **Storage** — PG rows + Qdrant points + MinIO bytes per team (table)
+  3. **Activity** — events/day per team over 30 days (sparkline or simple line chart)
+  4. **Top Sources** — breakdown per team (stacked bar or table: LibreChat / OWUI / Granola / agent / API counts last 30 days)
+- A "Drill down" button per team row → opens the existing `/account/teams/[slug]/brain/` UI **with a superadmin badge banner** ("Viewing as superadmin — this access is logged.").
+
+### Metrics pack (LOCKED — Pack M)
+- **Pack M** = Counts + Storage + Activity + Top sources. Pack S (minus Activity + Sources) and Pack L (+ system health + top contributors) rejected.
+- All metrics calculated on-the-fly from Postgres + Qdrant API; **no pre-aggregation table** in v1. Acceptable up to ~10 teams + ~100k events/team. If a team grows beyond that, plan a Phase 12 materialized view.
+
+### Endpoints (new — under `/v1/admin/brain/...`, all gated by `assert_is_superadmin`)
+- `GET /v1/admin/brain/overview` → `[{team_slug, team_id, counts: {entity_type: {truth_level: int}}}, ...]` for ALL teams
+- `GET /v1/admin/brain/storage` → `[{team_slug, pg_rows: {table: int}, qdrant_points: int, minio_bytes: int}, ...]`
+- `GET /v1/admin/brain/activity?days=30` → `[{team_slug, daily: [{date: 'YYYY-MM-DD', events: int}, ...]}, ...]`
+- `GET /v1/admin/brain/sources?days=30` → `[{team_slug, sources: {source_label: int, ...}}, ...]`
+- `GET /v1/admin/brain/events?team_slug=X&...filters` → identical to `/v1/brain/events` but bypasses the X-Team-Scope guard (superadmin can pass any slug — writes audit log entry on each call). For drill-down.
+
+### Authorization helper
+- New `apps/memory-api/app/deps.py` helper: `def assert_is_superadmin(principal) -> None` — wraps existing `_is_admin(principal)` with `HTTPException(403)` on False. Keep both: `_is_admin()` returns bool (cheap predicate), `assert_is_superadmin()` raises (FastAPI dependency).
+- Reuse pattern: superadmin endpoints declare `_: None = Depends(assert_is_superadmin)`.
+
+### Drill-down audit logging
+- Every superadmin call to `/v1/admin/brain/events?team_slug=X` (or any per-team superadmin endpoint) writes to `audit_log` with `action='superadmin_brain_access'`, `actor_user_id=principal.user.id`, `target_team_slug=X`, `endpoint=...`, `query_params=...`. Existing `audit_log` table (Phase 5) — schema sufficient.
+
+### What NOT to add in this scope expansion
+- No system health metrics (janitor lag, soft-delete backlog, orphan rows, MCP error rate) — Pack L rejected.
+- No top contributors (top users / agents) — Pack L rejected.
+- No alerting / paging — out of scope.
+- No graph / chart library if vanilla JS doesn't ship one — use simple inline SVG sparklines (lightweight).
+- No new dependency on a chart library (Chart.js, D3, etc.) unless absolutely needed — try a 30-line inline SVG sparkline component first.
 
 </deferred>
 

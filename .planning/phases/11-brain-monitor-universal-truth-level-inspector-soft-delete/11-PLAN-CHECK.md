@@ -399,6 +399,45 @@ Returning to planner. This is Iteration 1 of max 3.
 - MINOR-2 (11-02): No standalone verify step confirming granola_note appears in DISTINCT entity_type from v_brain_events; covered implicitly by Task 2 fixture if seeded correctly.
 - MINOR-3 (11-09): infrastructure/.env.test.example not planned; verify-phase11.sh documents required vars in script header instead.
 
-## Final verdict
+## Final verdict (Iter 2)
 
 PASS -- all 4 blockers resolved, all 5 majors resolved, plans ready for /gsd:execute-phase 11.
+
+---
+
+# Iteration 3 — 2026-05-14 (Scope-expansion delta — superadmin dashboard)
+
+**Plans audited:** 11-10 (NEW), 11-11 (NEW), 11-09 (revised — Revision 2 section)
+**Plans NOT re-audited:** 11-01..11-08 (PASS in iter 2)
+**Initial verdict:** REVISE — 1 BLOCKER (B-1) + 1 MAJOR (MAJOR-1) + minors
+
+## Coverage table
+
+| ID | Delivered by | Status |
+|----|--------------|--------|
+| BMO-10 | 11-10 Task 1/4/5 | ✓ |
+| BMO-11 | 11-10 Task 2/4 | ✓ |
+| BMO-12 | 11-11 Tasks 1-6 | ✓ |
+| SC-8 | 11-10 Task 6 + 11-11 Task 1 + verify-14 | ✓ |
+| SC-9 | 11-10 Task 4 + 11-11 Task 6 + verify-15 | ✗ → ✓ after B-1 fix |
+| SC-10 | 11-09 Revision 2 assertions 14-16 | ✓ |
+
+## Blocker found
+
+**B-1 [11-11 Task 6] — Drill-down UI called team-scoped `/v1/brain/events` instead of `/v1/admin/brain/events` — audit_log never written, breaks SC-9.**
+
+The Task 6 spec left the API endpoint choice open ("if the simpler path works..."). In reality `get_team_scope` (deps.py:216-242) bypasses ONLY for `kind='bridge'`, so a `kind='user'` superadmin not member of the target team gets 403 on `/v1/brain/events`. The admin endpoint is the only path that (a) bypasses membership check (b) writes audit_log.
+
+## Major found
+
+**MAJOR-1 [11-10 Task 1] — Bridge JWTs implicitly inherit superadmin via `_is_admin()`, with `actor_user_id=None`. Without explicit `actor_sub` capture in payload, bridge cross-team access is unauditable.**
+
+## Revision applied (post-iter-3)
+
+Planner revised in place — see `## Revision 3 (2026-05-14)` sections at the bottom of:
+- `11-10-PLAN.md` (MAJOR-1 fix: SECURITY NOTE in docstring + `actor_sub` capture in Task 4 payload + pytest case 9 enforces bridge identity invariant)
+- `11-11-PLAN.md` (B-1 fix: `buildBrainEventsRequest` helper substitutes admin endpoint when `IS_SUPERADMIN_VIEW=true`, no `X-Team-Scope` header, edit/delete buttons hidden in superadmin view, polling preserves admin endpoint, 5 acceptance criteria including audit_log row delta check)
+
+## Final verdict (Iter 3 post-revision)
+
+PASS — all 11 plans ready for /gsd:execute-phase 11. Revision applied without a 4th plan-check iteration because the fix was mechanically well-specified (replace Task 6 wholesale + add docstring lines) and spot-verified via grep against the modified PLAN files.

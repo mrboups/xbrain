@@ -238,7 +238,7 @@ parallel in wave 3.)
 **Goal**: Donner à chaque user/admin une **vue unifiée temps-réel de tout ce qui entre dans le brain** de sa team (memories, facts, conversations, transcripts Granola, tasks, contacts CRM, team messages), avec le `truth_level` affiché et éditable, et la possibilité de soft-delete tout item (rétention 30 jours puis purge réelle Postgres + Qdrant + Neo4j). Étend le tagging contract `truth_level` à TOUTES les entités (pas seulement memory layer) — c'est la concrétisation du différenciateur xbrain documenté dans CLAUDE.md.
 **Depends on**: Phase 5 (team platform + `/account/teams/`), Phase 7 (entités tasks/contacts/team_messages), Phase 10 (auth GitHub-primary, surface `/account/teams/[slug]/` pour le brain page)
 **Entry gate**: Phase 10 SHIPPED (auth + team membership stables). Toutes les entités cibles ont une colonne `team_id` ou `team_scope` permettant le filtrage par team. `memory_items` a déjà `truth_level` (Phase 2). `notifications.py` SMTP fail-soft dispo. Job runner ou cron container dispo pour purge quotidienne.
-**Requirements**: BMO-01 à BMO-09 (phase post-v1)
+**Requirements**: BMO-01 à BMO-12 (phase post-v1)
 - BMO-01: Migration ajout colonne `truth_level` (TEXT NOT NULL DEFAULT) + `deleted_at TIMESTAMPTZ NULL` + `deleted_by UUID NULL` sur `tasks`, `contacts`, `team_messages`, `conversations`, `granola_notes` (et toute table d'entité non-memory écrite dans le brain)
 - BMO-02: Universal event view `v_brain_events` (UNION ALL des 7+ tables sources) avec colonnes normalisées : `entity_type`, `entity_id`, `team_id`, `created_at`, `created_by`, `truth_level`, `deleted_at`, `preview` (truncate 200 chars), `source`
 - BMO-03: `GET /v1/brain/events` paginated (cursor `created_at + id`) + filtres `entity_type[]`, `truth_level[]`, `source[]`, `created_by`, `q` (text search sur preview), `include_deleted`, `since` — team-scoped via `X-Team-Scope`
@@ -248,6 +248,9 @@ parallel in wave 3.)
 - BMO-07: Retrieval filter — toutes les routes existantes (memory search, tasks list, contacts list, etc.) DOIVENT exclure `deleted_at IS NOT NULL` par défaut. Régression-tests obligatoires.
 - BMO-08: Service `brain-janitor` (cron container quotidien 03:00 UTC) — pour chaque entité avec `deleted_at < now() - 30 days` : (a) Qdrant point delete si vector, (b) Neo4j relation cleanup si node existant, (c) Postgres hard DELETE. Idempotent + audit log.
 - BMO-09: app-site UI `/account/teams/[slug]/brain/` — table virtualisée (1000+ rows), filtres latéraux (entity_type, truth_level, source, date range, deleted), preview row, edit truth_level inline (dropdown 5 niveaux), bouton Delete (soft) + Restore (depuis filtre "Trash"), bulk select pour admin. Polling 30s pour live feed.
+- BMO-10: Superadmin authorization helper `assert_is_superadmin(principal)` (wraps existing `_is_admin()` from `deps.py:266`) + new endpoint family `/v1/admin/brain/...` gated by it. Cross-team drill-down endpoint `GET /v1/admin/brain/events?team_slug=X&...` bypasses `X-Team-Scope` for superadmins and writes an `audit_log` entry per call (`action='superadmin_brain_access'`).
+- BMO-11: Aggregate metrics endpoints (Pack M): `GET /v1/admin/brain/overview` (counts × truth_level × entity_type per team), `GET /v1/admin/brain/storage` (PG rows + Qdrant points + MinIO bytes per team), `GET /v1/admin/brain/activity?days=30` (events/day per team), `GET /v1/admin/brain/sources?days=30` (top sources breakdown per team). All on-the-fly queries, no pre-aggregation table in v1.
+- BMO-12: app-site superadmin dashboard at `/account/admin/` (or `/account/admin/index.html`) — 4 sections (Brain Overview, Storage, Activity, Top Sources). Tables + inline SVG sparklines for Activity (no chart library dependency). Drill-down button per team row routes to `/account/teams/brain/?team=<slug>&as_superadmin=1` (shows a banner "Viewing as superadmin — this access is logged.").
 
 **Success Criteria** (what must be TRUE):
   1. Un admin team peut ouvrir `https://grooveos.app/account/teams/{slug}/brain/`, voir les 50 derniers items entrés sur SA team (toutes entités confondues), filtrer par `truth_level=WORKING` et `entity_type=memory_item`, et la liste se rafraîchit toutes les 30 s sans recharger la page
@@ -257,22 +260,27 @@ parallel in wave 3.)
   5. Le service `brain-janitor` tourne en cron quotidien, et un item avec `deleted_at = now() - 31 days` est purgé de Postgres + Qdrant + Neo4j à la prochaine exécution (audit log entrée écrite)
   6. Migration BMO-01 réussit sur DB existante (28+ tables, données réelles Phase 1-10) sans data loss — vérifiée par `verify-phase11.sh` avec snapshot avant/après row count + `truth_level` defaults appliqués correctement (memory_items conserve sa valeur ; tasks/contacts/messages défault à `WORKING` ; conversations défault à `EPHEMERAL`)
   7. `bash infrastructure/scripts/verify-phase11.sh` retourne `PASS: N / N` — au minimum : (a) GET /v1/brain/events filtre par team_scope + retourne ≥7 entity_types, (b) PATCH truth_level réussit pour auteur, échoue 403 pour non-auteur non-admin, (c) DELETE soft + restore round-trip, (d) janitor purge après 30j (mock clock), (e) tous les anciens endpoints exclude deleted_at, (f) UI app-site charge sous 2s pour 500 events
+  8. Un principal listé dans `ADMIN_USER_SUBS` (= superadmin) peut ouvrir `https://grooveos.app/account/admin/` et voir une vue cross-team : Brain Overview (matrice counts × truth_level × entity_type pour ≥2 teams), Storage (PG rows + Qdrant points + MinIO bytes par team), Activity (sparkline events/day sur 30 jours par team), Top Sources (breakdown LibreChat/OWUI/Granola/agent/API par team) — un user non-superadmin reçoit 403 sur tous les `/v1/admin/brain/*` endpoints
+  9. Le superadmin clique sur "Drill down" sur une team row → ouvre le brain monitor de cette team avec full content visibility et un banner "Viewing as superadmin — this access is logged." ; chaque appel à `/v1/admin/brain/events?team_slug=X` écrit dans `audit_log` (`action='superadmin_brain_access'`, `actor_user_id`, `target_team_slug`, `endpoint`, `query_params`)
+  10. verify-phase11.sh ajoute des assertions superadmin : (g) GET /v1/admin/brain/overview retourne ≥2 teams pour un superadmin, 403 pour un user normal, (h) drill-down sur team_slug arbitraire réussit pour superadmin + écrit audit_log entry, (i) ADMIN_USER_SUBS env non set → tous les /v1/admin/brain/* retournent 403 (lockdown par défaut)
 
-**Plans**: 9 plans
+**Plans**: 11 plans
 Plans:
 - [ ] 11-01-PLAN.md — Migration 0017 truth_level + soft-delete columns + ORM updates
 - [ ] 11-02-PLAN.md — Migration 0018 v_brain_events SQL view + composite indexes
 - [ ] 11-03-PLAN.md — Qdrant payload deleted_at_ts + mark_deleted/mark_restored helpers
 - [ ] 11-04-PLAN.md — GET /v1/brain/events paginated list + assert_can_edit_brain_event auth helper
 - [ ] 11-05-PLAN.md — PATCH/DELETE/POST-restore on /v1/brain/events/{type}/{id} + audit log
-- [ ] 11-06-PLAN.md — Retrieval regression filter (deleted_at IS NULL) on tasks/crm/conversations/native_provider
+- [ ] 11-06-PLAN.md — Retrieval regression filter (deleted_at IS NULL) on tasks/crm/conversations/messages/native_provider
 - [ ] 11-07-PLAN.md — apps/brain-janitor/ cron container + docker-compose entry + Neo4j/Qdrant/PG purge
 - [ ] 11-08-PLAN.md — app-site /account/teams/brain/ UI — vanilla JS feed, filters, inline edit, polling
-- [ ] 11-09-PLAN.md — verify-phase11.sh + KB + docs/brain-monitor.html + UAT + SUMMARY template
+- [ ] 11-09-PLAN.md — verify-phase11.sh + KB + docs/brain-monitor.html + UAT + SUMMARY template (covers BMO-01..12)
+- [ ] 11-10-PLAN.md — Superadmin endpoints: assert_is_superadmin helper + /v1/admin/brain/{overview,storage,activity,sources,events} + audit_log on drill-down (BMO-10/11)
+- [ ] 11-11-PLAN.md — app-site /account/admin/ UI: 4-section dashboard (Brain Overview / Storage / Activity / Top Sources) + inline SVG sparklines + drill-down to brain monitor with superadmin banner (BMO-12)
 
-**Wave order**: 1 (11-01 — base columns) → 2 (11-02 — view requires 11-01 columns) → 3a (11-03 — Qdrant payload, isolated package) → 3b (11-04 — GET endpoint + auth helper, requires view from 11-02) → 3c (11-05 — PATCH/DELETE/restore, requires 11-03 + 11-04 same router file) → 4 (11-06 + 11-07 + 11-08 parallel — disjoint file trees, all depend only on 11-01..05 outputs) → 5 (11-09 — verify + docs after everything ships)
+**Wave order**: 1 (11-01 — base columns) → 2 (11-02 — view requires 11-01 columns) → 3a (11-03 — Qdrant payload, isolated package) → 3b (11-04 — GET endpoint + auth helper, requires view from 11-02) → 3c (11-05 — PATCH/DELETE/restore, requires 11-03 + 11-04 same router file) → 4 (11-06 + 11-07 + 11-08 + 11-10 parallel — disjoint file trees: 11-10 creates new `app/routes/admin_brain.py` so no conflict with 11-06's edits to existing routes) → 5 (11-11 — superadmin UI, depends on 11-10 endpoints) → 6 (11-09 — verify + docs after everything ships, covers BMO-01..12 including superadmin)
 
-**UI hint**: yes (app-site `/account/teams/brain/?team=<slug>` — flat path, slug via query param; `[slug]` in earlier notes was conceptual not literal)
+**UI hint**: yes (app-site `/account/teams/brain/?team=<slug>` — flat path, slug via query param; `[slug]` in earlier notes was conceptual not literal — AND app-site `/account/admin/index.html` for the superadmin dashboard added 11-11)
 
 ### Phase 7: CRM + Granola + Task Intelligence
 **Goal**: Le brain devient actif. Une équipe peut (1) consulter un CRM populé automatiquement depuis tout ce qui passe par le brain (chats, agents, meetings Granola), (2) voir chaque réunion Granola ingérée comme source de mémoire de premier ordre (résumé + participants + actions + décisions), et (3) gérer un backlog de tâches auto-générées depuis les action items Granola et les outputs agents — chaque tâche assignée à un contact CRM déclenche une notification email.
@@ -317,7 +325,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 8. Granola Per-User + Universal Extraction + Platform Agents | 1/8 (plan 08-01 done, VM migration pending) | 🟡 In Progress | — |
 | 9. Session Bridge — Pro/Max Routing via Chrome Extension | 0/6 | ⚪ Planned | — |
 | 10. GitHub-Primary Auth + Org-Driven Team Membership | 0/6 | ⚪ Planned | — |
-| 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete | 0/9 | ⚪ Planned | — |
+| 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 0/11 | ⚪ Planned | — |
 
 ---
 
