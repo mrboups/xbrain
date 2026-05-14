@@ -323,3 +323,27 @@ async def list_org_blocks(
         select(TeamOrgBlock).where(TeamOrgBlock.team_id == team_id)
     )
     return list(result.scalars().all())
+
+
+async def get_team_admins_emails(
+    session: AsyncSession, *, team_id: UUID
+) -> list[str]:
+    """Return email addresses for all admins of this team.
+
+    Phase 10 GHA-05 — used by the auto-grant notification fan-out. Filters out
+    merged orphan rows and synthetic noreply addresses so we never email a
+    placeholder mailbox.
+    """
+    result = await session.execute(sa.text("""
+        SELECT u.email
+        FROM users u
+        JOIN team_members tm ON tm.user_id = u.id
+        WHERE tm.team_id = :team_id
+          AND tm.role = 'admin'
+          AND tm.blocked_at IS NULL
+          AND u.merged_into_user_id IS NULL
+          AND u.email IS NOT NULL
+          AND u.email NOT LIKE '%@users.noreply.github.com'
+          AND u.email NOT LIKE '%@github.noreply'
+    """), {"team_id": team_id})
+    return [row[0] for row in result.all()]

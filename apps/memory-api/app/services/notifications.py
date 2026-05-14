@@ -68,3 +68,75 @@ async def send_task_notification_email(
             recipient=recipient_email,
             error=str(exc),
         )
+
+
+async def send_member_autojoined_email(
+    *,
+    admin_emails: list[str],
+    team_name: str,
+    team_slug: str,
+    new_member_login: str,
+    new_member_display: str,
+    dashboard_url: str = "https://grooveos.app",
+) -> None:
+    """Notify all team admins that a new member auto-joined via GitHub org match.
+
+    Phase 10 GHA-05 — fail-soft contract (mirrors send_task_notification_email):
+    - If SMTP_HOST is empty → log warning and return.
+    - If admin_emails is empty → log warning and return.
+    - Any send error caught + logged, never raised.
+    """
+    if not settings.SMTP_HOST:
+        log.warning(
+            "email.smtp_not_configured",
+            event="member_autojoined",
+            team_slug=team_slug,
+            new_member_login=new_member_login,
+        )
+        return
+    if not admin_emails:
+        log.warning("email.no_admins", team_slug=team_slug)
+        return
+
+    try:
+        # Lazy-import to avoid ImportError at module load when aiosmtplib missing
+        import aiosmtplib
+
+        msg = EmailMessage()
+        msg["From"] = settings.SMTP_FROM
+        msg["To"] = ", ".join(admin_emails)
+        msg["Subject"] = f"New member auto-joined: {new_member_login} in {team_name}"
+        body = (
+            f"{new_member_display} (@{new_member_login}) has auto-joined {team_name}\n"
+            f"via GitHub org membership.\n\n"
+            f"To block this user, click the link below:\n"
+            f"  {dashboard_url}/account/teams/?focus={team_slug}"
+            f"&action=block&login={new_member_login}\n\n"
+            f"— xbrain (noreply@grooveos.app)\n"
+        )
+        msg.set_content(body)
+
+        await aiosmtplib.send(
+            msg,
+            hostname=settings.SMTP_HOST,
+            port=settings.SMTP_PORT,
+            username=settings.SMTP_USER or None,
+            password=settings.SMTP_PASSWORD or None,
+            start_tls=settings.SMTP_TLS,
+            recipients=admin_emails,
+            timeout=20,
+        )
+        log.info(
+            "email.sent",
+            event="member_autojoined",
+            team_slug=team_slug,
+            new_member_login=new_member_login,
+            admin_count=len(admin_emails),
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning(
+            "email.send_failed",
+            event="member_autojoined",
+            team_slug=team_slug,
+            error=str(exc),
+        )
