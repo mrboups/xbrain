@@ -324,7 +324,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 7. CRM + Granola + Task Intelligence | 9/9 | ✅ Complete | 2026-05-07 |
 | 8. Granola Per-User + Universal Extraction + Platform Agents | 1/8 (plan 08-01 done, VM migration pending) | 🟡 In Progress | — |
 | 9. Session Bridge — Pro/Max Routing via Chrome Extension | 0/6 | ⚪ Planned | — |
-| 10. GitHub-Primary Auth + Org-Driven Team Membership | 0/6 | ⚪ Planned | — |
+| 10. GitHub-Primary Auth + Org-Driven Team Membership | 6/6 | 🟢 Code SHIPPED | 2026-05-14 (VM deploy + UAT pending) |
 | 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 0/11 | ⚪ Planned | — |
 
 ---
