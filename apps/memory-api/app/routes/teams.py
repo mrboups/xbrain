@@ -804,6 +804,125 @@ async def unblock_member_endpoint(
     )
 
 
+# ── Phase 10 — GHA-04 pre-block GitHub logins ──────────────────────────────────
+
+
+class OrgBlockBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    github_login: str = Field(..., min_length=1, max_length=256)
+
+
+class OrgBlockOut(BaseModel):
+    github_login: str
+    blocked_at: str
+    blocked_by_email: str | None = None
+
+
+@router.post(
+    "/teams/{team_id}/org-blocks", response_model=OrgBlockOut, status_code=201
+)
+async def create_org_block(
+    team_id: UUID,
+    body: OrgBlockBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Pre-block a GitHub login from joining this team via auto-grant.
+
+    Takes effect even before the user signs into xbrain — when they later
+    complete the GitHub OAuth flow, the auto-grant pipeline consults
+    team_org_blocks and skips this team. Idempotent (ON CONFLICT DO NOTHING)."""
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    actor = await _require_team_admin(principal, team, session)
+
+    await teams_repo.add_org_block(
+        session,
+        team_id=team_id,
+        github_login=body.github_login,
+        blocked_by=actor.id,
+    )
+    await write_audit(
+        session,
+        actor_user_id=actor.id,
+        team_scope=team.slug,
+        action="org_block.create",
+        target_id=body.github_login,
+        payload={},
+    )
+    await session.commit()
+    # Re-read to get the DB-assigned blocked_at value.
+    blocks = await teams_repo.list_org_blocks(session, team_id=team_id)
+    block = next((b for b in blocks if b.github_login == body.github_login), None)
+    if block is None:
+        raise HTTPException(500, "block disappeared after insert")
+    return OrgBlockOut(
+        github_login=block.github_login,
+        blocked_at=block.blocked_at.isoformat(),
+        blocked_by_email=actor.email,
+    )
+
+
+@router.delete("/teams/{team_id}/org-blocks/{github_login}", status_code=204)
+async def delete_org_block(
+    team_id: UUID,
+    github_login: str,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Remove a pre-block. Idempotent — succeeds even if not present."""
+    from fastapi.responses import Response
+
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    actor = await _require_team_admin(principal, team, session)
+    await teams_repo.remove_org_block(
+        session, team_id=team_id, github_login=github_login
+    )
+    await write_audit(
+        session,
+        actor_user_id=actor.id,
+        team_scope=team.slug,
+        action="org_block.remove",
+        target_id=github_login,
+        payload={},
+    )
+    await session.commit()
+    return Response(status_code=204)
+
+
+@router.get("/teams/{team_id}/org-blocks", response_model=list[OrgBlockOut])
+async def list_org_blocks_endpoint(
+    team_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """List current pre-blocks for this team. Team-admin only."""
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    await _require_team_admin(principal, team, session)
+    blocks = await teams_repo.list_org_blocks(session, team_id=team_id)
+    # Best-effort blocker email resolution.
+    out: list[OrgBlockOut] = []
+    for b in blocks:
+        blocker_email: str | None = None
+        if b.blocked_by is not None:
+            bu = await users_repo.get_user_by_id(session, b.blocked_by)
+            if bu is not None:
+                blocker_email = bu.email
+        out.append(
+            OrgBlockOut(
+                github_login=b.github_login,
+                blocked_at=b.blocked_at.isoformat(),
+                blocked_by_email=blocker_email,
+            )
+        )
+    return out
+
+
 @router.post("/teams/{team_id}/join", status_code=204)
 async def join_team(
     team_id: UUID,
