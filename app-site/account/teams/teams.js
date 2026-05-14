@@ -1,22 +1,29 @@
 /**
- * teams.js — app-site/account/teams page (quick task 260513-tmu Stage 3).
+ * teams.js — app-site/account/teams page.
  *
- * Mirrors the extension Settings team management UI for users who don't
- * have the extension installed (e.g. mobile-PWA candidates later).
+ * Phase 10 (GHA-08) — GitHub-primary sign-in via Option B full-page redirect:
+ *   1. Click "Sign in with GitHub" → window.location.href = github.com/login/oauth/authorize
+ *      with state CSRF token in sessionStorage.
+ *   2. GitHub redirects back to /account/teams/?code=...&state=...
+ *   3. JS POSTs { code, redirect_uri, state } to /v1/auth/github/signin (server-side
+ *      code-exchange; client_secret never touches the browser).
+ *   4. Stores returned xbt_token in localStorage under the canonical key "xbt_token".
+ *   5. Strips ?code&?state from the URL via history.replaceState.
+ *   6. Renders authenticated UI + 4-state auth header banners (RESEARCH.md Q7):
+ *        UNAUTHENTICATED → AUTHENTICATED_GITHUB_ONLY / AUTHENTICATED_GOOGLE_ONLY
+ *                          / AUTHENTICATED_BOTH.
  *
- * Auth flow:
- *   1. Google Identity Services renders a "Sign in with Google" button.
- *   2. Success → ID token JWT (`credential`) returned to our callback.
- *   3. We POST it to memory-api /v1/me/api-token with {team_scope:"default"}
- *      → xbt_ personal API token.
- *   4. Cache xbt_ in localStorage. Use it for all subsequent calls.
- *   5. On Sign out: revoke the Google session via google.accounts.id.disableAutoSelect
- *      and clear the xbt_ from localStorage.
+ * Google sign-in is retained as a secondary "or use Google (legacy)" option.
  *
- * IMPORTANT — OAuth setup: this site's origin (https://grooveos.app and
- * https://xbrain-495115.web.app) MUST be in the Google OAuth client's
- * "Authorized JavaScript origins" list. Same client_id as the extension
- * + LibreChat.
+ * Canonical localStorage keys (shared with Chrome extension):
+ *   - xbt_token   (the API token)
+ *   - user_sub    (the user's email or sub identifier)
+ *
+ * IMPORTANT — OAuth setup (one-time, manual):
+ *   - GitHub OAuth App `Ov23liVqXmHkS6JdYpcN` must list
+ *     `https://grooveos.app/account/teams/` as an Authorization callback URL.
+ *   - Google OAuth client must list `https://grooveos.app` (and
+ *     `https://xbrain-495115.web.app` if used) in its "Authorized JavaScript origins".
  */
 
 (function () {
@@ -24,8 +31,18 @@
 
   const MEMORY_API_BASE = "https://api.grooveos.app";
   const GOOGLE_CLIENT_ID = "50097563098-rdh24v05dcp0ees8o4kqviuuoi5sup3n.apps.googleusercontent.com";
-  const STORAGE_TOKEN = "xbrain_xbt_token";
-  const STORAGE_EMAIL = "xbrain_user_email";
+  const GITHUB_CLIENT_ID = "Ov23liVqXmHkS6JdYpcN";
+  const GITHUB_REDIRECT_URI = window.location.origin + "/account/teams/";
+  const GITHUB_OAUTH_SCOPES = "read:user user:email read:org";
+
+  // Canonical keys — shared with the Chrome extension (background.js, onboarding.js).
+  const STORAGE_TOKEN = "xbt_token";
+  const STORAGE_EMAIL = "user_sub";
+  // Legacy keys — migrated forward on load (kept for one-time read-only fallback).
+  const LEGACY_STORAGE_TOKEN = "xbrain_xbt_token";
+  const LEGACY_STORAGE_EMAIL = "xbrain_user_email";
+  // GitHub OAuth CSRF state (sessionStorage, never localStorage).
+  const STORAGE_OAUTH_STATE = "xbrain_github_oauth_state";
 
   const state = {
     me: null,             // /v1/me result
@@ -37,7 +54,59 @@
 
   window.addEventListener("load", init);
 
+  /**
+   * Migrate any legacy `xbrain_xbt_token` / `xbrain_user_email` into the
+   * canonical `xbt_token` / `user_sub` keys exactly once. Idempotent.
+   */
+  function migrateLegacyKeys() {
+    try {
+      if (!localStorage.getItem(STORAGE_TOKEN)) {
+        const legacy = localStorage.getItem(LEGACY_STORAGE_TOKEN);
+        if (legacy) localStorage.setItem(STORAGE_TOKEN, legacy);
+      }
+      if (!localStorage.getItem(STORAGE_EMAIL)) {
+        const legacyEmail = localStorage.getItem(LEGACY_STORAGE_EMAIL);
+        if (legacyEmail) localStorage.setItem(STORAGE_EMAIL, legacyEmail);
+      }
+      // Drop the legacy keys once migration succeeded (one-time cleanup).
+      if (localStorage.getItem(STORAGE_TOKEN) && localStorage.getItem(LEGACY_STORAGE_TOKEN)) {
+        localStorage.removeItem(LEGACY_STORAGE_TOKEN);
+      }
+      if (localStorage.getItem(STORAGE_EMAIL) && localStorage.getItem(LEGACY_STORAGE_EMAIL)) {
+        localStorage.removeItem(LEGACY_STORAGE_EMAIL);
+      }
+    } catch { /* localStorage unavailable — ignore */ }
+  }
+
   async function init() {
+    migrateLegacyKeys();
+
+    // ── Detect a GitHub OAuth callback (Option B full-page redirect) ──
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const cbState = params.get("state");
+    const ghError = params.get("error");
+    const ghErrorDesc = params.get("error_description");
+
+    if (ghError) {
+      // GitHub bounced us back with ?error=...&error_description=... — surface it.
+      window.history.replaceState({}, "", "/account/teams/");
+      sessionStorage.removeItem(STORAGE_OAUTH_STATE);
+      showSignIn();
+      setSigninError(
+        "GitHub returned: " + ghError +
+        (ghErrorDesc ? " — " + decodeURIComponent(ghErrorDesc.replace(/\+/g, " ")) : "")
+      );
+      return;
+    }
+
+    if (code && cbState) {
+      await handleGithubCallback(code, cbState);
+      // handleGithubCallback either fully signs us in (loadAuthenticatedUI ran)
+      // or surfaced an error and reverted to showSignIn().
+      return;
+    }
+
     const xbt = localStorage.getItem(STORAGE_TOKEN);
     if (xbt) {
       // Already signed in — go straight to the teams UI.
@@ -57,7 +126,15 @@
     document.getElementById("auth-section").hidden = true;
     document.getElementById("hdr-user").hidden = true;
 
-    // GIS may not have loaded yet — wait for the global.
+    // Wire the GitHub primary button (idempotent — only bound once).
+    const ghBtn = document.getElementById("github-signin-btn");
+    if (ghBtn && !ghBtn.__bound) {
+      ghBtn.__bound = true;
+      ghBtn.addEventListener("click", initiateGithubSignin);
+    }
+
+    // Render the Google button as fallback. GIS may not have loaded yet —
+    // wait for the global.
     function tryInit() {
       if (window.google && google.accounts && google.accounts.id) {
         google.accounts.id.initialize({
@@ -68,7 +145,7 @@
         });
         google.accounts.id.renderButton(
           document.getElementById("google-signin-btn"),
-          { theme: "filled_black", size: "large", shape: "rectangular", text: "signin_with" },
+          { theme: "filled_black", size: "medium", shape: "rectangular", text: "signin_with" },
         );
       } else {
         setTimeout(tryInit, 200);
@@ -77,10 +154,100 @@
     tryInit();
   }
 
+  function setSigninError(msg) {
+    const box = document.getElementById("signin-error");
+    const txt = document.getElementById("signin-error-msg");
+    if (!box || !txt) return;
+    if (!msg) {
+      box.hidden = true;
+      txt.textContent = "";
+      return;
+    }
+    txt.textContent = msg;
+    box.hidden = false;
+  }
+
+  // ── GitHub OAuth (Option B full-page redirect) ──────────────────────────────
+
+  function initiateGithubSignin() {
+    // Generate a CSRF state token, store in sessionStorage, redirect to GitHub.
+    const csrf = (
+      Math.random().toString(36).slice(2) +
+      Math.random().toString(36).slice(2)
+    );
+    try {
+      sessionStorage.setItem(STORAGE_OAUTH_STATE, csrf);
+    } catch {
+      setSigninError("Browser blocked sessionStorage — sign-in unavailable.");
+      return;
+    }
+    setSigninError(null);
+    const u = new URL("https://github.com/login/oauth/authorize");
+    u.searchParams.set("client_id", GITHUB_CLIENT_ID);
+    u.searchParams.set("redirect_uri", GITHUB_REDIRECT_URI);
+    u.searchParams.set("scope", GITHUB_OAUTH_SCOPES);
+    u.searchParams.set("state", csrf);
+    window.location.href = u.toString();
+  }
+
+  async function handleGithubCallback(code, cbState) {
+    const expected = sessionStorage.getItem(STORAGE_OAUTH_STATE);
+    // Always strip the params from the URL — never leave them in the bar.
+    window.history.replaceState({}, "", "/account/teams/");
+    sessionStorage.removeItem(STORAGE_OAUTH_STATE);
+
+    if (!expected || cbState !== expected) {
+      showSignIn();
+      setSigninError("Sign-in failed: invalid state. Please retry.");
+      return;
+    }
+
+    try {
+      const r = await fetch(`${MEMORY_API_BASE}/v1/auth/github/signin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          redirect_uri: GITHUB_REDIRECT_URI,
+          state: cbState,
+        }),
+      });
+      if (r.status === 403) {
+        showSignIn();
+        setSigninError(
+          "You're not a member of any xbrain team yet — contact your admin."
+        );
+        return;
+      }
+      if (!r.ok) {
+        const text = await r.text().catch(() => "");
+        throw new Error(`HTTP ${r.status} ${text.slice(0, 200)}`);
+      }
+      const data = await r.json();
+      const xbtToken = data && data.xbt_token;
+      if (!xbtToken) throw new Error("response missing xbt_token");
+      localStorage.setItem(STORAGE_TOKEN, xbtToken);
+      const u = data.user || {};
+      // Prefer real email; fall back to github_username if email is noreply.
+      if (u.email) {
+        localStorage.setItem(STORAGE_EMAIL, u.email);
+      } else if (u.github_username) {
+        localStorage.setItem(STORAGE_EMAIL, "@" + u.github_username);
+      }
+      setSigninError(null);
+      await loadAuthenticatedUI();
+    } catch (e) {
+      showSignIn();
+      setSigninError("GitHub sign-in failed: " + (e && e.message ? e.message : e));
+    }
+  }
+
+  // ── Google sign-in (legacy fallback) ────────────────────────────────────────
+
   async function handleGoogleCredential(resp) {
     const idToken = resp && resp.credential;
     if (!idToken) {
-      alert("Sign-in failed — no credential returned.");
+      setSigninError("Sign-in failed — no credential returned.");
       return;
     }
     try {
@@ -105,9 +272,10 @@
         if (payload.email) localStorage.setItem(STORAGE_EMAIL, payload.email);
       } catch { /* ignore */ }
 
+      setSigninError(null);
       await loadAuthenticatedUI();
     } catch (e) {
-      alert(`Sign-in failed: ${e.message}`);
+      setSigninError(`Sign-in failed: ${e.message}`);
     }
   }
 
@@ -173,6 +341,50 @@
     return r.json();
   }
 
+  // ── Auth header state machine (GHA-07) ──────────────────────────────────────
+
+  function renderAuthHeader(me) {
+    if (!me) return;
+    const hasGithub = !!me.github_id;
+    const hasRealEmail =
+      !!me.email && !String(me.email).endsWith("@users.noreply.github.com");
+
+    const showLinkGoogle = hasGithub && !hasRealEmail;
+    const showLinkGithub = !hasGithub;
+    const showBoth = hasGithub && hasRealEmail;
+
+    const ctaG = document.getElementById("cta-link-google");
+    const ctaH = document.getElementById("cta-link-github");
+    const both = document.getElementById("status-both-connected");
+    const ghHandle = document.getElementById("status-gh-handle");
+
+    if (ctaG) ctaG.hidden = !showLinkGoogle;
+    if (ctaH) ctaH.hidden = !showLinkGithub;
+    if (both) both.hidden = !showBoth;
+    if (ghHandle && me.github_username) {
+      ghHandle.textContent = "@" + me.github_username;
+    }
+
+    // Hook "Link GitHub" — same flow as primary sign-in.
+    const linkBtn = document.getElementById("btn-link-github");
+    if (linkBtn && !linkBtn.__bound) {
+      linkBtn.__bound = true;
+      linkBtn.addEventListener("click", initiateGithubSignin);
+    }
+    // Hook "Link Google" — re-trigger the Google One-Tap prompt.
+    const linkGoogle = document.getElementById("btn-link-google");
+    if (linkGoogle && !linkGoogle.__bound) {
+      linkGoogle.__bound = true;
+      linkGoogle.addEventListener("click", () => {
+        try {
+          if (window.google && google.accounts && google.accounts.id) {
+            google.accounts.id.prompt();
+          }
+        } catch { /* ignore */ }
+      });
+    }
+  }
+
   // ── Teams list ────────────────────────────────────────────────────────
 
   async function renderTeamsList() {
@@ -186,6 +398,7 @@
 
     try {
       state.me = await xbtFetch("/v1/me");
+      renderAuthHeader(state.me);
       state.teams = await xbtFetch("/v1/teams/my-teams");
     } catch (e) {
       loading.hidden = true;
@@ -396,7 +609,7 @@
         method: "POST",
         body: { email, role: sel.value },
       });
-      setStatus(team.id, `Invited ${email} ✓`, "success");
+      setStatus(team.id, `Invited ${email}`, "success");
       input.value = "";
       const card = document.querySelector(`[data-team-id="${team.id}"]`);
       const body = card && card.querySelector(".team-card__body");
@@ -418,7 +631,7 @@
     setStatus(team.id, `Removing ${label}…`);
     try {
       await xbtFetch(`/v1/teams/${team.id}/members/${m.user_id}`, { method: "DELETE" });
-      setStatus(team.id, `${label} removed ✓`, "success");
+      setStatus(team.id, `${label} removed`, "success");
       const card = document.querySelector(`[data-team-id="${team.id}"]`);
       const body = card && card.querySelector(".team-card__body");
       if (body) await fillTeamBody(team, body);
@@ -433,7 +646,7 @@
     setStatus(team.id, "Leaving…");
     try {
       await xbtFetch(`/v1/teams/${team.id}/members/me`, { method: "DELETE" });
-      setStatus(team.id, "Left ✓", "success");
+      setStatus(team.id, "Left", "success");
       setTimeout(() => renderTeamsList(), 600);
     } catch (e) {
       const msg =
