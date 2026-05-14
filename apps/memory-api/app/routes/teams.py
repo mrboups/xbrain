@@ -694,6 +694,116 @@ async def remove_member(
     await session.commit()
 
 
+# ── Phase 10 — GHA-03 block/unblock ────────────────────────────────────────────
+
+
+@router.post("/teams/{team_id}/members/{user_id}/block", response_model=MemberOut)
+async def block_member_endpoint(
+    team_id: UUID,
+    user_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Block an existing team member — sets team_members.blocked_at = now() and
+    blocked_by = caller.id. Returns the updated MemberOut.
+
+    Auth: team admin only. The block survives sign-out + re-sign-in
+    (the auto-grant guard in services.team_autogrant skips blocked rows).
+
+    Phase 10 M-1 contract: teams_repo.block_member returns a TeamMember whose
+    blocked_at is a Python datetime (see Plan 10-01 Task 3). The ``.isoformat()``
+    call below relies on that contract.
+    """
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    actor = await _require_team_admin(principal, team, session)
+
+    # Don't allow blocking the last admin (same guardrail as remove).
+    target = await teams_repo.get_membership(
+        session, user_id=user_id, team_slug=team.slug
+    )
+    if target is None:
+        raise HTTPException(404, "not a member of this team")
+    if target.role == "admin":
+        admin_count = await teams_repo.count_admins(session, team_id=team_id)
+        if admin_count <= 1:
+            raise HTTPException(
+                409,
+                "cannot block the last admin — promote another member first",
+            )
+
+    updated = await teams_repo.block_member(
+        session, team_id=team_id, user_id=user_id, blocked_by=actor.id
+    )
+    if updated is None:
+        raise HTTPException(404, "membership not found")
+
+    await write_audit(
+        session,
+        actor_user_id=actor.id,
+        team_scope=team.slug,
+        action="members.block",
+        target_id=str(user_id),
+        payload={},
+    )
+    await session.commit()
+
+    invitee = await users_repo.get_user_by_id(session, user_id)
+    return MemberOut(
+        user_id=str(user_id),
+        role=updated.role,
+        email=invitee.email if invitee else None,
+        display_name=invitee.display_name if invitee else None,
+        source_user_id=invitee.source_user_id if invitee else None,
+        github_username=getattr(invitee, "github_username", None) if invitee else None,
+        blocked_at=updated.blocked_at.isoformat() if updated.blocked_at else None,
+        blocked_by_email=actor.email,
+    )
+
+
+@router.post("/teams/{team_id}/members/{user_id}/unblock", response_model=MemberOut)
+async def unblock_member_endpoint(
+    team_id: UUID,
+    user_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Unblock a previously-blocked member. Idempotent."""
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    actor = await _require_team_admin(principal, team, session)
+
+    updated = await teams_repo.unblock_member(
+        session, team_id=team_id, user_id=user_id
+    )
+    if updated is None:
+        raise HTTPException(404, "membership not found")
+
+    await write_audit(
+        session,
+        actor_user_id=actor.id,
+        team_scope=team.slug,
+        action="members.unblock",
+        target_id=str(user_id),
+        payload={},
+    )
+    await session.commit()
+
+    invitee = await users_repo.get_user_by_id(session, user_id)
+    return MemberOut(
+        user_id=str(user_id),
+        role=updated.role,
+        email=invitee.email if invitee else None,
+        display_name=invitee.display_name if invitee else None,
+        source_user_id=invitee.source_user_id if invitee else None,
+        github_username=getattr(invitee, "github_username", None) if invitee else None,
+        blocked_at=None,
+        blocked_by_email=None,
+    )
+
+
 @router.post("/teams/{team_id}/join", status_code=204)
 async def join_team(
     team_id: UUID,
