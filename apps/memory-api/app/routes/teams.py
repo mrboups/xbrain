@@ -109,6 +109,10 @@ class MemberOut(BaseModel):
     display_name: str | None = None
     source_user_id: str | None = None
     github_username: str | None = None
+    # Phase 10 — block surface (GHA-03). ISO8601 string or null. blocked_by_email
+    # is best-effort resolution of the admin who pressed the block button.
+    blocked_at: str | None = None
+    blocked_by_email: str | None = None
 
 
 class TeamSelfCreateBody(BaseModel):
@@ -593,6 +597,7 @@ async def list_members(
     if membership is None:
         raise HTTPException(403, "not a member")
     # JOIN with users so the UI gets email + display_name in one round-trip.
+    # Phase 10 GHA-03 — blocker tuple surfaces blocked_at + blocked_by_email.
     rows = await teams_repo.list_members_with_user_info(session, team_id=team_id)
     return [
         MemberOut(
@@ -602,8 +607,10 @@ async def list_members(
             display_name=u.display_name,
             source_user_id=u.source_user_id,
             github_username=getattr(u, "github_username", None),
+            blocked_at=m.blocked_at.isoformat() if m.blocked_at else None,
+            blocked_by_email=b.email if b is not None else None,
         )
-        for (m, u) in rows
+        for (m, u, b) in rows
     ]
 
 

@@ -78,21 +78,30 @@ async def list_members(session: AsyncSession, *, team_id: UUID) -> list[TeamMemb
 
 async def list_members_with_user_info(
     session: AsyncSession, *, team_id: UUID
-) -> list[tuple[TeamMember, "User"]]:
-    """Return [(TeamMember, User)] tuples — JOIN with users so the UI can show
-    email + display_name without N+1 round-trips.
+) -> list[tuple[TeamMember, "User", "User | None"]]:
+    """Return [(TeamMember, User, blocker_user_or_None)] tuples — JOIN with
+    users so the UI can show email + display_name without N+1 round-trips.
 
     Quick task 260513-tmu — extension Settings + app-site Teams page surface
     a member list per team; opaque user_id was unhelpful.
+
+    Phase 10 (GHA-03) — third tuple element is the User row referenced by
+    TeamMember.blocked_by (or None if the membership is not blocked). Older
+    callers that ignore the third element keep working.
     """
+    import sqlalchemy.orm as sa_orm
+
     from app.models.user import User as UserModel
 
+    member_user = sa_orm.aliased(UserModel)
+    blocker = sa_orm.aliased(UserModel)
     result = await session.execute(
-        sa.select(TeamMember, UserModel)
-        .join(UserModel, UserModel.id == TeamMember.user_id)
+        sa.select(TeamMember, member_user, blocker)
+        .join(member_user, member_user.id == TeamMember.user_id)
+        .outerjoin(blocker, blocker.id == TeamMember.blocked_by)
         .where(TeamMember.team_id == team_id)
     )
-    return [(m, u) for (m, u) in result.all()]
+    return [(m, u, b) for (m, u, b) in result.all()]
 
 
 async def count_admins(session: AsyncSession, *, team_id: UUID) -> int:
