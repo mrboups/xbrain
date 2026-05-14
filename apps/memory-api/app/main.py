@@ -17,6 +17,7 @@ from app.routes import (
     admin_projects,
     agents,
     audit,
+    auth_github,
     conversations,
     crm,
     drive_webhook,
@@ -91,6 +92,7 @@ app.add_middleware(
 app.include_router(health.router, prefix="/v1", tags=["health"])
 app.include_router(me.router, prefix="/v1", tags=["me"])
 app.include_router(me_github.router, prefix="/v1", tags=["me"])
+app.include_router(auth_github.router, prefix="/v1", tags=["auth"])
 app.include_router(teams.router, prefix="/v1", tags=["teams"])
 app.include_router(conversations.router, prefix="/v1", tags=["conversations"])
 app.include_router(messages.router, prefix="/v1", tags=["messages"])
