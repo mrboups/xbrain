@@ -166,6 +166,41 @@ function hideConnectionCard() {
 }
 
 function wireConnectionCard() {
+  // Phase 10 GHA-07 — GitHub-primary sign-in. Mints xbt_ directly via
+  // POST /v1/auth/github/signin (no Google ID token required). The handler
+  // lives in background.js; we just kick the runtime message and wait for the
+  // canonical xbt_token/user_sub/api_token_id triple to land in
+  // chrome.storage.local, then reload.
+  const btnSigninGithub = $("btn-signin-github");
+  if (btnSigninGithub) {
+    btnSigninGithub.addEventListener("click", async () => {
+      btnSigninGithub.disabled = true;
+      setConnectStatus("Authenticating with GitHub…", "loading");
+      try {
+        const resp = await chrome.runtime.sendMessage({ type: "SIGNIN_GITHUB" });
+        if (resp && resp.ok) {
+          setConnectStatus(
+            `Signed in as ${resp.github_username ? "@" + resp.github_username : resp.email || "your account"} ✓`,
+            "success",
+          );
+          // Reload the popup so the chat UI initializes with the new token.
+          // The storage.onChanged listener at the bottom of this file also
+          // triggers a boot() but a hard reload guarantees a clean state.
+          setTimeout(() => window.location.reload(), 800);
+        } else {
+          setConnectStatus(
+            `GitHub sign-in failed: ${(resp && resp.error) || "unknown"}`,
+            "error",
+          );
+          btnSigninGithub.disabled = false;
+        }
+      } catch (err) {
+        setConnectStatus(`GitHub sign-in error: ${err.message}`, "error");
+        btnSigninGithub.disabled = false;
+      }
+    });
+  }
+
   $("btn-connect-xbrain").addEventListener("click", async () => {
     const btn = $("btn-connect-xbrain");
     btn.disabled = true;

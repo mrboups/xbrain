@@ -46,6 +46,48 @@
     ::-webkit-scrollbar-track { background: var(--xb-bg); }
     ::-webkit-scrollbar-thumb { background: var(--xb-border-2); border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #4a4a4a; }
+
+    /* Phase 10 GHA-07 — GitHub-primary sign-in. The GitHub button is the
+       dark/filled primary action; Google is downgraded to a small secondary
+       fallback under an "or" divider. */
+    .connect-btn-github {
+      background: #24292f;
+      color: #fff;
+      border: 1px solid #1f2328;
+      font-weight: 600;
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: var(--xb-radius);
+      cursor: pointer;
+      font-size: 13.5px;
+      transition: background 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .connect-btn-github:hover { background: #2f363d; }
+    .connect-btn-github:disabled { opacity: 0.5; cursor: not-allowed; }
+    .connect-btn-secondary {
+      background: var(--xb-surface-2);
+      color: var(--xb-text-mute);
+      border: 1px solid var(--xb-border);
+      width: 100%;
+      font-size: 12.5px;
+      padding: 9px 14px;
+      border-radius: var(--xb-radius);
+      cursor: pointer;
+    }
+    .connect-btn-secondary:hover { background: #333; color: var(--xb-text); }
+    .connect-btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .xb-signin-divider {
+      margin: 10px 0;
+      color: var(--xb-text-dim);
+      font-size: 11px;
+      text-align: center;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
   </style>
 </head>
 <body>
@@ -69,13 +111,22 @@
       </div>
     </header>
 
-    <!-- Connection card — shown only on first launch (no xbt_token). -->
+    <!-- Connection card — shown only on first launch (no xbt_token).
+         Phase 10 GHA-07: GitHub is the PRIMARY sign-in; Google is the
+         secondary fallback for users without a GitHub account or who
+         want Drive features. -->
     <section id="connection-card" class="xb-card" hidden>
       <h3>Connect xbrain</h3>
       <p class="xb-hint">
-        Sign in with Google to start chatting with your team.
+        Sign in with GitHub to access your org teams. Add Google later for Drive features.
       </p>
-      <button type="button" id="btn-connect-xbrain" class="connect-btn">🔑 Connect xbrain account</button>
+      <button type="button" id="btn-signin-github" class="connect-btn-github">
+        <span aria-hidden="true">⌥</span> Sign in with GitHub
+      </button>
+      <div class="xb-signin-divider">or</div>
+      <button type="button" id="btn-connect-xbrain" class="connect-btn-secondary">
+        🔑 Sign in with Google
+      </button>
       <div id="connect-status" hidden></div>
       <div id="github-link-row" hidden>
         <div class="xb-subcard">
