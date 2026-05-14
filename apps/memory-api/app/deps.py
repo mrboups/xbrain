@@ -118,6 +118,9 @@ async def get_current_principal(
                 email=gh.get("email") or f"{gh['login']}@github.noreply",
                 display_name=gh.get("name") or gh["login"],
             )
+            # Phase 10 GHA-06 — if this user row was soft-merged into another, redirect.
+            from app.repos.users import follow_merge_pointer  # local import to keep top-level minimal
+            user = await follow_merge_pointer(session, user)
             await session.commit()
             return {
                 "kind": "user",
@@ -138,13 +141,32 @@ async def get_current_principal(
         row = (await session.execute(sa.text("""
             SELECT t.id, t.user_id, t.team_scope,
                    u.source_user_id, u.email, u.display_name,
-                   u.github_username, u.github_id
+                   u.github_username, u.github_id, u.merged_into_user_id
             FROM user_api_tokens t
             JOIN users u ON u.id = t.user_id
             WHERE t.token_hash = :hash AND t.revoked_at IS NULL
         """), {"hash": token_hash})).mappings().fetchone()
         if row is None:
             raise HTTPException(401, "Invalid or revoked API token")
+        # Phase 10 GHA-06 — follow merge pointer if the token's user has been merged.
+        # The row's user_id may point at an orphan if a merge happened after this
+        # token was minted (merge_user_rows re-parents user_api_tokens.user_id,
+        # but a token row read before the merge can still resolve to the orphan
+        # join row if the request raced). Re-resolve the survivor row in-band.
+        if row["merged_into_user_id"] is not None:
+            row = (await session.execute(sa.text("""
+                SELECT t.id, t.user_id, t.team_scope,
+                       u.source_user_id, u.email, u.display_name,
+                       u.github_username, u.github_id, u.merged_into_user_id
+                FROM user_api_tokens t
+                JOIN users u ON u.id = :survivor_id
+                WHERE t.id = :token_id
+            """), {
+                "survivor_id": row["merged_into_user_id"],
+                "token_id": row["id"],
+            })).mappings().fetchone()
+            if row is None:
+                raise HTTPException(401, "Token survivor row missing")
         # Update last_used_at async (fire-and-forget — non-blocking)
         asyncio.create_task(_touch_token(str(row["id"])))
         user = types.SimpleNamespace(
@@ -225,10 +247,18 @@ async def get_team_scope(
         return x_team_scope
 
     # API tokens are scoped to exactly one team — validate that the requested scope matches.
+    # Phase 10 — multi-team tokens (minted by /v1/auth/github/signin) carry the empty-string
+    # sentinel '' in user_api_tokens.team_scope. For those, skip the scope-match guard and
+    # fall through to the team_members membership check below (the user must still be a
+    # member of the requested team to operate within it).
     if principal["kind"] == "user_api_token":
-        if principal.get("api_token_team_scope") != x_team_scope:
+        scope = principal.get("api_token_team_scope")
+        if scope and scope != x_team_scope:
             raise HTTPException(403, "API token team_scope mismatch with X-Team-Scope header")
-        return x_team_scope
+        if scope:
+            # Single-team scoped token — match confirmed, return.
+            return x_team_scope
+        # Multi-team token: fall through to membership check below.
 
     # T-05-02-02: GitHub users who are not org members cannot access team-scoped routes.
     # github_is_org_member=False means non-member; None means Google user (D7 — always allowed).
