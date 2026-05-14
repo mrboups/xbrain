@@ -1,5 +1,6 @@
 """Team repo — create team, manage memberships."""
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -227,5 +228,98 @@ async def list_team_api_keys(session: AsyncSession, *, team_id: UUID) -> list["T
 
     result = await session.execute(
         select(TeamApiKey).where(TeamApiKey.team_id == team_id)
+    )
+    return list(result.scalars().all())
+
+
+# === Phase 10 — block / org-block helpers ===
+
+async def block_member(
+    session: AsyncSession, *, team_id: UUID, user_id: UUID, blocked_by: UUID
+) -> TeamMember | None:
+    """Set blocked_at + blocked_by on an existing membership. Returns the
+    updated row (None if no such membership).
+
+    Phase 10 M-1: blocked_at MUST be a Python datetime (not sa.func.now())
+    so that downstream serialisers can call .isoformat() on the returned row.
+    """
+    result = await session.execute(
+        select(TeamMember).where(
+            (TeamMember.team_id == team_id) & (TeamMember.user_id == user_id)
+        )
+    )
+    m = result.scalar_one_or_none()
+    if m is None:
+        return None
+    m.blocked_at = datetime.now(tz=timezone.utc)
+    m.blocked_by = blocked_by
+    await session.flush()
+    return m
+
+
+async def unblock_member(
+    session: AsyncSession, *, team_id: UUID, user_id: UUID
+) -> TeamMember | None:
+    """Clear blocked_at + blocked_by. Returns the updated row."""
+    result = await session.execute(
+        select(TeamMember).where(
+            (TeamMember.team_id == team_id) & (TeamMember.user_id == user_id)
+        )
+    )
+    m = result.scalar_one_or_none()
+    if m is None:
+        return None
+    m.blocked_at = None
+    m.blocked_by = None
+    await session.flush()
+    return m
+
+
+async def is_org_blocked(
+    session: AsyncSession, *, team_id: UUID, github_login: str
+) -> bool:
+    """True iff (team_id, github_login) is in team_org_blocks."""
+    from app.models.team import TeamOrgBlock
+    result = await session.execute(
+        select(TeamOrgBlock).where(
+            (TeamOrgBlock.team_id == team_id)
+            & (TeamOrgBlock.github_login == github_login)
+        )
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def add_org_block(
+    session: AsyncSession, *, team_id: UUID, github_login: str, blocked_by: UUID
+) -> None:
+    """Idempotent insert into team_org_blocks (ON CONFLICT DO NOTHING)."""
+    await session.execute(
+        sa.text("""
+            INSERT INTO team_org_blocks (team_id, github_login, blocked_by)
+            VALUES (:team_id, :login, :by)
+            ON CONFLICT (team_id, github_login) DO NOTHING
+        """),
+        {"team_id": team_id, "login": github_login, "by": blocked_by},
+    )
+
+
+async def remove_org_block(
+    session: AsyncSession, *, team_id: UUID, github_login: str
+) -> None:
+    await session.execute(
+        sa.text("""
+            DELETE FROM team_org_blocks
+            WHERE team_id = :team_id AND github_login = :login
+        """),
+        {"team_id": team_id, "login": github_login},
+    )
+
+
+async def list_org_blocks(
+    session: AsyncSession, *, team_id: UUID
+) -> list["TeamOrgBlock"]:
+    from app.models.team import TeamOrgBlock
+    result = await session.execute(
+        select(TeamOrgBlock).where(TeamOrgBlock.team_id == team_id)
     )
     return list(result.scalars().all())

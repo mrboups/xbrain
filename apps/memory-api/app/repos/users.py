@@ -52,3 +52,38 @@ async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
         select(User).where(func.lower(User.email) == email.strip().lower())
     )
     return result.scalar_one_or_none()
+
+
+async def find_user_by_github_id(
+    session: AsyncSession, github_id: int
+) -> User | None:
+    """Return the active (non-merged) user row with this github_id, or None.
+
+    Excludes rows where merged_into_user_id IS NOT NULL — those are soft-deleted
+    orphans whose successor is referenced via merged_into_user_id.
+
+    Use follow_merge_pointer() after this lookup if you need to handle the case
+    where a previously-active row was just merged.
+    """
+    result = await session.execute(
+        select(User).where(
+            (User.github_id == github_id) & (User.merged_into_user_id.is_(None))
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def follow_merge_pointer(session: AsyncSession, user: User) -> User:
+    """If user.merged_into_user_id is set, return the survivor; else return user.
+
+    Idempotent and safe to call on any User instance. Raises ValueError if the
+    merge pointer references a deleted row (data-integrity error).
+    """
+    if user.merged_into_user_id is None:
+        return user
+    survivor = await get_user_by_id(session, user.merged_into_user_id)
+    if survivor is None:
+        raise ValueError(
+            f"merge_pointer dangling: user {user.id} -> {user.merged_into_user_id}"
+        )
+    return survivor
