@@ -102,6 +102,10 @@ services:
       # Phase 5 plan 05-02: GitHub OAuth membership verification
       GITHUB_ORG: ${GITHUB_ORG:-your-github-org}
       GITHUB_API_PAT: ${GITHUB_API_PAT:-}
+      # Phase 10: GitHub-primary auth — POST /v1/auth/github/signin code-exchanges
+      # server-side. client_secret stays in memory-api; never reaches frontend.
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       # Waitlist email proxy (grooveos.app landing page)
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       WAITLIST_TO: ${WAITLIST_TO:-team@grooveos.app}
