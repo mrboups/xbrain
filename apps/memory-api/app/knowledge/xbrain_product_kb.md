@@ -149,6 +149,45 @@ Chrome browser**. To change:
   used here to make team memory + this KB free on follow-up mentions within
   ~5 minutes.
 
+## Sign in to xbrain
+
+xbrain uses **GitHub** as the primary identity. Signing in with GitHub gives you:
+
+- An xbrain personal API token (`xbt_…`) stored in your browser / extension.
+- Automatic membership in any xbrain team whose `github_org` field matches one of
+  your GitHub orgs (admins are notified by email — they can block you).
+- Your real verified email (from GitHub's `/user/emails`) attached to your
+  user record so admins can invite you by email and notifications reach you.
+
+**Google sign-in** remains available as a secondary option for legacy users and
+for users who only need Drive / Calendar sync. You can sign in with one and
+**link** the other later from the Settings page — both identities resolve to
+the same xbrain user row.
+
+### Where can I sign in?
+
+| Surface          | URL                                            |
+| ---------------- | ---------------------------------------------- |
+| Web              | https://grooveos.app/account/teams/            |
+| Chrome extension | popup → "Sign in with GitHub"                  |
+| LibreChat        | https://chat.grooveos.app/ (Google + GitHub)   |
+
+### What happens if I'm already signed in?
+
+If you already signed in with Google and your Google email matches the verified
+email on your GitHub account, the first GitHub sign-in attaches your GitHub
+identity to your existing row — no duplicate user is created. If you previously
+signed in with GitHub-only via the extension (no Google), the orphan row is
+auto-merged into your Google row.
+
+### Blocking
+
+A team admin can block a member at any time. Blocked users see HTTP 403 on every
+team-scoped API call ("Member blocked from team …"). Blocking persists across
+sign-out / sign-in — an org-matched auto-grant does not re-add blocked users.
+Admins can also pre-block a GitHub login that hasn't signed up yet via the
+Pre-block form in the team Settings card.
+
 ## What @claude should NOT do
 
 - Pretend to know about a team's internal details that aren't in the memory
