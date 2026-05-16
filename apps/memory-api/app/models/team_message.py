@@ -2,6 +2,8 @@
 
 Schema lives in alembic 0015_team_messages.py. Forward-compat fields
 (parent_message_id, edited_at, deleted_at) land nullable for Phase 2.
+Phase 11 (migration 0017) adds `truth_level` + `deleted_by` and the
+matching CHECK constraint.
 """
 from __future__ import annotations
 
@@ -28,6 +30,12 @@ class TeamMessage(Base):
             "(kind = 'user'  AND author_user_id IS NOT NULL) "
             "OR (kind = 'agent' AND agent_name IS NOT NULL)",
             name="ck_team_messages_author_required",
+        ),
+        # Phase 11 (migration 0017) — must match DDL CHECK
+        # 'team_messages_truth_level_check'. Canonical 5-value enum (CLAUDE.md).
+        CheckConstraint(
+            "truth_level IN ('EPHEMERAL','WORKING','VALIDATED','CANONICAL','PUBLIC')",
+            name="team_messages_truth_level_check",
         ),
     )
 
@@ -68,4 +76,21 @@ class TeamMessage(Base):
     )
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+    # Phase 11 (migration 0017) — universal tagging contract + soft-delete.
+    # `truth_level` defaults to 'WORKING' for team chat (agent + human contributions
+    # are working knowledge until promoted). Python default mirrors DDL
+    # server_default so SQLAlchemy-side INSERTs also fill the value.
+    truth_level: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="WORKING",
+        server_default="WORKING",
+    )
+    deleted_by: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        default=None,
     )
