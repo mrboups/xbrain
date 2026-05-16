@@ -31,7 +31,7 @@
 
   const MEMORY_API_BASE = "https://api.grooveos.app";
   const GOOGLE_CLIENT_ID = "50097563098-rdh24v05dcp0ees8o4kqviuuoi5sup3n.apps.googleusercontent.com";
-  const GITHUB_CLIENT_ID = "Ov23liVqXmHkS6JdYpcN";
+  const GITHUB_CLIENT_ID = "Ov23liy7tZekl0uEztoj";
   const GITHUB_REDIRECT_URI = window.location.origin + "/account/teams/";
   const GITHUB_OAUTH_SCOPES = "read:user user:email read:org";
 

@@ -60,7 +60,7 @@ const MEMORY_API_BASE = "https://api.grooveos.app";
 
 // VITE-style placeholder; production hardcodes the same value as memory-api.
 // Replace with your GitHub OAuth App client_id. Keep the secret server-side.
-const GITHUB_CLIENT_ID = "Ov23liVqXmHkS6JdYpcN";
+const GITHUB_CLIENT_ID = "Ov23liy7tZekl0uEztoj";
 
 /**
  * Run the GitHub OAuth user-authorization flow and return the `code` Chrome
