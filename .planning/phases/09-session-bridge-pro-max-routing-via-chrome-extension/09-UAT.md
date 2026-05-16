@@ -21,6 +21,15 @@ This document is walked manually on the VM after `verify-phase9.sh` passes.
 It maps directly to the six ROADMAP Phase 9 success criteria. SKIPPED in the
 script never blocks — only FAIL == 0 is required.
 
+> **Note on health checks:** `bridge.grooveos.app/nginx-health` returns 200 from
+> the nginx layer (no upstream call) — use this for external monitoring. The
+> session-bridge app's `/healthz` endpoint (returning
+> `{"status":"ok","active_sockets":N}`) is intentionally only reachable from
+> inside the Docker network — exposing it publicly would leak app internals.
+> Any reference to `/healthz` in this UAT against `127.0.0.1:8105` or `BRIDGE_LOCAL`
+> targets the in-cluster bridge directly (still correct); external probes always
+> go through `/nginx-health`.
+
 ## Pre-checks (must be true before starting)
 
 - [ ] `bash infrastructure/scripts/verify-phase9.sh` returned `PASS: N / N (SKIPPED: M)` on the VM, with `FAIL == 0` (M ≥ 0 is fine)
