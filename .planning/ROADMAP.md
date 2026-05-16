@@ -282,6 +282,31 @@ Plans:
 
 **UI hint**: yes (app-site `/account/teams/brain/?team=<slug>` — flat path, slug via query param; `[slug]` in earlier notes was conceptual not literal — AND app-site `/account/admin/index.html` for the superadmin dashboard added 11-11)
 
+### Phase 12: GitHub App Migration — Public-Deployment-Ready Auth
+**Goal**: Migrate xbrain authentication from OAuth App to GitHub App so the platform is ready for public deployment. GitHub Apps support multiple callback URLs natively (eliminating the per-frontend OAuth App proliferation), use short-lived installation tokens (eliminating long-lived `GITHUB_API_PAT` and unbounded user tokens), enable org-level installation (canonical "Install xbrain on our org" UX instead of per-user authorization with global org-read scope), and unlock higher rate limits per installation. Clean break — no dual-auth maintained; the single existing user (mrboups) re-authorizes once via the new GitHub App.
+**Depends on**: Phase 11 (Brain Monitor ships first per ordering decision 2026-05-17)
+**Entry gate**: Phase 11 SHIPPED. OAuth App `xbrain` (Client ID `Ov23liy7tZekl0uEztoj`) currently authorizes web sign-in only; Chrome extension flow is broken (single-callback constraint). Existing users: 1 (mrboups). `users.github_id` UNIQUE constraint already in place (Phase 10). `GITHUB_API_PAT` currently used for `/orgs/{org}/members/{username}` checks — must be replaced by installation token. No tests or production users depend on long-lived GitHub OAuth tokens (8h TTL acceptable with refresh token flow).
+**Requirements**: GHAPP-01 to GHAPP-08 (phase post-v1 — public-deployment readiness)
+- GHAPP-01: Create new GitHub App on `mrboups` account (or new dedicated GitHub org) with multi-callback URLs registered: `https://grooveos.app/account/teams/` (web) + `https://<ext-id>.chromiumapp.org/` (Chrome extension stable ID via manifest `key`). Permissions requested: `read:user`, `user:email`, `read:org` (or fine-grained equivalents). Generate private key (PEM), store securely server-side.
+- GHAPP-02: Backend JWT signing infrastructure — load private key from secret, mint JWT signed with RS256 for GitHub App authentication, exchange JWT for installation tokens per installation_id. Cache installation tokens (1h TTL, refresh-on-401).
+- GHAPP-03: New `installations` table (`installation_id INT PK`, `github_org_login TEXT`, `installed_at TIMESTAMPTZ`, `installed_by_github_id BIGINT`, `permissions JSONB`, `revoked_at TIMESTAMPTZ NULL`) + webhook handler `/v1/webhooks/github/installation` for `installation` and `installation_repositories` events. Sync source-of-truth from GitHub.
+- GHAPP-04: Migrate `/orgs/{org}/members/{username}` org membership check from `GITHUB_API_PAT` to installation token (lookup installation by `github_org_login`, use cached installation token, fall back to "org not installed → user cannot join team" error). Remove `GITHUB_API_PAT` from `.env.example` and runtime config.
+- GHAPP-05: User-to-server token expiration handling — implement refresh token flow per [GitHub docs](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens). Store `github_access_token`, `github_refresh_token`, `github_token_expires_at` on users row (migration 0018 or higher). Refresh transparently before any `/user/*` call when token is < 5 min from expiry.
+- GHAPP-06: Install flow UI — when a user signs in but their primary org has not installed the GitHub App, redirect to GitHub's install URL (`https://github.com/apps/{app_slug}/installations/new`) with `state` for return URL. After install webhook arrives, user can complete team join. Banner messaging in `app-site/account/teams/index.html` and `chrome-extension/popup.html`.
+- GHAPP-07: Update frontend client_id constants — `app-site/account/teams/teams.js:34` and `chrome-extension/background.js:63` to new GitHub App client_id. With GitHub App's multi-callback support, the same client_id serves both flows (no per-frontend dispatch in memory-api). Verify `chrome.runtime.id` stability via fixed `key` in `chrome-extension/manifest.json` (so the chromiumapp.org URL is deterministic).
+- GHAPP-08: Remove OAuth App `xbrain` (Client ID `Ov23liy7tZekl0uEztoj`) from active code path. Delete OAuth-App-specific dispatch logic in `apps/memory-api/app/routes/auth_github.py`. Document migration in `docs/auth.html`. (LibreChat-specific OAuth App `xbrain LibreChat` Client ID `Ov23li0XHV3NL8Git7Dk` remains untouched — separate concern.)
+**Success Criteria** (what must be TRUE):
+  1. A user can sign in via "Sign in with GitHub" on `https://grooveos.app/account/teams/` AND in the Chrome extension popup — both flows use the same GitHub App client_id with multi-callback URLs registered natively (no `Ov23liy7tZekl0uEztoj` OAuth App code path active)
+  2. An org admin can click "Install xbrain on org" in app-site or popup → redirected to GitHub install page → after install, the installation webhook populates `installations` table; team members from that org auto-grant team membership at next sign-in (preserves Phase 10 semantics)
+  3. User-to-server token (8h TTL) expires gracefully: subsequent API calls trigger transparent refresh via `github_refresh_token`; user is not signed out; no manual re-authorization needed within 6 months (refresh token lifetime)
+  4. `/orgs/{org}/members/{username}` check works using installation token (verified by removing `GITHUB_API_PAT` env var and confirming the check still succeeds for installed orgs and returns "org not installed" for non-installed orgs)
+  5. `team_org_blocks` + auto-grant team membership semantics unchanged from Phase 10 (regression tests pass): blocked GitHub login still cannot join even if org is installed; auto-grant still triggers on first sign-in for installed-org members
+  6. mrboups (the single existing user) re-authorizes via the new GitHub App once and sees the same teams (`Dejavudev`), same `github_id` row preserved, all brain data intact
+  7. `GITHUB_API_PAT` removed from `.env.example`, `docker-compose.yml`, and any runtime config. No long-lived GitHub PAT in the system after migration completes
+  8. `bash infrastructure/scripts/verify-phase12.sh` returns `PASS: N / N` — at minimum: (a) JWT signing with private key produces a valid GitHub-App-authenticated request, (b) installation token cache returns a valid token (refresh-on-401 verified by clock-mocked expiry), (c) user sign-in via new GitHub App mints `xbt_` token, (d) refresh token rotation succeeds, (e) install flow webhook handler populates `installations` row, (f) auto-grant works for installed-org member, (g) `GITHUB_API_PAT` env unset and org membership check still succeeds, (h) Chrome extension callback URL stable (matches manifest `key`-derived `chrome.runtime.id`)
+**Plans**: TBD (populated by `/gsd:plan-phase 12` — estimated 8-10 sub-plans covering JWT/installation tokens, refresh flow, install UI, multi-callback frontend updates, manifest `key` for stable extension ID, migration, verification)
+**UI hint**: yes (app-site install banner + chrome-extension popup install/status section + install confirmation page)
+
 ### Phase 7: CRM + Granola + Task Intelligence
 **Goal**: Le brain devient actif. Une équipe peut (1) consulter un CRM populé automatiquement depuis tout ce qui passe par le brain (chats, agents, meetings Granola), (2) voir chaque réunion Granola ingérée comme source de mémoire de premier ordre (résumé + participants + actions + décisions), et (3) gérer un backlog de tâches auto-générées depuis les action items Granola et les outputs agents — chaque tâche assignée à un contact CRM déclenche une notification email.
 **Depends on**: Phase 6
@@ -310,7 +335,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11
+Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -326,6 +351,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 9. Session Bridge — Pro/Max Routing via Chrome Extension | 0/6 | ⚪ Planned | — |
 | 10. GitHub-Primary Auth + Org-Driven Team Membership | 6/6 | ✅ LIVE | 2026-05-14 (deployed + verify PASS + smoke PASS) |
 | 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 0/11 | ⚪ Planned | — |
+| 12. GitHub App Migration — Public-Deployment-Ready Auth | 0/0 (planning pending: `/gsd:plan-phase 12`) | ⚪ Roadmapped | — |
 
 ---
 
