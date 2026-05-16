@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: shipped
-stopped_at: Phase 9 SHIPPED 2026-05-12 — session-bridge Pro/Max routing code complete (all 6 plans, 3 waves). verify-phase9.sh ready (8 SKIP-aware tests). Residual: VM deploy + Cloudflare DNS + 09-UAT.md walk by user.
-last_updated: "2026-05-12T18:00:00.000Z"
-last_activity: 2026-05-12 -- Phase 09 plan 06 complete (verify-phase9.sh + sessions.html + 09-UAT.md) — Phase 9 code SHIPPED
+stopped_at: "Phase 10 LIVE + Phase 8/9 verified live + OAuth web sign-in fixed end-to-end. Phase 11 PLANNED ready for /gsd:execute-phase 11. Phase 12 ROADMAPPED (GitHub App migration, planning pending until Phase 11 ships)."
+last_updated: "2026-05-17T23:30:00.000Z"
+last_activity: "2026-05-17 -- Phase 10 OAuth client_id+callback URL bug fixed (commit 8c3df36), end-to-end web sign-in validated. Phase 8/9 confirmed LIVE on VM (verify scripts PASS). Phase 12 roadmapped (e5ef93b). mcp-brain healthcheck fix staged. Logging caps staged."
 progress:
-  total_phases: 9
-  completed_phases: 9
-  total_plans: 73
-  completed_plans: 73
-  percent: 100
+  total_phases: 12
+  completed_phases: 10
+  total_plans: 90
+  completed_plans: 79
+  percent: 83
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 09 — session-bridge-pro-max-routing-via-chrome-extension
+**Current focus:** Phase 11 — Brain Monitor (Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard) — ready for `/gsd:execute-phase 11`. Phase 12 (GitHub App migration) roadmapped, planning pending until Phase 11 ships.
 
 ## Current Position
 
-Phase: 09 (session-bridge-pro-max-routing-via-chrome-extension) — **SHIPPED 2026-05-12**
-Plan: 6 of 6 (09-06 complete; verify-phase9.sh + sessions.html + 09-UAT.md shipped)
-Status: Phase 9 code SHIPPED — residual: VM deploy + Cloudflare DNS + 09-UAT.md walk
-Last activity: 2026-05-12 -- Quick task 260512-tcr SHIPPED — Team chat realtime via Centrifugo v6. Extension pivoted to chat-first UI; @claude mentions stream live via Pro/Max bridge (zero $ to xbrain) with Anthropic fallback. 5min team memory cache for Anthropic prompt cache hits. 24 chat_stream tests + 23 mention_detector tests PASS; ext suite 7/7. memory-api + session-bridge redeployed on VM.
+Phase: 10 (GitHub-Primary Auth + Org-Driven Team Membership) — **LIVE 2026-05-14** (web sign-in fix 2026-05-17, commit 8c3df36)
+Plan: 6 of 6 (all plans shipped + verify-phase10.sh PASS + Playwright smoke PASS); OAuth web sign-in end-to-end validated 2026-05-17
+Status: Phase 10 LIVE end-to-end. Phase 8 + Phase 9 reconfirmed LIVE on VM today (verify-phase8.sh PASS 7/7 + verify-phase9.sh PASS 6/6 with 2 acceptable SKIP). Next: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6).
+Last activity: 2026-05-17 -- Phase 10 OAuth client_id+callback URL bug fixed (commit 8c3df36). Real OAuth App ID `Ov23liy7tZekl0uEztoj` replaces placeholder `Ov23liVqXmHkS6JdYpcN` in app-site/teams.js + chrome-extension/background.js; callback URL on OAuth App `xbrain` updated from `chat.grooveos.app/oauth/github/callback` → `grooveos.app/account/teams/` via Playwright. End-to-end web sign-in validated via Playwright (JWT received, Dejavudev team listed). Phase 12 roadmapped (commit e5ef93b). mcp-brain unhealthy fix staged (nc missing → Python socket probe). Logging caps added to all 29 services via YAML anchor.
 
-Progress: [██████████] 100% — ALL 9 PHASES COMPLETE (Phase 9 SHIPPED 2026-05-12)
+Progress: [████████░░] 83% — 10 of 12 phases COMPLETE (Phase 11 PLANNED, Phase 12 ROADMAPPED)
 
 ## Performance Metrics
 
@@ -112,6 +112,11 @@ Recent decisions affecting current work:
 - 2026-05-09 (08-01): Migration 0012 — granola_user_connections FK CASCADE (RGPD-friendly) + agent_definitions FK SET NULL (cohérent 0010 tasks)
 - 2026-05-09 (08-01): UNIQUE(user_id) sur granola_user_connections — un user = au plus une clé Granola active
 - 2026-05-09 (08-01): Seed meeting-recap via bindparams + ON CONFLICT (name) DO NOTHING — idempotent, safe re-run
+- 2026-05-17 (audit): Phase 8 + Phase 9 reconfirmed LIVE on VM (verify-phase8.sh PASS 7/7 + verify-phase9.sh PASS 6/6 with 2 acceptable SKIP — VERIFY_XBT_TOKEN missing for [5/8] WS E2E test, node missing on prod VM for [8/8] translator test)
+- 2026-05-17 (phase11/12 ordering): Phase 11 executes before Phase 12 (Brain Monitor first, GitHub App migration after public-deployment readiness)
+- 2026-05-17 (phase12 strategy): Clean break OAuth → GitHub App (no dual-auth) — only 1 existing user (mrboups), acceptable to re-authorize once
+- 2026-05-17 (oauth fix): GitHub OAuth web sign-in had double bug — placeholder client_id `Ov23liVqXmHkS6JdYpcN` (didn't exist on GitHub) + callback URL on OAuth App "xbrain" pointing to legacy `chat.grooveos.app/oauth/github/callback`. Fixed by updating callback URL via Playwright + replacing client_id with real `Ov23liy7tZekl0uEztoj` in `app-site/teams.js` + `chrome-extension/background.js` (commit 8c3df36)
+- 2026-05-17 (extension auth): Chrome extension auth flow remains broken (`chromiumapp.org` callback doesn't match OAuth App single-callback constraint). Resolved naturally by Phase 12 (GitHub App multi-callback support). Deferred.
 
 ### Pending Todos
 
@@ -119,9 +124,9 @@ None yet.
 
 ### Blockers/Concerns
 
-- **Phase 8 onboarding E2E non testé** : Le flux onboarding E2E (Google → github-orgs → solo-team → Granola key step) n'a pas encore été testé avec un vrai compte. Les 7 endpoints répondent correctement (PASS: 7/7). Test fonctionnel à valider manuellement.
-- **GH_API_PAT mrboups repos** : GitHub Actions dashboard montre 0 repos pour l'utilisateur `mrboups` — le PAT semble ne pas avoir le scope `repo` ou est expiré. Vérifier `gh secret list` et regénérer si besoin.
-- **VM disk** : Était à 99% le 2026-05-07. Résolu par agrandissement disque + `docker system prune`. Surveiller si rebuild containers échoue de nouveau.
+- **Phase 8 onboarding E2E walk pending** : verify-phase8.sh PASS 7/7 (endpoints répondent correctement, reconfirmed 2026-05-17 on VM), mais le flux user-facing E2E (Google → github-orgs → solo-team → Granola key step) n'a pas encore été walké manuellement avec une vraie clé Granola.
+- **Chrome extension GitHub flow broken until Phase 12 ships** : single-callback OAuth App constraint — `chromiumapp.org` callback doesn't match the single web callback URL. Resolved naturally by Phase 12 (GitHub App multi-callback support). Web sign-in (app-site) works fine since fix 2026-05-17.
+- **GH_API_PAT mrboups repos** : GitHub Actions dashboard montre 0 repos pour l'utilisateur `mrboups` — le PAT semble ne pas avoir le scope `repo` ou est expiré. Vérifier `gh secret list` et regénérer si besoin. (Will be replaced by GitHub App installation token in Phase 12.)
 
 **Resolved (archivé):**
 
@@ -129,6 +134,8 @@ None yet.
 - ~~Phase 3 entry gate POC Memori~~ — Phase 3 complète, fallback LangGraph utilisé
 - ~~OOM Risk Phase 1~~ — VM upgradée e2-standard-2 (8 GB) depuis Phase 2
 - ~~chat.grooveos.app 502~~ — Race condition nginx/librechat au démarrage, auto-résolu
+- ~~VM disk~~ — Était à 99% le 2026-05-07 et de nouveau 100% pendant deploy Phase 10 (2026-05-14, clickhouse log 17GB). Résolu via truncate + agrandissement disque. Logging caps (max-size 100m, max-file 3) ajoutés à tous les 29 services 2026-05-17 pour prévenir récurrence.
+- ~~Phase 10 OAuth web sign-in broken~~ — placeholder client_id + callback URL mismatch on OAuth App "xbrain". Fixed 2026-05-17 (commit 8c3df36), validated end-to-end via Playwright.
 
 ## Deferred Items
 
@@ -138,8 +145,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-11
-Stopped at: Lot 2 LLM stack quick wins shipped (260511-0jb). Grok-3 + Claude Reasoning endpoint in LibreChat, second-opinion now 3-way (Sonnet+Opus 4.7+Grok-3), Anthropic prompt caching activated on 6 extraction call sites across 5 services. Verified 5/5.
+Last session: 2026-05-17
+Stopped at: Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6).
 Resume file: None
 
 ### Quick Tasks Completed

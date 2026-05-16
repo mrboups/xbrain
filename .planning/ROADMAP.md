@@ -21,7 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: Marketing Site + Documentation** - Site marketing statique en anglais (fond blanc, cible startup teams), documentation complète de toutes les features, déploiement Firebase Hosting — **DONE 2026-05-07** (https://grooveos.app)
 - [x] **Phase 7: CRM + Granola + Task Intelligence** - CRM auto-populé depuis le brain (contacts extraits automatiquement), intégration Granola → mémoire (notes de réunion → faits taguées), task tracking automatique (tout output brain qui implique une action génère une tâche assignée + notification team) — **DONE 2026-05-07**
 - [x] **Phase 8: Granola Per-User + Universal Extraction Pipeline + Platform Agents** - Clé API Granola per-user (saisie manuelle onboarding, Fernet chiffré), pipeline extraction universel (LibreChat + Chrome ext + Granola → CRM + tasks), registry agent_definitions éditable par les admins avec agent meeting-recap seedé — **DONE 2026-05-09** (PASS: 7/7 verify-phase8.sh)
-- [x] **Phase 9: Session Bridge — Pro/Max Routing via Chrome Extension** - Les users xbrain consomment leur propre quota Claude Pro/Max au lieu de la clé API team. Nouveau microservice `session-bridge` (port 8105, OpenAI-compat ↔ WebSocket router), extension xbrain étendue (WebSocket persistant + fetch credentialed claude.ai), nouveau endpoint LibreChat "Claude (mon abonnement)", vhost nginx bridge.grooveos.app, table `user_external_sessions`. **Scope: Claude only — ChatGPT Plus déféré Phase 10.** — **CODE SHIPPED 2026-05-12** (6 plans, 3 waves, verify-phase9.sh ready; VM deploy + UAT pending)
+- [x] **Phase 9: Session Bridge — Pro/Max Routing via Chrome Extension** - Les users xbrain consomment leur propre quota Claude Pro/Max au lieu de la clé API team. Nouveau microservice `session-bridge` (port 8105, OpenAI-compat ↔ WebSocket router), extension xbrain étendue (WebSocket persistant + fetch credentialed claude.ai), nouveau endpoint LibreChat "Claude (mon abonnement)", vhost nginx bridge.grooveos.app, table `user_external_sessions`. **Scope: Claude only — ChatGPT Plus déféré Phase 10.** — **LIVE 2026-05-12** (6/6 plans shipped, verify-phase9.sh PASS 6/6 with 2 acceptable SKIP on VM 2026-05-17)
 
 ## Phase Details
 
@@ -185,12 +185,12 @@ Plans:
   6. `bash infrastructure/scripts/verify-phase9.sh` retourne `PASS: N / N` (compte de tests TBD au planning) — au minimum : (a) session-bridge healthcheck, (b) nginx vhost répond 200 sur `/v1/chat/completions` avec body d'auth attendu, (c) extension WebSocket connecte et echo bidirectionnel marche, (d) end-to-end LibreChat → session-bridge → extension → claude.ai mock retourne un texte
 **Plans**: 6 plans
 Plans:
-- [ ] 09-01-PLAN.md — session-bridge FastAPI skeleton (pool + auth + 401/503 chat stub + docker-compose entry)
-- [ ] 09-02-PLAN.md — claude.ai client + SSE translator (live DevTools capture + claude_ai_client.js + translate_sse.js + node tests)
-- [ ] 09-03-PLAN.md — Chrome extension v1.1.0 — WebSocket persistent + chrome.alarms watchdog + handleClaude dispatcher
-- [ ] 09-04-PLAN.md — Cloudflare DNS + nginx 50-bridge.conf + Alembic 0014 + memory-api /v1/me/external-sessions GET/DELETE
-- [ ] 09-05-PLAN.md — librechat.yaml "Claude (mon abonnement)" endpoint + extension popup Sessions section
-- [ ] 09-06-PLAN.md — verify-phase9.sh (8 tests) + .env.example + docs/sessions.html + 09-UAT.md
+- [x] 09-01-PLAN.md — session-bridge FastAPI skeleton (pool + auth + 401/503 chat stub + docker-compose entry)
+- [x] 09-02-PLAN.md — claude.ai client + SSE translator (live DevTools capture + claude_ai_client.js + translate_sse.js + node tests)
+- [x] 09-03-PLAN.md — Chrome extension v1.1.0 — WebSocket persistent + chrome.alarms watchdog + handleClaude dispatcher
+- [x] 09-04-PLAN.md — Cloudflare DNS + nginx 50-bridge.conf + Alembic 0014 + memory-api /v1/me/external-sessions GET/DELETE
+- [x] 09-05-PLAN.md — librechat.yaml "Claude (mon abonnement)" endpoint + extension popup Sessions section
+- [x] 09-06-PLAN.md — verify-phase9.sh (8 tests) + .env.example + docs/sessions.html + 09-UAT.md
 **UI hint**: yes (extension popup + LibreChat endpoint dropdown + settings page session status)
 
 ### Phase 10: GitHub-Primary Auth + Org-Driven Team Membership
@@ -347,9 +347,9 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 5. Plateforme Projets Équipe | 7/7 | ✅ Complete | 2026-05-06 |
 | 6. Marketing Site + Documentation | 8/8 | ✅ Complete | 2026-05-07 |
 | 7. CRM + Granola + Task Intelligence | 9/9 | ✅ Complete | 2026-05-07 |
-| 8. Granola Per-User + Universal Extraction + Platform Agents | 1/8 (plan 08-01 done, VM migration pending) | 🟡 In Progress | — |
-| 9. Session Bridge — Pro/Max Routing via Chrome Extension | 0/6 | ⚪ Planned | — |
-| 10. GitHub-Primary Auth + Org-Driven Team Membership | 6/6 | ✅ LIVE | 2026-05-14 (deployed + verify PASS + smoke PASS) |
+| 8. Granola Per-User + Universal Extraction + Platform Agents | 8/8 | ✅ Complete | 2026-05-09 (verify 7/7 PASS reconfirmed 2026-05-17) |
+| 9. Session Bridge — Pro/Max Routing via Chrome Extension | 6/6 | ✅ LIVE | 2026-05-12 (verify 6/6 PASS + 2 SKIP reconfirmed 2026-05-17) |
+| 10. GitHub-Primary Auth + Org-Driven Team Membership | 6/6 | ✅ LIVE | 2026-05-14 (deployed + verify PASS) — OAuth client_id+callback URL bug fixed 2026-05-17 |
 | 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 0/11 | ⚪ Planned | — |
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 0/0 (planning pending: `/gsd:plan-phase 12`) | ⚪ Roadmapped | — |
 
