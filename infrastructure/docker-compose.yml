@@ -121,6 +121,15 @@ services:
       # server-side. client_secret stays in memory-api; never reaches frontend.
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      # Phase 12: GitHub App — minted installation tokens replace GITHUB_API_PAT.
+      # All 5 secrets are required server-side only; never exposed to frontends.
+      # See apps/memory-api/app/config.py for full var purpose docstrings.
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-0}
+      GITHUB_APP_SLUG: ${GITHUB_APP_SLUG:-xbrain}
+      GITHUB_APP_CLIENT_ID: ${GITHUB_APP_CLIENT_ID:-}
+      GITHUB_APP_CLIENT_SECRET: ${GITHUB_APP_CLIENT_SECRET:-}
+      GITHUB_APP_PRIVATE_KEY_B64: ${GITHUB_APP_PRIVATE_KEY_B64:-}
+      GITHUB_APP_WEBHOOK_SECRET: ${GITHUB_APP_WEBHOOK_SECRET:-}
       # Waitlist email proxy (grooveos.app landing page)
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       WAITLIST_TO: ${WAITLIST_TO:-team@grooveos.app}

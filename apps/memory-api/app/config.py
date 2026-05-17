@@ -39,8 +39,33 @@ class Settings(BaseSettings):
     GITHUB_CLIENT_ID: str = ""
     GITHUB_CLIENT_SECRET: str = ""
     GITHUB_ORG: str = "your-github-org"
-    # Fine-grained PAT with scope read:org — required to see private org members (pitfall Q3)
+    # Fine-grained PAT with scope read:org — required to see private org members (pitfall Q3).
+    # === Phase 12 — DEPRECATED, to be removed by Plan 12-04 ===
+    # GITHUB_API_PAT is replaced by installation tokens minted via the GitHub App.
+    # Plan 12-04 removes ALL consumers (app/deps.py, app/routes/me_github.py,
+    # app/routes/teams.py) and then removes this setting itself. Leave declared
+    # (default empty) until then.
     GITHUB_API_PAT: str = ""
+
+    # === Phase 12 — GitHub App (NEW) ===
+    # The GitHub App "xbrain" owned by mrboups account. Replaces the OAuth App
+    # for xbrain auth (LibreChat OAuth App `xbrain LibreChat` is out of scope —
+    # see 12-CONTEXT.md). Consumed by:
+    #   - app/services/github_app_jwt.py (Plan 12-02): RS256 JWT signing
+    #   - app/services/github_installation.py (Plan 12-03): installation token cache
+    #   - app/routes/github_webhooks.py (Plan 12-05): X-Hub-Signature-256 verify
+    #   - app/services/github_user_token.py (Plan 12-06): user-to-server refresh flow
+    GITHUB_APP_ID: int = 0                          # numeric App ID, e.g. 3743573
+    GITHUB_APP_SLUG: str = "xbrain"                 # URL slug for the install URL
+                                                    # (https://github.com/apps/<slug>/installations/new)
+    GITHUB_APP_CLIENT_ID: str = ""                  # 'Iv23li…' — issued by GitHub on App creation
+    GITHUB_APP_CLIENT_SECRET: str = ""              # paired secret (server-side only)
+    GITHUB_APP_PRIVATE_KEY_B64: str = ""            # base64-encoded PEM (single-line).
+                                                    # Decode at use: base64.b64decode(...).decode().
+                                                    # Generated once on App creation; rotation
+                                                    # documented in Plan 12-11 verify script.
+    GITHUB_APP_WEBHOOK_SECRET: str = ""             # HMAC-SHA256 secret for
+                                                    # /v1/webhooks/github/installation
 
     # Phase 7 — CRM + Granola + Tasks
     ANTHROPIC_API_KEY: str = ""
