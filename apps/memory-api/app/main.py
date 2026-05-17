@@ -18,6 +18,7 @@ from app.routes import (
     agents,
     audit,
     auth_github,
+    brain,
     conversations,
     crm,
     drive_webhook,
@@ -112,3 +113,4 @@ app.include_router(waitlist.router, prefix="/v1", tags=["waitlist"])
 app.include_router(agents.router, prefix="/v1", tags=["agents"])
 app.include_router(external_sessions.router, prefix="/v1", tags=["external-sessions"])
 app.include_router(team_chat.router, prefix="/v1", tags=["team-chat"])
+app.include_router(brain.router, prefix="/v1", tags=["brain"])
