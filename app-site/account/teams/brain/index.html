@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Brain Monitor — GrooveOS</title>
+  <meta name="description" content="Inspect, edit and curate xbrain memory for your team — truth-level workflow, soft-delete, live feed." />
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/css/brain.css" />
+</head>
+<body>
+  <header class="hdr">
+    <div class="hdr__brand">
+      <span class="dot" aria-hidden="true"></span>
+      <span>GrooveOS · brain monitor</span>
+      <span class="hdr__team-slug" id="hdr-team-slug" hidden>·</span>
+    </div>
+    <div class="hdr__user" id="hdr-user" hidden>
+      <span id="hdr-email">—</span>
+      <a class="btn btn-sm" href="/account/teams/">Teams</a>
+      <button class="btn btn-sm" id="btn-signout">Sign out</button>
+    </div>
+  </header>
+
+  <!-- Sign-in card (shown when no xbt_token) -->
+  <main class="container">
+    <div id="signin-section" class="signin-card" hidden>
+      <h3>Sign in required</h3>
+      <p>You need a GrooveOS session to inspect brain events.</p>
+      <a class="btn btn-primary" href="/account/teams/">Go to sign in</a>
+    </div>
+
+    <!-- Authenticated content -->
+    <div id="auth-section" hidden>
+      <div class="page-toolbar">
+        <h1>Brain Monitor</h1>
+        <p class="subtitle">
+          Inspect, edit and curate every fact, message and artefact tagged for
+          <strong id="page-team-label">your team</strong>.
+          Change truth-level inline, soft-delete and restore items within a
+          30-day retention window.
+        </p>
+      </div>
+
+      <div class="page-grid">
+        <!-- Left filter sidebar -->
+        <aside class="filters" id="filters">
+          <div class="filter-header">
+            <span>Filters</span>
+            <button type="button" class="btn btn-sm" id="btn-reset-filters">Reset</button>
+          </div>
+
+          <section class="filter-group">
+            <h4>Entity type</h4>
+            <ul class="filter-list" id="flt-entity-type">
+              <li><label><input type="checkbox" value="memory_item" /> memory_item</label></li>
+              <li><label><input type="checkbox" value="conversation" /> conversation</label></li>
+              <li><label><input type="checkbox" value="message" /> message</label></li>
+              <li><label><input type="checkbox" value="team_message" /> team_message</label></li>
+              <li><label><input type="checkbox" value="task" /> task</label></li>
+              <li><label><input type="checkbox" value="contact" /> contact</label></li>
+              <li><label><input type="checkbox" value="granola_note" /> granola_note</label></li>
+            </ul>
+          </section>
+
+          <section class="filter-group">
+            <h4>Truth level</h4>
+            <ul class="filter-list" id="flt-truth-level">
+              <li><label><input type="checkbox" value="EPHEMERAL" /> <span class="tl-pill tl-ephemeral">EPHEMERAL</span></label></li>
+              <li><label><input type="checkbox" value="WORKING" /> <span class="tl-pill tl-working">WORKING</span></label></li>
+              <li><label><input type="checkbox" value="VALIDATED" /> <span class="tl-pill tl-validated">VALIDATED</span></label></li>
+              <li><label><input type="checkbox" value="CANONICAL" /> <span class="tl-pill tl-canonical">CANONICAL</span></label></li>
+              <li><label><input type="checkbox" value="PUBLIC" /> <span class="tl-pill tl-public">PUBLIC</span></label></li>
+            </ul>
+          </section>
+
+          <section class="filter-group">
+            <h4>Source</h4>
+            <input type="text" id="flt-source" placeholder="comma-separated (chat, agent, scraper…)" />
+          </section>
+
+          <section class="filter-group">
+            <h4>Created by</h4>
+            <input type="text" id="flt-created-by" placeholder="user UUID or 'me'" />
+          </section>
+
+          <section class="filter-group">
+            <h4>Search</h4>
+            <input type="text" id="flt-q" placeholder="full-text query" />
+          </section>
+
+          <section class="filter-group">
+            <h4>Since</h4>
+            <input type="datetime-local" id="flt-since" />
+          </section>
+
+          <section class="filter-group">
+            <label class="toggle">
+              <input type="checkbox" id="flt-show-deleted" />
+              <span>Show deleted (Trash)</span>
+            </label>
+          </section>
+
+          <button type="button" class="btn btn-primary btn-block" id="btn-apply-filters">
+            Apply filters
+          </button>
+        </aside>
+
+        <!-- Main table -->
+        <section class="feed">
+          <div class="feed-toolbar">
+            <div class="feed-status" id="feed-status">Loading…</div>
+            <div class="feed-actions">
+              <span class="poll-indicator" id="poll-indicator" title="Polling every 30s for new items">
+                <span class="poll-dot"></span>
+                <span class="poll-label">live</span>
+              </span>
+              <button type="button" class="btn btn-sm" id="btn-refresh">Refresh</button>
+            </div>
+          </div>
+
+          <div class="bulk-bar" id="bulk-bar" hidden>
+            <span class="bulk-count" id="bulk-count">0 selected</span>
+            <select id="bulk-truth-level" class="bulk-input">
+              <option value="">Set truth level…</option>
+              <option value="EPHEMERAL">EPHEMERAL</option>
+              <option value="WORKING">WORKING</option>
+              <option value="VALIDATED">VALIDATED</option>
+              <option value="CANONICAL">CANONICAL</option>
+              <option value="PUBLIC">PUBLIC</option>
+            </select>
+            <button type="button" class="btn btn-sm btn-danger" id="bulk-delete">Delete selected</button>
+            <button type="button" class="btn btn-sm" id="bulk-clear">Clear</button>
+          </div>
+
+          <div class="table-wrap">
+            <table class="brain-table" id="brain-table">
+              <thead>
+                <tr>
+                  <th class="col-select" id="th-select" hidden><input type="checkbox" id="select-all" /></th>
+                  <th class="col-type">Entity</th>
+                  <th class="col-preview">Preview</th>
+                  <th class="col-truth">Truth level</th>
+                  <th class="col-source">Source</th>
+                  <th class="col-author">Created by</th>
+                  <th class="col-time">When</th>
+                  <th class="col-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="brain-tbody"></tbody>
+            </table>
+          </div>
+
+          <div id="empty-state" class="empty-state" hidden>
+            <p>No brain events match these filters.</p>
+            <p class="empty-state__hint">Adjust the filters on the left or hit <strong>Reset</strong>.</p>
+          </div>
+
+          <div id="loading-skeleton" class="loading-skeleton" hidden>
+            <div class="skeleton-row"></div>
+            <div class="skeleton-row"></div>
+            <div class="skeleton-row"></div>
+          </div>
+
+          <div id="sentinel" class="sentinel" aria-hidden="true"></div>
+          <div id="load-more-status" class="load-more-status"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <!-- Toast area (success / error) -->
+  <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Confirmation modal -->
+  <div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal__backdrop" data-modal-dismiss></div>
+    <div class="modal__panel">
+      <h3 id="modal-title">Confirm</h3>
+      <p id="modal-body">Are you sure?</p>
+      <div class="modal__actions">
+        <button type="button" class="btn" id="modal-cancel" data-modal-dismiss>Cancel</button>
+        <button type="button" class="btn btn-danger" id="modal-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    xbrain · memory layer for synthetic teams ·
+    <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener">github</a>
+  </footer>
+
+  <script src="brain.js"></script>
+</body>
+</html>
