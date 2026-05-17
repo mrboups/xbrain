@@ -87,8 +87,10 @@
       <div class="docs-meta">
         <span>All environment variables</span>
         <span>&#183;</span>
-        <span>~10 min read</span>
+        <span>~12 min read</span>
         <span class="docs-meta__badge">v1.0</span>
+        <span class="docs-meta__badge">Phase 11</span>
+        <span class="docs-meta__badge">Phase 12</span>
       </div>
 
       <!-- ======================================================
@@ -266,16 +268,148 @@
             <td><code>GITHUB_ORG</code></td>
             <td>No</td>
             <td>your-github-org</td>
-            <td>GitHub Organization name — used to verify membership during GitHub Auth login (Phase 5)</td>
+            <td>GitHub Organization display name. Used for fallback display only post-Phase 12 — membership lookup is per-org via installations.</td>
           </tr>
           <tr>
             <td><code>GITHUB_API_PAT</code></td>
-            <td>No</td>
+            <td><strong>Removed in Phase 12</strong></td>
             <td>—</td>
-            <td>GitHub Personal Access Token with <code>read:org</code> scope. Required for GitHub Auth (Phase 5).</td>
+            <td>Legacy long-lived Personal Access Token. <strong>Removed in Phase 12</strong> — replaced by GitHub App JWT + installation tokens. <code>verify-phase12.sh</code> fails the deploy if any import remains in the codebase.</td>
           </tr>
         </tbody>
       </table>
+
+      <!-- ======================================================
+           GitHub App (Phase 12)
+           ====================================================== -->
+      <h2>GitHub App <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:9999px;background:#F5F3FF;color:#6D28D9;font-size:12px;font-weight:700;letter-spacing:.04em;border:1px solid #DDD6FE;margin-left:8px;vertical-align:middle;">Phase 12</span></h2>
+      <p>
+        The xbrain GitHub App handles all sign-in flows (web + Chrome extension) and all
+        server-to-server calls to <code>api.github.com</code> on behalf of installed orgs. These
+        six vars replace the legacy <code>GITHUB_API_PAT</code> + OAuth App env.
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Required</th>
+            <th>Example value</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>GITHUB_APP_ID</code></td>
+            <td>Yes</td>
+            <td><code>3743573</code></td>
+            <td>Numeric App registration ID — top of the App settings page.</td>
+          </tr>
+          <tr>
+            <td><code>GITHUB_APP_SLUG</code></td>
+            <td>No</td>
+            <td><code>xbrain</code></td>
+            <td>URL slug used to build the install URL <code>github.com/apps/&lt;slug&gt;/installations/new</code>.</td>
+          </tr>
+          <tr>
+            <td><code>GITHUB_APP_CLIENT_ID</code></td>
+            <td>Yes</td>
+            <td><code>Iv23liVnZvIN0Lo6isof</code></td>
+            <td>OAuth client ID — also used as the App JWT <code>iss</code> claim. Public value; the matching frontend constant is shared with <code>app-site/account/teams/teams.js</code> and the Chrome extension <code>background.js</code>.</td>
+          </tr>
+          <tr>
+            <td><code>GITHUB_APP_CLIENT_SECRET</code></td>
+            <td>Yes</td>
+            <td>—</td>
+            <td>OAuth client secret. Server-only — never exposed to browsers or the Chrome extension.</td>
+          </tr>
+          <tr>
+            <td><code>GITHUB_APP_PRIVATE_KEY_B64</code></td>
+            <td>Yes</td>
+            <td>—</td>
+            <td>Base64-encoded private key PEM (single line). Generate: <code>base64 -w 0 &lt; xbrain.&lt;date&gt;.private-key.pem</code>. Used by <code>PyJWT[crypto]</code> to RS256-sign App JWTs.</td>
+          </tr>
+          <tr>
+            <td><code>GITHUB_APP_WEBHOOK_SECRET</code></td>
+            <td>Yes</td>
+            <td>—</td>
+            <td>HMAC-SHA256 secret matching the value configured in the App settings. Used to verify <code>X-Hub-Signature-256</code> on every <code>/v1/webhooks/github/installation</code> call. Generate: <code>openssl rand -hex 32</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Token encryption uses FERNET_KEY</p>
+        <p>
+          The <code>ghu_</code> / <code>ghr_</code> tokens persisted on the <code>users</code>
+          table are Fernet-encrypted with <code>FERNET_KEY</code> (originally introduced in Phase 4
+          for drive-sync). Rotating <code>FERNET_KEY</code> invalidates every stored GitHub user
+          token — every user must re-authorize. Do not rotate without comms.
+        </p>
+      </div>
+
+      <!-- ======================================================
+           Brain Monitor + Superadmin (Phase 11)
+           ====================================================== -->
+      <h2>Brain Monitor &amp; Superadmin <span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:9999px;background:#F5F3FF;color:#6D28D9;font-size:12px;font-weight:700;letter-spacing:.04em;border:1px solid #DDD6FE;margin-left:8px;vertical-align:middle;">Phase 11</span></h2>
+      <p>
+        Phase 11 adds the universal Brain Monitor (per-team feed) and the
+        <code>/account/admin/</code> superadmin dashboard. Storage metrics rely on MinIO env vars
+        already set in earlier phases; only <code>ADMIN_USER_SUBS</code> is new.
+      </p>
+
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Required</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>ADMIN_USER_SUBS</code></td>
+            <td>No</td>
+            <td>(empty)</td>
+            <td>Comma-separated list of principal subs (e.g. <code>github:mrboups,google:1087...</code>) that may access <code>/v1/admin/brain/*</code>. Empty value disables every superadmin endpoint (lockdown kill-switch). Read at memory-api startup.</td>
+          </tr>
+          <tr>
+            <td><code>MINIO_URL</code></td>
+            <td>No</td>
+            <td>http://xbrain-minio:9000</td>
+            <td>S3 endpoint used by <code>GET /v1/admin/brain/storage</code> to report bytes per team. Unset → N/A in dashboard (no error).</td>
+          </tr>
+          <tr>
+            <td><code>MINIO_ACCESS_KEY</code></td>
+            <td>No</td>
+            <td>—</td>
+            <td>S3 access key for the same storage endpoint.</td>
+          </tr>
+          <tr>
+            <td><code>MINIO_SECRET_KEY</code></td>
+            <td>No</td>
+            <td>—</td>
+            <td>S3 secret key.</td>
+          </tr>
+          <tr>
+            <td><code>MINIO_BUCKET</code></td>
+            <td>No</td>
+            <td>—</td>
+            <td>Single bucket name — per-team prefix is computed inside.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout--info">
+        <p class="callout__title">brain-janitor needs no extra env</p>
+        <p>
+          The <code>brain-janitor</code> daily cron container shares the same Postgres / Qdrant /
+          Neo4j connection vars as <code>memory-api</code>. It reads them on startup. Heartbeat
+          sentinel at <code>/tmp/brain-janitor-alive</code> must be refreshed within the last
+          25 hours.
+        </p>
+      </div>
 
       <!-- ======================================================
            LibreChat
@@ -604,13 +738,26 @@ MEMORY_API_EXTERNAL_URL=https://api.yourdomain.com
 # === Logging ===
 LOG_LEVEL=INFO
 
-# === GitHub Auth (Phase 5) ===
+# === GitHub Org display (legacy, optional post-Phase 12) ===
 GITHUB_ORG=your-github-org
-GITHUB_API_PAT=
+# GITHUB_API_PAT=     # REMOVED in Phase 12 — DO NOT set
 
 # === Graphiti (Phase 5) ===
 GRAPHITI_SERVICE_URL=http://graphiti-service:8300
-SEMAPHORE_LIMIT=3</code></pre>
+SEMAPHORE_LIMIT=3
+
+# === Brain Monitor + Superadmin (Phase 11) ===
+# Comma-separated subs; empty value disables /v1/admin/brain/* entirely.
+ADMIN_USER_SUBS=github:mrboups
+# MINIO_URL etc. — already required from Phase 2 onwards.
+
+# === GitHub App (Phase 12) ===
+GITHUB_APP_ID=3743573
+GITHUB_APP_SLUG=xbrain
+GITHUB_APP_CLIENT_ID=Iv23liVnZvIN0Lo6isof
+GITHUB_APP_CLIENT_SECRET=CHANGE_ME
+GITHUB_APP_PRIVATE_KEY_B64=CHANGE_ME_SINGLE_LINE_BASE64
+GITHUB_APP_WEBHOOK_SECRET=CHANGE_ME_32HEX</code></pre>
 
       <!-- ======================================================
            Next Steps

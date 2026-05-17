@@ -85,10 +85,12 @@
 
       <h1>Deployment</h1>
       <div class="docs-meta">
-        <span>Phase 1–5 deployment</span>
+        <span>Phases 1–12</span>
         <span>&#183;</span>
-        <span>~20 min read</span>
+        <span>~25 min read</span>
         <span class="docs-meta__badge">v1.0</span>
+        <span class="docs-meta__badge">Phase 11</span>
+        <span class="docs-meta__badge">Phase 12</span>
       </div>
 
       <!-- ======================================================
@@ -315,25 +317,164 @@ bash infrastructure/scripts/verify-phase4.sh
            ====================================================== -->
       <h2>Phase 5: Team Platform</h2>
       <p>
-        Phase 5 adds graphiti-service (temporal fact extraction), github-auth (GitHub Org SSO),
-        and projects-dashboard. The Chrome extension is installed manually from the
-        <a href="chrome-ext.html">Chrome Extension guide</a>.
+        Phase 5 adds graphiti-service (temporal fact extraction), Chrome extension web clipper,
+        and projects-dashboard. Auth was originally an OAuth App + long-lived
+        <code>GITHUB_API_PAT</code> — both <strong>retired in Phase 12</strong> in favour of the
+        xbrain GitHub App (see <a href="#phase-12-github-app">Phase 12</a> below).
       </p>
 
       <p>Add to <code>.env</code>:</p>
-      <pre class="code-block"><code><span class="code-block__label">.env — Phase 5 additions</span>GITHUB_ORG=your-github-org
-GITHUB_API_PAT=ghp_...        # Requires read:org scope
-GRAPHITI_SERVICE_URL=http://graphiti-service:8300</code></pre>
+      <pre class="code-block"><code><span class="code-block__label">.env — Phase 5 additions</span>GRAPHITI_SERVICE_URL=http://graphiti-service:8300
+GITHUB_ORG=your-github-org        # Display only post-Phase 12</code></pre>
 
       <pre class="code-block"><code><span class="code-block__label">bash</span>docker compose up -d
 bash infrastructure/scripts/verify-phase5.sh
 # Expected: PASS: 8 / 8</code></pre>
 
+      <div class="callout callout--warning">
+        <p class="callout__title">GITHUB_API_PAT removed in Phase 12</p>
+        <p>The legacy long-lived <code>GITHUB_API_PAT</code> env var has been removed. All org-membership
+        lookups now flow through the xbrain GitHub App's short-lived installation tokens
+        (<code>ghs_</code>, ~1h TTL). See the <a href="#phase-12-github-app">Phase 12</a> section
+        for the GitHub App registration runbook.</p>
+      </div>
+
+      <!-- ======================================================
+           Phase 11: Brain Monitor + Superadmin
+           ====================================================== -->
+      <h2 id="phase-11-brain-monitor">Phase 11: Brain Monitor + Superadmin Dashboard</h2>
+      <p>
+        Phase 11 introduces the universal Brain Monitor (single feed across the 7 brainable entity
+        types), the <code>/account/admin/</code> superadmin dashboard, and a daily hard-purge cron
+        container (<code>brain-janitor</code>).
+      </p>
+
+      <p>Migrations (apply automatically on memory-api boot):</p>
+      <ul>
+        <li><code>0017_brain_monitor_base</code> — adds <code>truth_level</code>,
+          <code>deleted_at</code>, <code>deleted_by</code> to <code>conversations</code>,
+          <code>messages</code>, <code>team_messages</code>, <code>tasks</code>, and
+          <code>contacts</code>.</li>
+        <li><code>0018_brain_events_view</code> — creates the <code>v_brain_events</code> view
+          (UNION-ALL across the 7 entity types).</li>
+      </ul>
+
+      <p>Add to <code>.env</code>:</p>
+      <pre class="code-block"><code><span class="code-block__label">.env — Phase 11 additions</span># Superadmins for /v1/admin/brain/*.
+# Comma-separated subs (e.g. "github:mrboups,google:1087654...").
+# Empty value (or unset) disables ALL superadmin endpoints (lockdown kill-switch).
+ADMIN_USER_SUBS=github:mrboups
+
+# MinIO (used by /v1/admin/brain/storage — N/A on miss, never 500).
+MINIO_URL=http://xbrain-minio:9000
+MINIO_ACCESS_KEY=...
+MINIO_SECRET_KEY=...
+MINIO_BUCKET=xbrain-default</code></pre>
+
+      <pre class="code-block"><code><span class="code-block__label">bash</span>docker compose up -d brain-janitor memory-api
+bash infrastructure/scripts/verify-phase11.sh
+# Expected: PASS: 5 / 5 (with 11 SKIPped optional fixtures)</code></pre>
+
       <div class="callout callout--info">
-        <p class="callout__title">GitHub PAT Scope</p>
-        <p>The GitHub Personal Access Token only requires the <code>read:org</code> scope.
-        It is used solely to verify that a user belongs to the configured GitHub Organization
-        before granting access. No repository access is needed.</p>
+        <p class="callout__title">brain-janitor health</p>
+        <p>The <code>brain-janitor</code> container runs at 03:00 UTC daily. Liveness sentinel:
+        <code>/tmp/brain-janitor-alive</code> must be touched within the last 25 hours.
+        Verification assertion 11 SKIPs on cold start (sentinel not yet created); FAILs after
+        the first cycle if the sentinel is stale.</p>
+      </div>
+
+      <!-- ======================================================
+           Phase 12: GitHub App
+           ====================================================== -->
+      <h2 id="phase-12-github-app">Phase 12: GitHub App Migration</h2>
+      <p>
+        Phase 12 migrates auth from the legacy OAuth App + long-lived <code>GITHUB_API_PAT</code>
+        to a GitHub App. The new App supports multi-callback (web + Chrome extension), short-lived
+        installation tokens (<code>ghs_</code> ~1h), user-token refresh
+        (<code>ghu_</code>/<code>ghr_</code>, ~6 month sliding window), and install/uninstall webhooks.
+      </p>
+
+      <h3>Step 1 — Derive the Chrome extension ID FIRST</h3>
+      <p>
+        The GitHub App's callback URL must include
+        <code>https://&lt;ext-id&gt;.chromiumapp.org/</code>. The
+        Chrome extension uses a <code>manifest.json</code> <code>"key"</code> to pin the
+        extension ID so it stays stable across dev machines. For Phase 12 the canonical ID is:
+      </p>
+      <pre class="code-block"><code><span class="code-block__label">chrome-ext-id</span>anigikcnmldoklcmogffmgcojdhhficb</code></pre>
+      <p>
+        See the <a href="chrome-ext.html">Chrome Extension guide</a> for the keypair-generation
+        + manifest "key" derivation procedure.
+      </p>
+
+      <h3>Step 2 — Register the App on GitHub</h3>
+      <p>At <a href="https://github.com/settings/apps">github.com/settings/apps</a> → <em>New GitHub App</em>:</p>
+      <ul>
+        <li><strong>GitHub App name:</strong> <code>xbrain</code> (or <code>xbrain-app</code> if taken).</li>
+        <li><strong>Homepage URL:</strong> <code>https://grooveos.app</code></li>
+        <li><strong>Callback URLs</strong> (one per line):
+          <pre class="code-block" style="margin-top:6px;"><code>https://grooveos.app/account/teams/
+https://anigikcnmldoklcmogffmgcojdhhficb.chromiumapp.org/</code></pre>
+        </li>
+        <li><strong>Webhook URL:</strong> <code>https://api.grooveos.app/v1/webhooks/github/installation</code></li>
+        <li><strong>Webhook secret:</strong> <code>openssl rand -hex 32</code> &rarr; save for
+          <code>GITHUB_APP_WEBHOOK_SECRET</code>.</li>
+        <li><strong>Permissions:</strong> Organization &rarr; Members <strong>Read</strong>;
+          Account &rarr; Email addresses <strong>Read</strong>; Account &rarr; Profile
+          <strong>Read</strong>. <em>No repo permissions.</em></li>
+        <li><strong>Subscribe to events:</strong> Installation, Installation repositories.
+          <em>Uncheck everything else.</em></li>
+        <li><strong>Optional features:</strong> check <strong>User-to-server token expiration</strong>
+          — without this, tokens are unbounded and no refresh tokens are issued.</li>
+      </ul>
+
+      <h3>Step 3 — Capture secrets, encode the PEM</h3>
+      <p>After saving the App, capture:</p>
+      <pre class="code-block"><code><span class="code-block__label">bash — encode PEM as single line</span>base64 -w 0 &lt; xbrain.&lt;date&gt;.private-key.pem
+# macOS: base64 -i xbrain.&lt;date&gt;.private-key.pem | tr -d '\n'</code></pre>
+
+      <p>Add to <code>.env</code> (5 new vars in Phase 12; <code>GITHUB_APP_SLUG</code> is optional):</p>
+      <pre class="code-block"><code><span class="code-block__label">.env — Phase 12 additions</span>GITHUB_APP_ID=3743573
+GITHUB_APP_SLUG=xbrain
+GITHUB_APP_CLIENT_ID=Iv23liVnZvIN0Lo6isof
+GITHUB_APP_CLIENT_SECRET=&lt;from App settings&gt;
+GITHUB_APP_PRIVATE_KEY_B64=&lt;single-line base64 of the PEM&gt;
+GITHUB_APP_WEBHOOK_SECRET=&lt;from Step 2&gt;
+
+# REMOVE from .env (replaced by App JWT + installation tokens):
+# GITHUB_API_PAT=
+# GITHUB_ORG_PAT=</code></pre>
+
+      <h3>Step 4 — Restart and verify</h3>
+      <pre class="code-block"><code><span class="code-block__label">bash</span>docker compose up -d memory-api
+docker exec xbrain-memory-api printenv | grep ^GITHUB_APP_   # must show 6 vars
+
+export MEMAPI_HOST=https://api.grooveos.app
+export GITHUB_APP_CLIENT_ID=Iv23liVnZvIN0Lo6isof
+export GITHUB_APP_WEBHOOK_SECRET=&lt;value from .env&gt;
+export TEST_GITHUB_ORG=dejavudev   # any org with the App installed
+
+bash infrastructure/scripts/verify-phase12.sh
+# Expected: PASS ≥ 13/13 (some assertions SKIP without fixtures)</code></pre>
+
+      <h3>Step 5 — Install the App on an org</h3>
+      <p>
+        Visit <code>https://github.com/apps/&lt;your-slug&gt;</code> &rarr; <em>Configure</em>
+        &rarr; pick your org &rarr; <em>Install on All repositories</em>. The
+        <code>POST /v1/webhooks/github/installation</code> webhook fires within ~30 s and creates
+        the <code>installations</code> row. If the webhook is delayed, the next signin self-heals
+        via the hybrid installation lookup.
+      </p>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Phase 12 retires GITHUB_API_PAT entirely</p>
+        <p>
+          After Phase 12 LIVE, <code>verify-phase12.sh</code> assertion 6 fails the deploy if any
+          import of <code>GITHUB_API_PAT</code> remains in <code>apps/memory-api/</code>. The legacy
+          OAuth App (<code>Ov23liy7tZekl0uEztoj</code>) should be revoked 24h+ after the new App
+          passes UAT — see the <code>oauth-app-revocation.md</code> runbook in
+          <code>.planning/KB/</code>.
+        </p>
       </div>
 
       <!-- ======================================================
