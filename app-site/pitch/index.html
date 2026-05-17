@@ -19,10 +19,6 @@
       _printLink.rel = 'stylesheet';
       _printLink.href = 'https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/css/print/pdf.css';
       document.head.appendChild(_printLink);
-      // After CSS applies + reveal lays out, auto-trigger print dialog
-      window.addEventListener('load', function () {
-        setTimeout(function () { window.print(); }, 1500);
-      });
     }
   </script>
 
@@ -1952,8 +1948,8 @@
 
   <!-- PDF export button (floating, hidden in print) -->
   <button id="pdf-btn"
-          onclick="window.open(window.location.pathname + '?print-pdf', '_blank'); setTimeout(function(){ alert('When the print-ready page opens, press Ctrl/Cmd+P → Save as PDF.'); }, 200);"
-          title="Open print-ready view (then Ctrl/Cmd+P → Save as PDF)">
+          onclick="window.open(window.location.pathname + '?print-pdf', '_blank');"
+          title="Open print-ready view (browser print dialog auto-opens)">
     &#x2193; PDF
   </button>
 
@@ -1979,7 +1975,15 @@
       overview: true,
       touch: true,
       help: true,
-      plugins: [ RevealNotes ]
+      plugins: [ RevealNotes ],
+      // PDF export — when reveal renders in print mode, set the paper size to match slide
+      pdfMaxPagesPerSlide: 1,
+      pdfSeparateFragments: false
+    }).then(function () {
+      // Only fire print AFTER reveal has finished laying out all slides in print-pdf mode
+      if (window.location.search.match(/print-pdf/gi)) {
+        setTimeout(function () { window.print(); }, 1500);
+      }
     });
   </script>
 </body>
