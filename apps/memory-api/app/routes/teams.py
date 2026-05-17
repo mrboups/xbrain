@@ -16,6 +16,8 @@ from app.deps import get_current_principal, get_session
 from app.models.team import Team  # forward-typing for _require_team_admin
 from app.repos import teams as teams_repo
 from app.repos import users as users_repo
+from app.services.github_app_jwt import mint_app_jwt
+from app.services.github_installation import get_installation_token_for_org
 
 router = APIRouter()
 
@@ -207,7 +209,11 @@ async def get_my_teams(
 
     # Merge in GitHub-org-derived teams when linked. Soft-fail on any GitHub
     # API error — we still return the user's explicit teams.
-    if settings.GITHUB_API_PAT and getattr(user, "github_username", None):
+    #
+    # Phase 12 (Plan 12-04) — installation tokens replace the server PAT.
+    # If the App is NOT installed on a team's org, get_installation_token_for_org
+    # returns None and we skip that team (matches the prior soft-fail semantics).
+    if getattr(user, "github_username", None):
         try:
             all_org_teams = await teams_repo.get_teams_with_github_org(session)
             org_teams_to_check = [
@@ -216,6 +222,15 @@ async def get_my_teams(
             if org_teams_to_check:
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     for team in org_teams_to_check:
+                        installation_token = (
+                            await get_installation_token_for_org(
+                                session, team.github_org,
+                            )
+                        )
+                        if installation_token is None:
+                            # App not installed on this team's org — skip
+                            # (soft-fail; user just won't see this team).
+                            continue
                         url = (
                             f"https://api.github.com/orgs/{team.github_org}"
                             f"/members/{user.github_username}"
@@ -223,7 +238,7 @@ async def get_my_teams(
                         r = await client.get(
                             url,
                             headers={
-                                "Authorization": f"Bearer {settings.GITHUB_API_PAT}",
+                                "Authorization": f"Bearer {installation_token}",
                                 **_GH_HEADERS,
                             },
                         )
@@ -292,16 +307,24 @@ _GH_HEADERS = {
 }
 
 
-async def _resolve_github_username(user, session: AsyncSession, pat: str) -> str | None:
-    """Return GitHub login, resolving from github_id via API if username not cached yet."""
+async def _resolve_github_username(user, session: AsyncSession) -> str | None:
+    """Return GitHub login, resolving from github_id via API if username not cached yet.
+
+    Phase 12 (Plan 12-04) — uses an App JWT (not an installation token) because
+    /user/{id} is a non-installation endpoint that only requires App-level
+    auth. If the App is not configured (GITHUB_APP_CLIENT_ID/PRIVATE_KEY
+    missing), mint_app_jwt() raises GitHubAppNotConfigured and the caller's
+    soft-fail wrapper swallows it.
+    """
     if user.github_username:
         return user.github_username
     if not user.github_id:
         return None
+    app_jwt = mint_app_jwt()
     async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.get(
             f"https://api.github.com/user/{user.github_id}",
-            headers={"Authorization": f"Bearer {pat}", **_GH_HEADERS},
+            headers={"Authorization": f"Bearer {app_jwt}", **_GH_HEADERS},
         )
         if r.status_code != 200:
             return None
@@ -318,12 +341,19 @@ async def github_matches(
     principal: dict[str, Any] = Depends(get_current_principal),
     session: AsyncSession = Depends(get_session),
 ):
-    """Return xbrain teams whose github_org matches any org the user is a member of."""
-    user = _require_user(principal)
-    if not settings.GITHUB_API_PAT:
-        return []
+    """Return xbrain teams whose github_org matches any org the user is a member of.
 
-    username = await _resolve_github_username(user, session, settings.GITHUB_API_PAT)
+    Phase 12 (Plan 12-04) — uses installation tokens per team's github_org.
+    Teams whose org doesn't have the xbrain App installed are silently
+    skipped (App-not-installed is functionally equivalent to "no match" for
+    this endpoint's purpose — listing teams the user can auto-join).
+    """
+    user = _require_user(principal)
+
+    try:
+        username = await _resolve_github_username(user, session)
+    except Exception:  # noqa: BLE001 — App may not be configured; soft-fail
+        return []
     if not username:
         return []
 
@@ -334,10 +364,16 @@ async def github_matches(
     matches = []
     async with httpx.AsyncClient(timeout=10.0) as client:
         for team in all_teams:
+            installation_token = await get_installation_token_for_org(
+                session, team.github_org,
+            )
+            if installation_token is None:
+                # App not installed on this team's org — skip silently.
+                continue
             url = f"https://api.github.com/orgs/{team.github_org}/members/{username}"
             r = await client.get(
                 url,
-                headers={"Authorization": f"Bearer {settings.GITHUB_API_PAT}", **_GH_HEADERS},
+                headers={"Authorization": f"Bearer {installation_token}", **_GH_HEADERS},
             )
             if r.status_code == 204:
                 matches.append(
@@ -357,19 +393,33 @@ async def my_github_orgs(
     principal: dict[str, Any] = Depends(get_current_principal),
     session: AsyncSession = Depends(get_session),
 ):
-    """Return the caller's GitHub organizations."""
+    """Return the caller's GitHub organizations.
+
+    Phase 12 (Plan 12-04) — uses an App JWT for /users/{username}/orgs since
+    that endpoint is non-installation-scoped and works at the App level. With
+    an App JWT, GitHub returns only PUBLIC orgs (same constraint the prior
+    PAT had unless the PAT belonged to the user). Private-org case is
+    deferred to Phase 13 (would switch to the user's ghu_ token, which sees
+    private orgs via read:org user scope).
+    """
     user = _require_user(principal)
-    if not settings.GITHUB_API_PAT:
+
+    try:
+        username = await _resolve_github_username(user, session)
+    except Exception:  # noqa: BLE001 — App may not be configured; soft-fail
+        return []
+    if not username:
         return []
 
-    username = await _resolve_github_username(user, session, settings.GITHUB_API_PAT)
-    if not username:
+    try:
+        app_jwt = mint_app_jwt()
+    except Exception:  # noqa: BLE001 — App not configured
         return []
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.get(
             f"https://api.github.com/users/{username}/orgs",
-            headers={"Authorization": f"Bearer {settings.GITHUB_API_PAT}", **_GH_HEADERS},
+            headers={"Authorization": f"Bearer {app_jwt}", **_GH_HEADERS},
         )
         if r.status_code != 200:
             return []
