@@ -105,10 +105,15 @@ async def get_current_principal(
 
     # Try GitHub OAuth token (tokens start with "gho_" prefix).
     # D4: GitHub Org members get full team access; non-members get team_scope=None.
-    if settings.GITHUB_API_PAT and token.startswith("gho_"):
+    #
+    # Phase 12 (Plan 12-04) — legacy gho_ branch retained for transitional
+    # compatibility ONLY (Phase 5 LibreChat OAuth App tokens; Plan 12-06
+    # adds the ghu_ parallel branch). The membership check no longer needs a
+    # PAT — installation tokens are minted internally via check_github_org_membership.
+    if token.startswith("gho_"):
         try:
             gh = await check_github_org_membership(
-                token, settings.GITHUB_ORG, settings.GITHUB_API_PAT
+                session, token, settings.GITHUB_ORG
             )
             # Use GitHub numeric ID as the stable source_user_id (login can change)
             github_source_id = f"github:{gh['login']}"
@@ -122,12 +127,19 @@ async def get_current_principal(
             from app.repos.users import follow_merge_pointer  # local import to keep top-level minimal
             user = await follow_merge_pointer(session, user)
             await session.commit()
+            # Phase 12 (Plan 12-04) — INSTALL_REQUIRED is treated as "signed in
+            # but no team access yet". The get_team_scope guard still rejects
+            # non-members via the team_members membership check below; the
+            # install_required flag is surfaced so route handlers (Plan 12-06
+            # SigninGithubOut) can hand the install URL to the frontend. We do
+            # NOT 403 here — Phase 12 UX policy.
             return {
                 "kind": "user",
                 "user": user,
                 "claims": {"sub": github_source_id, "login": gh["login"]},
                 "sub": github_source_id,
                 "github_is_org_member": gh["is_org_member"],
+                "github_install_required": gh.get("install_required", False),
                 # team_scope enforcement: non-members cannot access team routes (T-05-02-02)
                 # The get_team_scope dependency will reject them via membership check.
             }
