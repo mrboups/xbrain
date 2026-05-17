@@ -52,15 +52,20 @@ const MEMORY_API_BASE = "https://api.grooveos.app";
 // GitHub OAuth — quick task 260512-glk (Link GitHub account).
 // =========================================================================
 //
-// Same OAuth app as LibreChat's GitHub sign-in (see GITHUB_CLIENT_ID in
-// memory-api settings). The redirect URI is the chromiumapp.org one Chrome
-// reserves per extension ID — must be added to the GitHub OAuth app's
-// "Authorization callback URL" list (manual one-time setup in
-// https://github.com/settings/applications/...).
+// Phase 12 (Plan 12-08) — uses the xbrain GitHub App (Iv23li...). The
+// redirect URI is the chromiumapp.org one Chrome derives from
+// chrome.runtime.id, which is now DETERMINISTIC thanks to the manifest
+// "key" field (see Plan 12-08 + .planning/KB/chrome-extension-key.md).
+//
+// The GitHub App's "Callback URL" list MUST include this exact URL
+// (https://anigikcnmldoklcmogffmgcojdhhficb.chromiumapp.org/) — otherwise
+// GitHub returns redirect_uri_mismatch on /login/oauth/authorize.
+//
+// Note: with GitHub App's multi-callback URL support, the SAME client_id
+// serves both the web app (grooveos.app) and this extension. No
+// per-frontend dispatch needed in memory-api.
 
-// VITE-style placeholder; production hardcodes the same value as memory-api.
-// Replace with your GitHub OAuth App client_id. Keep the secret server-side.
-const GITHUB_CLIENT_ID = "Ov23liy7tZekl0uEztoj";
+const GITHUB_CLIENT_ID = "Iv23liVnZvIN0Lo6isof";
 
 /**
  * Run the GitHub OAuth user-authorization flow and return the `code` Chrome
