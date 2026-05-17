@@ -1,0 +1,19 @@
+[project]
+name = "xbrain-brain-janitor"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "asyncpg>=0.30.0",
+    "qdrant-client==1.17.1",
+    "neo4j>=6.1",
+    "structlog>=25.0.0",
+    "pydantic-settings>=2.6",
+    "xbrain-memory",  # shared package -- needs repo-root build context
+]
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]
