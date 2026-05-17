@@ -120,11 +120,94 @@ async function loadSources() {
   state.sources = await adminFetch("/v1/admin/brain/sources?days=30");
 }
 
-// ── Section renderers — wired by Tasks 2-5 (stubs for now) ───────────────
+// ── HTML helpers (shared across renderers) ───────────────────────────────
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function shortenUUID(s) {
+  if (!s || typeof s !== "string") return "";
+  if (s.length < 12) return s;
+  return s.slice(0, 8);
+}
+
+function buildDrillDownCell(slug) {
+  return `<td class="actions"><button type="button" class="drill-down" data-team="${escapeHtml(
+    slug,
+  )}">Drill down &rarr;</button></td>`;
+}
+
+function wireDrillDown(root) {
+  root.querySelectorAll(".drill-down").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const team = btn.dataset.team;
+      if (!team) return;
+      // brain.js (11-08) reads as_superadmin=1 + team slug from the URL,
+      // renders the banner, and routes all reads through
+      // /v1/admin/brain/events (which writes the audit row server-side).
+      const url = `/account/teams/brain/?team=${encodeURIComponent(
+        team,
+      )}&as_superadmin=1`;
+      location.href = url;
+    });
+  });
+}
+
+// ── Section renderers — wired by Tasks 2-5 ───────────────────────────────
 function renderOverview() {
   const root = document.getElementById("overview-content");
-  if (root) root.innerHTML = `<p class="empty">Overview renderer not wired yet.</p>`;
+  const data = state.overview;
+  if (!root) return;
+  if (!data || data.length === 0) {
+    root.innerHTML = `<p class="empty">No teams found.</p>`;
+    return;
+  }
+  // Discover entity_types dynamically (don't hardcode the 7-arm list —
+  // if a future view migration adds an arm, the matrix expands).
+  const entityTypes = Array.from(
+    new Set(data.flatMap((t) => Object.keys(t.counts || {}))),
+  ).sort();
+
+  let html = `<table class="admin-table"><thead><tr><th>Team</th>`;
+  for (const et of entityTypes) {
+    html += `<th class="count">${escapeHtml(et)}</th>`;
+  }
+  html += `<th class="count">Total</th><th>Actions</th></tr></thead><tbody>`;
+
+  for (const team of data) {
+    let rowTotal = 0;
+    html += `<tr><td class="team-name">${escapeHtml(
+      team.team_slug,
+    )}<span class="team-uuid">${escapeHtml(
+      shortenUUID(team.team_id),
+    )}</span></td>`;
+    for (const et of entityTypes) {
+      const truths = (team.counts && team.counts[et]) || {};
+      const total = Object.values(truths).reduce((a, b) => a + b, 0);
+      rowTotal += total;
+      // Tooltip exposes per-truth_level breakdown on hover.
+      const tooltipEntries = Object.entries(truths);
+      const tooltip = tooltipEntries.length
+        ? tooltipEntries.map(([tl, c]) => `${tl}: ${c}`).join("\n")
+        : "0";
+      html += `<td class="count${
+        total === 0 ? " zero" : ""
+      }" title="${escapeHtml(tooltip)}">${total}</td>`;
+    }
+    html += `<td class="count"><strong>${rowTotal}</strong></td>`;
+    html += buildDrillDownCell(team.team_slug);
+    html += `</tr>`;
+  }
+  html += `</tbody></table>`;
+  root.innerHTML = html;
+  wireDrillDown(root);
 }
+
 function renderStorage() {
   const root = document.getElementById("storage-content");
   if (root) root.innerHTML = `<p class="empty">Storage renderer not wired yet.</p>`;
