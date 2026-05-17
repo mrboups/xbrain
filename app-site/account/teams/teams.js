@@ -81,6 +81,14 @@
   async function init() {
     migrateLegacyKeys();
 
+    // ── Post-install redirect (Plan 12-07) ──────────────────────────────────
+    // If we're returning from GitHub's install consent
+    // (`?installation_id=…&setup_action=install`) and have a token from a
+    // prior sign-in, try to load the teams UI directly. On success we're
+    // done. On failure, fall through to the normal flow (sign-in button
+    // OR cached-token re-render).
+    if (await handlePostInstallRedirect()) return;
+
     // ── Detect a GitHub OAuth callback (Option B full-page redirect) ──
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
@@ -125,6 +133,10 @@
     document.getElementById("signin-section").hidden = false;
     document.getElementById("auth-section").hidden = true;
     document.getElementById("hdr-user").hidden = true;
+    // Plan 12-07 — hide any leftover install banner. Otherwise signOut() or
+    // a session-expired fall-through would leave the install warning visible
+    // alongside the sign-in card.
+    hideInstallBanner();
 
     // Wire the GitHub primary button (idempotent — only bound once).
     const ghBtn = document.getElementById("github-signin-btn");
@@ -165,6 +177,98 @@
     }
     txt.textContent = msg;
     box.hidden = false;
+  }
+
+  // ── Install-required banner (Plan 12-07, GHAPP-06) ────────────────────────
+  //
+  // Shown when POST /v1/auth/github/signin returns ``install_required=true``.
+  // The xbt_token is already minted (the user has a valid session), but the
+  // primary GitHub org has not yet installed the xbrain GitHub App, so
+  // auto-grant cannot match the user against org-gated teams. The user must:
+  //   1. Click "Install xbrain" → GitHub install consent flow (new tab).
+  //   2. After install, GitHub redirects back here with
+  //      ``?installation_id=N&setup_action=install``.
+  //   3. The user (or auto-handler) clicks "Try again" → re-run the whole
+  //      sign-in flow so ``auto_grant_via_org_match`` runs against an org
+  //      that now has the App installed → memberships granted, banner dismissed.
+  function showInstallBanner({ installUrl, orgLogin }) {
+    const banner = document.getElementById("install-banner");
+    const button = document.getElementById("install-banner-button");
+    const orgSpan = document.getElementById("install-banner-org");
+    const retry = document.getElementById("install-banner-retry");
+    if (!banner || !button || !orgSpan) return;
+    orgSpan.textContent = orgLogin || "your organization";
+    // ``install_url`` is server-built; fall back to "#" if absent (defensive —
+    // shouldn't happen because install_required=true implies install_url=set).
+    button.href = installUrl || "#";
+    if (retry && !retry.__bound) {
+      retry.__bound = true;
+      retry.addEventListener("click", () => {
+        // "Try again" re-runs the full GitHub sign-in so auto-grant fires
+        // against an org that now (post-install) lets memory-api check
+        // membership via the installation token.
+        hideInstallBanner();
+        initiateGithubSignin();
+      });
+    }
+    banner.removeAttribute("hidden");
+  }
+
+  function hideInstallBanner() {
+    const banner = document.getElementById("install-banner");
+    if (banner) banner.setAttribute("hidden", "");
+  }
+
+  // ── Post-install redirect handler ──────────────────────────────────────────
+  //
+  // Called from init() BEFORE any sign-in branching runs. Detects the
+  // ``?installation_id=…&setup_action=install`` query params GitHub appends
+  // after the install consent. If we have an xbt_token from a previous
+  // sign-in, attempt to load the teams list directly — the install webhook
+  // should have populated the ``installations`` row by now, and
+  // auto-grant ran the first time. If teams are available, the user is
+  // good: clean the URL and proceed to the authenticated UI. Otherwise,
+  // surface the install banner again so the user can hit "Try again"
+  // (re-runs sign-in → triggers a fresh auto-grant pass).
+  //
+  // Returns true when the caller should skip the rest of init() (we already
+  // rendered the auth UI). Returns false when init() should continue
+  // normally.
+  async function handlePostInstallRedirect() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("setup_action") !== "install") return false;
+
+    // Strip the GitHub install query params unconditionally — never leave
+    // them in the URL bar (refresh would otherwise re-trigger).
+    window.history.replaceState({}, "", "/account/teams/");
+
+    const xbt = localStorage.getItem(STORAGE_TOKEN);
+    if (!xbt) {
+      // No prior session — fall through to the normal sign-in flow.
+      return false;
+    }
+
+    // Probe /v1/teams/my-teams. If 2xx, the token is valid; show whatever
+    // we get (might be empty if auto-grant still hasn't matched, but the
+    // common case after install is that membership now resolves).
+    try {
+      const r = await fetch(`${MEMORY_API_BASE}/v1/teams/my-teams`, {
+        headers: { Authorization: `Bearer ${xbt}` },
+      });
+      if (r.ok) {
+        hideInstallBanner();
+        await loadAuthenticatedUI();
+        return true;
+      }
+      // 401 → stale token; fall through so showSignIn() runs.
+      if (r.status === 401) {
+        localStorage.removeItem(STORAGE_TOKEN);
+        return false;
+      }
+    } catch {
+      // Network glitch — let normal flow handle it.
+    }
+    return false;
   }
 
   // ── GitHub OAuth (Option B full-page redirect) ──────────────────────────────
@@ -235,6 +339,25 @@
         localStorage.setItem(STORAGE_EMAIL, "@" + u.github_username);
       }
       setSigninError(null);
+
+      // Plan 12-07 — if memory-api signals the App is not installed on the
+      // user's primary org, surface the install banner and stop here. The
+      // ``install_url`` is the GitHub install-consent deep link; ``org_login``
+      // is the org name to show in the banner copy. After the user installs,
+      // GitHub redirects back to this page with ``?setup_action=install``;
+      // ``handlePostInstallRedirect`` picks that up on next load.
+      if (data.install_required && data.install_url) {
+        // Hide the sign-in card — the token IS valid (we just stored it),
+        // but the user can't usefully see the teams list yet.
+        document.getElementById("signin-section").hidden = true;
+        document.getElementById("auth-section").hidden = true;
+        showInstallBanner({
+          installUrl: data.install_url,
+          orgLogin: data.org_login,
+        });
+        return;
+      }
+      hideInstallBanner();
       await loadAuthenticatedUI();
     } catch (e) {
       showSignIn();
