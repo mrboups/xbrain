@@ -39,13 +39,8 @@ class Settings(BaseSettings):
     GITHUB_CLIENT_ID: str = ""
     GITHUB_CLIENT_SECRET: str = ""
     GITHUB_ORG: str = "your-github-org"
-    # Fine-grained PAT with scope read:org — required to see private org members (pitfall Q3).
-    # === Phase 12 — DEPRECATED, to be removed by Plan 12-04 ===
-    # GITHUB_API_PAT is replaced by installation tokens minted via the GitHub App.
-    # Plan 12-04 removes ALL consumers (app/deps.py, app/routes/me_github.py,
-    # app/routes/teams.py) and then removes this setting itself. Leave declared
-    # (default empty) until then.
-    GITHUB_API_PAT: str = ""
+    # Org-membership checks use installation tokens minted by the xbrain
+    # GitHub App (see app/services/github_installation.py + Plan 12-04).
 
     # === Phase 12 — GitHub App (NEW) ===
     # The GitHub App "xbrain" owned by mrboups account. Replaces the OAuth App
