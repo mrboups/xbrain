@@ -1,5 +1,12 @@
 """POST /v1/auth/github/signin — Phase 10 GHA-01 / Phase 12 GHAPP-05+06.
 
+Phase 12 — uses the xbrain GitHub App (NOT the legacy OAuth App
+``Ov23liy7tZekl0uEztoj``). All token exchange + refresh go through the
+``GITHUB_APP_*`` settings family on ``app.config.settings``. The legacy
+LibreChat OAuth App ``Ov23li0XHV3NL8Git7Dk`` is unrelated and out of scope
+here — it is consumed exclusively by ``app/routes/me_github.py``. See
+``app/config.py`` for the field-level attribution comments.
+
 Public endpoint (no Authorization header). Accepts a GitHub OAuth ``code``
 returned from the user's redirect, exchanges it for a ``ghu_`` user-to-server
 token + ``ghr_`` refresh token server-side (client_secret never crosses the

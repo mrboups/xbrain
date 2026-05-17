@@ -35,7 +35,12 @@ class Settings(BaseSettings):
     # Used to build OAuth redirect_uri returned to Google
     MEMORY_API_EXTERNAL_URL: str = "https://chat.grooveos.app"
 
-    # Phase 5 — GitHub OAuth (plan 05-02)
+    # === Phase 5 — LibreChat OAuth App (still active — separate from xbrain auth) ===
+    # GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET below identify the
+    # `xbrain LibreChat` OAuth App (Client ID Ov23li0XHV3NL8Git7Dk),
+    # used ONLY by apps/memory-api/app/routes/me_github.py for the
+    # LibreChat account-linking flow. Out of Phase 12 scope per
+    # 12-CONTEXT.md. Do NOT confuse with GITHUB_APP_CLIENT_ID below.
     GITHUB_CLIENT_ID: str = ""
     GITHUB_CLIENT_SECRET: str = ""
     GITHUB_ORG: str = "your-github-org"
