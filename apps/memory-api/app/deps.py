@@ -377,3 +377,96 @@ def get_memory_provider() -> MemoryProvider:
     if _memory_provider_singleton is None:
         _memory_provider_singleton = _build_provider()
     return _memory_provider_singleton
+
+
+# === Brain monitor authorization (Phase 11 BMO-04 / BMO-08) ===
+
+
+async def assert_can_edit_brain_event(
+    principal: dict[str, Any],
+    *,
+    created_by: UUID | None,
+    team_slug: str,
+    session: AsyncSession,
+) -> None:
+    """Raise HTTPException(403) unless the principal can edit a brain event.
+
+    Shared helper for plan 11-05's PATCH / DELETE / restore endpoints on
+    /v1/brain/events/{entity_type}/{entity_id}. Defining it once here
+    prevents the per-event authorisation rule from drifting across the
+    three mutation endpoints.
+
+    Rules (matches Phase 11 CONTEXT.md "Permissions model — option A"):
+
+    - ``kind='bridge'`` → always allowed. Bridge service JWTs are
+      implicitly trusted, mirroring ``_is_admin()``.
+    - ``kind='user'`` or ``kind='user_api_token'`` → allowed when EITHER
+      the principal is a per-team admin (``team_members.role = 'admin'``
+      for the requested ``team_slug``) OR the row's ``created_by`` is
+      not NULL and equals ``principal['user'].id``.
+    - ``created_by IS NULL`` (memory_items, messages, contacts —
+      the view exposes NULL because those tables have no author column)
+      → admin-only. Plain members get 403.
+    - The global ``_is_admin()`` (superadmin sub list) also bypasses,
+      so a configured superadmin can edit anything across any team.
+
+    Principal-shape audit (deps.py:46-235, validated against Phase 10):
+
+    | # | ``kind`` | ``principal['user']`` shape | Source |
+    |---|----------|------------------------------|--------|
+    | 1 | ``user`` | ``User`` ORM row | Google OIDC ID token |
+    | 2 | ``user`` | ``User`` ORM row | Google access token (Chrome ext) |
+    | 3 | ``user`` | ``User`` ORM row | GitHub ``gho_`` token |
+    | 4 | ``user_api_token`` | ``types.SimpleNamespace`` | Personal ``xbt_`` token |
+    | 5 | ``user`` | ``User`` ORM row | Bridge JWT acting-user (LibreChat / OWUI) |
+    | 6 | ``bridge`` | absent (``principal.get('user')`` is None) | Service JWT |
+
+    Every ``kind='user*'`` variant carries ``principal['user'].id`` as a
+    UUID. After Phase 10's identity merge, Google and GitHub sign-ins
+    resolve to the SAME ``user.id`` so this helper does not need to
+    branch on the auth source.
+
+    Args:
+        principal: dict returned by ``get_current_principal``.
+        created_by: the row's ``created_by`` UUID, or ``None`` for entity
+            types that have no author column.
+        team_slug: validated team slug (typically from
+            ``Depends(get_team_scope)``).
+        session: the same ``AsyncSession`` the caller is using.
+
+    Raises:
+        HTTPException(403): if the principal is neither bridge, a per-team
+            admin, an env-listed superadmin, nor the author of the row.
+    """
+    # 1) Bridge service JWTs — implicit admin, matches _is_admin() pattern.
+    if principal.get("kind") == "bridge":
+        return
+
+    # 2) Global superadmin (ADMIN_USER_SUBS env list) — bypass cross-team.
+    #    Cheap predicate; consult before the DB round-trip below.
+    if _is_admin(principal):
+        return
+
+    user = principal.get("user")
+    if user is None:
+        # Defensive: a future auth path that returns kind != 'bridge' with
+        # no user attached would silently pass otherwise. Fail closed.
+        raise HTTPException(403, "No user identity on principal")
+
+    # 3) Per-team admin check. NOTE: this is the per-team
+    #    team_members.role='admin' membership — distinct from the global
+    #    ADMIN_USER_SUBS list checked by _is_admin (which gates
+    #    /v1/admin/* in plans 11-10/11-11).
+    membership = await get_membership(session, user_id=user.id, team_slug=team_slug)
+    if membership is not None and membership.role == "admin":
+        return
+
+    # 4) Author check — only valid if the view surfaced a non-NULL author.
+    if created_by is not None and created_by == user.id:
+        return
+
+    raise HTTPException(
+        403,
+        "You can only edit items you created. Contact a team admin to modify "
+        "items created by others.",
+    )
