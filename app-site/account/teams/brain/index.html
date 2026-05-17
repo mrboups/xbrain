@@ -15,6 +15,20 @@
   <link rel="stylesheet" href="/css/brain.css" />
 </head>
 <body>
+  <!-- Superadmin drill-down banner (Phase 11 plan 11-11 Task 6).
+       brain.js toggles the hidden attribute when ?as_superadmin=1 is
+       in the query string. Banner is read-only informational — the
+       actual server-side authorisation lives in /v1/admin/brain/*. -->
+  <div
+    id="superadmin-banner"
+    class="superadmin-banner"
+    role="status"
+    aria-live="polite"
+    hidden
+  >
+    Viewing as superadmin &mdash; this access is logged.
+  </div>
+
   <header class="hdr">
     <div class="hdr__brand">
       <span class="dot" aria-hidden="true"></span>

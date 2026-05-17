@@ -30,7 +30,24 @@
 
   // ── Config ──────────────────────────────────────────────────────────────
   const MEMORY_API_BASE = "https://api.grooveos.app";
-  const TEAM_SLUG = new URLSearchParams(location.search).get("team") || "default";
+  const QS = new URLSearchParams(location.search);
+  const TEAM_SLUG = QS.get("team") || "default";
+  // Phase 11 plan 11-11 Task 6 — superadmin drill-down mode.
+  // When the URL carries ?as_superadmin=1, this page:
+  //   1. Renders the yellow "Viewing as superadmin" banner.
+  //   2. Routes all reads (initial load + 30s polling) through
+  //      /v1/admin/brain/events?team_slug=<slug> instead of the
+  //      team-scoped /v1/brain/events. The admin endpoint is gated by
+  //      assert_is_superadmin and writes an audit_log row synchronously
+  //      on every call — the only path that satisfies SC-9 AND that
+  //      works for a kind='user' superadmin who isn't a member of the
+  //      target team (deps.py get_team_scope only bypasses for bridge).
+  //   3. Hides edit / delete / restore / bulk controls — drill-down is
+  //      read-only in v1. Admin write endpoints are deferred to Phase 12+.
+  // The banner is purely informational — the actual elevation is enforced
+  // by assert_is_superadmin on the admin endpoints; a malicious link can
+  // toggle the UI but cannot grant API access.
+  const IS_SUPERADMIN_VIEW = QS.get("as_superadmin") === "1";
   const TRUTH_LEVELS = ["EPHEMERAL", "WORKING", "VALIDATED", "CANONICAL", "PUBLIC"];
   const ENTITY_TYPES = [
     "memory_item", "conversation", "message",
@@ -86,6 +103,7 @@
     dom = {
       signinSection: document.getElementById("signin-section"),
       authSection:   document.getElementById("auth-section"),
+      superadminBanner: document.getElementById("superadmin-banner"),
       hdrUser:       document.getElementById("hdr-user"),
       hdrEmail:      document.getElementById("hdr-email"),
       hdrTeamSlug:   document.getElementById("hdr-team-slug"),
@@ -148,6 +166,14 @@
     dom.signinSection.hidden = true;
     dom.authSection.hidden = false;
 
+    // Phase 11 plan 11-11 Task 6 — toggle the superadmin banner. The
+    // banner is informational only; the API enforces the actual
+    // elevation. Hidden flag drives `display: none` via the global
+    // [hidden] rule in brain.css.
+    if (IS_SUPERADMIN_VIEW && dom.superadminBanner) {
+      dom.superadminBanner.hidden = false;
+    }
+
     // Load identity + team membership, then first page + polling.
     try {
       await loadIdentityAndMembership();
@@ -159,7 +185,16 @@
       showToast("Couldn't load your account: " + safeMessage(e), "error");
     }
 
-    // Bulk-action UI is admin-only.
+    // Phase 11 plan 11-11 Task 6 — drill-down is read-only in v1.
+    // Force a non-admin "viewer" role so canEdit() returns false for
+    // every item; this hides inline edit + delete + restore + bulk.
+    // Server-side this is belt-and-braces — admin write endpoints don't
+    // exist yet, so any attempt would 403 anyway.
+    if (IS_SUPERADMIN_VIEW) {
+      state.membership = { role: "viewer", team_id: null };
+    }
+
+    // Bulk-action UI is admin-only; never shown in superadmin view.
     if (state.membership && state.membership.role === "admin") {
       dom.thSelect.hidden = false;
     }
@@ -236,13 +271,19 @@
     opts = opts || {};
     const method = opts.method || "GET";
     const body = opts.body || null;
+    const skipTeamScope = !!opts.skipTeamScope;
     const token = readToken();
     if (!token) throw makeError("not signed in", 401);
 
     const headers = {
       Authorization: "Bearer " + token,
-      "X-Team-Scope": TEAM_SLUG,
     };
+    // Phase 11 plan 11-11 Task 6 — admin endpoints reject (or ignore)
+    // the X-Team-Scope header. The caller passes skipTeamScope: true
+    // when targeting /v1/admin/brain/* in superadmin view.
+    if (!skipTeamScope) {
+      headers["X-Team-Scope"] = TEAM_SLUG;
+    }
     if (body !== null) headers["Content-Type"] = "application/json";
 
     const r = await fetch(MEMORY_API_BASE + path, {
@@ -262,6 +303,34 @@
       throw makeError(detail || ("HTTP " + r.status), r.status, data);
     }
     return data;
+  }
+
+  /**
+   * brainEventsPath — picks the correct read endpoint for the current view.
+   *
+   * Returns { path, opts } where opts is passed straight to xbtFetch.
+   *
+   * Team-scoped view (default): /v1/brain/events?<qs>  + X-Team-Scope.
+   * Superadmin view (?as_superadmin=1):
+   *   /v1/admin/brain/events?team_slug=<slug>&<qs>  + NO X-Team-Scope.
+   *   The admin endpoint writes the audit_log row server-side and
+   *   bypasses get_team_scope (which only opens for bridge JWTs).
+   */
+  function brainEventsPath(qs) {
+    if (IS_SUPERADMIN_VIEW) {
+      // Prepend team_slug to the existing query string. URLSearchParams
+      // tolerates duplicate keys so we just glue them together.
+      const adminQs = "team_slug=" + encodeURIComponent(TEAM_SLUG)
+        + (qs ? "&" + qs : "");
+      return {
+        path: "/v1/admin/brain/events?" + adminQs,
+        opts: { skipTeamScope: true },
+      };
+    }
+    return {
+      path: "/v1/brain/events?" + qs,
+      opts: {},
+    };
   }
 
   function makeError(msg, status, body) {
@@ -396,7 +465,9 @@
         cursor,
         limit: PAGE_SIZE,
       });
-      const r = await xbtFetch("/v1/brain/events?" + qs);
+      // Route through admin endpoint when in superadmin drill-down view.
+      const req = brainEventsPath(qs);
+      const r = await xbtFetch(req.path, req.opts);
       const items = (r && r.items) || [];
       state.nextCursor = (r && r.next_cursor) || null;
       state.hasMore = !!state.nextCursor;
@@ -418,9 +489,21 @@
       dom.emptyState.hidden = totalLoaded !== 0;
     } catch (e) {
       if (e && e.status === 401) { clearTokenAndShowSignIn(); return; }
-      dom.feedStatus.textContent = "Failed: " + safeMessage(e);
+      // Phase 11 plan 11-11 Task 6 — 403 in superadmin view means the
+      // viewer is not actually a superadmin. Surface a clear message
+      // instead of silently falling back to the team-scoped endpoint
+      // (which would leak nothing but would obscure the real problem).
+      if (e && e.status === 403 && IS_SUPERADMIN_VIEW) {
+        dom.feedStatus.textContent = "Superadmin access denied";
+        showToast(
+          "You are not a superadmin. The admin endpoint refused this request.",
+          "error",
+        );
+      } else {
+        dom.feedStatus.textContent = "Failed: " + safeMessage(e);
+        showToast("Failed to load events: " + safeMessage(e), "error");
+      }
       dom.emptyState.hidden = state.items.length !== 0;
-      showToast("Failed to load events: " + safeMessage(e), "error");
     } finally {
       state.loading = false;
       dom.loadingSkel.hidden = true;
@@ -623,6 +706,12 @@
   // ── Authorization gate (M-5) ────────────────────────────────────────────
 
   function canEdit(item) {
+    // Phase 11 plan 11-11 Task 6 — drill-down view is strictly read-only.
+    // Admin write endpoints for the cross-team superadmin path are
+    // deferred to Phase 12+; until then, hide every edit/delete affordance
+    // even if the viewer happens to be the author (e.g. seeing their own
+    // ingested LibreChat message in a team they aren't a member of).
+    if (IS_SUPERADMIN_VIEW) return false;
     if (!state.membership) return false;
     if (state.membership.role === "admin") return true;
     if (state.currentUserId && item.created_by === state.currentUserId) return true;
@@ -1011,7 +1100,11 @@
         since: newest,
         limit: PAGE_SIZE,
       });
-      const r = await xbtFetch("/v1/brain/events?" + qs);
+      // Polling honours the same endpoint substitution as initial load
+      // — every poll cycle in superadmin view writes a fresh audit_log
+      // row server-side. The 30s cadence is intentional (CONTEXT lock).
+      const req = brainEventsPath(qs);
+      const r = await xbtFetch(req.path, req.opts);
       const items = (r && r.items) || [];
       if (!items.length) {
         state.pollErrorStreak = 0;
