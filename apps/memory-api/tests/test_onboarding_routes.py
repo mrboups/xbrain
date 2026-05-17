@@ -12,7 +12,6 @@ os.environ.setdefault("BRIDGE_SHARED_SECRET", "test-bridge-secret-do-not-use-in-
 os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
 os.environ.setdefault("OAUTH_CREDENTIALS_ENCRYPTION_KEY", "")
 os.environ.setdefault("FERNET_KEY", "")
-os.environ.setdefault("GITHUB_API_PAT", "")
 
 
 def make_onboarding_jwt(email: str, secret: str = "test-bridge-secret-do-not-use-in-prod") -> str:
