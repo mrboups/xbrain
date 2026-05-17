@@ -94,10 +94,12 @@
       <div class="sidebar__group-label">Getting Started</div>
       <a href="index.html" class="sidebar__link">Getting Started</a>
       <a href="onboarding.html" class="sidebar__link active">Onboarding Guide</a>
+      <a href="auth.html" class="sidebar__link">Authentication</a>
     </div>
     <div class="sidebar__section">
       <div class="sidebar__group-label">Features</div>
       <a href="memory.html" class="sidebar__link">Memory &amp; Knowledge</a>
+      <a href="brain-monitor.html" class="sidebar__link">Brain Monitor</a>
       <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
       <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
       <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
@@ -151,47 +153,53 @@
     </div>
 
     <!-- STEP 1 -->
-    <h2 id="step-1">Step 1 — Accept your team invitation</h2>
+    <h2 id="step-1">Step 1 — Get invited (or auto-join via your GitHub org)</h2>
 
     <div class="step">
       <div class="step__num">1</div>
       <div class="step__body">
-        <p class="step__title">Check your email for an invite link</p>
+        <p class="step__title">Two ways onto a team</p>
         <p>
-          Your team admin invites you by email. You will receive a message from
-          <code>no-reply@grooveos.app</code> with a subject like
-          <em>"You've been invited to join [Team Name] on GrooveOS"</em>.
+          Either your team admin invites your <strong>GitHub username</strong> or
+          your <strong>email</strong> directly, or your team has its
+          <code>github_org</code> set to a GitHub org you belong to — in which
+          case the first time you sign in, GrooveOS auto-adds you. See
+          <a href="auth.html">Authentication</a> for the full org-auto-join
+          rules.
         </p>
         <p>
-          Click the <strong>Accept invitation</strong> button in the email. If the link
-          has expired (links are valid 72 hours), ask your admin to resend it.
+          If you got an email invite, you can either click the link inside, or
+          just go straight to
+          <a href="https://grooveos.app/account/teams/">grooveos.app/account/teams/</a>
+          and sign in.
         </p>
         <div class="callout callout--tip" data-label="// tip">
-          <p>No email? Check your spam folder. If you still don't see it, ask your admin to verify the address they used — it must match exactly the Google account you'll sign in with.</p>
+          <p>No email and your org isn't wired up to auto-join? Ask your admin to enter your GitHub username on the team's members card — they don't need your email at all.</p>
         </div>
       </div>
     </div>
 
     <!-- STEP 2 -->
-    <h2 id="step-2">Step 2 — Sign in with Google</h2>
+    <h2 id="step-2">Step 2 — Sign in with GitHub</h2>
 
     <div class="step">
       <div class="step__num">2</div>
       <div class="step__body">
-        <p class="step__title">Authenticate via Google OAuth</p>
+        <p class="step__title">Authenticate via the xbrain GitHub App</p>
         <p>
-          GrooveOS uses Google Sign-In exclusively — no passwords to manage.
-          Click <strong>Sign in with Google</strong> and choose the Google account
-          whose email matches your invitation.
+          GrooveOS signs you in with <strong>GitHub</strong> — no passwords to
+          manage. Click <strong>Sign in with GitHub</strong> and authorize the
+          <strong>xbrain</strong> App. It asks for two read-only permissions:
+          your email addresses (for notifications and admin invites) and your
+          org memberships (for the auto-join rule). Nothing else.
         </p>
         <p>
-          On first sign-in you will be asked to grant GrooveOS read access to your
-          Google profile (name, email, profile picture). No access to your Drive or
-          Calendar is requested at this step.
+          If your GitHub org hasn't installed xbrain yet, GrooveOS shows an
+          <em>"Install xbrain on your-org"</em> banner. An org owner clicks it once;
+          afterwards every member of the org can sign in. See
+          <a href="auth.html#install-org">Installing on your org</a> for the
+          consent screen flow.
         </p>
-        <div class="callout callout--warn" data-label="// important">
-          <p>Use the <strong>same Google account</strong> that received the invitation. Using a different account creates a new user and you will not be added to the team automatically.</p>
-        </div>
       </div>
     </div>
 
@@ -208,9 +216,9 @@
           <code>team_scope</code> — the namespace that isolates all your team's data.
         </p>
         <p>
-          If you see "No team" or a different team, contact your admin. They may need
-          to re-invite you or check that the invitation was accepted with the correct
-          Google account.
+          If you see "No team" or a different team, contact your admin. They may
+          need to add your GitHub username to the team, or set
+          <code>github_org</code> on the team to match one of your orgs.
         </p>
       </div>
     </div>
@@ -412,6 +420,8 @@ Auth:   Bearer  →  paste your xbt_ token</code></pre>
         <ul class="xb-footer__links">
           <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
           <li><a href="onboarding.html" class="xb-footer__link">Onboarding Guide</a></li>
+          <li><a href="auth.html" class="xb-footer__link">Authentication</a></li>
+          <li><a href="brain-monitor.html" class="xb-footer__link">Brain Monitor</a></li>
           <li><a href="sessions.html" class="xb-footer__link">Sessions (Pro/Max)</a></li>
           <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
           <li><a href="billing.html" class="xb-footer__link">Plans &amp; Billing</a></li>

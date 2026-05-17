@@ -86,10 +86,12 @@
       <div class="sidebar__group-label">Getting Started</div>
       <a href="index.html" class="sidebar__link">Getting Started</a>
       <a href="onboarding.html" class="sidebar__link">Onboarding Guide</a>
+      <a href="auth.html" class="sidebar__link">Authentication</a>
     </div>
     <div class="sidebar__section">
       <div class="sidebar__group-label">Features</div>
       <a href="memory.html" class="sidebar__link">Memory &amp; Knowledge</a>
+      <a href="brain-monitor.html" class="sidebar__link">Brain Monitor</a>
       <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
       <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
       <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
@@ -108,7 +110,7 @@
       <a href="#setup" class="sidebar__link">Setup (5 steps)</a>
       <a href="#limits" class="sidebar__link">Limitations</a>
       <a href="#tos" class="sidebar__link">Anthropic ToS &amp; ban risk</a>
-      <a href="#creds-rotation" class="sidebar__link">CREDS_KEY rotation</a>
+      <a href="#creds-rotation" class="sidebar__link">If a server-side rotation hits</a>
       <a href="#breakage" class="sidebar__link">Breakage cadence</a>
       <a href="#troubleshooting" class="sidebar__link">Troubleshooting</a>
     </div>
@@ -182,12 +184,14 @@
       <div class="step__body">
         <p class="step__title">Installer l'extension xbrain (Chrome)</p>
         <p>
-          Téléchargez le dossier <code>chrome-extension/</code> depuis le repo
-          xbrain (l'extension n'est pas publiée sur le Chrome Web Store). Ouvrez
-          <code>chrome://extensions/</code>, activez le <strong>Mode développeur</strong>,
-          cliquez <strong>Charger l'extension non empaquetée</strong> et
-          sélectionnez le dossier. Vérifiez que la version est <code>1.1.0</code>
-          ou supérieure (manifest requis pour le bridge WS).
+          Téléchargez la dernière <code>chrome-extension.zip</code> depuis votre
+          dashboard GrooveOS (un Chrome Web Store listing arrive bientôt — quand
+          il sera live, les mises à jour seront automatiques). Décompressez,
+          ouvrez <code>chrome://extensions/</code>, activez le
+          <strong>Mode développeur</strong>, cliquez <strong>Charger l'extension
+          non empaquetée</strong> et sélectionnez le dossier. Vérifiez que la
+          version est <code>1.1.0</code> ou supérieure (requis pour le bridge WS).
+          Voir <a href="chrome-ext.html">Chrome Extension</a>.
         </p>
       </div>
     </div>
@@ -195,15 +199,13 @@
     <div class="step">
       <div class="step__num">2</div>
       <div class="step__body">
-        <p class="step__title">Se connecter à xbrain</p>
+        <p class="step__title">Se connecter à GrooveOS</p>
         <p>
-          Ouvrez <a href="https://chat.grooveos.app">chat.grooveos.app</a>,
-          loggez-vous via Google. Votre <code>xbt_</code> token (token API
-          personnel scopé team) est automatiquement créé et stocké dans
-          <code>chrome.storage.session</code> par l'extension. La WebSocket
-          vers <code>wss://bridge.grooveos.app/ws/{user_sub}</code> s'ouvre
-          dans la seconde — vous pouvez le vérifier dans les DevTools du
-          service worker de l'extension.
+          Ouvrez <a href="https://grooveos.app/account/teams/">grooveos.app/account/teams/</a>,
+          signez-vous avec GitHub. Votre <code>xbt_</code> token (token API
+          personnel scopé team) est automatiquement provisionné. Une WebSocket
+          sécurisée vers le bridge GrooveOS s'ouvre côté extension dans la
+          seconde — vous pouvez vérifier l'état dans la popup, section "Sessions".
         </p>
       </div>
     </div>
@@ -298,13 +300,13 @@
     </div>
 
     <!-- CREDS ROTATION -->
-    <h2 id="creds-rotation">Si <code>CREDS_KEY</code> ou <code>BRIDGE_SHARED_SECRET</code> est tournée</h2>
+    <h2 id="creds-rotation">Si vos messages reviennent 401 après une rotation côté serveur</h2>
 
     <p>
-      LibreChat chiffre les API keys que vous collez via <code>user_provided</code>
-      (BYOK) avec sa clé <code>CREDS_KEY</code> côté serveur. Si l'admin tourne
-      cette clé (incident de sécurité, rotation périodique, etc.), tous les
-      <code>xbt_</code> tokens stockés deviennent illisibles côté LibreChat.
+      Pour des raisons de sécurité, GrooveOS fait tourner périodiquement les
+      clés de chiffrement utilisées pour stocker votre <code>xbt_</code> token
+      à l'intérieur de LibreChat. Quand ça arrive, le token reste valide mais
+      la copie chiffrée côté LibreChat devient illisible.
     </p>
 
     <p>
@@ -315,17 +317,15 @@
     <p>
       <strong>Action requise :</strong> Re-aller dans LibreChat → endpoint
       "Claude (mon abonnement)" → re-coller votre <code>xbt_</code> token comme
-      API key (vous pouvez réutiliser le même — c'est uniquement le chiffrement
+      API key (vous pouvez réutiliser le même — c'est uniquement le stockage
       côté LibreChat qui a changé, votre token reste valide).
     </p>
 
     <p>
-      De manière similaire, si l'admin tourne <code>BRIDGE_SHARED_SECRET</code>
-      (le secret HS256 que session-bridge utilise pour signer ses appels
-      memory-api), les WebSockets existantes peuvent rester ouvertes mais les
-      nouveaux <code>register</code> handshakes échoueront silencieusement. Un
-      rechargement de l'extension (chrome://extensions → reload) régénère la WS
-      avec le nouveau secret côté serveur.
+      Si la popup de l'extension affiche 🔴 après une rotation, rechargez
+      l'extension depuis <code>chrome://extensions</code> (cliquez ↻ sur la
+      carte xbrain). La WebSocket se rouvre automatiquement avec les nouveaux
+      secrets côté serveur.
     </p>
 
     <!-- BREAKAGE CADENCE -->
@@ -389,7 +389,7 @@
         </tr>
         <tr>
           <td>401 depuis LibreChat même avec un xbt_ token valide</td>
-          <td><code>CREDS_KEY</code> tournée côté serveur (voir section ci-dessus)</td>
+          <td>Rotation périodique de la clé de chiffrement côté serveur (voir section ci-dessus)</td>
           <td>Re-coller le xbt_ token dans LibreChat → endpoint "Claude (mon abonnement)" → API Key</td>
         </tr>
         <tr>
@@ -428,6 +428,8 @@
         <ul class="xb-footer__links">
           <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
           <li><a href="onboarding.html" class="xb-footer__link">Onboarding Guide</a></li>
+          <li><a href="auth.html" class="xb-footer__link">Authentication</a></li>
+          <li><a href="brain-monitor.html" class="xb-footer__link">Brain Monitor</a></li>
           <li><a href="sessions.html" class="xb-footer__link">Sessions (Pro/Max)</a></li>
           <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
           <li><a href="billing.html" class="xb-footer__link">Plans &amp; Billing</a></li>

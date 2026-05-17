@@ -80,10 +80,12 @@
       <div class="sidebar__group-label">Getting Started</div>
       <a href="index.html" class="sidebar__link">Getting Started</a>
       <a href="onboarding.html" class="sidebar__link">Onboarding Guide</a>
+      <a href="auth.html" class="sidebar__link">Authentication</a>
     </div>
     <div class="sidebar__section">
       <div class="sidebar__group-label">Features</div>
       <a href="memory.html" class="sidebar__link">Memory &amp; Knowledge</a>
+      <a href="brain-monitor.html" class="sidebar__link">Brain Monitor</a>
       <a href="teams.html" class="sidebar__link active">Teams &amp; Projects</a>
       <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
       <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
@@ -149,14 +151,20 @@
 
     <ul>
       <li>
-        <strong>By email address</strong> — Enter the member's email. They will receive an
-        invite link. Once they click it and sign in with Google, they join your team
-        automatically.
+        <strong>By GitHub username</strong> — Enter the member's GitHub login.
+        Next time they sign in with GitHub, they join your team automatically.
+        No email or invite link is sent.
       </li>
       <li>
-        <strong>By GitHub Organization</strong> — Connect your GitHub Org in team settings.
-        Any member of your GitHub Org can then sign in to GrooveOS without being manually
-        invited. See <a href="#github-org-auth">GitHub Organization Auth</a> below.
+        <strong>By email address</strong> — Enter the member's email. They
+        receive an invite that sends them to "Sign in with GitHub" on GrooveOS.
+        Once signed in, they're auto-attached to your team.
+      </li>
+      <li>
+        <strong>By GitHub Organization</strong> — Set your team's
+        <code>github_org</code>. Any member of that GitHub org can then sign in
+        and auto-joins your team — no per-user invite needed. See
+        <a href="#github-org-auth">GitHub Organization Auth</a> below.
       </li>
     </ul>
 
@@ -255,27 +263,34 @@
     <h2 id="github-org-auth">GitHub Organization Auth</h2>
 
     <p>
-      Connect your GitHub Org so that any member of your org can sign in to GrooveOS
-      without being manually invited.
+      Set your team's <code>github_org</code> so that any member of your GitHub
+      organization can sign in to GrooveOS and auto-join the team — no manual
+      invite per person.
     </p>
 
     <h3>Setup</h3>
 
     <ol>
-      <li>Go to team settings &rarr; <strong>Authentication &rarr; GitHub</strong>.</li>
-      <li>Click <strong>Connect GitHub Organization</strong>.</li>
-      <li>Authorize GrooveOS on GitHub and select the organization to link.</li>
-      <li>Once connected, any member of that GitHub Org who signs in via Google OAuth will automatically join your GrooveOS team as a Member.</li>
+      <li>Go to team settings &rarr; <strong>Authentication</strong>.</li>
+      <li>Enter your GitHub organization slug in the <code>github_org</code> field and save.</li>
+      <li>Ask an org owner to install the <strong>xbrain</strong> GitHub App on the org — a one-time consent screen. (Members can request the install; an owner approves.) See <a href="auth.html#install-org">Installing on your org</a>.</li>
+      <li>Once the App is installed, every member of the org auto-joins as a Member the next time they sign in with GitHub.</li>
     </ol>
 
     <div class="callout callout--info" data-label="// note">
-      <p class="callout__title">Note</p>
-      <p>GitHub Org auth requires a GitHub OAuth app. The setup wizard in team settings walks you through creating one — no external configuration is needed outside of GitHub and GrooveOS.</p>
+      <p class="callout__title">Two-sided handshake</p>
+      <p>
+        Auto-join needs both sides to be set: GrooveOS must know which org the
+        team is linked to (your <code>github_org</code> setting), and GitHub
+        must know that xbrain is allowed to read your org's membership list
+        (the App install). The setup wizard walks you through both.
+      </p>
     </div>
 
     <p>
       Members who leave your GitHub Org lose access to GrooveOS on their next sign-in.
-      You can also remove members manually from the team members list at any time.
+      You can also remove or block members manually from the team members list at any time —
+      see <a href="auth.html#blocking">Blocking members</a>.
     </p>
 
   </main>
@@ -296,6 +311,8 @@
         <ul class="xb-footer__links">
           <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
           <li><a href="onboarding.html" class="xb-footer__link">Onboarding Guide</a></li>
+          <li><a href="auth.html" class="xb-footer__link">Authentication</a></li>
+          <li><a href="brain-monitor.html" class="xb-footer__link">Brain Monitor</a></li>
           <li><a href="sessions.html" class="xb-footer__link">Sessions (Pro/Max)</a></li>
           <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
           <li><a href="billing.html" class="xb-footer__link">Plans &amp; Billing</a></li>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="How GitHub-primary sign-in, identity merge, org-driven team membership, and admin blocking work in GrooveOS." />
+  <meta name="description" content="How signing in with GitHub works on GrooveOS — the xbrain GitHub App, installing it on your org, refresh tokens, and auto-joining teams." />
   <title>Authentication — GrooveOS Docs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -42,6 +42,7 @@
     .callout::before{content:attr(data-label);position:absolute;top:-9px;left:14px;background:var(--bg);padding:0 6px;font-size:10.5px;letter-spacing:.08em;color:var(--muted)}
     .callout--info{border-color:var(--accent)}.callout--info::before{color:var(--accent);background:var(--bg)}
     .callout--tip{border-color:var(--green)}.callout--tip::before{color:var(--green);background:var(--bg)}
+    .callout--warning{border-color:var(--amber)}.callout--warning::before{color:var(--amber);background:var(--bg)}
     .callout__title{font-weight:700;color:var(--text);margin-bottom:4px;font-size:13px}
     .docs-table{width:100%;border-collapse:collapse;font-size:12.5px;margin:16px 0}
     .docs-table th{background:var(--bg-2);color:var(--muted);font-weight:600;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:10px 14px;text-align:left;border:1px solid var(--border)}
@@ -85,6 +86,7 @@
     <div class="sidebar__section">
       <div class="sidebar__group-label">Features</div>
       <a href="memory.html" class="sidebar__link">Memory &amp; Knowledge</a>
+      <a href="brain-monitor.html" class="sidebar__link">Brain Monitor</a>
       <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
       <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
       <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
@@ -96,6 +98,16 @@
       <div class="sidebar__group-label">Reference</div>
       <a href="api.html" class="sidebar__link">API Reference</a>
       <a href="billing.html" class="sidebar__link">Plans &amp; Billing</a>
+    </div>
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">On this page</div>
+      <a href="#sign-in" class="sidebar__link">Sign in with GitHub</a>
+      <a href="#install-org" class="sidebar__link">Installing on your org</a>
+      <a href="#auto-join" class="sidebar__link">Auto-join via GitHub org</a>
+      <a href="#tokens" class="sidebar__link">Tokens &amp; refresh</a>
+      <a href="#blocking" class="sidebar__link">Blocking members</a>
+      <a href="#permissions" class="sidebar__link">Permissions xbrain requests</a>
+      <a href="#troubleshooting" class="sidebar__link">Troubleshooting</a>
     </div>
   </aside>
 
@@ -111,146 +123,271 @@
 
     <div class="docs-meta">
       <span class="docs-meta__badge">Guide</span>
-      <span>5 min read</span>
+      <span>6 min read</span>
       <span>Updated May 2026</span>
     </div>
 
     <p>
-      GrooveOS uses <strong>GitHub as the primary identity</strong>. Signing in with GitHub
-      gives you an xbrain personal API token (<code>xbt_…</code>), automatic membership in any
-      team whose <code>github_org</code> matches one of your GitHub orgs, and your verified
-      email attached to your user row so admins can invite you and notifications reach
-      you.
+      GrooveOS signs you in with <strong>GitHub</strong>. The same "Sign in with
+      GitHub" button works on the web app at
+      <a href="https://grooveos.app/account/teams/" target="_blank" rel="noopener">grooveos.app</a>,
+      in the Chrome extension popup, and in any other GrooveOS surface — they all
+      share the same identity. There is no password to manage.
     </p>
 
     <p>
-      <strong>Google sign-in</strong> remains available as a secondary option for legacy
-      users and for users who only need Drive / Calendar sync. You can start with either,
-      and link the other later — both identities resolve to the same user row.
+      Behind the scenes GrooveOS uses a <strong>GitHub App</strong> (the modern
+      successor to OAuth Apps). The difference matters: the GitHub App can be
+      installed on your GitHub organization once, which then lets any org member
+      join your GrooveOS team automatically — no manual invites needed.
     </p>
 
-    <h2>Sign-in surfaces</h2>
+    <h2 id="sign-in">Sign in with GitHub</h2>
+
+    <p>The basic flow is the same everywhere:</p>
+
+    <ol>
+      <li>Click <strong>Sign in with GitHub</strong>.</li>
+      <li>GitHub shows a consent screen the first time. Approve <strong>xbrain</strong>.</li>
+      <li>You land back on GrooveOS, signed in. Your GitHub avatar and username appear in the top bar.</li>
+    </ol>
 
     <table class="docs-table">
       <thead>
         <tr>
-          <th>Surface</th>
-          <th>URL</th>
-          <th>Notes</th>
+          <th>Where you sign in</th>
+          <th>Button location</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td>Web</td>
-          <td><a href="https://grooveos.app/account/teams/">grooveos.app/account/teams/</a></td>
-          <td>"Sign in with GitHub" primary; "Sign in with Google" secondary.</td>
+          <td>Web app</td>
+          <td><a href="https://grooveos.app/account/teams/" target="_blank" rel="noopener">grooveos.app/account/teams/</a> — primary button</td>
         </tr>
         <tr>
           <td>Chrome extension</td>
-          <td>extension popup</td>
-          <td>"Sign in with GitHub" primary; silent on subsequent loads.</td>
+          <td>Extension popup — first launch</td>
         </tr>
         <tr>
           <td>LibreChat</td>
-          <td><a href="https://chat.grooveos.app/">chat.grooveos.app</a></td>
-          <td>Google + GitHub buttons (Phase 5 SSO; independent from this flow).</td>
+          <td><a href="https://chat.grooveos.app" target="_blank" rel="noopener">chat.grooveos.app</a> — "Sign in with GitHub" on the login screen</td>
         </tr>
       </tbody>
     </table>
 
-    <h2>Sign-in flow</h2>
-
-    <ol>
-      <li>You click <strong>Sign in with GitHub</strong>. The app redirects you to <code>github.com/login/oauth/authorize</code> with scopes <code>read:user</code>, <code>user:email</code>, <code>read:org</code>.</li>
-      <li>GitHub asks you to authorize GrooveOS (first time only) and redirects back with a one-time <code>code</code>.</li>
-      <li>The browser sends the <code>code</code> to <code>POST /v1/auth/github/signin</code>. memory-api exchanges it for a GitHub access token, fetches your profile, your verified emails (<code>/user/emails</code>), and your orgs (<code>/user/orgs</code>).</li>
-      <li>memory-api finds-or-creates your user row, runs the auto-grant pipeline against every team whose <code>github_org</code> matches one of your orgs, and returns an <code>xbt_</code> personal API token.</li>
-      <li>The browser / extension stores <code>xbt_token</code>, <code>user_sub</code>, <code>api_token_id</code> in local storage and reloads.</li>
-    </ol>
-
-    <h2 id="org-driven-membership">Org-driven team membership</h2>
-
-    <p>
-      Each xbrain team can declare a <code>github_org</code> field. When you sign in with
-      GitHub, GrooveOS calls GitHub's <code>/user/orgs</code> API and adds you to every team
-      whose <code>github_org</code> matches one of your orgs — no manual invite needed.
-    </p>
-
-    <p>
-      Admins of every team you auto-join receive an email titled <em>"New member
-      auto-joined &lt;team&gt;"</em>. If your sign-up is unexpected, they can block you (see
-      below) and the membership is revoked.
-    </p>
-
-    <div class="callout callout--info" data-label="// note">
-      <p class="callout__title">SMTP is optional</p>
-      <p>If <code>SMTP_HOST</code> is empty on the deployment, the admin email is silently skipped (fail-soft) — the auto-grant itself still fires. Self-hosters can configure SMTP later without re-running migrations.</p>
+    <div class="callout callout--info" data-label="// one identity, many surfaces">
+      <p class="callout__title">Same GitHub account everywhere</p>
+      <p>
+        The web app, the Chrome extension, and LibreChat all sign in against the
+        same GitHub App, so your GrooveOS identity is consistent across surfaces.
+        Tokens you create in one surface (e.g. an <code>xbt_</code> API token from
+        the web app) work in all of them.
+      </p>
     </div>
 
-    <h2 id="blocking">Blocking</h2>
+    <h2 id="install-org">Installing xbrain on your org</h2>
 
     <p>
-      Team admins can block a member at any time from the Settings card on the
-      <a href="https://grooveos.app/account/teams/">/account/teams/</a> page or from the
-      Options tab of the Chrome extension. Blocked users receive HTTP 403 with body
-      <code>"Member blocked from team …"</code> on every team-scoped API call, including
-      requests authenticated with a pre-block-time <code>xbt_</code> token.
+      If you sign in for the first time and your primary GitHub organization
+      hasn't installed the xbrain App yet, GrooveOS shows a yellow banner like:
     </p>
+
+    <pre class="code-block"><code>Install xbrain on `your-org-name`
+[ Install xbrain on org → ]</code></pre>
+
+    <p>What happens next depends on your role inside the GitHub org:</p>
+
+    <ul>
+      <li>
+        <strong>You are a GitHub org owner / admin.</strong> Click the button.
+        GitHub asks you to choose which repos xbrain can see (you can pick
+        "All repositories" or a subset — xbrain doesn't actually need any
+        repo access for sign-in, only the org membership read). Approve.
+        GitHub sends you back to GrooveOS, and the rest of your org can now
+        sign in.
+      </li>
+      <li>
+        <strong>You are a regular member of the org.</strong> Click the button.
+        GitHub will show an "Approval required" page that lets you request the
+        install. Once an owner approves, every org member can sign in.
+      </li>
+    </ul>
+
+    <div class="callout callout--tip" data-label="// one-time setup">
+      <p class="callout__title">The install is per-org, not per-user</p>
+      <p>
+        Once xbrain is installed on your GitHub org, no other member of that org
+        needs to do it again. They just click "Sign in with GitHub" and they're
+        in. The install is what unlocks the auto-join behaviour below.
+      </p>
+    </div>
+
+    <h2 id="auto-join">Auto-join via GitHub org</h2>
 
     <p>
-      Admins can also <strong>pre-block</strong> a GitHub login that hasn't signed up yet. Pre-blocks
-      are stored in <code>team_org_blocks</code> and consulted by the auto-grant pipeline before
-      any membership row is inserted — even if the GitHub user is in the team's
-      <code>github_org</code>, a pre-blocked login is skipped.
+      Every xbrain team can declare a <code>github_org</code> field in its
+      settings. When you sign in with GitHub, GrooveOS reads the list of
+      organizations you belong to, and adds you to every team whose
+      <code>github_org</code> matches one of your orgs — no manual invite needed.
     </p>
 
-    <h2 id="identity-merge">Identity merge</h2>
+    <p>This is the default way to add people to a team:</p>
+
+    <ol>
+      <li>Team admin sets <code>github_org = your-org</code> in team settings.</li>
+      <li>Anyone in <code>your-org</code> signs in with GitHub for the first time.</li>
+      <li>GrooveOS detects the org match and auto-adds them to the team as a Member.</li>
+      <li>Team admins receive an email titled <em>"New member auto-joined &lt;team&gt;"</em>.</li>
+    </ol>
 
     <p>
-      GrooveOS treats GitHub identity and Google identity as two facets of the same
-      user. The merge logic handles three scenarios:
+      If an auto-join is unexpected, an admin can <strong>block</strong> the user
+      from the team — see <a href="#blocking">Blocking members</a> below.
     </p>
+
+    <h2 id="tokens">Tokens &amp; refresh</h2>
+
+    <p>
+      Once you're signed in, GrooveOS gives you an <code>xbt_</code> personal API
+      token. This is what every GrooveOS surface uses under the hood to call the
+      API on your behalf:
+    </p>
+
+    <pre class="code-block"><code>xbt_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2</code></pre>
+
+    <p>
+      You can list, name, and revoke your <code>xbt_</code> tokens from your
+      profile page. See the <a href="api.html">API Reference</a> for the full
+      programmatic surface — <code>xbt_</code> tokens are how you build your own
+      scripts and integrations.
+    </p>
+
+    <h3>Behind the scenes: GitHub tokens</h3>
+
+    <p>In addition to the <code>xbt_</code> token, GrooveOS stores two GitHub-side tokens for your account:</p>
 
     <table class="docs-table">
       <thead>
         <tr>
-          <th>Scenario</th>
-          <th>Behavior</th>
+          <th>Token</th>
+          <th>Lifetime</th>
+          <th>Why</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td>You signed in with Google first, then sign in with GitHub using the same verified email</td>
-          <td>Your GitHub identity (<code>github_id</code>, <code>github_username</code>) attaches to your existing Google row. No duplicate user is created.</td>
+          <td>User access token (<code>ghu_</code>)</td>
+          <td>8 hours</td>
+          <td>Used to look up your GitHub profile, verified emails, and org memberships when you sign in.</td>
         </tr>
         <tr>
-          <td>You signed in with GitHub-only (via the extension) first, then sign in with Google using the matching verified email</td>
-          <td>The orphan GitHub-only row is auto-merged into your Google row. All team memberships, conversations, memory items, API tokens, and Drive sync state re-parent to the surviving row. The orphan row is soft-deleted (<code>merged_into_user_id</code> set).</td>
-        </tr>
-        <tr>
-          <td>Pre-merge <code>xbt_</code> token: you saved an <code>xbt_</code> in your extension before the merge happened</td>
-          <td>The token keeps working. The auth layer follows <code>merged_into_user_id</code> and resolves to the surviving identity for every subsequent request — no need to re-sign-in.</td>
+          <td>Refresh token (<code>ghr_</code>)</td>
+          <td>6 months</td>
+          <td>Single-use; quietly rotates the 8h access token in the background so you don't have to re-sign-in every workday.</td>
         </tr>
       </tbody>
     </table>
 
-    <div class="callout callout--tip" data-label="// tip">
-      <p class="callout__title">The merge is atomic</p>
-      <p>If anything fails partway through (FK constraint, unique violation, network blip), the entire merge is rolled back. You'll either land on the merged survivor row or remain unchanged — never in a half-merged state.</p>
+    <p>
+      You don't see these — they're managed for you, encrypted at rest, and
+      rotated automatically. After 6 months of no GrooveOS activity the refresh
+      token expires; on your next visit you click "Sign in with GitHub" again
+      and the cycle restarts.
+    </p>
+
+    <h2 id="blocking">Blocking members</h2>
+
+    <p>
+      Team admins can block any member at any time from the Settings card on the
+      <a href="https://grooveos.app/account/teams/" target="_blank" rel="noopener">teams page</a>
+      or from the Options tab of the Chrome extension. Blocked users immediately
+      stop having access:
+    </p>
+
+    <ul>
+      <li>Every team-scoped API call returns HTTP 403 — even with a valid <code>xbt_</code> token created before the block.</li>
+      <li>The block survives sign-out / sign-in. The user cannot recover access by re-authorizing GitHub.</li>
+    </ul>
+
+    <h3>Pre-blocking a GitHub login</h3>
+
+    <p>
+      Admins can also <strong>pre-block</strong> a GitHub username that hasn't
+      signed up yet. The next time that user signs in via your org, the
+      auto-grant pipeline checks the pre-block list before adding them to the
+      team. They will sign in successfully but won't be auto-joined.
+    </p>
+
+    <h2 id="permissions">Permissions xbrain requests</h2>
+
+    <p>When you authorize xbrain via GitHub, the App asks for:</p>
+
+    <ul>
+      <li><strong>Email addresses (read-only)</strong> — to attach your verified email to your user row so admins can invite you and notifications reach you.</li>
+      <li><strong>Members (read-only)</strong> — so xbrain can read which orgs you belong to and apply the auto-join rule.</li>
+    </ul>
+
+    <p>
+      That's it. xbrain does <strong>not</strong> request repo content access,
+      write access to your account, or any permissions on your code. You can
+      review the install at any time on GitHub:
+      <code>github.com/settings/installations</code> (personal) or
+      <code>github.com/organizations/&lt;your-org&gt;/settings/installations</code>
+      (org).
+    </p>
+
+    <div class="callout callout--info" data-label="// revoke">
+      <p class="callout__title">Revoking access</p>
+      <p>
+        To cut all GrooveOS access from your GitHub account, uninstall the
+        xbrain App from GitHub's installation settings. GrooveOS detects the
+        uninstall via webhook and your team memberships become read-only until
+        the App is reinstalled.
+      </p>
     </div>
 
-    <h2>Tokens</h2>
+    <h2 id="troubleshooting">Troubleshooting</h2>
 
-    <p>
-      Every authenticated user surface in GrooveOS — Chrome extension, app-site,
-      direct API calls — uses an <code>xbt_</code> personal API token under the hood. The
-      token is bound to a single user row and is automatically followed across
-      identity merges via <code>merged_into_user_id</code>.
-    </p>
+    <table class="docs-table">
+      <thead>
+        <tr><th>Symptom</th><th>What's happening</th><th>Fix</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>"Install xbrain on org" banner doesn't go away after install</td>
+          <td>GitHub's install webhook hasn't reached GrooveOS yet (usually &lt; 5 s).</td>
+          <td>Wait a few seconds and refresh the page. GrooveOS also self-heals on the next sign-in by querying GitHub directly.</td>
+        </tr>
+        <tr>
+          <td>Approval required after clicking Install</td>
+          <td>You're a regular member of the org, not an owner.</td>
+          <td>An org owner has to approve the install request. Ask them, then come back and sign in again.</td>
+        </tr>
+        <tr>
+          <td>Signed in, but no teams listed</td>
+          <td>Your org isn't tied to any GrooveOS team yet, or you're in a private org GrooveOS can't see without the install.</td>
+          <td>Ask a team admin to either invite you by email or set <code>github_org</code> on the team to your org.</td>
+        </tr>
+        <tr>
+          <td>HTTP 401 unauthorized from the API</td>
+          <td>Your refresh token expired (no GrooveOS activity in 6 months) or your <code>xbt_</code> was revoked.</td>
+          <td>Sign in with GitHub again. If your <code>xbt_</code> was revoked, mint a new one from your profile.</td>
+        </tr>
+        <tr>
+          <td>HTTP 403 with "Member blocked from team …"</td>
+          <td>A team admin blocked you.</td>
+          <td>Contact the admin. Re-signing-in won't help — the block is server-side.</td>
+        </tr>
+      </tbody>
+    </table>
 
-    <p>
-      You can list, name, and revoke your tokens from the API reference (<a href="api.html">API Reference</a>) under <code>/v1/me/api-token</code>. Tokens with <code>team_scope</code> set to a specific team enforce the per-team blocked-member check (HTTP 403 if you've been blocked from that team).
-    </p>
+    <h2>What's next</h2>
+
+    <ul>
+      <li><a href="onboarding.html">Onboarding Guide</a> — Step-by-step from sign-in to a working Claude.ai / ChatGPT integration.</li>
+      <li><a href="teams.html">Teams &amp; Projects</a> — Setting <code>github_org</code>, inviting members, project scopes.</li>
+      <li><a href="api.html">API Reference</a> — Using your <code>xbt_</code> token programmatically.</li>
+    </ul>
 
   </main>
 </div>
@@ -271,6 +408,7 @@
           <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
           <li><a href="onboarding.html" class="xb-footer__link">Onboarding Guide</a></li>
           <li><a href="auth.html" class="xb-footer__link">Authentication</a></li>
+          <li><a href="brain-monitor.html" class="xb-footer__link">Brain Monitor</a></li>
           <li><a href="sessions.html" class="xb-footer__link">Sessions (Pro/Max)</a></li>
           <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
           <li><a href="billing.html" class="xb-footer__link">Plans &amp; Billing</a></li>
