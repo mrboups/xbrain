@@ -387,6 +387,40 @@
       everyone can leave a team (except the last admin).
     </p>
 
+    <!--
+      Install-app banner (Phase 12, Plan 12-07 / GHAPP-06).
+      Shown when POST /v1/auth/github/signin returns install_required=true:
+      the user authenticated successfully but their primary GitHub org has
+      not yet installed the xbrain GitHub App, so memory-api cannot check
+      org membership. Inline styles tuned to the dark theme (see :root
+      --amber) — keeps the change isolated to this file.
+    -->
+    <div id="install-banner" class="card" hidden role="alert" aria-live="polite"
+         style="border-left: 4px solid var(--amber); background: rgba(210, 153, 34, 0.10); margin-bottom: 18px;">
+      <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 0;">
+          <p style="margin: 0 0 4px 0; font-weight: 600; color: var(--text); font-size: 14px;">
+            Install xbrain on your GitHub organization
+          </p>
+          <p id="install-banner-message" style="margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5;">
+            xbrain needs to be installed on
+            <strong id="install-banner-org" style="color: var(--text);">your organization</strong>
+            before you can join its teams. After installing, click
+            <em>Try again</em> below.
+          </p>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <a id="install-banner-button" href="#" target="_blank" rel="noopener"
+             class="btn btn-primary" style="text-decoration: none;">
+            Install xbrain
+          </a>
+          <button type="button" id="install-banner-retry" class="btn btn-sm">
+            Try again
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Sign-in card (shown when no xbt_token) -->
     <div id="signin-section" class="card signin-card" hidden>
       <h3>Sign in</h3>
