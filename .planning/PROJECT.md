@@ -2,13 +2,30 @@
 
 ## What This Is
 
-Plateforme open-source de **mémoire collective persistante** pour humains + agents, organisée par équipe et par projet. Toute donnée (chats, faits extraits, documents, sorties d'outils internes) traverse une couche unique — `memory-api` — qui applique un contrat de tagging strict : team-scope, truth-level, provenance, validation. Frontends multiples (LibreChat / Open WebUI / ChatGPT API / Claude Code) et agents LangGraph lisent et écrivent **la même mémoire**.
+Plateforme open-source de **mémoire collective persistante** pour humains + agents, organisée par équipe et par projet. Toute donnée (chats, faits extraits, documents, sorties d'outils internes) traverse une couche unique — `memory-api` — qui applique un contrat de tagging strict : team-scope, truth-level, provenance, validation. Frontends multiples (LibreChat / Open WebUI / ChatGPT API / Claude Code / Chrome extension / app-site) et agents LangGraph lisent et écrivent **la même mémoire**.
 
 Ce n'est pas un workspace de chatbot. Le différenciateur est la couche mémoire + truth-level + team-scope, pas l'interface.
+
+**Milestone v1.0 status :** SHIPPED (12 phases livrées 2026-05-03 → 2026-05-17). Le scope initial v1 (73 REQ-IDs sur 3 phases) a été étendu en cours de route avec 9 phases additionnelles (3.5 → 12) couvrant la plateforme projets, le marketing site, le CRM/Granola/tasks, le Pro/Max routing, l'auth GitHub-primary, le Brain Monitor universel et la migration GitHub App. Voir `ROADMAP.md` pour le détail des 12 phases et `REQUIREMENTS.md` pour les capacités post-v1.
 
 ## Core Value
 
 **Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.** Si tout le reste plante, ce contrat doit tenir.
+
+## Current capabilities (as of 2026-05-17)
+
+Capacités livrées et opérationnelles en production (https://grooveos.app + 30 containers sur VM GCP `e2-standard-2`) :
+
+- **5-truth-level promotion workflow** (Phase 2) — état machine `EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC` enforced par memory-api ; promotion review + approval + audit log immuable
+- **Multi-frontend confirmé** (Phases 1, 4, 5, 7, 8, 9, 10) — LibreChat (`chat.grooveos.app`), Open WebUI (`adm.grooveos.app`), Chrome extension MV3 (side panel + clip + chat), app-site Firebase (`grooveos.app/account/teams/`), agents LangGraph (`agent-runtime`), MCP gateway clients — tous lisent/écrivent via `memory-api`
+- **Memory layer hybride** (Phases 1-3) — `mem0` (Apache 2.0) sous interface `MemoryProvider` + `memory-api` natif FastAPI qui enforce le contrat de tagging à 7 champs et la state machine truth-level
+- **Graphe + extraction temporelle** (Phases 3, 5) — Neo4j Community (relations, lineage) + extraction Claude NER (`/v1/graph/*`) + Graphiti pour extraction temporelle continue
+- **CRM + Tasks + Granola pipeline** (Phases 7-8) — contacts auto-extraits depuis chats/agents/meetings, tasks auto-générées sur action items (regex + Claude detection), notifications email aiosmtplib, Granola API key per-user Fernet-chiffrée, agent `meeting-recap` seedé
+- **Pro/Max routing via Chrome extension** (Phase 9) — microservice `session-bridge` (port 8105, OpenAI-compat ↔ WebSocket router) + extension WebSocket persistante + fetch credentialed claude.ai → les users consomment leur propre quota Claude Pro/Max au lieu de la clé API team
+- **GitHub-primary auth + org-driven team membership** (Phase 10) — sign-in via GitHub OAuth, auto-grant team membership sur match `teams.github_org`, block/pre-block admin, auto-merge des user rows orphelines (Google ↔ GitHub)
+- **Brain Monitor — universal truth-level inspector + soft delete** (Phase 11) — colonnes `truth_level` + `deleted_at` + `deleted_by` sur les 6 tables d'entités (memory_items, conversations, messages, team_messages, tasks, contacts) + vue `v_brain_events`, UI `/account/teams/brain/` avec filtres + edit inline + soft delete + 30-day retention, container `brain-janitor` cron quotidien pour purge Postgres + Qdrant + Neo4j
+- **Superadmin dashboard cross-team** (Phase 11) — UI `/account/admin/` 4 sections (Brain Overview / Storage / Activity / Top Sources) avec drill-down par team, audit log sur chaque accès cross-team (`action='superadmin_brain_access'`), gated par `ADMIN_USER_SUBS` env
+- **GitHub App authentication** (Phase 12) — migration OAuth App → GitHub App "xbrain" (Client ID `Iv23liVnZvIN0Lo6isof`) avec multi-callback URLs natif (web + Chrome extension), JWT RS256 signing, installation tokens cachés (1h TTL), refresh token flow user-to-server (8h ghu_ + 6mo ghr_), table `installations` populée par webhook `installation` events, `GITHUB_API_PAT` retiré du runtime — ready for public deployment
 
 ## Requirements
 
@@ -64,7 +81,7 @@ Ce n'est pas un workspace de chatbot. Le différenciateur est la couche mémoire
 
 ## Constraints
 
-- **Tech stack** (révisée après research) : LibreChat + Open WebUI + **mem0** + LangGraph + Qdrant + Neo4j + PostgreSQL + MinIO (image Chainguard) + Langfuse — **Pourquoi :** stack 100 % OSS auto-hébergeable. Memstate.ai (SaaS fermé), Remembra (13★ + SQLite, immature) et Memori (Alpha) ont été retirés au profit de mem0 + memory-api natif après vérification : voir Key Decisions ci-dessous.
+- **Tech stack** (révisée après research + extensions Phases 5-12) : LibreChat + Open WebUI + **mem0** + LangGraph + Qdrant + Neo4j + PostgreSQL + MinIO (image Chainguard) + Langfuse + Graphiti + Centrifugo (team chat realtime) + Chrome extension MV3 + Firebase Hosting (app-site, marketing site, projects dashboard) + `PyJWT[crypto]>=2.10` (GitHub App JWT signing, Phase 12) — **Pourquoi :** stack 100 % OSS auto-hébergeable. Memstate.ai (SaaS fermé), Remembra (13★ + SQLite, immature) et Memori (Alpha) ont été retirés au profit de mem0 + memory-api natif après vérification : voir Key Decisions ci-dessous.
 - **Déploiement** : GCP VM Ubuntu 24.04, Docker Compose — **Pourquoi :** budget contraint, ops simple, pas d'expertise Kubernetes requise. Stratégie de sizing échelonnée :
   - **Phase 1** : `e2-medium` (4 GB, ~25€/mo) — LibreChat + Open WebUI + Postgres + Qdrant + memory-api stub. Tolérance fine — surveiller OOM, pas de service ajouté en plus sans couper autre chose.
   - **Phase 2** : upgrade vers `e2-standard-2` (8 GB, ~38-49€/mo) en début de phase, **avant** d'ajouter mem0 + LangGraph + agent runtime.
@@ -75,6 +92,9 @@ Ce n'est pas un workspace de chatbot. Le différenciateur est la couche mémoire
 - **Contrat de tagging obligatoire** : 7 champs minimum sur chaque donnée — **Pourquoi :** invariant qui rend possibles l'isolation team, la promotion truth-level, l'audit, le retrieval scopé. C'est le différenciateur.
 - **Multi-modèle** : Claude (coding/archi), GPT (reasoning/summary), Grok (second avis) — **Pourquoi :** chaque modèle a un rôle distinct. La plateforme doit pouvoir en ajouter (futur Mistral, Gemini, etc.) sans refactor.
 - **Performance** : pas de SLA strict en v1, mais l'expérience LibreChat doit rester fluide (< 2s pour une réponse simple, retrieval mémoire < 500ms en P95) — **Pourquoi :** UX d'équipe.
+- **Soft delete universel + 30-day retention** (Phase 11) : toute entité brainable (memory_items, conversations, messages, team_messages, tasks, contacts) porte `deleted_at` + `deleted_by` ; container `brain-janitor` cron quotidien (03:00 UTC) hard-delete Postgres + Qdrant + Neo4j après 30 jours — **Pourquoi :** restauration possible pendant 30j (UX), purge réelle ensuite (RGPD + storage hygiene).
+- **GitHub App authentication public-deployment-ready** (Phase 12) : pas d'OAuth App long-lived PAT en runtime, tokens courts (App JWT 10min / installation token 1h / user token ghu_ 8h / refresh ghr_ 6mo) — **Pourquoi :** multi-callback natif (web + extension + futurs frontends), rate limit per-installation, support webhooks installation, retirable proprement de l'org GitHub.
+- **Logging caps Docker** (2026-05-17) : tous les ≥29 services xbrain-* ont `max-size 100m, max-file 3` via YAML anchor — **Pourquoi :** post-incident disque VM 100% (clickhouse log 17GB), prévient récurrence.
 
 ## Key Decisions
 
@@ -96,6 +116,12 @@ Ce n'est pas un workspace de chatbot. Le différenciateur est la couche mémoire
 | Granularité de phase : Coarse | Stack complexe mais bien définie ; phases larges réduisent le coût d'orchestration GSD | — Pending |
 | Plans en parallèle | Composants Docker Compose largement indépendants | — Pending |
 | Profil de modèles GSD : Balanced (Sonnet) | Bon ratio qualité/coût pour les agents de planning | — Pending |
+| Phase 11 ordering : Brain Monitor before GitHub App migration | Concrétise le différenciateur truth-level sur toutes les entités avant le clean break auth. Phase 12 peut alors s'appuyer sur l'audit log universel pour tracer les events superadmin. | ✓ Validé 2026-05-17 |
+| Phase 12 strategy : clean break OAuth App → GitHub App (no dual-auth) | Un seul user existant (mrboups), re-authorize 1x acceptable. Dual-auth ajouterait 2 chemins à maintenir indéfiniment. | ✓ Validé 2026-05-17 |
+| Phase 12 GitHub App owner : `mrboups` personal account + minimal permissions (`read:user`, `user:email`, `read:org`) | Pas de GitHub org dédié pour le moment ; perms minimales pour limiter blast radius. | ✓ Validé 2026-05-17 |
+| Phase 12 Chrome extension : deterministic ID via fixed `key` in manifest.json | chromiumapp.org callback URL doit être stable pour figurer dans la liste multi-callback GitHub App. Derived ID: `anigikcnmldoklcmogffmgcojdhhficb`. | ✓ Validé 2026-05-17 |
+| Soft delete universel via `deleted_at` + cron `brain-janitor` 30j | Restauration UX-friendly + purge réelle Postgres + Qdrant + Neo4j garantie. Évite la prolifération de "trash forever". | ✓ Validé 2026-05-17 |
+| Superadmin cross-team via `ADMIN_USER_SUBS` env (lockdown par défaut) | Pas de table superadmin en DB, env-only allowlist — réduit le blast radius d'une compromission DB. Audit log obligatoire sur chaque accès. | ✓ Validé 2026-05-17 |
 
 ## Evolution
 
@@ -115,4 +141,5 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-02 after research synthesis (memory layer revised: mem0 + memory-api natif au lieu de Memstate/Remembra/Memori, VM strategy confirmée e2-medium → e2-standard-2 → e2-standard-4, Open WebUI license + MinIO Chainguard documentés)*
+*Last updated: 2026-05-17 — sync to 12-phase shipped reality (Phase 11 Brain Monitor + Superadmin + Phase 12 GitHub App migration LIVE). v1 73-REQ scope frozen; post-v1 capabilities documented in REQUIREMENTS.md.*
+*Previous update: 2026-05-02 after research synthesis (memory layer revised: mem0 + memory-api natif au lieu de Memstate/Remembra/Memori, VM strategy confirmée e2-medium → e2-standard-2 → e2-standard-4, Open WebUI license + MinIO Chainguard documentés).*

@@ -283,5 +283,72 @@ Mapping requirement → phase. Rempli par le roadmapper — 2026-05-02.
 - Unmapped: 0
 
 ---
-*Requirements defined: 2026-05-02*
-*Last updated: 2026-05-02 — traceability filled by roadmapper (3 phases, 73/73 requirements mapped)*
+
+## Post-v1 capabilities (extended scope)
+
+The following capabilities were added to Milestone v1.0 **after** the initial 73 REQ-IDs were frozen. They are tracked here for documentation but were not part of the original v1 scope contract — the v1 73-REQ contract above remains the authoritative baseline for what "xbrain v1" delivers. See `ROADMAP.md` for the full per-phase specification and `.planning/phases/*` for shipped artefacts.
+
+### Phase 8 — Granola Per-User + Universal Extraction Pipeline + Platform Agents (LIVE 2026-05-09)
+
+Phase 8 introduced per-user Granola integration, universal extraction across frontends, and an admin-editable agent registry. No formal `XX-NN` requirement labels were defined — phase shipped against 8 acceptance criteria (D1..D6 + verify-phase8.sh PASS 7/7). See `ROADMAP.md` Phase 8 section.
+
+### Phase 9 — Session Bridge — Pro/Max Routing via Chrome Extension (LIVE 2026-05-12) — SESSION-01..06
+
+- **SESSION-01**: Microservice `session-bridge` (port 8105) exposes OpenAI-compatible `/v1/chat/completions` HTTP endpoint + `/ws/{user_sub}` WebSocket pool per user.
+- **SESSION-02**: Chrome extension v1.1.0+ maintains persistent WebSocket to `bridge.grooveos.app` with `chrome.alarms` watchdog, dispatches inbound chat requests to credentialed `fetch()` against claude.ai internal API.
+- **SESSION-03**: Per-user session tracking in `user_external_sessions` table (last_seen_at, metadata JSONB); extension popup surfaces session status with logged claude.ai email.
+- **SESSION-04**: Graceful fallback — requests without active extension session OR without claude.ai login return explicit error "Install xbrain extension and login to claude.ai", no silent fallback to team API key.
+- **SESSION-05**: LibreChat config exposes "Claude (mon abonnement)" endpoint routing via `session-bridge`; Sonnet via routed chat consumes user's Pro/Max quota visible at claude.ai/settings/usage.
+- **SESSION-06**: SSE event-style translation — claude.ai internal streaming format converted to OpenAI-compatible SSE so LibreChat consumes responses without patching.
+
+ChatGPT Plus routing explicitly deferred (out of scope Phase 9 — possibly revisited post-milestone).
+
+### Phase 10 — GitHub-Primary Auth + Org-Driven Team Membership (LIVE 2026-05-14) — GHA-01..08
+
+- **GHA-01**: `POST /v1/auth/github/exchange` (and successor `POST /v1/auth/github/signin`) mints an `xbt_` token directly from GitHub OAuth code (no prior Google sign-in required).
+- **GHA-02**: Auto-grant team membership at first GitHub sign-in via org match — if a `teams.github_org` matches any of the user's GitHub orgs (`/user/orgs`), an `INSERT team_members(role='member')` is inserted automatically.
+- **GHA-03**: Admin block/unblock endpoint `POST /v1/teams/{id}/members/{user_id}/block` (sets `team_members.blocked_at`); blocked user receives 403 on team-scoped routes even if still org member.
+- **GHA-04**: Pre-block via `POST /v1/teams/{id}/org-blocks {github_login}` for GitHub logins that have not yet signed in (table `team_org_blocks`).
+- **GHA-05**: Email admins on auto-grant via `send_member_autojoined_email()` (fail-soft if `SMTP_HOST` empty).
+- **GHA-06**: Auto-merge orphan user rows (Google ↔ GitHub) on link/sign-in — `team_members` migrated to primary row, orphan row soft-deleted via `users.merged_into_user_id`, idempotent on re-sign.
+- **GHA-07**: GitHub primary sign-in button in `chrome-extension/popup.html` (visually dominant; Google sign-in secondary).
+- **GHA-08**: GitHub primary sign-in button in `app-site/account/teams/index.html` (same dominance hierarchy).
+
+### Phase 11 — Brain Monitor + Superadmin Dashboard (LIVE 2026-05-17) — BMO-01..12
+
+- **BMO-01**: Migration 0017 adds `truth_level` (TEXT NOT NULL DEFAULT per entity type) + `deleted_at TIMESTAMPTZ NULL` + `deleted_by UUID NULL` columns to `tasks`, `contacts`, `team_messages`, `conversations`, `messages` (memory_items already had `truth_level` since Phase 2). Backfill defaults: tasks → WORKING, contacts → VALIDATED, conversations/messages/team_messages → EPHEMERAL.
+- **BMO-02**: Migration 0018 creates universal event view `v_brain_events` as `UNION ALL` of 7 logical streams (memory_item, granola_note, conversation, message, team_message, task, contact) with normalized columns: `entity_type`, `entity_id`, `team_scope`, `truth_level`, `deleted_at`, `deleted_by`, `source`, `created_by`, `created_at`, `preview` (200-char truncate), `conversation_id`.
+- **BMO-03**: `GET /v1/brain/events` paginated (cursor `created_at + id`) with filters `entity_type[]`, `truth_level[]`, `source[]`, `created_by`, `q` (text search on preview), `include_deleted`, `since` — team-scoped via `X-Team-Scope` header.
+- **BMO-04**: `PATCH /v1/brain/events/{entity_type}/{entity_id}` sets `truth_level` — author can edit their own events, team admins can edit any (auth check via `created_by == principal.user.id` OR `team_members.role='admin'`).
+- **BMO-05**: `DELETE /v1/brain/events/{entity_type}/{entity_id}` performs soft delete (`deleted_at=now() + deleted_by=principal.user.id`) — same permissions as BMO-04; triggers async Qdrant point delete for memory_items.
+- **BMO-06**: `POST /v1/brain/events/{entity_type}/{entity_id}/restore` clears `deleted_at` (author or admin) — only succeeds if `deleted_at > now() - INTERVAL '30 days'`.
+- **BMO-07**: Retrieval regression filter — all existing routes (memory search, tasks list, contacts list, conversations list, messages list, native_provider) MUST exclude `deleted_at IS NOT NULL` by default. Regression tests in each router confirm.
+- **BMO-08**: Service `brain-janitor` cron container (daily 03:00 UTC) — for each entity with `deleted_at < now() - 30 days`: (a) Qdrant point delete if vector exists, (b) Neo4j relation cleanup if node exists, (c) Postgres hard DELETE. Idempotent + audit log entry per purge.
+- **BMO-09**: app-site UI `/account/teams/brain/?team=<slug>` — virtualized table (1000+ rows), lateral filters (entity_type, truth_level, source, date range, deleted), preview row, inline truth_level dropdown (5 levels), Delete/Restore buttons, bulk select for admins, 30s polling.
+- **BMO-10**: Superadmin auth helper `assert_is_superadmin(principal)` wrapping existing `_is_admin()` from `deps.py`; new endpoint family `/v1/admin/brain/...` gated by it. Cross-team drill-down endpoint `GET /v1/admin/brain/events?team_slug=X` bypasses `X-Team-Scope` for superadmins and writes audit_log entry per call (`action='superadmin_brain_access'`).
+- **BMO-11**: Aggregate metrics endpoints (Pack M): `GET /v1/admin/brain/overview` (counts × truth_level × entity_type per team), `GET /v1/admin/brain/storage` (PG rows + Qdrant points + MinIO bytes per team), `GET /v1/admin/brain/activity?days=30` (events/day per team), `GET /v1/admin/brain/sources?days=30` (top sources breakdown per team). On-the-fly queries, no pre-aggregation table in v1.
+- **BMO-12**: app-site superadmin dashboard at `/account/admin/` — 4 sections (Brain Overview, Storage, Activity, Top Sources). Tables + inline SVG sparklines for Activity (no chart library dependency). Drill-down button per team row routes to `/account/teams/brain/?team=<slug>&as_superadmin=1` (banner "Viewing as superadmin — this access is logged.").
+
+### Phase 12 — GitHub App Migration (LIVE 2026-05-17) — GHAPP-01..08
+
+- **GHAPP-01**: GitHub App "xbrain" created on `mrboups` personal account with multi-callback URLs natively supported: `https://grooveos.app/account/teams/` (web) + `https://anigikcnmldoklcmogffmgcojdhhficb.chromiumapp.org/` (Chrome extension stable ID via manifest `key`). Minimal permissions: `read:user`, `user:email`, `read:org`. Private key (PEM, RS256) stored server-side as `GITHUB_APP_PRIVATE_KEY_B64`. App ID `3743573`, Client ID `Iv23liVnZvIN0Lo6isof`.
+- **GHAPP-02**: Backend JWT signing infrastructure — `app/services/github_app_jwt.mint_app_jwt()` mints RS256 JWT signed with `GITHUB_APP_PRIVATE_KEY_B64`, `iss = GITHUB_APP_CLIENT_ID`, 10-min TTL. `app/services/github_installation.get_installation_token()` exchanges JWT for installation token (1h TTL), in-process LRU cache, refresh-on-401. PyJWT[crypto]>=2.10 added to `apps/memory-api/pyproject.toml`.
+- **GHAPP-03**: New `installations` table (`installation_id BIGINT PK`, `github_org_login TEXT`, `github_account_type TEXT DEFAULT 'Organization'`, `installed_at TIMESTAMPTZ`, `installed_by_github_id BIGINT NULL`, `permissions JSONB`, `suspended_at TIMESTAMPTZ NULL`, `revoked_at TIMESTAMPTZ NULL`, `raw_payload JSONB`, `updated_at TIMESTAMPTZ`) + webhook handler `POST /v1/webhooks/github/installation` with HMAC signature verification for `installation` and `installation_repositories` events. Source-of-truth synced from GitHub.
+- **GHAPP-04**: `/orgs/{org}/members/{username}` org membership check migrated from `GITHUB_API_PAT` to installation token via hybrid lookup (`get_installation_token_for_org(session, org)` — looks up `installations` row, mints/caches installation token, falls back to "org not installed" error if absent). `GITHUB_API_PAT` removed from `.env.example`, `docker-compose.yml`, and all runtime config.
+- **GHAPP-05**: User-to-server token refresh flow — migration 0019 adds 7 columns to `users` table (`github_access_token_enc`, `github_access_token_hash`, `github_refresh_token_enc`, `github_token_expires_at`, `github_refresh_expires_at` + existing `github_id`, `github_username`). `app/services/github_user_token.refresh_user_token_if_needed(session, user)` rotates `ghu_` token (8h TTL) using `ghr_` refresh token (6-month TTL), per-user `asyncio.Lock` to dedupe concurrent refreshes. Transparent refresh before any `/user/*` call when token < 5min from expiry.
+- **GHAPP-06**: Install flow UI — when user signs in but their primary org has not installed the GitHub App, app-site and chrome-extension popup display install banner with link to `https://github.com/apps/xbrain/installations/new` with `state` param for return URL. After install webhook arrives and populates `installations`, user can complete team join.
+- **GHAPP-07**: Frontend client_id constants updated — `app-site/account/teams/teams.js:37` and `chrome-extension/background.js:68` to new GitHub App client_id `Iv23liVnZvIN0Lo6isof`. Multi-callback support means single client_id serves both flows (no per-frontend dispatch in memory-api). `chrome.runtime.id` stability verified via fixed `key` in `chrome-extension/manifest.json` (derived ID `anigikcnmldoklcmogffmgcojdhhficb`).
+- **GHAPP-08**: OAuth App `xbrain` (Client ID `Ov23liy7tZekl0uEztoj`) removed from active code path — OAuth-App-specific dispatch logic deleted in `apps/memory-api/app/routes/auth_github.py`. Migration documented in `docs/auth.html` + `.planning/KB/oauth-app-revocation.md`. Revocation on GitHub UI scheduled J+1 (operator decision per runbook, gated on ≥24h post-deploy + zero auth errors). LibreChat-specific OAuth App `xbrain LibreChat` (Client ID `Ov23li0XHV3NL8Git7Dk`) remains untouched — separate concern.
+
+### Out-of-band capabilities (Quick Tasks)
+
+Several capabilities shipped between phases via the GSD Quick Task surface (atomic single-commit deliverables) and are listed here for completeness:
+
+- **mcp-brain remote MCP server** (2026-05-09, commit `9f21d52`) — remote MCP server allowing Claude.ai web + ChatGPT web to access team brain via standard MCP protocol.
+- **LibreChat LLM stack expansion** (2026-05-11, commit `d8fcb69`) — Grok-3 endpoint, Claude Reasoning endpoint, second-opinion 3-way (Sonnet+Opus 4.7+Grok-3), Anthropic prompt caching on 6 extraction sites.
+- **Chrome extension v1.2.0** (2026-05-12) — single-click Connect/Disconnect, side panel mode (Chrome 114+), LibreChat API key auto-fill, zero-click silent Google auto-mint, context menu "Add selection to xbrain" with team submenu, link GitHub account from extension.
+- **Team chat realtime** (2026-05-12, commit `d7716c1`) — Centrifugo v6 broker (`centrifugo.grooveos.app`, MIT, ~50MB RAM), `team_messages` table, 4 messaging endpoints, agent-context-bundle endpoint, session-bridge accepts `acting_user_sub` JWT, inline Claude handler with Pro/Max routing + Anthropic fallback, 5min team memory cache, full extension UI redesign (chat-first, clip overlay).
+
+---
+*Requirements defined: 2026-05-02 (v1 73 REQ-IDs frozen)*
+*Last updated: 2026-05-17 — post-v1 capabilities section added (Phases 8-12 + Quick Tasks shipped); v1 73-REQ contract unchanged.*
