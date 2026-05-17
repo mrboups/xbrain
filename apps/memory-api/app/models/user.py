@@ -38,7 +38,9 @@ class User(Base):
     # the column holds Fernet base64 bytes, never raw token text.
     # github_access_token_expires_at: ~8h after issue (GitHub default).
     # github_refresh_expires_at: ~6 months after issue (GitHub default).
-    # Plan 12-06 will append a 5th column github_access_token_hash (M-5 fix).
+    # github_access_token_hash: HMAC-SHA256(FERNET_KEY, plaintext) — used by
+    # deps.py for O(log n) lookup of the user owning an incoming ghu_ token.
+    # See app/services/token_crypto.py:token_lookup_hash (Plan 12-06 M-5 fix).
     github_access_token_enc: Mapped[str | None] = mapped_column(String, nullable=True)
     github_refresh_token_enc: Mapped[str | None] = mapped_column(String, nullable=True)
     github_token_expires_at: Mapped[datetime | None] = mapped_column(
@@ -46,4 +48,9 @@ class User(Base):
     )
     github_refresh_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    # REVISION 2 (Plan 12-06 M-5) — indexed via partial idx_users_github_access_token_hash
+    # (migration 0019). Always rotated alongside github_access_token_enc.
+    github_access_token_hash: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
     )

@@ -128,11 +128,31 @@ def upgrade() -> None:
         sa.Column("github_refresh_expires_at", sa.DateTime(timezone=True), nullable=True),
     )
 
+    # REVISION 2 (Plan 12-06 M-5 fix) — token_hash column + partial index for
+    # O(log n) lookup by HMAC-SHA256(ghu_ token). The hash is deterministic and
+    # unforgeable without the FERNET_KEY (see app/services/token_crypto.py).
+    # Partial index keeps the index small — only users who have signed in via
+    # the GitHub App carry a non-NULL hash.
+    op.add_column(
+        "users",
+        sa.Column("github_access_token_hash", sa.String(64), nullable=True),
+    )
+    op.create_index(
+        "idx_users_github_access_token_hash",
+        "users",
+        ["github_access_token_hash"],
+        unique=False,
+        postgresql_where=sa.text("github_access_token_hash IS NOT NULL"),
+    )
+
 
 def downgrade() -> None:
     # Reverse order: drop the users columns first, then the installations
     # table. CASCADE on the table drop covers the partial unique index
     # automatically (it's owned by the table).
+    # REVISION 2 (Plan 12-06 M-5) — drop the token_hash index + column first.
+    op.drop_index("idx_users_github_access_token_hash", table_name="users")
+    op.drop_column("users", "github_access_token_hash")
     op.drop_column("users", "github_refresh_expires_at")
     op.drop_column("users", "github_token_expires_at")
     op.drop_column("users", "github_refresh_token_enc")
