@@ -1,11 +1,17 @@
 """JWT verification — Google OIDC ID tokens AND internal bridge service JWTs."""
 
 import time
+from enum import StrEnum
 
 import httpx
+import structlog
 from authlib.jose import JsonWebKey, jwt
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.services.github_installation import get_installation_token_for_org
+
+log = structlog.get_logger(__name__)
 
 GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
@@ -121,67 +127,166 @@ def is_admin(sub: str) -> bool:
     return sub in settings.admin_user_subs
 
 
-# === GitHub OAuth membership verification (Phase 5 — plan 05-02) ===
+# === GitHub org-membership verification (Phase 12 — Plan 12-04) ===
+#
+# Phase 5 (Plan 05-02) used a long-lived server PAT to check org membership.
+# Phase 12 (Plan 12-04) removed the PAT — every credential in this path is now
+# short-lived:
+#   - user token (gho_/ghu_, ~8h, refreshes)
+#   - installation token (ghs_, 1h, cached 55min, auto-refresh)
+#
+# The function returns one of three states (INSTALL_REQUIRED is new — surfaces
+# the install URL UX when the App is not installed on the user's org).
 
 _github_membership_cache: dict[str, tuple[float, dict]] = {}
-_GITHUB_CACHE_TTL = 300  # 5 minutes — reduces GitHub API calls, well within 5000 req/h rate limit
+_GITHUB_CACHE_TTL = 300       # 5 min for MEMBER / NOT_MEMBER
+_GITHUB_INSTALL_REQUIRED_TTL = 60  # 60s for INSTALL_REQUIRED so retries after
+                                    # install reach reality quickly
+
+_GH_HEADERS = {
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+}
+
+
+class OrgMembershipResult(StrEnum):
+    """Three possible outcomes of a /orgs/{org}/members/{user} check.
+
+    - MEMBER:           GitHub returned 204 → user is in the org.
+    - NOT_MEMBER:       GitHub returned 404 → user is not in the org.
+    - INSTALL_REQUIRED: xbrain App is not installed on the org. The caller
+                        should surface the install URL (Plan 12-06 UX).
+    """
+
+    MEMBER = "member"
+    NOT_MEMBER = "not_member"
+    INSTALL_REQUIRED = "install_required"
 
 
 async def check_github_org_membership(
-    github_token: str,
+    session: AsyncSession,
+    github_user_token: str,
     org: str,
-    server_pat: str,
 ) -> dict:
-    """Verify if a GitHub OAuth token belongs to a member of the given org.
+    """Check if a GitHub user is a member of `org` using an installation token.
 
-    Uses two-step approach:
-    1. GET /user with the user's own OAuth token to get their username.
-    2. GET /orgs/{org}/members/{username} with the server PAT to check membership
-       (server PAT is required to see private org members — pitfall documented in
-       RESEARCH.md Q3, Pitfall 4).
+    Steps:
+      1. Resolve the user's GitHub login + numeric id from the user token (GET /user).
+      2. Look up the installation_id for `org` via the hybrid helper
+         (DB lookup first, GitHub fallback). If no installation → INSTALL_REQUIRED.
+      3. Mint the installation token (cached 55 min, per-id lock).
+      4. GET /orgs/{org}/members/{username} with the installation token.
+         - 204 → MEMBER, 404 → NOT_MEMBER, 401 → force-refresh once and retry.
 
-    Returns: {"login": str, "email": str|None, "is_org_member": bool}
-    Caches result for _GITHUB_CACHE_TTL seconds per token[:16]+org key.
+    Args:
+      session: AsyncSession for the installation lookup (and potential backfill).
+      github_user_token: a user OAuth token. Both gho_ (LibreChat OAuth App) and
+        ghu_ (GitHub App user-to-server, Plan 12-06) shapes are accepted —
+        GitHub's /user endpoint validates either.
+      org: org login (case-sensitive in storage; GitHub treats login case-
+        insensitively).
+
+    Returns:
+      {
+        "login": str,                       # GitHub login
+        "github_id": int,                   # numeric GitHub user id
+        "email": str | None,                # from /user (may be None if private)
+        "name": str | None,                 # from /user
+        "is_org_member": bool,              # True iff result == MEMBER
+        "install_required": bool,           # True iff result == INSTALL_REQUIRED
+        "result": OrgMembershipResult,
+      }
+
+    Cache: keyed by (token[:16], org). MEMBER/NOT_MEMBER cached 5 min;
+    INSTALL_REQUIRED cached 60s so a user retrying after install gets the
+    refreshed state without 4 extra minutes of stale "install required" UX.
     """
-    # Truncate token prefix for cache key — avoids excessively long keys (T-05-02-03)
-    cache_key = f"{github_token[:16]}:{org}"
+    cache_key = f"{github_user_token[:16]}:{org}"
     now = time.time()
-    if cache_key in _github_membership_cache:
-        ts, result = _github_membership_cache[cache_key]
-        if now - ts < _GITHUB_CACHE_TTL:
+    cached = _github_membership_cache.get(cache_key)
+    if cached is not None:
+        ts, result = cached
+        # The cache stores the absolute expiry timestamp (ts == expiry_unix_ts)
+        # so MEMBER (5min) and INSTALL_REQUIRED (60s) entries coexist correctly.
+        if ts > now:
             return result
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        # Step 1: resolve the GitHub username from the OAuth token
+        # Step 1 — resolve user identity from the user token.
         user_r = await client.get(
             "https://api.github.com/user",
-            headers={
-                "Authorization": f"Bearer {github_token}",
-                "Accept": "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
+            headers={"Authorization": f"Bearer {github_user_token}", **_GH_HEADERS},
         )
         user_r.raise_for_status()
         user_data = user_r.json()
         username = user_data["login"]
+        github_id = int(user_data["id"])
 
-        # Step 2: check org membership using the server PAT
-        # Using PAT (not user token) so private members are visible (204 = member, else not)
-        org_r = await client.get(
-            f"https://api.github.com/orgs/{org}/members/{username}",
-            headers={
-                "Authorization": f"Bearer {server_pat}",
-                "Accept": "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
+        # Step 2 — look up the installation token for this org.
+        installation_token = await get_installation_token_for_org(session, org)
+
+        if installation_token is None:
+            # App not installed on this org. Surface so caller can hand the
+            # install URL to the frontend (Plan 12-06 UX).
+            result = {
+                "login": username,
+                "github_id": github_id,
+                "email": user_data.get("email"),
+                "name": user_data.get("name"),
+                "is_org_member": False,
+                "install_required": True,
+                "result": OrgMembershipResult.INSTALL_REQUIRED,
+            }
+            _github_membership_cache[cache_key] = (
+                now + _GITHUB_INSTALL_REQUIRED_TTL, result,
+            )
+            return result
+
+        # Step 3+4 — membership check with installation token.
+        # RESEARCH §Pitfall 4: 204 = member, anything else = not-member.
+        membership_url = (
+            f"https://api.github.com/orgs/{org}/members/{username}"
         )
+        org_r = await client.get(
+            membership_url,
+            headers={"Authorization": f"Bearer {installation_token}", **_GH_HEADERS},
+        )
+
+        # REVISION 2 (M-4 fix) — 401 retry on the membership endpoint. If the
+        # installation token was revoked between mint (12-03 cache) and use,
+        # GitHub returns 401. Force-refresh ONCE and retry; if still 401,
+        # fall through (is_member stays False — NOT_MEMBER) so we don't loop.
+        if org_r.status_code == 401:
+            log.warning(
+                "github_app.membership_check.401_retry",
+                org=org,
+                username=username,
+            )
+            installation_token = await get_installation_token_for_org(
+                session, org, force_refresh=True,
+            )
+            if installation_token is not None:
+                org_r = await client.get(
+                    membership_url,
+                    headers={
+                        "Authorization": f"Bearer {installation_token}",
+                        **_GH_HEADERS,
+                    },
+                )
+
         is_member = org_r.status_code == 204
 
     result = {
         "login": username,
+        "github_id": github_id,
         "email": user_data.get("email"),
         "name": user_data.get("name"),
         "is_org_member": is_member,
+        "install_required": False,
+        "result": (
+            OrgMembershipResult.MEMBER if is_member
+            else OrgMembershipResult.NOT_MEMBER
+        ),
     }
-    _github_membership_cache[cache_key] = (now, result)
+    _github_membership_cache[cache_key] = (now + _GITHUB_CACHE_TTL, result)
     return result
