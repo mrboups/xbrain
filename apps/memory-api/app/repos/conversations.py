@@ -37,8 +37,17 @@ async def list_conversations(
     owner_user_id: UUID | None = None,
     limit: int = 50,
 ) -> list[Conversation]:
-    """List conversations scoped to a team. team_scope is REQUIRED — no default."""
-    stmt = select(Conversation).where(Conversation.team_scope == team_scope)
+    """List conversations scoped to a team. team_scope is REQUIRED — no default.
+
+    Phase 11 (BMO-07): soft-deleted conversations are hidden from the default
+    list. The Brain Monitor (`GET /v1/brain/events`) is the single surface
+    that may opt-in via `?include_deleted=true`. Read-paths outside
+    `routes/brain.py` must stay default-clean.
+    """
+    stmt = select(Conversation).where(
+        Conversation.team_scope == team_scope,
+        Conversation.deleted_at.is_(None),
+    )
     if owner_user_id is not None:
         stmt = stmt.where(Conversation.owner_user_id == owner_user_id)
     stmt = stmt.order_by(desc(Conversation.created_at)).limit(limit)
@@ -52,10 +61,18 @@ async def get_conversation(
     conversation_id: UUID,
     team_scope: str,
 ) -> Conversation | None:
-    """Return a conversation only if it belongs to team_scope. team_scope REQUIRED."""
+    """Return a conversation only if it belongs to team_scope. team_scope REQUIRED.
+
+    Phase 11 (BMO-07): soft-deleted conversations return None here so the
+    caller (`POST /v1/messages` upsert path; future GET endpoints) treats
+    them as gone. The brain monitor mutation endpoints reach soft-deleted
+    rows through `app.repos.brain.fetch_event_row` instead.
+    """
     result = await session.execute(
         select(Conversation).where(
-            (Conversation.id == conversation_id) & (Conversation.team_scope == team_scope)
+            (Conversation.id == conversation_id)
+            & (Conversation.team_scope == team_scope)
+            & (Conversation.deleted_at.is_(None))
         )
     )
     return result.scalar_one_or_none()

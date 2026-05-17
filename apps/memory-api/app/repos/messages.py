@@ -49,8 +49,17 @@ async def list_messages(
 
     SRCH-01/02 satisfied via Postgres tsvector on `content_tsv` (full-text, language-agnostic
     'simple' analyzer — Phase 2 will move to Qdrant vector search via mem0).
+
+    Phase 11 (BMO-07): soft-deleted messages are hidden from this list. The
+    Brain Monitor (`GET /v1/brain/events?entity_type=message`) is the only
+    surface that may opt-in via `?include_deleted=true`. Plan-check Iter 1
+    blocker B-3 — adding `routes/messages.py` coverage closes the regression
+    surface flagged in 11-RESEARCH §Q8 as "Likely missing, MEDIUM risk".
     """
-    stmt = select(Message).where(Message.team_scope == team_scope)
+    stmt = select(Message).where(
+        Message.team_scope == team_scope,
+        Message.deleted_at.is_(None),
+    )
     if conversation_id is not None:
         stmt = stmt.where(Message.conversation_id == conversation_id)
     if q:
@@ -71,8 +80,16 @@ async def get_message(
     message_id: UUID,
     team_scope: str,
 ) -> Message | None:
-    """Return message only if team_scope matches. team_scope REQUIRED."""
+    """Return message only if team_scope matches. team_scope REQUIRED.
+
+    Phase 11 (BMO-07): soft-deleted messages return None here. The brain
+    monitor reaches them through `app.repos.brain.fetch_event_row`.
+    """
     result = await session.execute(
-        select(Message).where((Message.id == message_id) & (Message.team_scope == team_scope))
+        select(Message).where(
+            (Message.id == message_id)
+            & (Message.team_scope == team_scope)
+            & (Message.deleted_at.is_(None))
+        )
     )
     return result.scalar_one_or_none()

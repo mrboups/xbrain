@@ -207,6 +207,11 @@ async def list_projects(
     """
     # Auth : tout utilisateur authentifié peut lire la liste des projets de sa team
     # (pas de restriction admin — les projets sont des informations non-sensibles)
+    # Phase 11 (BMO-07) — exclude soft-deleted admin:project rows from the
+    # listing. If an admin removes a project via the brain monitor (sets
+    # deleted_at via PATCH/DELETE on the memory_item), it should disappear
+    # from this listing immediately rather than waiting for the 30-day
+    # janitor purge.
     rows = await session.execute(
         sa.text(
             """
@@ -214,6 +219,7 @@ async def list_projects(
             FROM memory_items
             WHERE team_scope = :team_scope
               AND source = 'admin:project'
+              AND deleted_at IS NULL
             ORDER BY created_at DESC
             """
         ),

@@ -221,11 +221,16 @@ async def _maybe_create_task_from_action(item: MemoryItem, team_scope: str) -> N
             assigned_to = None
             assignee_email_resolved = None
             if assignee_email:
+                # Phase 11 (BMO-07) — never resolve a soft-deleted contact
+                # as the assignee for an auto-generated task. A soft-deleted
+                # contact often signals the human asked to be removed; we
+                # must not silently re-attach them via background ingest.
                 contact_row = (
                     await session.execute(
                         sa.text(
                             "SELECT id, email FROM contacts "
-                            "WHERE team_scope = :ts AND email = :em"
+                            "WHERE team_scope = :ts AND email = :em "
+                            "  AND deleted_at IS NULL"
                         ),
                         {"ts": team_scope, "em": assignee_email},
                     )

@@ -68,10 +68,19 @@ class TaskOut(BaseModel):
 async def _validate_assignee(
     session: AsyncSession, contact_id: UUID | None, team_scope: str
 ) -> None:
+    # Phase 11 (BMO-07) — exclude soft-deleted contacts so a tombstoned row
+    # cannot be assigned to a fresh task. The DELETE soft path in 11-05 only
+    # flips deleted_at; the row physically remains in `contacts` until the
+    # janitor purges it (30-day window). Treating soft-deleted as "not found"
+    # here returns the same 422 the route already produced for cross-team
+    # contacts — no new failure mode for callers.
     if contact_id is None:
         return
     row = (await session.execute(
-        sa.text("SELECT 1 FROM contacts WHERE id = :id AND team_scope = :ts"),
+        sa.text(
+            "SELECT 1 FROM contacts "
+            "WHERE id = :id AND team_scope = :ts AND deleted_at IS NULL"
+        ),
         {"id": str(contact_id), "ts": team_scope},
     )).fetchone()
     if row is None:
@@ -94,7 +103,11 @@ async def list_tasks(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ):
-    sql = "SELECT * FROM tasks WHERE team_scope = :ts"
+    # Phase 11 (BMO-07) — hide soft-deleted tasks from the default list.
+    # The Brain Monitor (11-04 `GET /v1/brain/events`) is the single surface
+    # that may opt in to soft-deleted rows via `?include_deleted=true`. This
+    # legacy endpoint stays default-clean — no new query param.
+    sql = "SELECT * FROM tasks WHERE team_scope = :ts AND deleted_at IS NULL"
     params: dict[str, Any] = {"ts": team_scope}
     if status:
         sql += " AND status = :st"
@@ -121,8 +134,14 @@ async def get_task(
     session: AsyncSession = Depends(get_session),
     team_scope: str = Depends(require_paid_tier),
 ):
+    # Phase 11 (BMO-07) — soft-deleted tasks 404 here. The brain monitor
+    # (`/v1/brain/events/task/{id}`) is the only path that surfaces deleted
+    # rows.
     row = (await session.execute(
-        sa.text("SELECT * FROM tasks WHERE id = :id AND team_scope = :ts"),
+        sa.text(
+            "SELECT * FROM tasks "
+            "WHERE id = :id AND team_scope = :ts AND deleted_at IS NULL"
+        ),
         {"id": str(task_id), "ts": team_scope},
     )).mappings().fetchone()
     if row is None:
@@ -177,9 +196,16 @@ async def create_task(
 
     # Phase 7 — notify assignee (D6, fail-soft via asyncio.create_task)
     if body.assigned_to:
+        # Phase 11 (BMO-07) — never email a soft-deleted contact (the row
+        # is a tombstone; the human may have asked for opt-out). If the
+        # contact was soft-deleted between assignment validation and this
+        # lookup, fail-soft: skip the email.
         contact = (
             await session.execute(
-                sa.text("SELECT email FROM contacts WHERE id = :id AND team_scope = :ts"),
+                sa.text(
+                    "SELECT email FROM contacts "
+                    "WHERE id = :id AND team_scope = :ts AND deleted_at IS NULL"
+                ),
                 {"id": str(body.assigned_to), "ts": team_scope},
             )
         ).fetchone()
@@ -255,9 +281,14 @@ async def update_task(
     # Phase 7 — notify new assignee if assigned_to changed (D6, fail-soft)
     body_assigned = body.model_dump(exclude_unset=True).get("assigned_to")
     if body_assigned is not None and str(body_assigned) != str(current.assigned_to or ""):
+        # Phase 11 (BMO-07) — mirror of the create path: never email a
+        # soft-deleted contact.
         contact = (
             await session.execute(
-                sa.text("SELECT email FROM contacts WHERE id = :id AND team_scope = :ts"),
+                sa.text(
+                    "SELECT email FROM contacts "
+                    "WHERE id = :id AND team_scope = :ts AND deleted_at IS NULL"
+                ),
                 {"id": str(body_assigned), "ts": team_scope},
             )
         ).fetchone()

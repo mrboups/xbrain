@@ -84,6 +84,10 @@ async def get_team_memory_bundle(
         }
 
     # Cache miss — rebuild.
+    # Phase 11 (BMO-07) — soft-deleted memory_items must NOT leak into the
+    # team-context bundle the LLM ingests. Without this filter, an item the
+    # author deleted via the brain monitor would still surface in every
+    # subsequent agent prompt for up to 30 days (janitor window).
     rows = (
         await session.execute(
             sa.text(
@@ -92,6 +96,7 @@ async def get_team_memory_bundle(
                 FROM memory_items
                 WHERE team_scope = :team_scope
                   AND truth_level IN ('WORKING', 'VALIDATED', 'CANONICAL')
+                  AND deleted_at IS NULL
                 ORDER BY created_at DESC
                 LIMIT :limit
                 """

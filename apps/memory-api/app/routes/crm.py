@@ -71,7 +71,10 @@ async def list_contacts(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ):
-    sql = "SELECT * FROM contacts WHERE team_scope = :ts"
+    # Phase 11 (BMO-07) — hide soft-deleted contacts from the default list.
+    # The Brain Monitor (11-04 `GET /v1/brain/events`) is the single surface
+    # that opts into deleted rows via `?include_deleted=true`.
+    sql = "SELECT * FROM contacts WHERE team_scope = :ts AND deleted_at IS NULL"
     params: dict[str, Any] = {"ts": team_scope}
     if contact_type:
         sql += " AND contact_type = :ct"
@@ -89,8 +92,13 @@ async def get_contact(
     session: AsyncSession = Depends(get_session),
     team_scope: str = Depends(require_paid_tier),
 ):
+    # Phase 11 (BMO-07) — soft-deleted contacts 404 here. The brain monitor
+    # surfaces them via `/v1/brain/events/contact/{id}` instead.
     row = (await session.execute(
-        sa.text("SELECT * FROM contacts WHERE id = :id AND team_scope = :ts"),
+        sa.text(
+            "SELECT * FROM contacts "
+            "WHERE id = :id AND team_scope = :ts AND deleted_at IS NULL"
+        ),
         {"id": str(contact_id), "ts": team_scope},
     )).mappings().fetchone()
     if row is None:
