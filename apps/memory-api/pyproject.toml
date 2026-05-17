@@ -22,6 +22,7 @@ dependencies = [
   "cryptography>=42.0.0",  # Phase 3 plan 03-10: Fernet encryption for OAuth credentials at rest
   "aiosmtplib>=3.0.0",   # Phase 7 plan 07-06: async SMTP for task notifications
   "anthropic>=0.50.0",   # Phase 7 plan 07-06: Claude (Haiku) for CRM contact + task extraction
+  "boto3>=1.35",  # Phase 11 plan 11-10: MinIO/S3 client for superadmin storage metrics (lazy-imported)
   "xbrain-memory @ file:///app/packages/memory-models",  # path mounted in compose build
 ]
 

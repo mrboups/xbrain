@@ -90,6 +90,19 @@ class Settings(BaseSettings):
     # insert response.
     AGENT_RUNTIME_INTERNAL_URL: str = "http://agent-runtime:8200"
 
+    # Phase 11 plan 11-10 — Brain Monitor superadmin dashboard storage metrics.
+    # MinIO/S3 credentials for the /v1/admin/brain/storage endpoint to report
+    # bytes per team. Defaults empty -> get_minio_client() returns None
+    # (fail-soft -> dashboard column shows "N/A").
+    MINIO_URL: str = ""
+    MINIO_ACCESS_KEY: str = ""
+    MINIO_SECRET_KEY: str = ""
+    MINIO_BUCKET: str = "xbrain"
+    # Qdrant collection name used by /v1/admin/brain/storage. Defaults to
+    # "messages" (the name xbrain actually uses in qdrant_setup.py:11). The
+    # docker-compose env QDRANT_COLLECTION can override per-environment.
+    QDRANT_COLLECTION: str = "messages"
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}
