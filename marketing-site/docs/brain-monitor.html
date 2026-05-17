@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="xbrain Brain Monitor — universal per-team feed of memories, conversations, tasks, contacts with truth-level editing, soft-delete, and a superadmin cross-team dashboard.">
+  <title>Brain Monitor — xbrain Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body class="bg-white text-gray-900">
+
+  <!-- NAV -->
+  <nav class="xb-nav" role="navigation" aria-label="Main navigation">
+    <div class="xb-nav__inner">
+      <a href="../index.html" class="xb-nav__logo" aria-label="xbrain home">xbrain</a>
+      <ul class="xb-nav__links">
+        <li><a href="index.html" class="xb-nav__link">Docs</a></li>
+        <li>
+          <a href="https://github.com/mrboups/xbrain"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="xb-nav__link">GitHub</a>
+        </li>
+        <li>
+          <a href="deployment.html" class="btn-primary" style="padding: 8px 18px; font-size: 0.875rem;">
+            Deploy
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- DOCS LAYOUT -->
+  <div class="docs-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" role="complementary" aria-label="Documentation navigation">
+      <nav>
+        <div class="sidebar__section">
+          <p class="sidebar__section-title">Documentation</p>
+          <ul class="sidebar__links">
+            <li><a href="index.html" class="sidebar__link">Getting Started</a></li>
+            <li><a href="architecture.html" class="sidebar__link">Architecture</a></li>
+            <li><a href="memory.html" class="sidebar__link">Memory System</a></li>
+            <li><a href="brain-monitor.html" class="sidebar__link active" aria-current="page">Brain Monitor</a></li>
+            <li><a href="teams.html" class="sidebar__link">Teams &amp; Scopes</a></li>
+            <li><a href="chat.html" class="sidebar__link">Chat Interfaces</a></li>
+            <li><a href="mcp-tools.html" class="sidebar__link">MCP Tools</a></li>
+            <li><a href="drive-sync.html" class="sidebar__link">Drive Sync</a></li>
+            <li><a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a></li>
+            <li><a href="github-auth.html" class="sidebar__link">GitHub Auth</a></li>
+            <li><a href="agents.html" class="sidebar__link">Agents</a></li>
+            <li><a href="graphiti.html" class="sidebar__link">Graphiti</a></li>
+            <li><a href="crm.html" class="sidebar__link">CRM &amp; Contacts</a></li>
+            <li><a href="tasks.html" class="sidebar__link">Task Tracking</a></li>
+            <li><a href="meetings.html" class="sidebar__link">Meeting Integration</a></li>
+            <li><a href="api-reference.html" class="sidebar__link">API Reference</a></li>
+            <li><a href="deployment.html" class="sidebar__link">Open Source Deploy</a></li>
+            <li><a href="configuration.html" class="sidebar__link">Configuration</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="docs-content" role="main">
+
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <div class="breadcrumb__item">
+          <a href="index.html" class="breadcrumb__link">Docs</a>
+          <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        </div>
+        <span class="breadcrumb__current">Brain Monitor</span>
+      </nav>
+
+      <h1>Brain Monitor</h1>
+
+      <div class="docs-meta">
+        <span class="docs-meta__badge">Phase 11</span>
+        <span>7 entity types</span>
+        <span>Soft-delete + 30-day retention</span>
+        <span>Migration 0017 + 0018</span>
+      </div>
+
+      <!-- OVERVIEW -->
+      <h2>What the Brain Monitor does</h2>
+      <p>
+        The Brain Monitor is a single-page view of <strong>everything currently entering your team's
+        brain</strong> &mdash; memories, conversations, messages, tasks, contacts, Granola transcripts.
+        Instead of seven separate admin pages, the monitor streams all seven entity types into a
+        unified, filterable, paginated feed scoped to one team at a time.
+      </p>
+      <p>
+        It is the operator console for the memory layer. You open it to see what your team is
+        producing right now, to flip an item's <code>truth_level</code> from <code>WORKING</code> to
+        <code>VALIDATED</code> after a peer review, to delete a piece of noise (soft delete &mdash;
+        recoverable for 30 days), or to drill in as a superadmin and inspect another team's brain
+        cross-team.
+      </p>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Universal truth-level contract</p>
+        <p>
+          From Phase 11 on, <strong>every entity table</strong> written by xbrain (not just
+          <code>memory_items</code>) carries the three Brain Monitor columns: <code>truth_level</code>,
+          <code>deleted_at</code>, <code>deleted_by</code>. Adding a new entity table after Phase 11
+          requires these columns by default.
+        </p>
+      </div>
+
+      <!-- HOW TO ACCESS -->
+      <h2>How to access</h2>
+      <p>
+        The Brain Monitor lives on app-site at the team-scoped URL:
+      </p>
+      <pre class="code-block"><code><span class="code-block__label">url</span>https://app.grooveos.app/account/teams/brain/?team=&lt;team-slug&gt;</code></pre>
+      <p>
+        You must be signed in (GitHub OAuth via Phase 10) and you must be a member of the team. The
+        page reads your <code>xbt_</code> token from <code>localStorage</code>; the API enforces
+        <code>X-Team-Scope</code> server-side, so you cannot bypass team isolation by editing the URL.
+      </p>
+
+      <!-- TRUTH LEVELS -->
+      <h2>Truth levels &mdash; the 5-level epistemic ladder</h2>
+      <p>
+        Every Brain Monitor row carries a <code>truth_level</code> badge. The five levels form a
+        one-way progression: you can promote a fact forward (e.g. <code>WORKING &rarr; VALIDATED</code>),
+        but you cannot demote it without an explicit workflow.
+      </p>
+
+      <!-- EPHEMERAL -->
+      <div style="border: 1px solid #E5E7EB; border-radius: 10px; padding: 20px 24px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; background: #F3F4F6; color: #374151; font-size: 13px; font-weight: 700; letter-spacing: 0.04em;">EPHEMERAL</span>
+          <span style="font-size: 13px; color: #6B7280;">Level 0 &mdash; Raw output</span>
+        </div>
+        <p style="margin: 0; color: #374151; font-size: 0.9375rem; line-height: 1.6;">
+          Raw chat output, web clips, draft notes. Unverified. The default level for anything that
+          enters xbrain without explicit classification.
+        </p>
+      </div>
+
+      <!-- WORKING -->
+      <div style="border: 1px solid #BFDBFE; border-radius: 10px; padding: 20px 24px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; background: #DBEAFE; color: #1D4ED8; font-size: 13px; font-weight: 700; letter-spacing: 0.04em;">WORKING</span>
+          <span style="font-size: 13px; color: #6B7280;">Level 1 &mdash; In-progress knowledge</span>
+        </div>
+        <p style="margin: 0; color: #374151; font-size: 0.9375rem; line-height: 1.6;">
+          In-progress knowledge actively used but not yet validated. Most team knowledge lives here.
+        </p>
+      </div>
+
+      <!-- VALIDATED -->
+      <div style="border: 1px solid #A7F3D0; border-radius: 10px; padding: 20px 24px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; background: #D1FAE5; color: #065F46; font-size: 13px; font-weight: 700; letter-spacing: 0.04em;">VALIDATED</span>
+          <span style="font-size: 13px; color: #6B7280;">Level 2 &mdash; Peer-reviewed</span>
+        </div>
+        <p style="margin: 0; color: #374151; font-size: 0.9375rem; line-height: 1.6;">
+          Peer-reviewed: at least one team member has explicitly approved this fact.
+        </p>
+      </div>
+
+      <!-- CANONICAL -->
+      <div style="border: 1px solid #DDD6FE; border-radius: 10px; padding: 20px 24px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; background: #EDE9FE; color: #5B21B6; font-size: 13px; font-weight: 700; letter-spacing: 0.04em;">CANONICAL</span>
+          <span style="font-size: 13px; color: #6B7280;">Level 3 &mdash; Team truth</span>
+        </div>
+        <p style="margin: 0; color: #374151; font-size: 0.9375rem; line-height: 1.6;">
+          The definitive answer your team has agreed on. CANONICAL facts are injected automatically
+          in agent runs via system prompts.
+        </p>
+      </div>
+
+      <!-- PUBLIC -->
+      <div style="border: 1px solid #FDE68A; border-radius: 10px; padding: 20px 24px; margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; background: #FEF3C7; color: #92400E; font-size: 13px; font-weight: 700; letter-spacing: 0.04em;">PUBLIC</span>
+          <span style="font-size: 13px; color: #6B7280;">Level 4 &mdash; Published externally</span>
+        </div>
+        <p style="margin: 0; color: #374151; font-size: 0.9375rem; line-height: 1.6;">
+          Shareable outside the team. Requires explicit promotion from CANONICAL.
+        </p>
+      </div>
+
+      <!-- EDIT INLINE -->
+      <h2>Editing a row inline</h2>
+      <p>
+        Each Brain Monitor row exposes a <strong>truth_level dropdown</strong> on the right. Click it,
+        pick a new level, the change is sent immediately as a <code>PATCH</code> against the underlying
+        entity:
+      </p>
+      <pre class="code-block"><code><span class="code-block__label">bash</span>PATCH /v1/brain/events/&lt;entity_type&gt;/&lt;entity_id&gt;
+Authorization: Bearer xbt_...
+X-Team-Scope: &lt;slug&gt;
+Content-Type: application/json
+
+{"truth_level": "VALIDATED"}</code></pre>
+      <p>
+        On success the row re-renders with the new badge. On 403 (you tried to edit something you
+        didn't author, see Permissions below) a toast surfaces:
+      </p>
+      <pre class="code-block"><code><span class="code-block__label">toast</span>You can only edit items you created. Contact a team admin to modify
+items created by others.</code></pre>
+
+      <!-- DELETE + RESTORE -->
+      <h2>Deleting and restoring &mdash; 30-day window</h2>
+      <p>
+        Every row has a <strong>Delete</strong> button. Confirming it issues a
+        <code>DELETE /v1/brain/events/&lt;entity_type&gt;/&lt;entity_id&gt;</code>:
+      </p>
+      <ul>
+        <li>The DB row is <strong>not</strong> physically removed &mdash; <code>deleted_at</code> is
+          set to now and <code>deleted_by</code> records who did it.</li>
+        <li>The Qdrant payload (for vector-backed entities &mdash; <code>memory_item</code>,
+          <code>granola_note</code>) is marked with <code>deleted_at_ts</code> in the same operation,
+          so semantic search immediately stops returning the item.</li>
+        <li>Every consuming endpoint (<code>/v1/memory/search</code>, <code>/v1/tasks</code>,
+          <code>/v1/crm/contacts</code>, etc.) excludes <code>deleted_at IS NOT NULL</code> rows
+          from now on.</li>
+      </ul>
+
+      <p>
+        Within the next <strong>30 days</strong> the row is recoverable. In the Brain Monitor, flip
+        the <strong>Show deleted</strong> toggle &mdash; deleted rows appear faded with a
+        <strong>Restore</strong> button. Clicking it:
+      </p>
+      <pre class="code-block"><code><span class="code-block__label">bash</span>POST /v1/brain/events/&lt;entity_type&gt;/&lt;entity_id&gt;/restore
+Authorization: Bearer xbt_...
+X-Team-Scope: &lt;slug&gt;</code></pre>
+      <p>
+        Returns 200 and <code>deleted_at</code> is set back to NULL. The row is fully visible again.
+      </p>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">After 30 days &mdash; brain-janitor purges hard</p>
+        <p>
+          A daily cron (<code>xbrain-brain-janitor</code> container) runs at 03:00 UTC. Rows with
+          <code>deleted_at &lt; NOW() - INTERVAL '30 days'</code> are hard-deleted from Postgres,
+          Qdrant, and Neo4j in that order. After that point the row is unrecoverable.
+        </p>
+      </div>
+
+      <!-- ENTITY TYPES -->
+      <h2>The 7 entity types covered</h2>
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th><code>entity_type</code></th>
+            <th>Underlying table</th>
+            <th>Vector-backed</th>
+            <th>Has <code>created_by</code></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>memory_item</code></td>
+            <td><code>memory_items</code></td>
+            <td>Yes (Qdrant)</td>
+            <td>No (admin-only edit)</td>
+          </tr>
+          <tr>
+            <td><code>granola_note</code></td>
+            <td><code>memory_items</code> (filtered on <code>source='granola'</code>)</td>
+            <td>Yes (Qdrant)</td>
+            <td>No (admin-only edit)</td>
+          </tr>
+          <tr>
+            <td><code>conversation</code></td>
+            <td><code>conversations</code></td>
+            <td>No</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><code>message</code></td>
+            <td><code>messages</code></td>
+            <td>No</td>
+            <td>No (admin-only edit)</td>
+          </tr>
+          <tr>
+            <td><code>team_message</code></td>
+            <td><code>team_messages</code></td>
+            <td>No</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><code>task</code></td>
+            <td><code>tasks</code></td>
+            <td>No</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><code>contact</code></td>
+            <td><code>contacts</code></td>
+            <td>No</td>
+            <td>No (admin-only edit)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- PERMISSIONS -->
+      <h2>Permissions</h2>
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>View team brain</th>
+            <th>Edit own items</th>
+            <th>Edit any item</th>
+            <th>Delete + restore</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Member</td>
+            <td>Yes</td>
+            <td>Yes</td>
+            <td>No (403)</td>
+            <td>Own items only</td>
+          </tr>
+          <tr>
+            <td>Team admin (<code>team_members.role='admin'</code>)</td>
+            <td>Yes</td>
+            <td>Yes</td>
+            <td>Yes</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td>Superadmin (sub in <code>ADMIN_USER_SUBS</code>)</td>
+            <td>Every team (drill-down, audited)</td>
+            <td>n/a (v1 read-only)</td>
+            <td>No (v1 read-only)</td>
+            <td>No (v1 read-only)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Why admin-only for some types</p>
+        <p>
+          <code>memory_items</code>, <code>contacts</code>, and <code>messages</code> have no
+          <code>created_by</code> column in the current schema (legacy from Phase 2 / Phase 7). The
+          author check therefore cannot run, so a member cannot edit these &mdash; only a team admin
+          can. A future migration can add <code>created_by</code> to lift this restriction.
+        </p>
+      </div>
+
+      <!-- POLLING -->
+      <h2>Live updates &mdash; 30-second polling</h2>
+      <p>
+        The Brain Monitor uses a 30-second polling cycle (not WebSockets, not SSE &mdash; locked v1
+        choice). Every cycle, the page calls <code>GET /v1/brain/events?since=&lt;last-seen-iso&gt;</code>
+        and prepends any new rows to the top of the table.
+      </p>
+      <ul>
+        <li>Existing rows are <strong>never re-rendered</strong> &mdash; if you opened a row's
+          dropdown 5 s ago, it stays open.</li>
+        <li>Your <strong>scroll position is preserved</strong> &mdash; prepending happens above the
+          viewport.</li>
+        <li>The page tab being backgrounded does not stop the cycle.</li>
+      </ul>
+
+      <!-- SUPERADMIN -->
+      <h2>Superadmin dashboard &mdash; cross-team visibility</h2>
+      <p>
+        A second page at <code>/account/admin/</code> grants <strong>superadmins</strong> a
+        cross-team view of every team's brain. Superadmins are defined server-side by the
+        <code>ADMIN_USER_SUBS</code> env var (a comma-separated list of user subs &mdash;
+        e.g. <code>google:115...,github:mrboups</code>). Anyone whose sub is in that list can open
+        the dashboard.
+      </p>
+
+      <h3>Who is a superadmin?</h3>
+      <p>
+        Adding a new superadmin is a deliberate operator action with privacy implications. The
+        workflow is:
+      </p>
+      <ol>
+        <li>Edit <code>infrastructure/.env</code> on the VM: append a sub to
+          <code>ADMIN_USER_SUBS</code>.</li>
+        <li><code>docker compose restart memory-api</code> &mdash; the gate (<code>_is_admin()</code>)
+          re-reads the env at startup.</li>
+        <li>The new principal can now open <code>/account/admin/</code>. There is no UI flow to add
+          a superadmin &mdash; this is intentional (no privilege escalation path from inside the
+          app).</li>
+      </ol>
+
+      <h3>The 4 sections</h3>
+      <table class="docs-table">
+        <thead>
+          <tr>
+            <th>Section</th>
+            <th>What it shows</th>
+            <th>Endpoint</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Brain Overview</td>
+            <td>Per-team matrix &mdash; counts &times; entity_type &times; truth_level. Hover a cell
+              for the per-level breakdown.</td>
+            <td><code>GET /v1/admin/brain/overview</code></td>
+          </tr>
+          <tr>
+            <td>Storage</td>
+            <td>Per-team Postgres rows + Qdrant points + MinIO bytes (human-formatted). Cells
+              showing N/A mean Qdrant or MinIO was unreachable during this fetch &mdash; the page
+              fails soft.</td>
+            <td><code>GET /v1/admin/brain/storage</code></td>
+          </tr>
+          <tr>
+            <td>Activity</td>
+            <td>30-day events/day sparklines per team. Inline SVG &mdash; no chart library.</td>
+            <td><code>GET /v1/admin/brain/activity</code></td>
+          </tr>
+          <tr>
+            <td>Top Sources</td>
+            <td>Top-5 source labels per team plus an "other" bucket (LibreChat, OWUI, Granola,
+              agent-runtime, API, etc. &mdash; discovered dynamically).</td>
+            <td><code>GET /v1/admin/brain/sources</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Drill-down with audit</h3>
+      <p>
+        Clicking <strong>Drill down &rarr;</strong> on any team row in Brain Overview navigates to:
+      </p>
+      <pre class="code-block"><code><span class="code-block__label">url</span>https://app.grooveos.app/account/teams/brain/?team=&lt;slug&gt;&amp;as_superadmin=1</code></pre>
+      <p>
+        The page renders a <strong>yellow banner</strong>:
+      </p>
+      <blockquote style="margin: 16px 0; padding: 12px 16px; border-left: 4px solid #D29922; background: #FEF7E0; color: #6B5300; font-size: 14px;">
+        Viewing as superadmin &mdash; this access is logged.
+      </blockquote>
+      <p>
+        The Brain Monitor table loads exactly as it would for a team member, except:
+      </p>
+      <ul>
+        <li>All Edit / Delete / Restore controls are hidden (v1 superadmin drill-down is
+          <strong>read-only</strong>).</li>
+        <li>Both the initial load and every 30-second poll cycle go through
+          <code>GET /v1/admin/brain/events?team_slug=&lt;slug&gt;</code> instead of the team-scoped
+          endpoint.</li>
+        <li>Every call writes a synchronous <code>audit_log</code> row with
+          <code>action='superadmin_brain_access'</code> <strong>before</strong> any data is read.
+          If the audit write fails, the server returns 500 and serves nothing &mdash; there is no
+          unaudited read path.</li>
+      </ul>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">No break-glass / opt-in in v1</p>
+        <p>
+          A superadmin gets full content visibility on drill-down. Team admins are <strong>not</strong>
+          pre-notified. The audit row is the trace, not the consent. A break-glass / opt-in approval
+          workflow is deferred to a later phase.
+        </p>
+      </div>
+
+      <h3>Lockdown</h3>
+      <p>
+        Set <code>ADMIN_USER_SUBS=""</code> (empty) on the VM and restart memory-api &mdash; all five
+        <code>/v1/admin/brain/*</code> endpoints return 403 for every caller, including a principal
+        that was previously a superadmin. This is the kill-switch for the cross-team scope.
+      </p>
+
+      <!-- DEEPER READING -->
+      <h2>Deeper reading</h2>
+      <ul>
+        <li><a href="memory.html">Memory System</a> &mdash; the original 5-truth-level model the
+          Brain Monitor generalises to every entity table.</li>
+        <li><a href="teams.html">Teams &amp; Scopes</a> &mdash; the <code>X-Team-Scope</code> header
+          and team isolation rules the Brain Monitor enforces on every read and write.</li>
+        <li><a href="api-reference.html">API Reference</a> &mdash; full endpoint specs for
+          <code>/v1/brain/events</code> and <code>/v1/admin/brain/*</code>.</li>
+      </ul>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer id="footer" class="xb-footer" role="contentinfo">
+    <div class="xb-footer__inner">
+      <div class="xb-footer__grid">
+
+        <div>
+          <h3 class="xb-footer__col-title">Documentation</h3>
+          <ul class="xb-footer__links">
+            <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
+            <li><a href="architecture.html" class="xb-footer__link">Architecture</a></li>
+            <li><a href="api-reference.html" class="xb-footer__link">API Reference</a></li>
+            <li><a href="deployment.html" class="xb-footer__link">Deployment Guide</a></li>
+            <li><a href="configuration.html" class="xb-footer__link">Configuration</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="xb-footer__col-title">Features</h3>
+          <ul class="xb-footer__links">
+            <li><a href="memory.html" class="xb-footer__link">Memory System</a></li>
+            <li><a href="brain-monitor.html" class="xb-footer__link">Brain Monitor</a></li>
+            <li><a href="mcp-tools.html" class="xb-footer__link">MCP Tools</a></li>
+            <li><a href="drive-sync.html" class="xb-footer__link">Drive Sync</a></li>
+            <li><a href="chrome-ext.html" class="xb-footer__link">Chrome Extension</a></li>
+            <li><a href="github-auth.html" class="xb-footer__link">GitHub Auth</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="xb-footer__col-title">Project</h3>
+          <ul class="xb-footer__links">
+            <li>
+              <a href="https://github.com/mrboups/xbrain"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link"
+                 style="display: flex; align-items: center; gap: 8px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+                GitHub
+              </a>
+            </li>
+            <li>
+              <a href="https://github.com/mrboups/xbrain/blob/main/LICENSE"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">
+                License (MIT)
+              </a>
+            </li>
+            <li>
+              <a href="https://github.com/mrboups/xbrain/issues"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="xb-footer__link">
+                Report an Issue
+              </a>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+
+      <div class="xb-footer__bottom">
+        <span class="xb-footer__copyright">
+          &copy; 2026 xbrain &mdash; Open Source AI Memory OS
+        </span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-block; width: 8px; height: 8px; background: #34D399; border-radius: 50%;"></span>
+          <span style="font-size: 0.8125rem; color: #6B7280;">Self-hosted. No telemetry. Your data stays yours.</span>
+        </div>
+      </div>
+
+    </div>
+  </footer>
+
+</body>
+</html>
