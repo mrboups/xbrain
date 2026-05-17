@@ -229,22 +229,53 @@ curl -X POST https://api.grooveos.app/v1/memory/upsert \
       <h2>User Management</h2>
 
       <p>
-        Users authenticate via Google OAuth (SSO) — the same identity works across LibreChat and
-        Open WebUI. xbrain uses the OIDC claims from Google to build a stable user identity.
+        Since Phase 10 the <strong>primary sign-in path is GitHub</strong>. Phase 12 then migrated
+        that path from the legacy OAuth App to a <strong>GitHub App</strong> (Client ID
+        <code>Iv23liVnZvIN0Lo6isof</code>), which supports multi-callback (web + Chrome extension),
+        short-lived installation tokens, refresh tokens (~6 month rolling sessions), and
+        install/uninstall webhooks. Google OAuth is preserved as a legacy fallback for
+        backward-compatible LibreChat / Open WebUI sign-ins.
       </p>
 
       <ul>
-        <li><strong>source_user_id</strong> — OIDC <code>sub</code> claim from Google (e.g. <code>google:108765432109876543</code>) or <code>github:{login}</code> for GitHub-authenticated users</li>
-        <li><strong>Admin users</strong> — configured via the <code>ADMIN_USER_SUBS</code> environment variable (comma-separated list of Google <code>sub</code> claims)</li>
-        <li><strong>Team membership</strong> — managed via the memory-api admin endpoints; a user can belong to multiple teams</li>
+        <li><strong>source_user_id</strong> — OIDC <code>sub</code> claim. Format:
+          <code>github:{login}</code> for GitHub-authenticated users (primary),
+          <code>google:108765432109876543</code> for legacy Google OAuth users.</li>
+        <li><strong>Superadmins</strong> — configured via the <code>ADMIN_USER_SUBS</code> env var
+          (comma-separated subs). Superadmins gate access to the
+          <code>/v1/admin/brain/*</code> dashboard endpoints introduced in Phase 11.</li>
+        <li><strong>Team membership</strong> — managed via the memory-api admin endpoints, or
+          auto-granted on the basis of GitHub Org membership (Phase 10).</li>
       </ul>
+
+      <h3>GitHub App install flow</h3>
+      <p>
+        After signing in, if the user's primary GitHub org has not yet installed the xbrain App,
+        <code>POST /v1/auth/github/signin</code> returns
+        <code>{install_required: true, install_url, org_login}</code> instead of an
+        <code>xbt_</code> token. The web app renders a banner with an
+        <em>Install xbrain on &lt;org&gt;</em> button. An org admin completes the GitHub install
+        screen (xbrain only requests Read on org members + account email + profile — no repo
+        permissions), at which point auto-grant team membership kicks in on the next sign-in.
+      </p>
+
+      <h3>Identity precedence</h3>
+      <p>
+        If a user has authenticated previously via Google and then re-authenticates via the GitHub
+        App, the two identities are merged on the same <code>users.id</code> via the
+        <code>users.github_id</code> field. Subsequent calls under either Bearer type resolve to
+        the same internal principal.
+      </p>
 
       <div class="callout callout--info">
         <p class="callout__title">Single Identity Across Frontends</p>
         <p>
-          Because both LibreChat and Open WebUI use Google OAuth with the same
-          <code>GOOGLE_CLIENT_ID</code>, a user's identity is consistent across all xbrain frontends.
-          The <code>source_user_id</code> is always derived from the same Google <code>sub</code> claim.
+          The xbrain GitHub App backs both the web app
+          (<code>https://grooveos.app/account/teams/</code>) and the Chrome extension
+          (<code>https://anigikcnmldoklcmogffmgcojdhhficb.chromiumapp.org/</code>) via two
+          callback URLs registered on the same App. A single sign-in on either surface produces
+          the same identity. LibreChat / Open WebUI on Google OAuth continue to map onto the same
+          <code>users</code> row via merged identity.
         </p>
       </div>
 

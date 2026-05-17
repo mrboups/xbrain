@@ -81,8 +81,21 @@
 
       <div class="docs-meta">
         <span class="docs-meta__badge">Phase 5</span>
+        <span class="docs-meta__badge">Phase 12</span>
         <span>Manifest V3</span>
-        <span>Developer mode install</span>
+        <span>Stable ID via <code>manifest.json "key"</code></span>
+      </div>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Phase 12 — GitHub App auth + stable extension ID</p>
+        <p>
+          As of Phase 12 the extension authenticates via the <strong>xbrain GitHub App</strong>
+          (Client ID <code>Iv23liVnZvIN0Lo6isof</code>) instead of Google directly. The extension's
+          <code>chrome.runtime.id</code> is pinned to
+          <code>anigikcnmldoklcmogffmgcojdhhficb</code> via a <code>"key"</code> field in the
+          manifest so the OAuth callback URL
+          <code>https://&lt;ext-id&gt;.chromiumapp.org/</code> stays valid across dev machines.
+        </p>
       </div>
 
       <!-- WHAT IS IT -->
@@ -95,8 +108,11 @@
       </p>
       <p>
         The extension uses Chrome's native identity API (<code>launchWebAuthFlow</code>) for
-        authentication with your Google account. No passwords are stored in the extension — only the
-        Google ID token, which is sent as the Bearer token to memory-api.
+        authentication. Post-Phase 12, it goes through the <strong>xbrain GitHub App</strong>:
+        the auth popup lands on GitHub's consent screen, the OAuth code is sent to
+        <code>POST /v1/auth/github/signin</code>, and the response gives an <code>xbt_</code>
+        session token that the extension keeps in <code>chrome.storage.local</code> and forwards
+        as the Bearer token to memory-api.
       </p>
 
       <!-- INSTALLATION -->
@@ -123,46 +139,58 @@
       <!-- MANIFEST -->
       <h2>Extension Manifest</h2>
       <p>
-        The extension uses Manifest V3 with Chrome's Google Identity API. Below is the actual
-        <code>manifest.json</code> from the <code>chrome-extension/</code> directory:
+        The extension uses Manifest V3. Authentication goes through
+        <code>chrome.identity.launchWebAuthFlow</code> with the xbrain GitHub App
+        (post-Phase 12). The <code>"key"</code> field at the top pins the extension ID across
+        all unpacked installs — without it, every developer's clone would generate a different
+        <code>chromiumapp.org</code> callback URL and the GitHub App's registered callback
+        would mismatch.
       </p>
       <pre class="code-block"><span class="code-block__label">chrome-extension/manifest.json</span>{
   "manifest_version": 3,
   "name": "xbrain Web Clipper",
-  "version": "1.0.0",
-  "description": "Envoyez du contenu web dans le brain xbrain de votre équipe",
+  "version": "1.1.0",
+  "description": "Send web content to your team's xbrain memory",
+
+  // Pins chrome.runtime.id to anigikcnmldoklcmogffmgcojdhhficb (Phase 12).
+  // See .planning/KB/chrome-extension-key.md for keypair derivation.
+  "key": "MIIBIj...your-public-key-base64...",
+
   "permissions": ["identity", "activeTab", "storage"],
-  "background": {
-    "service_worker": "background.js"
-  },
+  "background": { "service_worker": "background.js" },
   "action": {
     "default_popup": "popup.html",
-    "default_icon": {
-      "48": "icon48.png",
-      "128": "icon128.png"
-    }
+    "default_icon": { "48": "icon48.png", "128": "icon128.png" }
   },
   "content_scripts": [
-    {
-      "matches": ["&lt;all_urls&gt;"],
-      "js": ["content.js"]
-    }
+    { "matches": ["&lt;all_urls&gt;"], "js": ["content.js"] }
   ],
-  "oauth2": {
-    "client_id": "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
-    "scopes": ["openid", "email", "profile"]
-  },
   "host_permissions": [
-    "https://api.grooveos.app/*"
+    "https://api.grooveos.app/*",
+    "https://grooveos.app/*",
+    "https://github.com/*"
   ]
 }</pre>
 
-      <div class="callout callout--warning">
-        <p class="callout__title">Configuration required</p>
+      <div class="callout callout--info">
+        <p class="callout__title">Where the GitHub App client_id lives</p>
         <p>
-          Replace <code>host_permissions</code> with your actual memory-api URL
-          (e.g. <code>https://api.yourdomain.com/*</code>) and set <code>oauth2.client_id</code>
-          to your Google OAuth client ID before loading the extension.
+          The constant <code>GITHUB_CLIENT_ID = "Iv23liVnZvIN0Lo6isof"</code> lives in
+          <code>chrome-extension/background.js</code>. It is shared with the web app
+          (<code>app-site/account/teams/teams.js</code>) because GitHub Apps accept multiple
+          callback URLs, so the same App backs both surfaces.
+        </p>
+      </div>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Re-deriving the extension ID</p>
+        <p>
+          If you regenerate the keypair (lost <code>manifest.json "key"</code>), the new
+          <code>chrome.runtime.id</code> will not match the GitHub App's registered callback. You
+          must either (a) restore the original <code>"key"</code> from
+          <code>~/.config/xbrain/secrets/chrome-extension-key/</code>, or (b) re-derive the ID via the
+          procedure in <code>.planning/KB/chrome-extension-key.md</code> and edit the GitHub App
+          settings to add the new <code>https://&lt;new-id&gt;.chromiumapp.org/</code> callback.
         </p>
       </div>
 
@@ -212,11 +240,12 @@ popup.html (user selects truth level, clicks Send)
     │
     ▼
 background.js (service worker)
-    │ chrome.identity.launchWebAuthFlow → Google ID token
-    │
+    │ chrome.identity.launchWebAuthFlow → GitHub OAuth code
+    │ POST /v1/auth/github/signin → xbt_ session token (Phase 12)
+    │ stored in chrome.storage.local
     ▼
 POST https://api.grooveos.app/v1/memory/upsert
-Authorization: Bearer {google_id_token}
+Authorization: Bearer {xbt_token}
 X-Team-Scope: {team_from_storage}
 {
   "item": {
@@ -253,7 +282,7 @@ app.add_middleware(
 
       <!-- CONFIG -->
       <h2>Configuring for Your Deployment</h2>
-      <p>Three values in <code>manifest.json</code> must be updated before loading the extension:</p>
+      <p>The values you must align before loading a fresh build:</p>
       <table class="docs-table">
         <thead>
           <tr>
@@ -266,12 +295,21 @@ app.add_middleware(
           <tr>
             <td><code>host_permissions</code></td>
             <td>manifest.json</td>
-            <td>Your memory-api URL, e.g. <code>https://api.yourdomain.com/*</code></td>
+            <td>Your memory-api URL + grooveos.app + github.com (for the OAuth flow)</td>
           </tr>
           <tr>
-            <td><code>oauth2.client_id</code></td>
+            <td><code>"key"</code></td>
             <td>manifest.json</td>
-            <td>Your Google OAuth client ID (same as <code>GOOGLE_CLIENT_ID</code> in <code>.env</code>)</td>
+            <td>Base64 public key — pins <code>chrome.runtime.id</code> to
+              <code>anigikcnmldoklcmogffmgcojdhhficb</code>. See
+              <code>.planning/KB/chrome-extension-key.md</code>.</td>
+          </tr>
+          <tr>
+            <td><code>GITHUB_CLIENT_ID</code></td>
+            <td>background.js</td>
+            <td>Your GitHub App client ID. Default for the public xbrain build:
+              <code>Iv23liVnZvIN0Lo6isof</code>. Self-hosters must replace with their own App's
+              Client ID and re-register both callback URLs.</td>
           </tr>
           <tr>
             <td>team_scope</td>
@@ -282,11 +320,13 @@ app.add_middleware(
       </table>
 
       <div class="callout callout--info">
-        <p class="callout__title">OAuth client ID</p>
+        <p class="callout__title">Why share a client_id between web + extension?</p>
         <p>
-          The Google OAuth <code>client_id</code> in the manifest is a public value — it is safe
-          to commit to the repository. It identifies your OAuth app to Google but contains no secret.
-          The actual authentication is secured by the ID token signature verification in memory-api.
+          GitHub Apps support multiple callback URLs. Setting two callbacks
+          (<code>https://grooveos.app/account/teams/</code> and
+          <code>https://anigikcnmldoklcmogffmgcojdhhficb.chromiumapp.org/</code>) on the same
+          App lets both surfaces share one App, one client secret, one webhook. This is the
+          structural improvement Phase 12 delivers over the old OAuth-App-per-surface model.
         </p>
       </div>
 
