@@ -12,15 +12,9 @@
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
-  <!-- Reveal.js print stylesheet — dynamically loaded when ?print-pdf is in URL -->
-  <script>
-    if (window.location.search.match(/print-pdf/gi)) {
-      var _printLink = document.createElement('link');
-      _printLink.rel = 'stylesheet';
-      _printLink.href = 'https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/css/print/pdf.css';
-      document.head.appendChild(_printLink);
-    }
-  </script>
+  <!-- Reveal.js v5 handles print layout via its internal printview.js controller —
+       no external pdf.css needed (removed: that file was a SCSS source, not a built CSS). -->
+
 
   <style>
     /* ================================================================
@@ -1976,15 +1970,20 @@
       touch: true,
       help: true,
       plugins: [ RevealNotes ],
-      // PDF export — when reveal renders in print mode, set the paper size to match slide
+      // PDF export — keep all fragments on the same page (single chat block per slide 4)
       pdfMaxPagesPerSlide: 1,
       pdfSeparateFragments: false
-    }).then(function () {
-      // Only fire print AFTER reveal has finished laying out all slides in print-pdf mode
-      if (window.location.search.match(/print-pdf/gi)) {
-        setTimeout(function () { window.print(); }, 1500);
-      }
     });
+
+    // Reveal v5 print mode: the internal printview.js controller activates async
+    // when ?print-pdf is in URL. It fires the 'pdf-ready' event when the full
+    // multi-page layout is built. We wait for that event before printing —
+    // otherwise window.print() races the layout and only captures slide 1.
+    if (window.location.search.match(/print-pdf/gi)) {
+      Reveal.on('pdf-ready', function () {
+        setTimeout(function () { window.print(); }, 500);
+      });
+    }
   </script>
 </body>
 </html>
