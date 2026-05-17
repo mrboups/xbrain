@@ -12,8 +12,19 @@
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
-  <!-- Reveal.js print stylesheet — auto-applies when ?print-pdf is in the URL -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/css/print/pdf.css" media="print">
+  <!-- Reveal.js print stylesheet — dynamically loaded when ?print-pdf is in URL -->
+  <script>
+    if (window.location.search.match(/print-pdf/gi)) {
+      var _printLink = document.createElement('link');
+      _printLink.rel = 'stylesheet';
+      _printLink.href = 'https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/css/print/pdf.css';
+      document.head.appendChild(_printLink);
+      // After CSS applies + reveal lays out, auto-trigger print dialog
+      window.addEventListener('load', function () {
+        setTimeout(function () { window.print(); }, 1500);
+      });
+    }
+  </script>
 
   <style>
     /* ================================================================
@@ -438,7 +449,7 @@
       margin-top: 6px;
     }
     .slide-paradox-grid .col-text { min-width: 0; }
-    .slide-paradox-grid .col-term { min-width: 0; }
+    .slide-paradox-grid .col-term { min-width: 0; padding-top: 130px; }
     .slide-paradox-grid .col-term .term { margin: 0; }
     .slide-paradox-grid .col-term .term-body { font-size: 13.5px; line-height: 1.75; padding: 16px 18px; }
     .slide-paradox-grid h2 { margin-bottom: 8px; }
