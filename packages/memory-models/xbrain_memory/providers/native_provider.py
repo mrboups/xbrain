@@ -149,7 +149,12 @@ class NativeProvider(MemoryProvider):
         truth_level_min: TruthLevel | None = None,
         limit: int = 10,
     ) -> list[SearchHit]:
-        from qdrant_client.http.models import FieldCondition, Filter, MatchValue
+        from qdrant_client.http.models import (
+            FieldCondition,
+            Filter,
+            MatchValue,
+            Range,
+        )
 
         embedding = await self._embedder(query)
         must: list = [FieldCondition(key="team_scope", match=MatchValue(value=team_scope))]
@@ -157,6 +162,16 @@ class NativeProvider(MemoryProvider):
             must.append(FieldCondition(
                 key="project_scope", match=MatchValue(value=project_scope)
             ))
+        # Phase 11 BMO-05 — exclude soft-deleted points. `Range(lte=0.0)` matches
+        # points where deleted_at_ts is 0.0 (not deleted). Points missing the
+        # field would be silently excluded (range filters don't match absent
+        # fields, see 11-RESEARCH §Q3); the one-shot backfill script
+        # `infrastructure/scripts/backfill_qdrant_deleted_at.py` MUST be run
+        # against the live Qdrant before this commit deploys — see plan 11-03
+        # §1b deployment gate.
+        must.append(
+            FieldCondition(key="deleted_at_ts", range=Range(lte=0.0))
+        )
         try:
             results = await self._qdrant.search(
                 collection_name=self._collection,
@@ -218,6 +233,39 @@ class NativeProvider(MemoryProvider):
             )
         except Exception:
             pass
+
+    async def mark_deleted(self, item_id: str, deleted_at: datetime) -> None:
+        """Phase 11 BMO-05 — flip the Qdrant payload deleted_at_ts.
+
+        After this call, the point still exists in Qdrant but `search()` will
+        exclude it via the `Range(lte=0.0)` filter. The corresponding Postgres
+        row is soft-deleted by plan 11-05's PATCH/DELETE handler (separate
+        concern — this method only touches the vector store).
+
+        `item_id` is the Qdrant point id (typically the memory_item.id UUID
+        as a string). `deleted_at` must be a tz-aware datetime; its epoch
+        value is written to the payload as a float.
+
+        Authorization happens at the call site (see ABC docstring).
+        Idempotent.
+        """
+        await self._qdrant.set_payload(
+            collection_name=self._collection,
+            payload={"deleted_at_ts": deleted_at.timestamp()},
+            points=[str(item_id)],
+        )
+
+    async def mark_restored(self, item_id: str) -> None:
+        """Phase 11 BMO-06 — clear the Qdrant payload deleted_at_ts.
+
+        Inverse of `mark_deleted`. After this call, `search()` includes the
+        point again (filter `Range(lte=0.0)` matches 0.0). Idempotent.
+        """
+        await self._qdrant.set_payload(
+            collection_name=self._collection,
+            payload={"deleted_at_ts": 0.0},
+            points=[str(item_id)],
+        )
 
     async def history(self, item_id: str, *, team_scope: str) -> list[MemoryItem]:
         current = await self.get(item_id, team_scope=team_scope)

@@ -194,6 +194,46 @@ class Mem0Provider(MemoryProvider):
         except Exception:
             pass  # idempotent
 
+    async def mark_deleted(self, item_id: str, deleted_at: datetime) -> None:
+        """Phase 11 BMO-05 — mem0 has no native soft-delete; we record the
+        marker in mem0 metadata. Search-time filtering happens at the
+        application layer (out of scope for this plan — Mem0Provider is the
+        backup backend, NativeProvider is canonical for Phase 11).
+
+        Best-effort: if the mem0 update fails (e.g. backend not configured),
+        we swallow the exception to keep the helper idempotent — same
+        pattern as `delete()` above.
+        """
+        try:
+            existing = await self._mem.get(memory_id=item_id)
+            if not existing:
+                return
+            md = dict(existing.get("metadata") or {})
+            md["deleted_at_ts"] = deleted_at.timestamp()
+            await self._mem.update(
+                memory_id=item_id,
+                data=existing.get("memory") or existing.get("text") or "",
+                metadata=md,
+            )
+        except Exception:
+            pass  # idempotent / fail-soft
+
+    async def mark_restored(self, item_id: str) -> None:
+        """Phase 11 BMO-06 — clear the mem0 metadata `deleted_at_ts` marker."""
+        try:
+            existing = await self._mem.get(memory_id=item_id)
+            if not existing:
+                return
+            md = dict(existing.get("metadata") or {})
+            md["deleted_at_ts"] = 0.0
+            await self._mem.update(
+                memory_id=item_id,
+                data=existing.get("memory") or existing.get("text") or "",
+                metadata=md,
+            )
+        except Exception:
+            pass  # idempotent / fail-soft
+
     async def history(self, item_id: str, *, team_scope: str) -> list[MemoryItem]:
         current = await self.get(item_id, team_scope=team_scope)
         if current is None:

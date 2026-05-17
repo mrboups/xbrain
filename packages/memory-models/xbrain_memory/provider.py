@@ -1,6 +1,7 @@
 """MemoryProvider abstract base class — backend-agnostic interface."""
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any
 
 from xbrain_memory.types import MemoryItem, SearchHit, TruthLevel
@@ -53,6 +54,32 @@ class MemoryProvider(ABC):
     @abstractmethod
     async def delete(self, item_id: str, *, team_scope: str) -> None:
         """Hard delete. Idempotent (no error if already absent or wrong team)."""
+
+    @abstractmethod
+    async def mark_deleted(self, item_id: str, deleted_at: datetime) -> None:
+        """Flip the vector-store soft-delete marker so this item is excluded from search.
+
+        Phase 11 contract (BMO-05):
+          The retrieval-side filter built into `search()` excludes any item flagged
+          here. Implementations that have no vector store (e.g. mem0 metadata-only)
+          should still record the marker so their `search()` post-filter honours it.
+
+        Authorization is the CALL SITE's responsibility — this method does not
+        check `team_scope`. Plan 11-05's PATCH/DELETE handler authorizes the
+        request via `assert_can_edit_brain_event` BEFORE calling this method.
+
+        Idempotent: marking an already-deleted item just overwrites the timestamp.
+        """
+
+    @abstractmethod
+    async def mark_restored(self, item_id: str) -> None:
+        """Clear the vector-store soft-delete marker so this item reappears in search.
+
+        Phase 11 contract (BMO-06):
+          Inverse of `mark_deleted`. Idempotent: restoring a non-deleted item
+          is a no-op. Authorization is the call site's responsibility (see
+          `mark_deleted` docstring).
+        """
 
     @abstractmethod
     async def history(self, item_id: str, *, team_scope: str) -> list[MemoryItem]:

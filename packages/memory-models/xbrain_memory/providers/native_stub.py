@@ -19,6 +19,9 @@ class NativeStubProvider(MemoryProvider):
     def __init__(self) -> None:
         self._items: dict[str, MemoryItem] = {}
         self._versions: dict[str, list[MemoryItem]] = {}
+        # Phase 11 BMO-05/06 — mirror the Qdrant `deleted_at_ts` payload field.
+        # 0.0 (or missing) = not deleted; positive epoch = soft-deleted.
+        self._deleted_at_ts: dict[str, float] = {}
 
     async def upsert(self, item: MemoryItem) -> str:
         new_id = item.id if item.id else str(uuid.uuid4())
@@ -57,6 +60,10 @@ class NativeStubProvider(MemoryProvider):
         for item in self._items.values():
             if item.team_scope != team_scope:
                 continue
+            # Phase 11 BMO-05 — mirror NativeProvider's soft-delete filter.
+            # `> 0.0` means the item was flagged via mark_deleted; skip it.
+            if self._deleted_at_ts.get(item.id, 0.0) > 0.0:
+                continue
             if project_scope is not None and item.project_scope != project_scope:
                 continue
             if truth_level_min is not None and not (item.truth_level >= truth_level_min):
@@ -92,6 +99,16 @@ class NativeStubProvider(MemoryProvider):
             return  # idempotent (not found OR wrong team)
         del self._items[item_id]
         self._versions.pop(item_id, None)
+        # Hard delete clears any soft-delete bookkeeping.
+        self._deleted_at_ts.pop(item_id, None)
+
+    async def mark_deleted(self, item_id: str, deleted_at: datetime) -> None:
+        """Mirror of NativeProvider — see provider.py ABC docstring for contract."""
+        self._deleted_at_ts[str(item_id)] = deleted_at.timestamp()
+
+    async def mark_restored(self, item_id: str) -> None:
+        """Mirror of NativeProvider — see provider.py ABC docstring for contract."""
+        self._deleted_at_ts[str(item_id)] = 0.0
 
     async def history(self, item_id: str, *, team_scope: str) -> list[MemoryItem]:
         current = await self.get(item_id, team_scope=team_scope)
