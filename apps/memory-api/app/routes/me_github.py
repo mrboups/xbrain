@@ -9,7 +9,9 @@ Endpoint flow:
 Security notes (T-05-02-01):
 - The GitHub API call with the user's own token proves they own that account.
   An attacker cannot link someone else's GitHub account without possessing their token.
-- The server PAT is used only for org-membership check (read:org scope, never exposed).
+- Phase 12 (Plan 12-04): org-membership check now uses an installation token
+  minted from the GitHub App (replaces the prior server PAT). The user's gho_
+  token never leaves memory-api; the installation token is server-side only.
 """
 
 from typing import Any
@@ -47,12 +49,14 @@ async def link_github(
     if principal.get("kind") not in ("user", "user_api_token"):
         raise HTTPException(403, "Only user principals can link a GitHub account")
 
-    # Fetch github username + org membership
+    # Fetch github username + org membership.
+    # Phase 12 (Plan 12-04) — new signature: (session, user_token, org). The
+    # helper returns github_id directly so we no longer need a second /user call.
     try:
         gh = await check_github_org_membership(
+            session,
             body.github_token,
             settings.GITHUB_ORG,
-            settings.GITHUB_API_PAT,
         )
     except httpx.HTTPStatusError as exc:
         # GitHub API rejected the token — invalid or expired
@@ -68,20 +72,7 @@ async def link_github(
         ) from exc
 
     username: str = gh["login"]
-    # GitHub numeric user IDs: fetch from user endpoint data (stored in cache result)
-    # We need the github_id — make a separate call if not in the cache result.
-    # Note: check_github_org_membership returns from cache on second call — cost-free.
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        user_r = await client.get(
-            "https://api.github.com/user",
-            headers={
-                "Authorization": f"Bearer {body.github_token}",
-                "Accept": "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
-        )
-        user_r.raise_for_status()
-        github_id: int = user_r.json()["id"]
+    github_id: int = gh["github_id"]
 
     user = principal["user"]
 
@@ -107,6 +98,10 @@ async def link_github(
         "github_username": username,
         "github_id": github_id,
         "is_org_member": gh["is_org_member"],
+        # Phase 12 (Plan 12-04) — surface install_required so the frontend
+        # can show an "install the xbrain App on your org" banner when the
+        # user's org doesn't yet have the App installed.
+        "install_required": gh.get("install_required", False),
     }
 
 
