@@ -1,0 +1,19 @@
+# Phase 12 (Plan 12-08) — Chrome extension stable-ID keypair.
+#
+# The PRIVATE key (RSA PEM) is generated locally by the operator, kept
+# OUTSIDE git (canonical location: ~/.config/xbrain/secrets/chrome-ext-key.pem),
+# and ONLY needed when publishing to Chrome Web Store later (used as the
+# "upload key" that binds the Store listing to the dev identity).
+#
+# For day-to-day unpacked installs the base64-encoded PUBLIC key embedded
+# in manifest.json is sufficient — the private PEM is NOT required at
+# runtime.
+#
+# Defense-in-depth: the repo root .gitignore already excludes *.pem, but
+# we duplicate the rule here so a future copy/move that drops the parent
+# .gitignore doesn't silently expose the key.
+chrome_ext_private.pem
+chrome_ext_private_*.pem
+chrome-ext-key.pem
+*.pem
+*.key
