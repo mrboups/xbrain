@@ -203,9 +203,10 @@ Step-by-step results (fill after the operator walks the checklist):
 - Phase 4 `FERNET_KEY` is reused for token encryption AND hash HMAC.
   Rotating it invalidates ALL stored GitHub user tokens AND hashes —
   users re-authorize. Documented in the operator runbook.
-- `GITHUB_ORG` env still defaults to `your-github-org` in `config.py`
-  despite the real org being `dejavudev`. Cosmetic — actual value is
-  set in `.env` on the VM. Deferred cleanup.
+- `GITHUB_ORG` env had a stale default in `config.py` (the real org is
+  `dejavudev`). Default has since been blanked — operator must set
+  `GITHUB_ORG` explicitly per team. Actual value is set in `.env` on
+  the VM.
 - `my_github_orgs` (in `teams.py`) uses App JWT for `/users/{username}/orgs`
   — returns only PUBLIC orgs. For users in private orgs, Phase 13
   should switch to the user `ghu_` token for that endpoint.

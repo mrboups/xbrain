@@ -107,7 +107,7 @@ Plans:
 **Requirements**: TEAM-01, TEAM-03, AUTH-01, AUTH-03, MEM-06, MEM-07, MEM-08, CHAT-08
 **Success Criteria** (what must be TRUE):
   1. `GET http://graphiti-service:8300/v1/healthz` retourne `{"status": "ok", "graphiti": true}` et `POST /v1/ingest` retourne 202 en moins de 500ms.
-  2. LibreChat affiche deux boutons de connexion (Google + GitHub) — un user peut se connecter avec son compte GitHub de l'org `your-github-org`.
+  2. LibreChat affiche deux boutons de connexion (Google + GitHub) — un user peut se connecter avec son compte GitHub de l'org configurée (`GITHUB_ORG`).
   3. La table `users` PostgreSQL a les colonnes `github_username` et `github_id` (migration 0007 appliquée).
   4. Un repo GitHub avec `brain.yaml` peut déclencher le workflow `deploy-cloudrun.yml` ou `deploy-firebase.yml` et indexer son contenu dans `api.grooveos.app/v1/memory` via `brain-index.sh`.
   5. L'extension Chrome (Manifest V3) peut envoyer du contenu sélectionné sur une page web vers `api.grooveos.app/v1/memory` avec le truth_level choisi par l'utilisateur — memory-api retourne 201.
