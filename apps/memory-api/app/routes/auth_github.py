@@ -1,34 +1,33 @@
-"""POST /v1/auth/github/signin — Phase 10 GHA-01.
+"""POST /v1/auth/github/signin — Phase 10 GHA-01 / Phase 12 GHAPP-05+06.
 
-Public endpoint (no Authorization header). Accepts a GitHub OAuth `code`
-returned from the user's redirect, exchanges it for a `gho_` token server-side
-(client_secret never crosses the network to the browser), then:
+Public endpoint (no Authorization header). Accepts a GitHub OAuth ``code``
+returned from the user's redirect, exchanges it for a ``ghu_`` user-to-server
+token + ``ghr_`` refresh token server-side (client_secret never crosses the
+network to the browser), then:
 
   1. Calls GET /user, /user/emails, /user/orgs.
-  2. Resolves canonical user row with auto-merge (GHA-06):
-       a. Lookup by github_id → if active, follow merge pointer.
-       b. Else lookup by primary verified email → if present and no github_id,
-          attach github_id to that row (implicit merge).
-       c. Else lookup orphan by source_user_id = "github:{login}".
-       d. If both a single Google user (by email) AND an orphan github-only row
-          exist for the same identity, call merge_user_rows to consolidate
-          (survivor = Google row, orphan = github-only row).
-       e. Else create a fresh row with source_user_id = "github:{login}".
-  3. Runs auto_grant_via_org_match for org-derived team memberships (GHA-02).
-  4. Fires fail-soft admin emails via background task (GHA-05).
-  5. Mints an `xbt_` token (team_scope = empty-string sentinel → multi-team)
-     and returns it.
+  2. Resolves canonical user row with auto-merge (GHA-06).
+  3. Persists Fernet-encrypted ``ghu_`` + ``ghr_`` + expiry + token_hash on
+     the resolved user row (Plan 12-06).
+  4. Runs auto_grant_via_org_match for org-derived team memberships (GHA-02).
+  5. For the primary org (``settings.GITHUB_ORG``), checks install status via
+     the installation token — surfaces ``install_required`` + ``install_url``
+     + ``org_login`` so the frontend can render an install-app banner.
+  6. Mints an ``xbt_`` token (team_scope = empty-string sentinel → multi-team).
+  7. Single-commit transaction → returns the response.
+  8. Fires fail-soft admin emails via background task (GHA-05).
 
-CSRF / state: the caller verifies the `state` param against sessionStorage
+CSRF / state: the caller verifies the ``state`` param against sessionStorage
 BEFORE calling this endpoint. The endpoint does not validate state itself
 (per locked decision — the client-side verification before the POST is the
-boundary). The endpoint requires a non-empty `state` to be present in the
+boundary). The endpoint requires a non-empty ``state`` to be present in the
 body, treats it as opaque, and logs it for audit purposes.
 
 Security:
-- client_secret stays server-side (env GITHUB_CLIENT_SECRET).
+- client_secret stays server-side (env ``GITHUB_APP_CLIENT_SECRET``).
 - The endpoint is rate-limited by the gateway/nginx layer (per IP).
 - Failed code exchanges return 400 with no GitHub error details (avoid info leak).
+- Refresh tokens stored Fernet-encrypted (Plan 12-06 Task 1).
 """
 
 import hashlib
@@ -72,20 +71,43 @@ class SigninGithubBody(BaseModel):
 class SigninGithubOut(BaseModel):
     xbt_token: str
     user: dict[str, Any]
+    # REVISION 2 (Plan 12-06 M-1) — frontend renders an install-app banner
+    # when install_required=True. ``install_url`` is the deep link to
+    # ``https://github.com/apps/{slug}/installations/new?state=...`` and
+    # ``org_login`` is the primary org name the banner should reference.
+    install_required: bool = False
+    install_url: str | None = None
+    org_login: str | None = None
 
 
-async def _exchange_code_for_token(code: str, redirect_uri: str) -> str:
-    """Exchange GitHub OAuth code for an access token. Raises HTTPException on failure."""
-    if not settings.GITHUB_CLIENT_ID or not settings.GITHUB_CLIENT_SECRET:
-        raise HTTPException(503, "GitHub OAuth not configured on memory-api")
+async def _exchange_code_for_token(code: str, redirect_uri: str) -> dict[str, Any]:
+    """Exchange GitHub OAuth code for a user-to-server token + refresh token.
+
+    Returns the full body dict::
+
+        {
+          "access_token": "ghu_...",         # 8h TTL
+          "refresh_token": "ghr_...",        # ~6mo TTL
+          "expires_in": 28800,               # int seconds
+          "refresh_token_expires_in": 15897600,  # int seconds
+          "token_type": "bearer",
+          "scope": "",                       # GitHub Apps don't use scopes
+        }
+
+    Raises ``HTTPException`` on any failure (logical or transport). The caller
+    must pass ``body['access_token']`` to subsequent /user calls and persist
+    ``body['refresh_token']`` via ``persist_tokens_on_signin``.
+    """
+    if not settings.GITHUB_APP_CLIENT_ID or not settings.GITHUB_APP_CLIENT_SECRET:
+        raise HTTPException(503, "GitHub App OAuth not configured on memory-api")
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             r = await client.post(
                 "https://github.com/login/oauth/access_token",
                 headers={"Accept": "application/json"},
                 data={
-                    "client_id": settings.GITHUB_CLIENT_ID,
-                    "client_secret": settings.GITHUB_CLIENT_SECRET,
+                    "client_id": settings.GITHUB_APP_CLIENT_ID,
+                    "client_secret": settings.GITHUB_APP_CLIENT_SECRET,
                     "code": code,
                     "redirect_uri": redirect_uri,
                 },
@@ -95,10 +117,12 @@ async def _exchange_code_for_token(code: str, redirect_uri: str) -> str:
     if r.status_code != 200:
         raise HTTPException(400, "GitHub token exchange failed")
     body = r.json()
-    token = body.get("access_token")
-    if not token:
-        raise HTTPException(400, "GitHub token exchange failed: no access_token")
-    return token
+    if "error" in body:
+        # GitHub returns 200 on logical errors — must inspect body.
+        raise HTTPException(400, "GitHub token exchange failed")
+    if "access_token" not in body or "refresh_token" not in body:
+        raise HTTPException(400, "GitHub token exchange missing required fields")
+    return body
 
 
 async def _fetch_github_profile(token: str) -> dict[str, Any]:
@@ -305,14 +329,26 @@ async def signin_github(
     background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
 ) -> SigninGithubOut:
+    """REVISION 2 (Plan 12-06 B-5) — 10-step pseudocode.
+
+    Step ordering is locked by ``test_phase12_signin_install_flow.py`` and
+    ``test_phase12_auto_grant_regression.py``. Any reordering would silently
+    break SC-5 (team_org_blocks + auto-grant semantics) or M-1 (install_url
+    surface).
+    """
     log.info("auth.github.signin.start", state_len=len(body.state))
 
-    token = await _exchange_code_for_token(body.code, body.redirect_uri)
+    # Step 1 — Code → token bundle (access_token, refresh_token, expires_in,
+    # refresh_token_expires_in). New Plan 12-06 shape; bundle is a dict.
+    token_body = await _exchange_code_for_token(body.code, body.redirect_uri)
+
+    # Step 2 — Fetch profile (login, github_id, display_name, email, org_logins).
     try:
-        profile = await _fetch_github_profile(token)
+        profile = await _fetch_github_profile(token_body["access_token"])
     except httpx.HTTPStatusError as exc:
         raise HTTPException(400, "GitHub profile fetch failed") from exc
 
+    # Step 3 — Identity resolution (Phase 10 logic preserved).
     user = await _resolve_or_merge_user(
         session,
         github_id=profile["github_id"],
@@ -321,6 +357,24 @@ async def signin_github(
         email=profile["email"],
     )
 
+    # Step 4 — Persist refresh+access tokens (encrypts + hashes; mutates user,
+    # does NOT commit — caller controls the transaction boundary at step 8).
+    from app.services.github_user_token import persist_tokens_on_signin
+    await persist_tokens_on_signin(
+        session,
+        user,
+        access_token=token_body["access_token"],
+        refresh_token=token_body["refresh_token"],
+        expires_in=token_body.get("expires_in", 28800),
+        refresh_token_expires_in=token_body.get(
+            "refresh_token_expires_in", 15897600
+        ),
+    )
+
+    # Step 5 — Auto-grant team memberships via org-match (Phase 10 logic
+    # preserved). MUST run BEFORE the install-status check so team_org_blocks
+    # semantics remain intact (SC-5 regression coverage in
+    # tests/test_phase12_auto_grant_regression.py).
     newly_joined = await auto_grant_via_org_match(
         session,
         user=user,
@@ -328,10 +382,37 @@ async def signin_github(
         github_org_logins=profile["org_logins"],
     )
 
+    # Step 6 — Check install status for the primary org (drives the
+    # install_required UX in 12-07/12-08/12-09 frontends).
+    primary_org = settings.GITHUB_ORG
+    install_required = False
+    install_url: str | None = None
+    org_login: str | None = None
+    if primary_org and primary_org in profile["org_logins"]:
+        from app.auth import (
+            OrgMembershipResult,
+            check_github_org_membership,
+        )
+        membership = await check_github_org_membership(
+            session, token_body["access_token"], primary_org
+        )
+        if membership["result"] == OrgMembershipResult.INSTALL_REQUIRED:
+            install_required = True
+            slug = settings.GITHUB_APP_SLUG or "xbrain"
+            install_url = (
+                f"https://github.com/apps/{slug}/installations/new"
+                f"?state={body.state}"
+            )
+            org_login = primary_org  # REVISION 2 (M-1) — for banner UX
+
+    # Step 7 — Mint xbt session token (Phase 10 preserved).
     xbt = await _mint_xbt_for_user(session, user.id)
+
+    # Step 8 — Single transaction commit (mutations from steps 3, 4, 5, 7
+    # land atomically; if any step raised, nothing persists).
     await session.commit()
 
-    # Fire-and-forget admin notifications.
+    # Step 9 — Fire-and-forget admin notifications (outside transaction).
     if newly_joined:
         background_tasks.add_task(
             emit_autogrant_notifications,
@@ -346,8 +427,10 @@ async def signin_github(
         user_id=str(user.id),
         new_member=bool(newly_joined),
         joined_count=len(newly_joined),
+        install_required=install_required,
     )
 
+    # Step 10 — Return enriched response.
     return SigninGithubOut(
         xbt_token=xbt,
         user={
@@ -357,4 +440,7 @@ async def signin_github(
             "github_username": user.github_username,
             "teams_joined": [t.slug for t in newly_joined],
         },
+        install_required=install_required,
+        install_url=install_url,
+        org_login=org_login,
     )
