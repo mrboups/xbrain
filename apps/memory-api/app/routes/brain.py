@@ -203,11 +203,61 @@ async def list_brain_events(
     (deps.py); this list endpoint just enforces the team-scope
     membership check via the existing ``get_team_scope`` dependency.
     """
-    # Build the SQL incrementally so each filter is opt-in. The text query
-    # uses named bind params throughout — no string interpolation of user
-    # input — which keeps the ILIKE pattern safe from injection (the
-    # `q_pattern` value is fully parameterised; only the surrounding `%`
-    # wildcards are concatenated in Python).
+    items, next_cursor = await _build_list_query(
+        session,
+        team_scope=team_scope,
+        entity_type=entity_type,
+        truth_level=truth_level,
+        source=source,
+        created_by=created_by,
+        q=q,
+        include_deleted=include_deleted,
+        since=since,
+        cursor=cursor,
+        limit=limit,
+    )
+    return BrainEventListOut(
+        items=[BrainEventOut(**dict(r)) for r in items],
+        next_cursor=next_cursor,
+    )
+
+
+# ── Shared filter+page query builder (Phase 11 plan 11-10 reuses this) ─
+#
+# Extracted from list_brain_events so the /v1/admin/brain/events drill-down
+# endpoint (plan 11-10, routes/admin_brain.py) can call the EXACT SAME query
+# logic with team_scope=<arbitrary slug> after superadmin authorization
+# bypasses the X-Team-Scope guard. The two callers MUST share an
+# implementation so filter semantics never drift between team-scoped and
+# cross-team reads.
+
+
+async def _build_list_query(
+    session: AsyncSession,
+    *,
+    team_scope: str,
+    entity_type: list[str] | None = None,
+    truth_level: list[str] | None = None,
+    source: list[str] | None = None,
+    created_by: UUID | None = None,
+    q: str | None = None,
+    include_deleted: bool = False,
+    since: datetime | None = None,
+    cursor: str | None = None,
+    limit: int = 50,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Build + execute the v_brain_events filter query.
+
+    Returns ``(page_rows, next_cursor)`` where ``page_rows`` is a list of
+    mappings (one per matched row, oldest-first within a single page) and
+    ``next_cursor`` is the opaque base64 token to pass back for the next
+    page, or None when the caller has reached the end of the feed.
+
+    The text query uses named bind params throughout — no string
+    interpolation of user input — which keeps the ILIKE pattern safe from
+    injection (the ``q_pattern`` value is fully parameterised; only the
+    surrounding ``%`` wildcards are concatenated in Python).
+    """
     sql_parts: list[str] = ["SELECT * FROM v_brain_events WHERE team_scope = :ts"]
     params: dict[str, Any] = {"ts": team_scope}
 
@@ -273,10 +323,7 @@ async def list_brain_events(
             tail["created_at"], tail["entity_type"], tail["entity_id"]
         )
 
-    return BrainEventListOut(
-        items=[BrainEventOut(**dict(r)) for r in page],
-        next_cursor=next_cursor,
-    )
+    return list(page), next_cursor
 
 
 # ── Internal helpers shared by the three mutation endpoints ──────────
