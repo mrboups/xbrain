@@ -56,3 +56,6 @@ backups/
 *.tar.gz
 *.sql.gz
 *.dump
+
+# Phase 12 GitHub App credentials (dev local — never commit)
+.env.phase12
