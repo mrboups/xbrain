@@ -1,14 +1,35 @@
 """`/v1/brain/*` — universal brain monitor (Phase 11).
 
 This module ships the read endpoint `GET /v1/brain/events` (BMO-02 +
-BMO-03). It reads from the `v_brain_events` SQL view introduced in
+BMO-03) and the three mutation endpoints
+`PATCH/DELETE/POST .../restore /v1/brain/events/{entity_type}/{entity_id}`
+(BMO-04 / BMO-05 / BMO-06).
+
+The read path streams from the `v_brain_events` SQL view introduced in
 migration 0018 — a UNION ALL over the 7 entity types tracked by xbrain
 (memory_item, granola_note, conversation, message, team_message, task,
-contact).
+contact). The mutation path dispatches through `app.repos.brain` to
+land the change on the correct base table while preserving the view's
+team-scope guarantee (the dispatch resolver is a closed allow-list —
+never user-controlled — so the f-string SQL inside the repo cannot be
+tampered with from the URL path).
 
-Mutation endpoints (PATCH truth_level / DELETE soft / restore — BMO-04,
-BMO-05, BMO-06) ship in plan 11-05 and live in this same file so a
-single router declaration is registered in `main.py`.
+Authorisation for the mutation endpoints lives in
+`app.deps.assert_can_edit_brain_event`: bridge service JWTs and global
+admins are allowed unconditionally; per-team admins are allowed within
+their team; non-admin members are allowed when they are the row's
+`created_by`. Rows whose `created_by` is NULL (memory_items, messages,
+contacts) are admin-only — locking the Phase 11 "Permissions model —
+option A" decision from `11-CONTEXT.md`.
+
+Every mutation writes one row to `audit_log` via the project's
+`app.audit.write_audit` helper (target_id carries the entity uuid;
+payload carries entity_type + the per-action diff). For memory_items
+(including granola_note) the soft-delete / restore path ALSO flips the
+Qdrant payload via `MemoryProvider.mark_deleted / mark_restored`. That
+side-effect is best-effort: a Qdrant failure logs a warning and the
+Postgres write is the source of truth — the daily janitor (plan 11-07)
+reconciles divergence.
 
 Pagination is cursor-based on the tuple `(created_at, entity_type,
 entity_id)` ordered DESC / ASC / ASC. The composite secondaries are
@@ -37,6 +58,7 @@ Filter semantics:
 
 import base64
 import json
+import logging
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -45,10 +67,38 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import get_session, get_team_scope
-from app.schemas.brain import BrainEventListOut, BrainEventOut
+from xbrain_memory import MemoryProvider
+
+from app.audit import write_audit
+from app.deps import (
+    _user_id_from_principal,
+    assert_can_edit_brain_event,
+    get_current_principal,
+    get_memory_provider,
+    get_session,
+    get_team_scope,
+)
+from app.repos.brain import (
+    ALLOWED_ENTITY_TYPES,
+    fetch_event_row,
+    restore_entity,
+    soft_delete_entity,
+    update_truth_level,
+)
+from app.schemas.brain import BrainEventListOut, BrainEventOut, TruthLevelPatchBody
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# ── Entity types whose underlying rows also live in Qdrant ────────────
+#
+# Only memory_items (and its `granola_note` view-side alias) mirror into
+# the vector store. Soft-delete + restore on those entity types fan out
+# to Qdrant via `MemoryProvider.mark_deleted / mark_restored`. Every
+# other entity type stays Postgres-only and skips the Qdrant fan-out.
+_QDRANT_BACKED_ENTITY_TYPES = frozenset({"memory_item", "granola_note"})
 
 
 # ── Cursor helpers ────────────────────────────────────────────────────
@@ -227,3 +277,247 @@ async def list_brain_events(
         items=[BrainEventOut(**dict(r)) for r in page],
         next_cursor=next_cursor,
     )
+
+
+# ── Internal helpers shared by the three mutation endpoints ──────────
+
+
+async def _qdrant_mark_deleted_safe(
+    provider: MemoryProvider,
+    entity_id: UUID,
+    deleted_at: datetime,
+) -> None:
+    """Best-effort `mark_deleted` against Qdrant.
+
+    Postgres is the source of truth. A Qdrant outage must NOT roll back
+    the soft-delete on the PG side (otherwise the user clicks Delete
+    and nothing happens). The janitor (plan 11-07) re-scans PG nightly
+    and force-flips every Qdrant point whose PG twin is soft-deleted —
+    that's the reconciliation pathway.
+    """
+    try:
+        await provider.mark_deleted(str(entity_id), deleted_at)
+    except Exception as exc:  # pragma: no cover — best-effort
+        logger.warning(
+            "qdrant mark_deleted failed for %s: %s — janitor will reconcile",
+            entity_id,
+            exc,
+        )
+
+
+async def _qdrant_mark_restored_safe(
+    provider: MemoryProvider, entity_id: UUID
+) -> None:
+    """Best-effort `mark_restored` against Qdrant. Same rationale as
+    `_qdrant_mark_deleted_safe`."""
+    try:
+        await provider.mark_restored(str(entity_id))
+    except Exception as exc:  # pragma: no cover — best-effort
+        logger.warning(
+            "qdrant mark_restored failed for %s: %s — janitor will reconcile",
+            entity_id,
+            exc,
+        )
+
+
+def _reject_unknown_entity_type(entity_type: str) -> None:
+    """Pre-route guard so a bad entity_type returns 400 immediately, before
+    a DB round-trip. The repo also re-checks via `_resolve_table` — defence
+    in depth, no behaviour change."""
+    if entity_type not in ALLOWED_ENTITY_TYPES:
+        raise HTTPException(400, f"unknown entity_type: {entity_type}")
+
+
+# ── PATCH /v1/brain/events/{entity_type}/{entity_id} ─────────────────
+#
+# Sets the row's `truth_level`. Author or per-team admin only (see
+# `assert_can_edit_brain_event` in deps.py for the full matrix). Soft-
+# deleted rows cannot be patched — the route returns 404 the same way
+# DELETE does, so the UI can treat both as "row is gone" without a
+# special case.
+
+
+@router.patch("/brain/events/{entity_type}/{entity_id}", response_model=BrainEventOut)
+async def patch_truth_level(
+    entity_type: str,
+    entity_id: UUID,
+    body: TruthLevelPatchBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+    team_scope: str = Depends(get_team_scope),
+) -> BrainEventOut:
+    _reject_unknown_entity_type(entity_type)
+
+    row = await fetch_event_row(session, entity_type, entity_id, team_scope)
+    if row is None:
+        raise HTTPException(404, "brain event not found in this team")
+    if row["deleted_at"] is not None:
+        # PATCH on a soft-deleted row would silently revive the row's
+        # truth_level without un-deleting it — never what the caller wants.
+        # The Brain Monitor UI explicitly uses POST .../restore for that.
+        raise HTTPException(404, "brain event is soft-deleted; restore first")
+
+    await assert_can_edit_brain_event(
+        principal,
+        created_by=row["created_by"],
+        team_slug=team_scope,
+        session=session,
+    )
+
+    updated = await update_truth_level(
+        session, entity_type, entity_id, body.truth_level
+    )
+    if not updated:
+        # Vanishing between fetch and update is a rare race (concurrent
+        # hard-purge from the janitor) — surface as 404 so the client can
+        # retry cleanly.
+        raise HTTPException(404, "brain event vanished mid-update")
+
+    await write_audit(
+        session,
+        actor_user_id=_user_id_from_principal(principal),
+        team_scope=team_scope,
+        action="brain.patch_truth_level",
+        target_id=str(entity_id),
+        payload={
+            "entity_type": entity_type,
+            "old_truth_level": row["truth_level"],
+            "new_truth_level": body.truth_level,
+        },
+    )
+    await session.commit()
+
+    new_row = await fetch_event_row(session, entity_type, entity_id, team_scope)
+    if new_row is None:
+        # Should not happen — same vanishing race as above; covered defensively.
+        raise HTTPException(404, "brain event vanished after update")
+    return BrainEventOut(**dict(new_row))
+
+
+# ── DELETE /v1/brain/events/{entity_type}/{entity_id} ────────────────
+#
+# Soft-deletes the row. Sets `deleted_at = now()` + `deleted_by =
+# principal.user.id` on the underlying table and, for memory_items /
+# granola_note, flips the Qdrant payload `deleted_at_ts` so vector
+# search excludes the point (BMO-05). The Qdrant call is fire-and-forget
+# — see `_qdrant_mark_deleted_safe`.
+
+
+@router.delete("/brain/events/{entity_type}/{entity_id}", status_code=204)
+async def soft_delete_event(
+    entity_type: str,
+    entity_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+    team_scope: str = Depends(get_team_scope),
+    provider: MemoryProvider = Depends(get_memory_provider),
+) -> None:
+    _reject_unknown_entity_type(entity_type)
+
+    row = await fetch_event_row(session, entity_type, entity_id, team_scope)
+    if row is None:
+        raise HTTPException(404, "brain event not found in this team")
+    if row["deleted_at"] is not None:
+        # Already soft-deleted — treat as idempotent success would be
+        # nicer for clients, but it would also paper over double-DELETE
+        # bugs. Surface as 404 (matches the repo's behaviour on the
+        # `deleted_at IS NULL` WHERE filter).
+        raise HTTPException(404, "brain event already soft-deleted")
+
+    await assert_can_edit_brain_event(
+        principal,
+        created_by=row["created_by"],
+        team_slug=team_scope,
+        session=session,
+    )
+
+    actor_id = _user_id_from_principal(principal)
+    deleted_at = await soft_delete_entity(session, entity_type, entity_id, actor_id)
+
+    await write_audit(
+        session,
+        actor_user_id=actor_id,
+        team_scope=team_scope,
+        action="brain.soft_delete",
+        target_id=str(entity_id),
+        payload={
+            "entity_type": entity_type,
+            "deleted_at": deleted_at.isoformat(),
+        },
+    )
+    await session.commit()
+
+    # Qdrant fan-out AFTER PG commit — if Qdrant is the only thing that
+    # fails, PG already holds the source of truth and the janitor will
+    # reconcile. If we did it before commit, a PG rollback + successful
+    # Qdrant write would leave Qdrant ahead of PG (the bad direction).
+    if entity_type in _QDRANT_BACKED_ENTITY_TYPES:
+        await _qdrant_mark_deleted_safe(provider, entity_id, deleted_at)
+    # FastAPI returns 204 on a None return when status_code=204 is set.
+
+
+# ── POST /v1/brain/events/{entity_type}/{entity_id}/restore ──────────
+#
+# Clears `deleted_at` + `deleted_by` IFF the soft-delete happened within
+# the last 30 days (the retention window before the janitor hard-purges).
+# Outside the window the repo raises 410 Gone, propagated verbatim.
+
+
+@router.post(
+    "/brain/events/{entity_type}/{entity_id}/restore",
+    response_model=BrainEventOut,
+)
+async def restore_event(
+    entity_type: str,
+    entity_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+    team_scope: str = Depends(get_team_scope),
+    provider: MemoryProvider = Depends(get_memory_provider),
+) -> BrainEventOut:
+    _reject_unknown_entity_type(entity_type)
+
+    # The view shows soft-deleted rows — restore needs to see them to do
+    # the team-scope + author check before resurrecting the row.
+    row = await fetch_event_row(session, entity_type, entity_id, team_scope)
+    if row is None:
+        raise HTTPException(404, "brain event not found in this team")
+    if row["deleted_at"] is None:
+        # Nothing to restore — restoring an already-live row is a no-op
+        # but caller probably has a stale view. 404 keeps the contract
+        # symmetric with DELETE's already-deleted case.
+        raise HTTPException(404, "brain event is not soft-deleted")
+
+    await assert_can_edit_brain_event(
+        principal,
+        created_by=row["created_by"],
+        team_slug=team_scope,
+        session=session,
+    )
+
+    # `restore_entity` raises HTTPException(410) when the row is outside
+    # the 30-day window. Propagate verbatim — the route layer needs no
+    # extra logic.
+    await restore_entity(session, entity_type, entity_id)
+
+    await write_audit(
+        session,
+        actor_user_id=_user_id_from_principal(principal),
+        team_scope=team_scope,
+        action="brain.restore",
+        target_id=str(entity_id),
+        payload={
+            "entity_type": entity_type,
+            "previous_deleted_at": row["deleted_at"].isoformat(),
+        },
+    )
+    await session.commit()
+
+    # Qdrant fan-out AFTER PG commit (same reasoning as soft-delete).
+    if entity_type in _QDRANT_BACKED_ENTITY_TYPES:
+        await _qdrant_mark_restored_safe(provider, entity_id)
+
+    new_row = await fetch_event_row(session, entity_type, entity_id, team_scope)
+    if new_row is None:
+        raise HTTPException(404, "brain event vanished after restore")
+    return BrainEventOut(**dict(new_row))
