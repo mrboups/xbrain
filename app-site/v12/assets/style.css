@@ -1,0 +1,459 @@
+/* xbrain app-site — SaaS site styles */
+/* Accent color: #7C3AED (violet) */
+/* Extends the same design system as the self-hosted marketing site */
+
+/* ============================================================
+   1. CSS Variables
+   ============================================================ */
+:root {
+  --violet: #7C3AED;
+  --violet-light: #EDE9FE;
+  --violet-dark: #5B21B6;
+  --gray-900: #111827;
+  --gray-700: #374151;
+  --gray-600: #4B5563;
+  --gray-500: #6B7280;
+  --gray-400: #9CA3AF;
+  --gray-200: #E5E7EB;
+  --gray-100: #F3F4F6;
+  --gray-50: #F9FAFB;
+  --white: #FFFFFF;
+  --green: #059669;
+  --green-light: #ECFDF5;
+  --amber: #D97706;
+  --amber-light: #FFFBEB;
+}
+
+/* ============================================================
+   2. Base reset
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: var(--gray-900);
+  background: var(--white);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ============================================================
+   3. Nav — .xb-nav
+   ============================================================ */
+.xb-nav {
+  background: var(--white);
+  border-bottom: 1px solid var(--gray-200);
+  height: 64px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  width: 100%;
+}
+
+.xb-nav__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.xb-nav__logo {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--violet);
+  text-decoration: none;
+  letter-spacing: -0.025em;
+}
+
+.xb-nav__logo:hover {
+  color: var(--violet-dark);
+}
+
+.xb-nav__links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.xb-nav__link {
+  display: inline-block;
+  padding: 8px 16px;
+  color: var(--gray-600);
+  text-decoration: none;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  border-radius: 6px;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.xb-nav__link:hover {
+  color: var(--violet);
+  background: var(--violet-light);
+}
+
+/* SaaS-specific: waitlist CTA in nav */
+.xb-nav__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #7C3AED;
+  color: var(--white);
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  text-decoration: none;
+  border: 2px solid #7C3AED;
+  cursor: pointer;
+  transition: background 200ms ease, border-color 200ms ease;
+  white-space: nowrap;
+  margin-left: 8px;
+}
+
+.xb-nav__cta:hover {
+  background: var(--violet-dark);
+  border-color: var(--violet-dark);
+}
+
+/* ============================================================
+   4. Buttons — .btn-primary / .btn-secondary / .btn-large
+   ============================================================ */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #7C3AED;
+  color: var(--white);
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  text-decoration: none;
+  border: 2px solid #7C3AED;
+  cursor: pointer;
+  transition: background 200ms ease, border-color 200ms ease, transform 100ms ease;
+  white-space: nowrap;
+}
+
+.btn-primary:hover {
+  background: var(--violet-dark);
+  border-color: var(--violet-dark);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: #7C3AED;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  text-decoration: none;
+  border: 2px solid #7C3AED;
+  cursor: pointer;
+  transition: background 200ms ease, color 200ms ease, transform 100ms ease;
+  white-space: nowrap;
+}
+
+.btn-secondary:hover {
+  background: var(--violet-light);
+  transform: translateY(-1px);
+}
+
+/* SaaS-specific: large hero CTA */
+.btn-large {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #7C3AED;
+  color: var(--white);
+  padding: 16px 32px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1.125rem;
+  text-decoration: none;
+  border: 2px solid #7C3AED;
+  cursor: pointer;
+  transition: background 200ms ease, border-color 200ms ease, transform 100ms ease;
+  white-space: nowrap;
+}
+
+.btn-large:hover {
+  background: var(--violet-dark);
+  border-color: var(--violet-dark);
+  transform: translateY(-1px);
+}
+
+/* ============================================================
+   5. Pricing Cards — SaaS-specific
+   ============================================================ */
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .pricing-grid {
+    grid-template-columns: 1fr;
+    max-width: 440px;
+    margin: 0 auto;
+  }
+}
+
+.pricing-card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 16px;
+  padding: 32px;
+  position: relative;
+}
+
+.pricing-card--featured {
+  border: 2px solid #7C3AED;
+  box-shadow: 0 0 0 4px #EDE9FE;
+}
+
+.pricing-badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #7C3AED;
+  color: var(--white);
+  padding: 4px 16px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pricing-card__name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin: 0 0 8px;
+}
+
+.pricing-card__price {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--gray-900);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin: 0 0 4px;
+}
+
+.pricing-card__price span {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--gray-500);
+  letter-spacing: 0;
+}
+
+.pricing-card__desc {
+  font-size: 0.875rem;
+  color: var(--gray-600);
+  margin: 0 0 24px;
+}
+
+.pricing-card__features {
+  list-style: none;
+  margin: 0 0 32px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pricing-card__feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.9375rem;
+  color: var(--gray-700);
+}
+
+.pricing-card__feature::before {
+  content: "✓";
+  flex-shrink: 0;
+  color: var(--green);
+  font-weight: 700;
+  margin-top: 1px;
+}
+
+/* ============================================================
+   6. Footer — .xb-footer
+   ============================================================ */
+.xb-footer {
+  background: #111827;
+  color: var(--white);
+  padding: 48px 0 32px;
+}
+
+.xb-footer__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.xb-footer__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 40px;
+  margin-bottom: 40px;
+}
+
+@media (max-width: 768px) {
+  .xb-footer__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 32px;
+  }
+}
+
+@media (max-width: 480px) {
+  .xb-footer__grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+}
+
+.xb-footer__col {
+  display: flex;
+  flex-direction: column;
+}
+
+.xb-footer__col-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+  margin: 0 0 16px;
+}
+
+.xb-footer__links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.xb-footer__link {
+  color: var(--gray-400);
+  text-decoration: none;
+  font-size: 0.9375rem;
+  transition: color 150ms ease;
+}
+
+.xb-footer__link:hover {
+  color: var(--white);
+}
+
+.xb-footer__bottom {
+  border-top: 1px solid #374151;
+  padding-top: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.xb-footer__copyright {
+  color: var(--gray-500);
+  font-size: 0.875rem;
+}
+
+/* ============================================================
+   7. Utility helpers
+   ============================================================ */
+.container-xl {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* SaaS-specific: waitlist form */
+.waitlist-form {
+  display: flex;
+  gap: 12px;
+  max-width: 480px;
+  flex-wrap: wrap;
+}
+
+.waitlist-form__input {
+  flex: 1;
+  min-width: 220px;
+  padding: 12px 16px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  color: var(--gray-900);
+  outline: none;
+  transition: border-color 150ms ease;
+}
+
+.waitlist-form__input:focus {
+  border-color: var(--violet);
+  box-shadow: 0 0 0 3px var(--violet-light);
+}
+
+/* SaaS-specific: team/plan badges */
+.plan-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.plan-badge--free {
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.plan-badge--pro {
+  background: var(--violet-light);
+  color: var(--violet-dark);
+}
+
+.plan-badge--team {
+  background: #DBEAFE;
+  color: #1D4ED8;
+}

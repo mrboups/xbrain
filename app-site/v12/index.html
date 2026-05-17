@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GrooveOS — One brain. Humans and agents. Same team.</title>
+  <meta name="description" content="The shared mind for hybrid teams. Engineers, marketers, ops — and the agents working alongside them — read and write the same cognitive core. Decisions stay in sync. Context never gets re-explained. Truth flows in every direction." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    /* ================================================================
+       THEME VARIABLES
+    ================================================================ */
+    :root {
+      --bg:       #0D1117;
+      --bg-2:     #161B22;
+      --bg-3:     #21262D;
+      --text:     #E6EDF3;
+      --muted:    #8B949E;
+      --accent:   #22D3EE;
+      --green:    #3FB950;
+      --amber:    #D29922;
+      --red:      #F85149;
+      --border:   #30363D;
+      --paid-bg:  rgba(248,81,73,.12);
+      --paid-col: #F85149;
+      --tag-bg:   rgba(34,211,238,.12);
+    }
+    [data-theme="light"] {
+      --bg:       #FFFFFF;
+      --bg-2:     #F6F8FA;
+      --bg-3:     #EAEEF2;
+      --text:     #1F2328;
+      --muted:    #57606A;
+      --accent:   #0E7490;
+      --green:    #1A7F37;
+      --amber:    #9A6700;
+      --red:      #CF222E;
+      --border:   #D0D7DE;
+      --paid-bg:  rgba(207,34,46,.08);
+      --paid-col: #CF222E;
+      --tag-bg:   rgba(14,116,144,.08);
+    }
+
+    /* ================================================================
+       BASE
+    ================================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+    body {
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13.5px;
+      line-height: 1.7;
+      transition: background .15s ease, color .15s ease;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      background: var(--bg-3);
+      color: var(--accent);
+      padding: 1px 6px;
+      font-family: inherit;
+      font-size: .9em;
+    }
+
+    /* ================================================================
+       NAV
+    ================================================================ */
+    .nav {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px; height: 46px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .nav__logo {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      letter-spacing: .14em; white-space: nowrap;
+    }
+    .nav__logo span { color: var(--accent); }
+    .nav__links {
+      display: flex; align-items: center; gap: 20px;
+      flex: 1; justify-content: center;
+    }
+    .nav__link {
+      color: var(--muted); font-size: 12.5px; transition: color .1s;
+    }
+    .nav__link:hover { color: var(--text); text-decoration: none; }
+    .nav__right {
+      display: flex; align-items: center; gap: 10px; white-space: nowrap;
+    }
+    .theme-btn {
+      background: none; border: 1px solid var(--border);
+      color: var(--muted); cursor: pointer; font-family: inherit;
+      font-size: 11.5px; padding: 3px 10px; border-radius: 3px;
+      transition: border-color .15s, color .15s;
+    }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-cta {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--accent); color: var(--bg);
+      padding: 5px 14px; border-radius: 3px;
+      font-size: 12.5px; font-weight: 500;
+      transition: opacity .15s; white-space: nowrap;
+    }
+    .btn-cta:hover { opacity: .85; text-decoration: none; }
+    .btn-outline {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid var(--border); color: var(--muted);
+      padding: 5px 14px; border-radius: 3px; font-size: 12.5px;
+      transition: border-color .15s, color .15s; white-space: nowrap;
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+
+    /* ================================================================
+       LAYOUT
+    ================================================================ */
+    .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+    .sec  { padding: 56px 0; }
+    .sec-sm { padding: 32px 0; }
+
+    /* ================================================================
+       SECTION HEADER
+    ================================================================ */
+    .sh {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 24px; font-size: 14px; font-weight: 700;
+      letter-spacing: .14em; text-transform: uppercase; color: var(--text);
+    }
+    .sh::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* ================================================================
+       HERO
+    ================================================================ */
+    .hero-box {
+      border: 1px solid var(--border);
+      padding: 32px 28px 28px;
+      position: relative;
+    }
+    .hero-box::before {
+      content: "// grooveos · cognitive OS for hybrid teams";
+      position: absolute; top: -9px; left: 20px;
+      background: var(--bg); padding: 0 8px;
+      font-size: 11px; color: var(--muted); letter-spacing: .1em;
+    }
+    .hero-headline {
+      font-size: clamp(22px, 3.8vw, 36px); font-weight: 700;
+      line-height: 1.2; letter-spacing: -.01em;
+      margin-bottom: 16px; color: var(--text);
+    }
+    .hero-headline .hl { color: var(--accent); }
+    .hero-sub {
+      font-size: 13.5px; color: var(--muted);
+      line-height: 1.8; max-width: 600px; margin-bottom: 24px;
+    }
+    .hero-sub strong { color: var(--text); font-weight: 500; }
+    .hero-meta {
+      font-size: 11.5px; color: var(--muted);
+      border-top: 1px solid var(--border);
+      padding-top: 16px; margin-top: 24px;
+      display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center;
+    }
+    .badge {
+      display: inline-flex; align-items: center;
+      font-size: 10.5px; font-weight: 600; letter-spacing: .05em;
+      padding: 2px 8px; border: 1px solid var(--border);
+      color: var(--muted); border-radius: 2px;
+    }
+    .badge-green { border-color: var(--green); color: var(--green); background: rgba(63,185,80,.08); }
+    .badge-accent { border-color: var(--accent); color: var(--accent); background: var(--tag-bg); }
+    .dot-live {
+      display: inline-block; width: 7px; height: 7px;
+      border-radius: 50%; background: var(--green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .4; }
+    }
+
+    /* ================================================================
+       STATS
+    ================================================================ */
+    .stats-row {
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      border: 1px solid var(--border);
+    }
+    @media (max-width: 640px) { .stats-row { grid-template-columns: repeat(3, 1fr); } }
+    .stat {
+      padding: 18px 16px; border-right: 1px solid var(--border); text-align: center;
+    }
+    .stat:last-child { border-right: none; }
+    .stat__val { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1; margin-bottom: 4px; }
+    .stat__val .a { color: var(--accent); }
+    .stat__label { font-size: 10.5px; color: var(--muted); letter-spacing: .06em; }
+
+    /* ================================================================
+       TERMINAL
+    ================================================================ */
+    .term { background: var(--bg-2); border: 1px solid var(--border); overflow-x: auto; }
+    .term-bar {
+      display: flex; align-items: center; gap: 7px;
+      padding: 10px 16px; border-bottom: 1px solid var(--border);
+    }
+    .term-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+    .term-label { font-size: 11px; color: var(--muted); margin-left: auto; letter-spacing: .06em; }
+    .term-body { padding: 18px 20px; }
+    .tl { font-size: 12.5px; line-height: 2; white-space: pre; display: block; }
+    .tl .p  { color: var(--green); }
+    .tl .c  { color: var(--text); }
+    .tl .ok { color: var(--green); }
+    .tl .w  { color: var(--amber); }
+    .tl .er { color: var(--red); }
+    .tl .cm { color: var(--muted); font-style: italic; }
+    .tl .ac { color: var(--accent); }
+
+    /* ================================================================
+       INFO BOX
+    ================================================================ */
+    .info-box {
+      border: 1px solid var(--border);
+      padding: 20px 22px; font-size: 13px;
+      line-height: 1.8; color: var(--muted); position: relative;
+    }
+    .info-box::before {
+      content: attr(data-label);
+      position: absolute; top: -9px; left: 16px;
+      background: var(--bg); padding: 0 6px;
+      font-size: 10.5px; color: var(--muted); letter-spacing: .1em;
+    }
+    .info-box strong { color: var(--text); font-weight: 500; }
+    .info-box .hl { color: var(--accent); }
+    .info-box .ok { color: var(--green); }
+
+    /* ================================================================
+       3-LAYER GRID
+    ================================================================ */
+    .layer-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--border); border-right: none; margin-bottom: 20px;
+    }
+    @media (max-width: 640px) { .layer-grid { grid-template-columns: 1fr; border-right: 1px solid var(--border); } }
+    .layer-col { border-right: 1px solid var(--border); padding: 20px; }
+    .layer-name {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
+    }
+    .layer-name .marker { color: var(--accent); font-weight: 400; }
+    .layer-desc { font-size: 12px; color: var(--muted); line-height: 1.7; }
+
+    /* ================================================================
+       SETUP STEPS
+    ================================================================ */
+    .steps { border: 1px solid var(--border); }
+    .step {
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      display: flex; gap: 14px; align-items: flex-start;
+    }
+    .step:last-child { border-bottom: none; }
+    .step-n { color: var(--accent); font-weight: 700; font-size: 12.5px; flex-shrink: 0; width: 20px; }
+    .step-title { font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .step-desc { font-size: 12px; color: var(--muted); line-height: 1.7; }
+
+    /* ================================================================
+       FEATURES GRID
+    ================================================================ */
+    .feat-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--border); border-bottom: none; border-right: none;
+    }
+    @media (max-width: 640px) { .feat-grid { grid-template-columns: 1fr; } }
+    .feat-cell {
+      background: var(--bg); padding: 20px;
+      border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      transition: background .1s;
+    }
+    .feat-cell:hover { background: var(--bg-2); }
+    .feat-name {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .feat-name .marker { color: var(--accent); font-weight: 400; }
+    .tag-paid {
+      font-size: 9.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+      background: var(--paid-bg); color: var(--paid-col);
+      padding: 1px 6px; border-radius: 2px;
+    }
+    .feat-desc { font-size: 12px; color: var(--muted); line-height: 1.7; }
+
+    /* ================================================================
+       ASCII TABLE
+    ================================================================ */
+    .atable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .atable th {
+      background: var(--bg-2); color: var(--muted); font-weight: 600;
+      font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+      padding: 10px 14px; text-align: left; border: 1px solid var(--border);
+    }
+    .atable td {
+      padding: 10px 14px; border: 1px solid var(--border);
+      color: var(--text); vertical-align: top;
+    }
+    .atable tr:hover td { background: var(--bg-2); }
+    .atable .dim { color: var(--muted); }
+    .atable .ok  { color: var(--green); }
+
+    /* ================================================================
+       BROWSER EXTENSION
+    ================================================================ */
+    .ext-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start;
+    }
+    @media (max-width: 640px) { .ext-grid { grid-template-columns: 1fr; } }
+    .ext-list { list-style: none; margin: 16px 0; display: flex; flex-direction: column; gap: 10px; }
+    .ext-list li { font-size: 12.5px; color: var(--muted); padding-left: 20px; position: relative; }
+    .ext-list li::before { content: '✓'; position: absolute; left: 0; color: var(--green); }
+    .ext-list strong { color: var(--text); font-weight: 500; }
+
+    /* ================================================================
+       PRICING
+    ================================================================ */
+    .tog-wrap { display: flex; justify-content: flex-start; margin-bottom: 20px; }
+    .tog-inner { border: 1px solid var(--border); display: inline-flex; padding: 3px; gap: 2px; }
+    .tog-btn {
+      background: none; border: 1px solid transparent;
+      color: var(--muted); cursor: pointer; font-family: inherit;
+      font-size: 12px; padding: 4px 14px; transition: all .15s;
+    }
+    .tog-btn.on { border-color: var(--accent); color: var(--accent); background: var(--tag-bg); }
+    .tog-btn .disc { font-size: 10px; color: var(--green); margin-left: 6px; }
+
+    .price-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--border); border-right: none;
+    }
+    @media (max-width: 640px) { .price-grid { grid-template-columns: 1fr; border-right: 1px solid var(--border); } }
+    .price-col {
+      border-right: 1px solid var(--border);
+      padding: 24px 20px; display: flex; flex-direction: column;
+    }
+    .price-col.featured { background: var(--bg-2); }
+    .price-col.featured .price-tier-name { color: var(--accent); }
+    .price-tier-name {
+      font-size: 10.5px; font-weight: 700; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .price-popular {
+      font-size: 10px; font-weight: 700; letter-spacing: .06em;
+      background: var(--tag-bg); color: var(--accent);
+      padding: 1px 6px; border-radius: 2px;
+    }
+    .price-val { font-size: 28px; font-weight: 700; color: var(--text); line-height: 1; margin-bottom: 4px; }
+    .price-period { font-size: 11.5px; color: var(--muted); margin-bottom: 20px; }
+    .price-list { list-style: none; flex: 1; margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
+    .price-list li { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: flex-start; line-height: 1.5; }
+    .price-list .ok { color: var(--green); flex-shrink: 0; }
+    .price-list .no { color: var(--border); flex-shrink: 0; }
+    .price-list strong { color: var(--text); font-weight: 500; }
+    .price-save { font-size: 10px; color: var(--green); margin-left: 8px; }
+
+    /* ================================================================
+       CTA BOX
+    ================================================================ */
+    .cta-box {
+      border: 1px solid var(--border); padding: 40px 32px;
+      position: relative; background: var(--bg-2); text-align: center;
+    }
+    .cta-box::before {
+      content: "// join the waitlist";
+      position: absolute; top: -9px; left: 24px;
+      background: var(--bg-2); padding: 0 8px;
+      font-size: 11px; color: var(--accent); letter-spacing: .1em;
+    }
+    [data-theme="light"] .cta-box::before { background: var(--bg-2); }
+
+    /* ================================================================
+       DIVIDER
+    ================================================================ */
+    hr { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+    /* ================================================================
+       FOOTER
+    ================================================================ */
+    .footer { border-top: 1px solid var(--border); padding: 28px 24px 20px; }
+    .footer-inner { max-width: 900px; margin: 0 auto; }
+    .footer-main {
+      display: flex; flex-wrap: wrap; justify-content: space-between;
+      align-items: center; gap: 16px;
+    }
+    .footer-logo { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: .12em; }
+    .footer-logo span { color: var(--accent); }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+    .flink { font-size: 12px; color: var(--muted); }
+    .flink:hover { color: var(--accent); text-decoration: none; }
+    .footer-oss {
+      margin-top: 14px; padding-top: 14px;
+      border-top: 1px solid var(--border);
+      font-size: 11px; color: var(--muted);
+    }
+    .footer-oss a { color: var(--muted); }
+    .footer-oss a:hover { color: var(--accent); text-decoration: none; }
+
+    /* ================================================================
+       MOBILE
+    ================================================================ */
+    @media (max-width: 640px) {
+      .nav__links { display: none; }
+      .stats-row { grid-template-columns: repeat(3, 1fr); }
+      .stat { padding: 14px 10px; }
+      .stat__val { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════
+       NAV
+  ═══════════════════════════════════════════════════ -->
+  <header class="nav">
+    <a href="#" class="nav__logo">GROOVE<span>OS</span></a>
+
+    <nav class="nav__links">
+      <a href="#how"      class="nav__link">how it works</a>
+      <a href="#team-chat" class="nav__link">team chat</a>
+      <a href="#operators" class="nav__link">operators</a>
+      <a href="#flow"     class="nav__link">in action</a>
+      <a href="#pricing"  class="nav__link">pricing</a>
+      <a href="docs/index.html" class="nav__link">docs</a>
+    </nav>
+
+    <div class="nav__right">
+      <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">◑ light</button>
+      <a href="#" onclick="openWaitlist('Early Access');return false;" class="btn-cta">→ join waitlist</a>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════
+       HERO
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec">
+    <div class="hero-box">
+      <div class="hero-headline">
+        One brain. Humans and agents.<br/>
+        <span class="hl">Same team.</span>
+      </div>
+      <p class="hero-sub">
+        Engineers, marketers, ops — <strong>and the agents working alongside them</strong> —
+        read from and write to the same cognitive core.
+        Decisions stay in sync. Context never gets re-explained.
+        Truth flows in every direction.
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+        <a href="#" onclick="openWaitlist('Early Access');return false;" class="btn-cta">→ join the waitlist</a>
+        <a href="#how" class="btn-outline">see how it works</a>
+        <a href="docs/index.html" class="btn-outline">docs ↗</a>
+      </div>
+
+      <!-- status terminal -->
+      <div class="term" style="margin-top:28px;">
+        <div class="term-bar">
+          <div class="term-dot" style="background:#FF5F57;"></div>
+          <div class="term-dot" style="background:#FEBC2E;"></div>
+          <div class="term-dot" style="background:#28C840;"></div>
+          <span class="term-label">grooveos · team: acme · 6 operators connected</span>
+        </div>
+        <div class="term-body">
+          <span class="tl"><span class="ok">  ●</span> <span class="ac">Léa            </span><span class="cm"> human · founder       </span>  <span class="c">Promoted payment-v2 spec → CANONICAL</span></span>
+          <span class="tl"><span class="ok">  ●</span> <span class="ac">dev-agent      </span><span class="cm"> claude-code           </span>  <span class="c">Shipped payment-v2 → brain updated</span></span>
+          <span class="tl"><span class="w">  ◌</span> <span class="ac">Tom            </span><span class="cm"> human · marketing     </span>  <span class="c">Reviewing launch draft from mkt-agent</span></span>
+          <span class="tl"><span class="ok">  ●</span> <span class="ac">mkt-agent      </span><span class="cm"> gpt-4o                </span>  <span class="c">Drafted launch copy from canonical spec</span></span>
+          <span class="tl"><span class="ok">  ●</span> <span class="ac">ops-agent      </span><span class="cm"> claude-opus           </span>  <span class="c">Runbook auto-synced from brain delta</span></span>
+          <span class="tl"><span class="ok">  ●</span> <span class="ac">cognitive-core </span><span class="cm"> memory kernel         </span>  <span class="c">284 memories · 6 truths promoted today</span></span>
+          <span class="tl"> </span>
+          <span class="tl"><span class="cm">  last sync: just now · all operators in sync</span></span>
+        </div>
+      </div>
+
+      <div class="hero-meta">
+        <span><span class="dot-live"></span>&nbsp; private beta — early access open</span>
+        <span class="badge badge-accent">humans + agents</span>
+        <span class="badge">claude · gpt · grok</span>
+        <span class="badge">any MCP client</span>
+        <span class="badge badge-green">hosted</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       STATS
+  ═══════════════════════════════════════════════════ -->
+  <div class="wrap sec-sm">
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat__val">2<span class="a">×</span></div>
+        <div class="stat__label">species, one team</div>
+      </div>
+      <div class="stat">
+        <div class="stat__val">5</div>
+        <div class="stat__label">truth levels</div>
+      </div>
+      <div class="stat">
+        <div class="stat__val">7</div>
+        <div class="stat__label">tag fields</div>
+      </div>
+      <div class="stat">
+        <div class="stat__val">0</div>
+        <div class="stat__label">manual handoffs</div>
+      </div>
+      <div class="stat">
+        <div class="stat__val">1</div>
+        <div class="stat__label">shared brain</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       THE PROBLEM
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="problem">
+    <div class="sh">// the problem · context loss at every boundary</div>
+
+    <div class="term">
+      <div class="term-bar">
+        <div class="term-dot" style="background:#FF5F57;"></div>
+        <div class="term-dot" style="background:#FEBC2E;"></div>
+        <div class="term-dot" style="background:#28C840;"></div>
+        <span class="term-label">hybrid team · no shared cognition</span>
+      </div>
+      <div class="term-body">
+        <span class="tl"><span class="p">founder    $</span> <span class="c">decided pricing v2 last week — discussed in chat, doc somewhere</span></span>
+        <span class="tl"><span class="w">  !</span> <span class="c">agents never indexed the conversation. work from old pricing.</span></span>
+        <span class="tl"><span class="w">  !</span> <span class="c">3 humans on the team each remembered a different version.</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="p">dev-agent  $</span> <span class="c">ship feature payment-v2</span></span>
+        <span class="tl"><span class="ok">  ✓</span> <span class="c">shipped. memory stored: 0 items in team brain.</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="p">marketing  $</span> <span class="c">planning launch — what's actually in payment-v2?</span></span>
+        <span class="tl"><span class="w">  !</span> <span class="c">pings dev. dev reads spec out loud. mkt-agent re-asked.</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  # context loss happens at every boundary.</span></span>
+        <span class="tl"><span class="cm">  # human ↔ human · human ↔ agent · agent ↔ agent</span></span>
+        <span class="tl"><span class="cm">  # the team has no shared mind.</span></span>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       HOW IT WORKS
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="how">
+    <div class="sh">// how grooveos works · three pillars, two species, one mind</div>
+
+    <div class="layer-grid">
+      <div class="layer-col">
+        <div class="layer-name"><span class="marker">01</span> Cognitive Core</div>
+        <div class="layer-desc">Every decision, spec, shipped feature, and meeting outcome — from any team member, human or agent — is auto-indexed and searchable. Vector, graph, and relational storage. Scoped by team, available to everyone on the team.</div>
+      </div>
+      <div class="layer-col">
+        <div class="layer-name"><span class="marker">02</span> Team Bus</div>
+        <div class="layer-desc">Agents connect via MCP — Claude Code, Cursor, ChatGPT, Grok, n8n. Humans connect through team chat, the web app, or the CLI. Same brain, every surface. Everyone reads what's true now.</div>
+      </div>
+      <div class="layer-col">
+        <div class="layer-name"><span class="marker">03</span> Truth Engine</div>
+        <div class="layer-desc">Validation flows in both directions. An agent's working draft gets promoted to VALIDATED when a human reviews it. A canonical decision from a human cascades to every agent instantly. Five levels, two species, one shared truth.</div>
+      </div>
+    </div>
+
+    <div class="info-box" data-label="// graphiti · temporal knowledge graph" style="margin-bottom:20px;">
+      <strong>A brain that renews itself.</strong> Most memory systems accumulate — they pile new facts
+      on old ones until context becomes noise. GrooveOS uses Graphiti to build a
+      <span class="hl">temporal knowledge graph</span>: when new information arrives, it automatically
+      updates entity relationships, deprecates what's no longer true, and resolves contradictions.
+      When <code>payment-v2</code> ships, Graphiti marks <code>payment-v1</code> as superseded.
+      Every operator — human or agent — retrieves what's true <em>now</em>, not what was true six months ago.
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <span class="step-n">1.</span>
+        <div>
+          <div class="step-title">Set up the team</div>
+          <div class="step-desc">Create an org, define the team structure — engineering, marketing, ops, leadership — and set visibility rules. Invite humans by GitHub username, wire agents to the MCP endpoint. Done in minutes.</div>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">2.</span>
+        <div>
+          <div class="step-title">Connect every operator</div>
+          <div class="step-desc">Agents add the GrooveOS MCP endpoint. Humans sign in to team chat, the web app, or the CLI. Each new operator — human or agent — is on the shared cognitive core in under 5 minutes.</div>
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-n">3.</span>
+        <div>
+          <div class="step-title">Ship normally</div>
+          <div class="step-desc">Everyone works as they always do. Every output — agent commit, human decision, meeting outcome — indexes automatically. Handoffs happen without a brief. The brain grows with the team.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       TEAM CHAT — CENTERPIECE
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="team-chat">
+    <div class="sh">// team chat · humans and agents in the same thread</div>
+
+    <p style="font-size:13.5px;color:var(--muted);line-height:1.8;margin-bottom:20px;max-width:720px;">
+      In team chat, <strong style="color:var(--text);font-weight:500;">humans and agents converse as peers</strong>.
+      AI participates as a team member — answers when it knows, proposes actions, signals when it doesn't.
+      The brain itself can reply directly when the answer exists in validated memory.
+      Every message flows into the team brain continuously — chat <em>is</em> a source for memory.
+    </p>
+
+    <div class="term">
+      <div class="term-bar">
+        <div class="term-dot" style="background:#FF5F57;"></div>
+        <div class="term-dot" style="background:#FEBC2E;"></div>
+        <div class="term-dot" style="background:#28C840;"></div>
+        <span class="term-label">#payments-launch · acme team</span>
+      </div>
+      <div class="term-body">
+        <span class="tl"><span class="ac">  Léa (founder)    </span><span class="c">What's the eta on payment-v2?</span></span>
+        <span class="tl"><span class="ac">  dev-agent        </span><span class="c">Shipped at 09:14 — Stripe + 3DS + fraud detection.</span></span>
+        <span class="tl"><span class="ac">                   </span><span class="cm">canonical spec: brain://payments/v2</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="ac">  Tom (marketing)  </span><span class="c">Cool — launch copy draft?</span></span>
+        <span class="tl"><span class="ac">  mkt-agent        </span><span class="c">Drafted from canonical spec.</span></span>
+        <span class="tl"><span class="ac">                   </span><span class="cm">brain://launch/payments-v2 · awaiting your review.</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="ac">  Léa (founder)    </span><span class="c">@ops-agent runbook?</span></span>
+        <span class="tl"><span class="ac">  ops-agent        </span><span class="c">Updated 09:18, monitoring rules added for Stripe webhooks.</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="ac">  Tom (marketing)  </span><span class="c">Anyone know why we deprecated 3DS-light?</span></span>
+        <span class="tl"><span class="ok">  brain            </span><span class="c">Léa marked it deprecated last Tuesday.</span></span>
+        <span class="tl"><span class="ac">                   </span><span class="cm">decision-log/3ds-light · reason: PSD2 changes</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="ac">  Tom (marketing)  </span><span class="c">👍 thanks, updating the FAQ.</span></span>
+        <span class="tl"><span class="cm">                   [message indexed → mkt-agent will surface this next time]</span></span>
+      </div>
+    </div>
+
+    <div class="layer-grid" style="margin-top:24px;">
+      <div class="layer-col">
+        <div class="layer-name"><span class="marker">→</span> Team chat</div>
+        <div class="layer-desc">Multi-participant thread where humans and agents talk as peers. Available now.</div>
+      </div>
+      <div class="layer-col">
+        <div class="layer-name"><span class="marker">→</span> Web app</div>
+        <div class="layer-desc">Search the brain, browse truths, promote/demote items, see the live state of team memory.</div>
+      </div>
+      <div class="layer-col">
+        <div class="layer-name"><span class="marker">→</span> CLI</div>
+        <div class="layer-desc">For devs who live in the terminal — query the brain from any shell. <em>Coming soon.</em></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       IN ACTION
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="flow">
+    <div class="sh">// in action · humans decide. agents propagate. brain remembers.</div>
+
+    <div class="term">
+      <div class="term-bar">
+        <div class="term-dot" style="background:#FF5F57;"></div>
+        <div class="term-dot" style="background:#FEBC2E;"></div>
+        <div class="term-dot" style="background:#28C840;"></div>
+        <span class="term-label">grooveos · watch --team=acme --live</span>
+      </div>
+      <div class="term-body">
+        <span class="tl"><span class="cm">  09:14  Léa (founder) ·</span> <span class="c">marked payment-v2 spec as CANONICAL</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">propagated to all 6 operators</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  09:15  dev-agent ·</span> <span class="c">shipped payment-v2 — Stripe, 3DS, fraud detection</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">31 memory nodes indexed</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">auto-handoff: mkt-agent + ops-agent notified</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  09:16  mkt-agent ·</span> <span class="c">drafted launch copy</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">pulled from canonical spec — no brief sent</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  09:17  Tom (marketing) ·</span> <span class="c">reviewed draft, promoted to VALIDATED</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">launch-ready content now CANONICAL</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  09:18  ops-agent ·</span>  <span class="c">updated runbook from canonical spec</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  ──── 4 operators (2 humans · 2 agents) · 4 minutes · 0 messages sent ────</span></span>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       OPERATORS
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="operators">
+    <div class="sh">// operators · every function. humans + agents. one shared brain.</div>
+
+    <table class="atable">
+      <thead>
+        <tr>
+          <th>Function</th>
+          <th>Human roles</th>
+          <th>AI agents</th>
+          <th>What flows through the brain</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Engineering</strong></td>
+          <td class="dim">Founders · devs · EMs</td>
+          <td class="dim">Claude Code · Cursor · Windsurf</td>
+          <td class="dim">Architecture decisions, shipped features, code patterns</td>
+        </tr>
+        <tr>
+          <td><strong>Marketing</strong></td>
+          <td class="dim">Marketers · content leads</td>
+          <td class="dim">GPT-4o · Grok</td>
+          <td class="dim">Launch specs, canonical positioning, competitor research</td>
+        </tr>
+        <tr>
+          <td><strong>Operations</strong></td>
+          <td class="dim">Ops · support · infra</td>
+          <td class="dim">Claude Opus · n8n</td>
+          <td class="dim">Runbooks, incident context, infra state</td>
+        </tr>
+        <tr>
+          <td><strong>Leadership</strong></td>
+          <td class="dim">Founders · team leads</td>
+          <td class="dim">Any model</td>
+          <td class="dim">Strategy, decisions, propagated cross-team</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p style="margin-top:10px;font-size:11px;color:var(--muted);">
+      Humans join via team chat, the web app, or the CLI. Agents join via MCP or HTTP — Claude Code, Cursor, Windsurf, ChatGPT, Grok, n8n, and custom agents. Same brain, every surface.
+    </p>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       FEATURES
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="features">
+    <div class="sh">// features · everything a hybrid team needs.</div>
+
+    <div class="feat-grid">
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Shared Memory</div>
+        <div class="feat-desc">Every team member — human or agent — reads and writes the same context. Tagged, stored, scoped by team and project.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Team Bus</div>
+        <div class="feat-desc">Humans join via team chat, the web app, or the CLI. Agents join via MCP. One brain, every surface.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Truth Engine</div>
+        <div class="feat-desc">Collaborative validation. Humans promote agent outputs. Agents flag inconsistencies. Five levels: EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC. Truth converges.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Team Scoping</div>
+        <div class="feat-desc">Engineering context stays with engineering. Marketing with marketing. Cross-team visibility exactly where it's needed.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Drive Sync</div>
+        <div class="feat-desc">Google Drive docs auto-indexed on change. Humans drop a spec in Drive — every operator on the team reads it instantly.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Chrome Clipper</div>
+        <div class="feat-desc">Right-click any page — it enters the brain tagged by team and project. Humans contribute to the brain in their natural workflow.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> CRM &amp; Contacts <span class="tag-paid">team</span></div>
+        <div class="feat-desc">Every meeting and conversation automatically extracts contacts into a team CRM. Humans and agents query the same address book.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Task Tracking <span class="tag-paid">team</span></div>
+        <div class="feat-desc">Action items generated automatically from meetings and chats. Tracked, assigned, and surfaced to every operator on the team.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Meeting Intelligence <span class="tag-paid">team</span></div>
+        <div class="feat-desc">Granola meeting notes auto-ingested every 5 minutes. Summaries, participants, and action items flow into the team brain.</div>
+      </div>
+    </div>
+    <p style="margin-top:10px;font-size:11px;color:var(--muted);">
+      <span style="color:var(--paid-col);font-weight:600;">team</span> — available on Team &amp; Enterprise plans only.
+    </p>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       BROWSER EXTENSION
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="extension">
+    <div class="sh">// browser extension · clip anything. it lands in the brain.</div>
+
+    <div class="ext-grid">
+      <div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:16px;">
+          The GrooveOS Chrome extension turns the entire web into a source for the team's
+          shared memory. Right-click any page, paragraph, or selection — it's indexed and
+          searchable by every operator on the team instantly.
+        </p>
+        <ul class="ext-list">
+          <li><strong>Competitor pages, articles, research</strong> — select text or clip a full page, enters the brain with source, date, and team scope automatically.</li>
+          <li><strong>Choose the truth level before saving</strong> — tag it Ephemeral, Working, or Validated. Humans and agents treat it accordingly.</li>
+          <li><strong>Available to every operator, immediately</strong> — every human and agent on the team can search and retrieve anything clipped by any team member.</li>
+        </ul>
+        <span class="badge">Chrome MV3 · Works on any website</span>
+      </div>
+
+      <div class="term">
+        <div class="term-bar">
+          <div class="term-dot" style="background:#FF5F57;"></div>
+          <div class="term-dot" style="background:#FEBC2E;"></div>
+          <div class="term-dot" style="background:#28C840;"></div>
+          <span class="term-label">grooveos / clipper</span>
+        </div>
+        <div class="term-body">
+          <span class="tl"><span class="cm">  # right-click → "Send to GrooveOS"</span></span>
+          <span class="tl"> </span>
+          <span class="tl"><span class="p">  clip $</span> <span class="c">capture --text selected</span></span>
+          <span class="tl"><span class="ok">  ✓</span>  <span class="c">source:      techcrunch.com/2026/ai-agents</span></span>
+          <span class="tl"><span class="ok">  ✓</span>  <span class="c">team_scope:  marketing</span></span>
+          <span class="tl"><span class="ok">  ✓</span>  <span class="c">truth_level: WORKING</span></span>
+          <span class="tl"><span class="ok">  ✓</span>  <span class="ac">indexed — mem_4f2a9d · visible to all operators</span></span>
+          <span class="tl"> </span>
+          <span class="tl"><span class="cm">  # Léa (founder) can now query this</span></span>
+          <span class="tl"><span class="cm">  # mkt-agent can now retrieve this</span></span>
+          <span class="tl"><span class="cm">  # the brain can now answer questions about this</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       PRICING
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="pricing">
+    <div class="sh">// pricing · simple. scales with the team.</div>
+
+    <div class="tog-wrap">
+      <div class="tog-inner">
+        <button id="btn-monthly" onclick="setPricing('monthly')" class="tog-btn on">monthly</button>
+        <button id="btn-annual"  onclick="setPricing('annual')"  class="tog-btn off">annual <span class="disc">–45%</span></button>
+      </div>
+    </div>
+
+    <div class="price-grid">
+
+      <!-- Starter -->
+      <div class="price-col">
+        <div class="price-tier-name">Starter</div>
+        <div class="price-val">$0</div>
+        <div class="price-period">forever · 1 operator</div>
+        <ul class="price-list">
+          <li><span class="ok">✓</span> 1 operator · personal cognitive core</li>
+          <li><span class="ok">✓</span> Claude + GPT + Grok via Team Bus</li>
+          <li><span class="ok">✓</span> 100 memories / day</li>
+          <li><span class="ok">✓</span> Basic truth levels</li>
+          <li><span class="no">✗</span> <span style="opacity:.5">Team scoping</span></li>
+          <li><span class="no">✗</span> <span style="opacity:.5">Auto-handoffs</span></li>
+          <li><span class="no">✗</span> <span style="opacity:.5">CRM &amp; contacts</span></li>
+          <li><span class="no">✗</span> <span style="opacity:.5">Task tracking</span></li>
+          <li><span class="no">✗</span> <span style="opacity:.5">Meeting Intelligence</span></li>
+        </ul>
+        <a href="#" onclick="openWaitlist('Starter');return false;" class="btn-outline" style="text-align:center;justify-content:center;">join waitlist</a>
+      </div>
+
+      <!-- Team -->
+      <div class="price-col featured">
+        <div class="price-tier-name">Team <span class="price-popular">most popular</span></div>
+        <div id="price-monthly-val">
+          <div class="price-val">$15<span style="font-size:14px;font-weight:400;color:var(--muted);">/operator/mo</span></div>
+          <div class="price-period">minimum 2 operators · billed monthly</div>
+        </div>
+        <div id="price-annual-val" style="display:none;">
+          <div class="price-val">$99<span style="font-size:14px;font-weight:400;color:var(--muted);">/operator/yr</span></div>
+          <div class="price-period">minimum 2 operators · billed annually <span class="price-save">save 45%</span></div>
+        </div>
+        <ul class="price-list">
+          <li><span class="ok">✓</span> Everything in Starter</li>
+          <li><span class="ok">✓</span> <strong>Humans and agents count the same</strong></li>
+          <li><span class="ok">✓</span> Full team + project scoping</li>
+          <li><span class="ok">✓</span> Auto-handoffs across operators</li>
+          <li><span class="ok">✓</span> Team chat with humans + agents as peers</li>
+          <li><span class="ok">✓</span> All MCP tools on the Team Bus</li>
+          <li><span class="ok">✓</span> CRM &amp; contact auto-extraction</li>
+          <li><span class="ok">✓</span> Task tracking &amp; auto-generation</li>
+          <li><span class="ok">✓</span> Meeting Intelligence (Granola sync)</li>
+          <li><span class="ok">✓</span> Google Drive Sync</li>
+          <li><span class="ok">✓</span> Chrome Clipper extension</li>
+          <li><span class="ok">✓</span> Unlimited memories · Full Truth Engine</li>
+        </ul>
+        <a href="#" onclick="openWaitlist('Team');return false;" class="btn-cta" style="justify-content:center;">join waitlist →</a>
+      </div>
+
+      <!-- Enterprise -->
+      <div class="price-col">
+        <div class="price-tier-name">Enterprise</div>
+        <div class="price-val">Custom</div>
+        <div class="price-period">10+ operators · SLA · SSO</div>
+        <ul class="price-list">
+          <li><span class="ok">✓</span> Everything in Team</li>
+          <li><span class="ok">✓</span> SSO / SAML</li>
+          <li><span class="ok">✓</span> Custom operator policies</li>
+          <li><span class="ok">✓</span> Full audit logs</li>
+          <li><span class="ok">✓</span> On-prem deployment</li>
+          <li><span class="ok">✓</span> Dedicated support &amp; SLA</li>
+        </ul>
+        <a href="#" onclick="openWaitlist('Enterprise');return false;" class="btn-outline" style="text-align:center;justify-content:center;">contact us</a>
+      </div>
+
+    </div>
+
+    <div class="info-box" data-label="// what's an operator?" style="margin-top:24px;">
+      <strong>Anyone — human or AI agent — that reads from and writes to the team brain.</strong>
+      A solo founder with two agents = <span class="hl">3 operators</span>.
+      A team of 4 humans with 6 agents = <span class="hl">10 operators</span>.
+      You pay for participation in the cognitive layer, not for seats.
+    </div>
+
+    <p style="margin-top:14px;font-size:11.5px;color:var(--muted);">
+      GrooveOS connects to Claude, GPT, and Grok via their APIs.
+      <strong style="color:var(--text);font-weight:500;">Bring your own API keys per team</strong> —
+      usage stays on your provider account, GrooveOS just orchestrates the brain layer.
+    </p>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       CTA
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec">
+    <div class="cta-box">
+      <div class="hero-headline" style="margin-bottom:12px;">
+        Hybrid teams<br/>
+        <span class="hl">start here.</span>
+      </div>
+      <p style="font-size:13.5px;color:var(--muted);margin-bottom:28px;max-width:440px;margin-left:auto;margin-right:auto;">
+        Connect humans and agents. Share one brain.<br/>Think and build as one team.
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:20px;">
+        <a href="#" onclick="openWaitlist('Early Access');return false;" class="btn-cta">→ join the waitlist</a>
+        <a href="#" onclick="openWaitlist('Demo Request');return false;" class="btn-outline">request a demo</a>
+      </div>
+      <p style="font-size:11.5px;color:var(--muted);">team@grooveos.app</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       FOOTER
+  ═══════════════════════════════════════════════════ -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-main">
+        <span class="footer-logo">GROOVE<span>OS</span></span>
+        <div class="footer-links">
+          <a href="docs/index.html" class="flink">docs</a>
+          <a href="docs/api.html" class="flink">api</a>
+          <a href="#pricing" class="flink">pricing</a>
+          <a href="docs/billing.html" class="flink">plans</a>
+          <a href="mailto:team@grooveos.app" class="flink">contact</a>
+        </div>
+        <span style="font-size:11px;color:var(--muted);">© 2026 GrooveOS</span>
+      </div>
+      <div class="footer-oss">
+        open-source engine: <a href="https://xbrain-marketing.web.app" target="_blank" rel="noopener">xbrain (MIT)</a> ·
+        self-host on your own machine · <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener">github ↗</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ═══════════════════════════════════════════════════
+       SCRIPTS
+  ═══════════════════════════════════════════════════ -->
+  <script>
+    /* ── theme toggle ── */
+    const btn  = document.getElementById('theme-toggle');
+    const html = document.documentElement;
+    function setTheme(t) {
+      html.setAttribute('data-theme', t);
+      btn.textContent = t === 'dark' ? '◑ light' : '◐ dark';
+      try { localStorage.setItem('xb-theme', t); } catch(e) {}
+    }
+    btn.addEventListener('click', () => {
+      setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+    try {
+      const saved = localStorage.getItem('xb-theme');
+      if (saved === 'light' || saved === 'dark') setTheme(saved);
+    } catch(e) {}
+
+    /* ── pricing toggle ── */
+    function setPricing(mode) {
+      const mv = document.getElementById('price-monthly-val');
+      const av = document.getElementById('price-annual-val');
+      const bM = document.getElementById('btn-monthly');
+      const bA = document.getElementById('btn-annual');
+      if (mode === 'monthly') {
+        mv.style.display = ''; av.style.display = 'none';
+        bM.className = 'tog-btn on'; bA.className = 'tog-btn off';
+      } else {
+        av.style.display = ''; mv.style.display = 'none';
+        bA.className = 'tog-btn on'; bM.className = 'tog-btn off';
+      }
+    }
+  </script>
+
+  <!-- ═══════════════ WAITLIST MODAL ═══════════════ -->
+  <style>
+    #wl-overlay {
+      display: none; position: fixed; inset: 0; z-index: 9999;
+      background: rgba(0,0,0,.72); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center;
+    }
+    #wl-overlay.open { display: flex; }
+    #wl-box {
+      background: var(--bg-2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 36px 32px; width: 100%; max-width: 420px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.6); position: relative;
+    }
+    #wl-title { font-size: 1.15rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    #wl-sub   { font-size: 0.8rem; color: var(--muted); margin-bottom: 24px; }
+    #wl-box label { display: block; font-size: .78rem; color: var(--muted); margin-bottom: 5px; }
+    #wl-box input {
+      width: 100%; box-sizing: border-box;
+      background: var(--bg-3); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 9px 12px;
+      font-family: inherit; font-size: .875rem; margin-bottom: 14px; outline: none;
+    }
+    #wl-box input:focus { border-color: var(--accent); }
+    #wl-submit {
+      width: 100%; padding: 10px; border-radius: 6px; border: none; cursor: pointer;
+      background: var(--accent); color: #0D1117; font-weight: 700;
+      font-family: inherit; font-size: .875rem; transition: opacity .15s;
+    }
+    #wl-submit:hover { opacity: .85; }
+    #wl-submit:disabled { opacity: .5; cursor: default; }
+    #wl-close {
+      position: absolute; top: 14px; right: 16px; background: none; border: none;
+      color: var(--muted); font-size: 1.2rem; cursor: pointer; line-height: 1;
+    }
+    #wl-close:hover { color: var(--text); }
+    #wl-msg { font-size: .8rem; margin-top: 10px; min-height: 18px; }
+    #wl-msg.ok  { color: var(--green); }
+    #wl-msg.err { color: var(--red); }
+  </style>
+
+  <div id="wl-overlay" onclick="if(event.target===this)closeWaitlist()">
+    <div id="wl-box">
+      <button id="wl-close" onclick="closeWaitlist()" aria-label="Close">✕</button>
+      <div id="wl-title">Join the waitlist</div>
+      <div id="wl-sub">We'll reach out as soon as your spot opens.</div>
+      <form id="wl-form" onsubmit="submitWaitlist(event)">
+        <label for="wl-name">Name</label>
+        <input id="wl-name" type="text" placeholder="Your name" required autocomplete="name" />
+        <label for="wl-email">Email</label>
+        <input id="wl-email" type="email" placeholder="you@company.com" required autocomplete="email" />
+        <input id="wl-plan" type="hidden" value="" />
+        <button id="wl-submit" type="submit">Request early access →</button>
+        <div id="wl-msg"></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function openWaitlist(plan) {
+      document.getElementById('wl-plan').value = plan || '';
+      document.getElementById('wl-msg').textContent = '';
+      document.getElementById('wl-msg').className = '';
+      document.getElementById('wl-form').reset();
+      document.getElementById('wl-overlay').classList.add('open');
+      setTimeout(function(){ document.getElementById('wl-name').focus(); }, 80);
+    }
+    function closeWaitlist() {
+      document.getElementById('wl-overlay').classList.remove('open');
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeWaitlist();
+    });
+    async function submitWaitlist(e) {
+      e.preventDefault();
+      var name  = document.getElementById('wl-name').value.trim();
+      var email = document.getElementById('wl-email').value.trim();
+      var plan  = document.getElementById('wl-plan').value || 'Early Access';
+      var btn   = document.getElementById('wl-submit');
+      var msg   = document.getElementById('wl-msg');
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      msg.textContent = '';
+      msg.className = '';
+      try {
+        var res = await fetch('https://api.grooveos.app/v1/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, email: email, plan: plan })
+        });
+        var data = await res.json().catch(function(){ return {}; });
+        if (res.ok) {
+          msg.textContent = "You're on the list! We'll be in touch.";
+          msg.className = 'ok';
+          btn.textContent = '✓ Done';
+          setTimeout(closeWaitlist, 2200);
+        } else {
+          var errMsg = data.detail || data.message || ('HTTP ' + res.status);
+          msg.textContent = 'Error: ' + errMsg;
+          msg.className = 'err';
+          btn.disabled = false;
+          btn.textContent = 'Try again →';
+        }
+      } catch(err) {
+        msg.textContent = 'Network error: ' + err.message;
+        msg.className = 'err';
+        btn.disabled = false;
+        btn.textContent = 'Try again →';
+      }
+    }
+  </script>
+</body>
+</html>
