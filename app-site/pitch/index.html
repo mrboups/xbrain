@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GrooveOS — a16z Speedrun SR007 Application Deck</title>
+  <meta name="description" content="The shared brain for hybrid teams. Humans and AI agents, co-equal operators on one cognitive substrate." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+
+  <style>
+    /* ================================================================
+       GROOVEOS PALETTE — mirrors app-site/index.html
+    ================================================================ */
+    :root {
+      --bg:       #0D1117;
+      --bg-2:     #161B22;
+      --bg-3:     #21262D;
+      --text:     #E6EDF3;
+      --muted:    #8B949E;
+      --accent:   #22D3EE;
+      --green:    #3FB950;
+      --amber:    #D29922;
+      --red:      #F85149;
+      --border:   #30363D;
+      --tag-bg:   rgba(34,211,238,.12);
+      --green-bg: rgba(63,185,80,.10);
+      --amber-bg: rgba(210,153,34,.10);
+      --red-bg:   rgba(248,81,73,.10);
+    }
+
+    /* ================================================================
+       OVERRIDE REVEAL.JS DEFAULTS
+    ================================================================ */
+    .reveal,
+    .reveal .slides,
+    .reveal .slides section {
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      color: var(--text);
+      letter-spacing: 0;
+    }
+    .reveal {
+      font-size: 22px;
+      line-height: 1.6;
+    }
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+    }
+    .reveal .slides section {
+      text-align: left;
+      padding: 32px 56px;
+      font-weight: 400;
+    }
+    .reveal .slides section.center { text-align: center; }
+
+    /* Headings */
+    .reveal h1, .reveal h2, .reveal h3, .reveal h4, .reveal h5, .reveal h6 {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: -0.01em;
+      font-weight: 700;
+      margin: 0 0 18px 0;
+      line-height: 1.15;
+      text-shadow: none;
+    }
+    .reveal h1 { font-size: 64px; }
+    .reveal h2 { font-size: 42px; }
+    .reveal h3 { font-size: 28px; }
+    .reveal h4 { font-size: 20px; letter-spacing: 0.04em; }
+
+    .reveal .hl   { color: var(--accent); }
+    .reveal .ok   { color: var(--green); }
+    .reveal .warn { color: var(--amber); }
+    .reveal .err  { color: var(--red); }
+    .reveal .dim  { color: var(--muted); }
+
+    .reveal p { margin: 0 0 16px 0; font-size: 19px; line-height: 1.65; color: var(--text); }
+    .reveal p.muted { color: var(--muted); }
+    .reveal p strong { color: var(--text); font-weight: 700; }
+    .reveal em { color: var(--muted); font-style: italic; }
+
+    .reveal a { color: var(--accent); text-decoration: none; }
+    .reveal a:hover { text-decoration: underline; }
+
+    .reveal ul, .reveal ol {
+      display: block;
+      margin: 0 0 16px 0;
+      padding-left: 24px;
+      color: var(--text);
+    }
+    .reveal ul li, .reveal ol li {
+      font-size: 18px;
+      line-height: 1.7;
+      margin-bottom: 8px;
+    }
+    .reveal ul li::marker { color: var(--accent); }
+
+    /* ================================================================
+       CONTROLS / PROGRESS / SLIDE NUMBERS
+    ================================================================ */
+    .reveal .controls { color: var(--accent); }
+    .reveal .progress { color: var(--accent); height: 3px; background: var(--bg-2); }
+    .reveal .progress span { background: var(--accent); }
+    .reveal .slide-number {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      letter-spacing: 0.08em;
+    }
+
+    /* ================================================================
+       SHARED COMPONENT KIT (terminal box, info-box, badges...)
+    ================================================================ */
+    .label-tag {
+      display: inline-block;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: lowercase;
+      margin-bottom: 8px;
+    }
+    .label-tag::before { content: "// "; color: var(--accent); }
+
+    /* Terminal panel */
+    .term {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      margin: 12px 0;
+    }
+    .term-bar {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 14px;
+      background: var(--bg-3);
+      border-bottom: 1px solid var(--border);
+    }
+    .term-dot { width: 11px; height: 11px; border-radius: 50%; }
+    .dot-red { background: var(--red); }
+    .dot-amb { background: var(--amber); }
+    .dot-grn { background: var(--green); }
+    .term-title {
+      font-size: 12px;
+      color: var(--muted);
+      margin-left: auto;
+      letter-spacing: 0.04em;
+    }
+    .term-body {
+      padding: 18px 22px;
+      font-size: 15px;
+      line-height: 1.85;
+      white-space: pre-wrap;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .term-body .ts { color: var(--muted); }
+    .term-body .who { color: var(--accent); }
+    .term-body .bang { color: var(--red); }
+    .term-body .cm { color: var(--muted); font-style: italic; }
+    .term-body .gn { color: var(--green); }
+    .term-body .am { color: var(--amber); }
+
+    /* Info box with floating label */
+    .info-box {
+      border: 1px solid var(--border);
+      padding: 20px 24px;
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--text);
+      position: relative;
+      margin: 16px 0;
+    }
+    .info-box::before {
+      content: attr(data-label);
+      position: absolute;
+      top: -9px;
+      left: 18px;
+      background: var(--bg);
+      padding: 0 8px;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+    .info-box.accent { border-color: var(--accent); }
+    .info-box.accent::before { color: var(--accent); }
+    .info-box.green  { border-color: var(--green); background: var(--green-bg); }
+    .info-box.green::before { color: var(--green); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      padding: 3px 9px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 2px;
+      text-transform: uppercase;
+    }
+    .badge-green  { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+    .badge-accent { border-color: var(--accent); color: var(--accent); background: var(--tag-bg); }
+    .badge-amber  { border-color: var(--amber); color: var(--amber); background: var(--amber-bg); }
+    .badge-muted  { border-color: var(--border); color: var(--muted); background: var(--bg-2); }
+    .dot-live {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+
+    /* ================================================================
+       SLIDE 1 — COVER
+    ================================================================ */
+    .cover {
+      min-height: 600px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .cover .meta-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+    .cover .meta-top .left::before { content: "// "; color: var(--accent); }
+    .cover .center-stack { text-align: left; }
+    .cover h1 {
+      font-size: 96px;
+      letter-spacing: -0.02em;
+      margin: 8px 0 18px 0;
+    }
+    .cover h1 .cursor {
+      display: inline-block;
+      width: 14px;
+      height: 72px;
+      background: var(--accent);
+      margin-left: 4px;
+      vertical-align: -8px;
+      animation: blink 1s steps(2) infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    .cover .subhead {
+      font-size: 28px;
+      color: var(--text);
+      font-weight: 500;
+      margin-bottom: 14px;
+    }
+    .cover .subhead .hl { color: var(--accent); }
+    .cover .footer-line {
+      font-size: 17px;
+      color: var(--muted);
+      max-width: 720px;
+      line-height: 1.55;
+    }
+    .cover .footer-stack {
+      border-top: 1px solid var(--border);
+      padding-top: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .cover .founders {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .cover .founders b { color: var(--text); font-weight: 700; }
+    .cover .submission-meta {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+      letter-spacing: 0.06em;
+    }
+    .cover .submission-meta .hl { color: var(--accent); }
+
+    /* ================================================================
+       SLIDE 2 — SHIFT (split team)
+    ================================================================ */
+    .split-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin: 12px 0;
+    }
+    .team-card {
+      border: 1px solid var(--border);
+      background: var(--bg-2);
+      padding: 18px 20px 20px;
+      position: relative;
+    }
+    .team-card.future { border-color: var(--accent); }
+    .team-card .yr {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      margin-bottom: 6px;
+    }
+    .team-card.future .yr { color: var(--accent); }
+    .team-card .lbl {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+    .avatars {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+      font-size: 18px;
+      line-height: 1;
+    }
+    .av-h, .av-a {
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--border);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .av-h { background: var(--bg-3); color: var(--text); }
+    .av-a { background: var(--bg-3); color: var(--amber); border-color: var(--amber); }
+    .team-card .legend {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .team-card .legend b { color: var(--text); }
+    .team-card .legend .a { color: var(--amber); }
+    .team-card .legend .h { color: var(--accent); }
+
+    /* ================================================================
+       SLIDE 4 — THE PRODUCT (CHAT)
+    ================================================================ */
+    .chat-wrap {
+      border: 1px solid var(--border);
+      background: var(--bg-2);
+      margin: 10px 0 14px 0;
+      box-shadow: 0 0 0 1px rgba(34,211,238,.04), 0 18px 60px rgba(0,0,0,.45);
+    }
+    .chat-bar {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 16px;
+      background: var(--bg-3);
+      border-bottom: 1px solid var(--border);
+    }
+    .chat-bar .channel {
+      font-size: 13px;
+      color: var(--text);
+      margin-left: 12px;
+      font-weight: 500;
+    }
+    .chat-bar .channel .hash { color: var(--accent); }
+    .chat-bar .channel .sep { color: var(--muted); margin: 0 6px; }
+    .chat-bar .channel .team { color: var(--muted); font-weight: 400; }
+    .chat-bar .status {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--muted);
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .chat-body {
+      padding: 16px 22px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .msg {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 14px;
+      align-items: start;
+      padding: 6px 0;
+    }
+    .who-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border: 1px solid var(--border);
+      background: var(--bg-3);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      border-radius: 2px;
+      white-space: nowrap;
+      width: fit-content;
+      justify-self: start;
+    }
+    .who-pill .role {
+      font-weight: 400;
+      color: var(--muted);
+      font-size: 10.5px;
+      margin-left: 4px;
+    }
+    .who-pill.human { border-color: var(--accent); color: var(--accent); background: var(--tag-bg); }
+    .who-pill.agent { border-color: var(--amber); color: var(--amber); background: var(--amber-bg); }
+    .who-pill.brain {
+      border-color: var(--green);
+      color: var(--green);
+      background: var(--green-bg);
+      box-shadow: 0 0 0 1px rgba(63,185,80,0.35), 0 0 22px rgba(63,185,80,0.18);
+    }
+    .who-pill.brain::before {
+      content: "◉";
+      color: var(--green);
+      margin-right: 2px;
+    }
+    .msg-body {
+      font-size: 15px;
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .msg-body .meta-line {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .msg-body .meta-line code,
+    .msg-body code {
+      background: var(--bg-3);
+      color: var(--accent);
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 12.5px;
+      font-family: inherit;
+    }
+    .msg.brain-msg {
+      background: linear-gradient(90deg, rgba(63,185,80,0.10), rgba(63,185,80,0.02) 60%, transparent);
+      border-left: 2px solid var(--green);
+      padding: 10px 12px 10px 14px;
+      margin: 6px -12px 6px -14px;
+    }
+    .msg.brain-msg .msg-body {
+      position: relative;
+      padding-right: 240px;
+    }
+    .msg.brain-msg .annotations {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 220px;
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: var(--green);
+      font-style: italic;
+      text-align: right;
+    }
+    .msg.brain-msg .annotations .arrow {
+      color: var(--green);
+      font-style: normal;
+      font-weight: 700;
+    }
+    .msg.brain-msg .annotations span {
+      display: block;
+      color: var(--muted);
+    }
+    .msg.brain-msg .annotations span.lead {
+      color: var(--green);
+      font-style: normal;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .caption {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.65;
+      max-width: 880px;
+      margin: 4px 0 12px 0;
+    }
+    .caption b { color: var(--text); font-weight: 700; }
+
+    /* ================================================================
+       SLIDE 5 — PRIMITIVES (3 columns)
+    ================================================================ */
+    .three-col {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin: 14px 0;
+    }
+    .prim-card {
+      border: 1px solid var(--border);
+      background: var(--bg-2);
+      padding: 22px 22px 20px;
+      position: relative;
+    }
+    .prim-card .num {
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.18em;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .prim-card .name {
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+    .prim-card .desc {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+    .prim-card .desc b { color: var(--text); font-weight: 700; }
+
+    /* ================================================================
+       SLIDE 6 — MOAT (4 stacked layers)
+    ================================================================ */
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 10px 0 14px 0;
+    }
+    .stack-row {
+      border: 1px solid var(--border);
+      background: var(--bg-2);
+      padding: 14px 18px 14px;
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .stack-row .n {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+    .stack-row .body .title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .stack-row .body .desc {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .stack-row .body .desc b { color: var(--text); font-weight: 700; }
+    .stack-row .body .desc code {
+      background: var(--bg-3);
+      color: var(--accent);
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 13px;
+    }
+
+    /* ================================================================
+       SLIDE 7 — WHY NOW
+    ================================================================ */
+    .why-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin: 14px 0;
+    }
+    .why-card {
+      border: 1px solid var(--border);
+      background: var(--bg-2);
+      padding: 20px 22px;
+    }
+    .why-card .icon {
+      font-size: 28px;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .why-card .lbl {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .why-card .txt {
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+    .why-card .txt b { color: var(--text); font-weight: 700; }
+    .wedge-line {
+      font-size: 16px;
+      color: var(--text);
+      text-align: center;
+      margin-top: 20px;
+      padding: 14px;
+      border: 1px solid var(--accent);
+      background: var(--tag-bg);
+      letter-spacing: 0.02em;
+    }
+    .wedge-line .hl { color: var(--accent); font-weight: 700; }
+
+    /* ================================================================
+       SLIDE 8 — MARKET (wedges)
+    ================================================================ */
+    .market-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 14px 0;
+    }
+    .market-stage {
+      border: 1px solid var(--border);
+      background: var(--bg-2);
+      padding: 18px 20px;
+      position: relative;
+    }
+    .market-stage.wedge-1 { border-left: 3px solid var(--accent); }
+    .market-stage.wedge-2 { border-left: 3px solid var(--amber); }
+    .market-stage.wedge-3 { border-left: 3px solid var(--green); }
+    .market-stage .stage-lbl {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+    .market-stage .stage-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .market-stage .stage-desc {
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+    .market-stage .stage-desc b { color: var(--text); font-weight: 700; }
+    .arrow-bar {
+      margin: 16px 0 12px;
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+      letter-spacing: 0.1em;
+    }
+    .arrow-bar .a { color: var(--accent); }
+    .arrow-bar .b { color: var(--amber); }
+    .arrow-bar .c { color: var(--green); }
+
+    /* ================================================================
+       SLIDE 9 — PRICING
+    ================================================================ */
+    .price-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--border);
+      margin: 10px 0 14px;
+    }
+    .price-col {
+      border-right: 1px solid var(--border);
+      padding: 20px 20px 18px;
+      display: flex;
+      flex-direction: column;
+    }
+    .price-col:last-child { border-right: none; }
+    .price-col.featured { background: var(--bg-2); position: relative; }
+    .price-col.featured::after {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      border: 1px solid var(--accent);
+      pointer-events: none;
+    }
+    .tier-name {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .price-col.featured .tier-name { color: var(--accent); }
+    .tier-pop {
+      font-size: 9.5px;
+      background: var(--tag-bg);
+      color: var(--accent);
+      padding: 2px 6px;
+      letter-spacing: 0.06em;
+      border-radius: 2px;
+    }
+    .tier-val { font-size: 28px; font-weight: 700; color: var(--text); line-height: 1; margin-bottom: 4px; }
+    .tier-per { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+    .tier-list { list-style: none; padding: 0; margin: 0; }
+    .tier-list li {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.55;
+      padding-left: 18px;
+      position: relative;
+      margin-bottom: 7px;
+    }
+    .tier-list li::before {
+      content: "✓";
+      color: var(--green);
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+    .tier-list li b { color: var(--text); font-weight: 700; }
+    .tier-list li .hl { color: var(--accent); font-weight: 700; }
+
+    /* ================================================================
+       SLIDE 10 — TRACTION
+    ================================================================ */
+    .tract-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 18px;
+      margin: 12px 0;
+    }
+    .tract-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .tract-list li {
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.6;
+      padding-left: 18px;
+      position: relative;
+      margin-bottom: 6px;
+    }
+    .tract-list li::before {
+      content: "→";
+      color: var(--accent);
+      position: absolute;
+      left: 0;
+    }
+    .tract-list li b { color: var(--text); font-weight: 700; }
+    .tract-list li code {
+      background: var(--bg-3);
+      color: var(--accent);
+      padding: 1px 6px;
+      font-size: 12.5px;
+    }
+    .partners {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .partner {
+      border: 1px solid var(--border);
+      background: var(--bg-2);
+      padding: 14px 16px;
+    }
+    .partner .p-head {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .partner .p-head .dom {
+      font-size: 11px;
+      color: var(--accent);
+      font-weight: 400;
+    }
+    .partner .p-desc {
+      font-size: 12.5px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .partner .p-desc b { color: var(--text); }
+
+    /* ================================================================
+       SLIDE 11 — COMPETITION TABLE
+    ================================================================ */
+    .comp-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 14px;
+    }
+    .comp-table th {
+      background: var(--bg-2);
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 12px 16px;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .comp-table td {
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      color: var(--text);
+      vertical-align: top;
+      line-height: 1.55;
+    }
+    .comp-table tr.us td {
+      background: var(--tag-bg);
+      border-color: var(--accent);
+      box-shadow: inset 0 0 0 1px var(--accent);
+      color: var(--text);
+      font-weight: 500;
+    }
+    .comp-table tr.us td b { color: var(--accent); font-weight: 700; }
+    .comp-table td.dim { color: var(--muted); font-weight: 400; }
+    .comp-table td b { color: var(--text); font-weight: 700; }
+
+    /* ================================================================
+       SLIDE 12 — TEAM
+    ================================================================ */
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin: 14px 0;
+    }
+    .person {
+      border: 1px solid var(--border);
+      background: var(--bg-2);
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .person .avatar {
+      width: 52px;
+      height: 52px;
+      border: 1px solid var(--accent);
+      background: var(--bg-3);
+      color: var(--accent);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+    .person .name {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .person .role {
+      font-size: 12px;
+      color: var(--accent);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .person .bio {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .person .bio b { color: var(--text); font-weight: 700; }
+    .person .link {
+      font-size: 12px;
+      color: var(--accent);
+      margin-top: auto;
+      padding-top: 6px;
+    }
+    .person .link::before { content: "→ "; }
+
+    /* ================================================================
+       SLIDE 13 — ASK
+    ================================================================ */
+    .ask-list {
+      list-style: none;
+      padding: 0;
+      margin: 14px 0;
+      counter-reset: ask;
+    }
+    .ask-list li {
+      counter-increment: ask;
+      font-size: 16px;
+      color: var(--text);
+      line-height: 1.6;
+      padding: 12px 16px 12px 50px;
+      position: relative;
+      border-left: 2px solid var(--border);
+      margin-bottom: 6px;
+      background: var(--bg-2);
+    }
+    .ask-list li::before {
+      content: counter(ask, decimal-leading-zero);
+      position: absolute;
+      left: 14px;
+      top: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+    }
+    .ask-list li b { color: var(--accent); font-weight: 700; }
+
+    .vision-block {
+      border: 1px solid var(--accent);
+      background: var(--tag-bg);
+      padding: 18px 22px;
+      margin: 16px 0 8px;
+      font-size: 16px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+    .vision-block::before {
+      content: "// vision · 2031";
+      display: block;
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.12em;
+      margin-bottom: 6px;
+    }
+    .vision-block b { color: var(--accent); font-weight: 700; }
+
+    .signature {
+      font-size: 13px;
+      color: var(--muted);
+      text-align: right;
+      margin-top: 14px;
+      letter-spacing: 0.06em;
+    }
+    .signature .hl { color: var(--accent); }
+
+    /* ================================================================
+       PULL-QUOTE / SIDE NOTE (slide 4)
+    ================================================================ */
+    .pullquote {
+      border: 1px solid var(--green);
+      background: var(--green-bg);
+      padding: 14px 18px;
+      margin: 14px 0 6px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text);
+      position: relative;
+    }
+    .pullquote::before {
+      content: "// brain · zero-token economy";
+      position: absolute;
+      top: -8px;
+      left: 16px;
+      background: var(--bg);
+      padding: 0 8px;
+      font-size: 10.5px;
+      color: var(--green);
+      letter-spacing: 0.1em;
+    }
+    .pullquote b { color: var(--green); font-weight: 700; }
+
+    /* ================================================================
+       PROMPT LINE
+    ================================================================ */
+    .prompt-line {
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      margin-top: 8px;
+    }
+    .prompt-line .p { color: var(--green); }
+    .prompt-line .ac { color: var(--accent); }
+
+    /* ================================================================
+       FRAGMENT POLISH
+    ================================================================ */
+    .reveal .fragment.fade-in-then-out { transition: opacity 0.3s ease; }
+    .reveal .slides section .fragment { transition: all 0.4s cubic-bezier(.2,.7,.2,1); }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- ============================================================
+           SLIDE 1 — COVER
+      ============================================================ -->
+      <section data-state="cover">
+        <div class="cover">
+          <div class="meta-top">
+            <span class="left">grooveos · cognitive os for hybrid teams</span>
+            <span><span class="dot-live"></span> &nbsp;live at grooveos.app</span>
+          </div>
+
+          <div class="center-stack">
+            <div class="label-tag">application deck</div>
+            <h1>GrooveOS<span class="cursor"></span></h1>
+            <div class="subhead">The shared <span class="hl">brain</span> for hybrid teams.</div>
+            <div class="footer-line">Humans and AI agents, co-equal operators on one cognitive substrate.</div>
+          </div>
+
+          <div class="footer-stack">
+            <div class="founders">
+              <b>Mr Boups</b> · CEO &nbsp;&nbsp;·&nbsp;&nbsp;
+              <b>Denis Omelcenco</b> · CTO &nbsp;&nbsp;·&nbsp;&nbsp;
+              <b>Lionel Dekoninck</b> · CMO
+            </div>
+            <div class="submission-meta">
+              <span class="hl">a16z Speedrun SR007</span> — Application<br/>
+              May 2026
+            </div>
+          </div>
+        </div>
+        <aside class="notes">
+          Open from substrate, not features. Three founders. We ship from the product we sell.
+        </aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 2 — THE SHIFT
+      ============================================================ -->
+      <section>
+        <div class="label-tag">01 · the shift</div>
+        <h2>Every team is about to become <span class="hl">hybrid</span>.</h2>
+
+        <p>By 2027, the average product team won't be 4 humans. It'll be <b>4 humans operating 12 AI agents</b> — coding agents, marketing agents, ops agents, research agents.</p>
+        <p class="muted">This isn't a forecast. It's already happening. Cursor ships code. Granola takes meeting notes. n8n runs ops. Each of these is an <em>operator</em> — a teammate that produces work, makes decisions, and needs context. The org chart of the next decade has <b>two species</b> on it.</p>
+
+        <div class="split-grid">
+          <div class="team-card">
+            <div class="yr">// 2024 · today</div>
+            <div class="lbl">Average product team</div>
+            <div class="avatars">
+              <span class="av-h">H</span><span class="av-h">H</span><span class="av-h">H</span><span class="av-h">H</span>
+            </div>
+            <div class="legend"><b>4 humans</b><br/><span class="h">H</span> = human operator</div>
+          </div>
+          <div class="team-card future">
+            <div class="yr">// 2027 · imminent</div>
+            <div class="lbl">Average product team</div>
+            <div class="avatars">
+              <span class="av-h">H</span><span class="av-h">H</span><span class="av-h">H</span><span class="av-h">H</span>
+              <span class="av-a">A</span><span class="av-a">A</span><span class="av-a">A</span><span class="av-a">A</span>
+              <span class="av-a">A</span><span class="av-a">A</span><span class="av-a">A</span><span class="av-a">A</span>
+              <span class="av-a">A</span><span class="av-a">A</span><span class="av-a">A</span><span class="av-a">A</span>
+            </div>
+            <div class="legend"><b>4 humans · 12 agents</b><br/><span class="h">H</span> human &nbsp;·&nbsp; <span class="a">A</span> agent &nbsp;— <b>same size, no hierarchy</b></div>
+          </div>
+        </div>
+        <aside class="notes">
+          The team chart of the next decade has two species on it. Same size on purpose — co-equal operators is the entire pitch.
+        </aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 3 — THE PROBLEM
+      ============================================================ -->
+      <section>
+        <div class="label-tag">02 · the paradox</div>
+        <h2>The paradox of <span class="hl">agentic work</span>.</h2>
+        <p class="muted" style="font-size:18px;margin-top:-6px;">Every agent is a new silo.</p>
+
+        <p>Every team is moving its work through AI agents — Cursor, Claude Code, ChatGPT, Hermes. <b>Each one is brilliant. Each one is a silo.</b> The collaboration we'd built in Slack, Notion, and Linear is regressing.</p>
+        <p class="muted">Decisions get made in chats no agent can read. Code ships from sessions trapped where they were made. Briefs get re-explained every conversation. And every AI interaction adds to a flood of context no human can process and no agent can access.</p>
+
+        <div class="term">
+          <div class="term-bar">
+            <span class="term-dot dot-red"></span><span class="term-dot dot-amb"></span><span class="term-dot dot-grn"></span>
+            <span class="term-title">hybrid team · no shared cognition</span>
+          </div>
+          <div class="term-body"><span class="ts">[09:14]</span>  <span class="who">founder</span>    decided pricing v2 in chat
+         <span class="bang">!</span> <span class="cm">conversation never indexed</span>
+         <span class="bang">!</span> <span class="cm">3 agents still using old pricing</span>
+
+<span class="ts">[10:30]</span>  <span class="who">dev-agent</span>  shipped payment-v2
+         <span class="bang">!</span> <span class="cm">memory stored: 0</span>
+         <span class="bang">!</span> <span class="cm">tomorrow's session starts from zero</span>
+
+<span class="ts">[11:45]</span>  <span class="who">mkt-agent</span>  planning launch
+         <span class="bang">!</span> <span class="cm">no spec found. asks dev (human).</span>
+         <span class="bang">!</span> <span class="cm">dev re-reads spec. brief copy-pasted.</span>
+
+<span class="ts">[13:00]</span>  <span class="who">ops-agent</span>  asks about webhook config
+         <span class="bang">!</span> <span class="cm">cannot find canonical spec. blocked.</span>
+
+  <span class="cm"># 3 humans · 4 agents · 1 day</span>
+  <span class="cm"># 7 silos. 0 shared mind.</span></div>
+        </div>
+
+        <p style="margin-top:14px;font-style:italic;color:var(--muted);">More agents = more silos = more forgotten work. The team doesn't need another tool. It needs a <span class="hl" style="font-style:normal;">substrate</span>.</p>
+        <aside class="notes">
+          One day, one team. Already 7 silos. The pain is everyone's daily reality, not a thought experiment.
+        </aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 4 — THE PRODUCT (CENTERPIECE)
+      ============================================================ -->
+      <section>
+        <div class="label-tag">03 · the product</div>
+        <h2>One <span class="hl">brain</span>. Every operator. <span class="hl">Same team</span>.</h2>
+        <p>GrooveOS is the cognitive substrate where humans and agents are <b>co-equal participants</b>. Every decision, spec, message, and shipped feature — from any operator — flows into a shared memory all of them query in real time. <span class="muted">No briefs. No handoffs. No starting from zero.</span></p>
+
+        <div class="chat-wrap">
+          <div class="chat-bar">
+            <span class="term-dot dot-red"></span><span class="term-dot dot-amb"></span><span class="term-dot dot-grn"></span>
+            <span class="channel"><span class="hash">#</span>payments-launch<span class="sep">·</span><span class="team">acme team</span></span>
+            <span class="status"><span class="dot-live"></span> brain online · 4 operators · 1 substrate</span>
+          </div>
+          <div class="chat-body">
+            <div class="msg fragment fade-in-then-semi-out">
+              <span class="who-pill human">Léa<span class="role">founder</span></span>
+              <div class="msg-body">What's the eta on payment-v2?</div>
+            </div>
+            <div class="msg fragment">
+              <span class="who-pill agent">dev-agent<span class="role">coder</span></span>
+              <div class="msg-body">
+                Shipped at 09:14 — Stripe + 3DS + fraud detection.
+                <div class="meta-line">canonical spec: <code>brain://payments/v2</code></div>
+              </div>
+            </div>
+            <div class="msg fragment">
+              <span class="who-pill human">Tom<span class="role">marketing</span></span>
+              <div class="msg-body">Cool — launch copy draft?</div>
+            </div>
+            <div class="msg fragment">
+              <span class="who-pill agent">mkt-agent<span class="role">writer</span></span>
+              <div class="msg-body">
+                Drafted from canonical spec.
+                <div class="meta-line"><code>brain://launch/payments-v2</code> · awaiting your review.</div>
+              </div>
+            </div>
+            <div class="msg fragment">
+              <span class="who-pill human">Tom<span class="role">marketing</span></span>
+              <div class="msg-body">Anyone know why we deprecated 3DS-light?</div>
+            </div>
+            <div class="msg brain-msg fragment">
+              <span class="who-pill brain">brain</span>
+              <div class="msg-body">
+                Léa marked it deprecated last Tuesday.
+                <div class="meta-line"><code>decision-log/3ds-light</code> · reason: PSD2 changes</div>
+                <div class="annotations">
+                  <span class="lead">← zero LLM call</span>
+                  <span>zero token cost</span>
+                  <span>validated truth,<br/>served deterministically</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="caption">On most products you can tell at a glance who is human and who is AI. Here, you often <b>can't</b> — because <b>the reply is what matters</b>, not the species behind it.</p>
+
+        <div class="pullquote fragment">
+          <b>Brain auto-replies — a new cost curve.</b><br/>
+          When canonical truth exists, the brain itself replies directly. <b>No LLM call, no token cost, no hallucination risk.</b> Every validated fact becomes a zero-token answer for the lifetime of the team.
+        </div>
+        <aside class="notes">
+          Hold on the brain reply. The arrow annotations are the punchline: validated truth served deterministically. New economic axis we just invented.
+        </aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 5 — HOW IT WORKS
+      ============================================================ -->
+      <section>
+        <div class="label-tag">04 · architecture</div>
+        <h2>Three primitives. <span class="hl">One substrate</span>.</h2>
+        <p class="muted">A cognitive OS, not a chatbot. Three layers, every operator on the same bus.</p>
+
+        <div class="three-col">
+          <div class="prim-card">
+            <div class="num">01</div>
+            <div class="name">Cognitive Core</div>
+            <div class="desc"><b>Vector, graph, and relational storage</b> for every output from every operator. Auto-indexed. Team-scoped. Queryable in <b>milliseconds</b>.</div>
+          </div>
+          <div class="prim-card">
+            <div class="num">02</div>
+            <div class="name">Team Bus</div>
+            <div class="desc">Agents connect via <b>MCP</b>. Humans connect via the integrated team chat, web app, and CLI. <b>One brain, every surface.</b></div>
+          </div>
+          <div class="prim-card">
+            <div class="num">03</div>
+            <div class="name">Truth Engine</div>
+            <div class="desc"><b>Five validation levels:</b> EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC. Humans and agents both promote and demote. <b>Truth converges instead of accumulating.</b></div>
+          </div>
+        </div>
+
+        <div class="prompt-line"><span class="p">$</span> grooveos status<br/><span class="ac">→</span> 3 primitives · 1 substrate · n operators</div>
+        <aside class="notes">
+          Five truth levels is the bit nobody else has. Convergence is the differentiator vs "more memory = more clutter".
+        </aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 6 — TECHNICAL MOAT
+      ============================================================ -->
+      <section>
+        <div class="label-tag">05 · technical moat</div>
+        <h2>Four layers. <span class="hl">One substrate</span>.</h2>
+
+        <div class="stack">
+          <div class="stack-row">
+            <div class="n">1</div>
+            <div class="body">
+              <div class="title">Temporal Knowledge Graph</div>
+              <div class="desc"><b>Graphiti + Neo4j</b> with time-bounded edges (<code>valid_from</code> / <code>valid_until</code>). When <code>auth-v2</code> ships, <code>auth-v1</code> is automatically marked superseded. Agents retrieve what's true <b>now</b>, not six months ago. <b>Most "memory for AI" products accumulate; ours evolves.</b></div>
+            </div>
+          </div>
+          <div class="stack-row">
+            <div class="n">2</div>
+            <div class="body">
+              <div class="title">Truth Engine</div>
+              <div class="desc">Five validation levels (<b>EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC</b>). CANONICAL facts auto-inject into every team AI conversation. <b>Humans and agents both promote.</b> Validation flows in both directions.</div>
+            </div>
+          </div>
+          <div class="stack-row">
+            <div class="n">3</div>
+            <div class="body">
+              <div class="title">Native MCP + LangGraph agent layer</div>
+              <div class="desc"><b>9 MCP tools shipped</b> (memory ops, tasks, contacts, agent invocation, team context). <b>4 built-in agents</b> — <code>@meeting-recap</code>, <code>@doc-ingest</code>, <code>@promote</code>, <code>@research</code> — with human-in-the-loop approval workflows on uncertain facts.</div>
+            </div>
+          </div>
+          <div class="stack-row">
+            <div class="n">4</div>
+            <div class="body">
+              <div class="title">Open-core architecture</div>
+              <div class="desc"><b>xbrain engine (MIT)</b> on GitHub for self-hosters; hosted product + Team features capture commercial demand. <b>Vercel/Supabase playbook</b>.</div>
+            </div>
+          </div>
+        </div>
+
+        <p class="caption" style="margin-top:8px;"><b>Hard to replicate from above</b> (Slack/Notion can't bolt this stack on) and <b>hard to replicate from below</b> (Letta/Zep aren't building for hybrid teams).</p>
+        <aside class="notes">
+          We hold the substrate. Players above us own the workflow, players below us own the model. Neither owns the team-level cognitive layer.
+        </aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 7 — WHY NOW
+      ============================================================ -->
+      <section>
+        <div class="label-tag">06 · why now</div>
+        <h2>2026 is the <span class="hl">wedge year</span>.</h2>
+        <p class="muted">Three curves just crossed.</p>
+
+        <div class="why-grid">
+          <div class="why-card">
+            <div class="icon">⌬</div>
+            <div class="lbl">MCP became the standard</div>
+            <div class="txt"><b>Anthropic, OpenAI, and Google</b> all adopted MCP in 2025/2026. There's now a universal protocol for agents to share context. <b>We're MCP-native from day one.</b></div>
+          </div>
+          <div class="why-card">
+            <div class="icon">⚆</div>
+            <div class="lbl">Agent proliferation hit fragmentation pain</div>
+            <div class="txt">The average dev team uses <b>3-5 AI agents daily</b>. The pain of context loss isn't theoretical — it's <b>everyone's daily reality</b>.</div>
+          </div>
+          <div class="why-card">
+            <div class="icon">⧖</div>
+            <div class="lbl">Temporal knowledge graphs matured</div>
+            <div class="txt"><b>Graphiti</b>, released by Zep in 2024, made evolving knowledge production-ready. <b>We're the first to apply it to hybrid team cognition.</b></div>
+          </div>
+        </div>
+
+        <div class="wedge-line">This wedge didn't exist <span class="hl">18 months ago</span>. It won't be open <span class="hl">18 months from now</span>.</div>
+        <aside class="notes">
+          The window. MCP + agent saturation + graph maturity all converging in 2026. Speedrun is the right vehicle to ride it.
+        </aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 8 — MARKET
+      ============================================================ -->
+      <section>
+        <div class="label-tag">07 · market</div>
+        <h2>Every knowledge team <span class="hl">becomes a customer</span>.</h2>
+
+        <div class="market-row">
+          <div class="market-stage wedge-1">
+            <div class="stage-lbl">initial wedge</div>
+            <div class="stage-title">AI-native startup teams (5–50 ppl)</div>
+            <div class="stage-desc">They already use <b>3+ agents</b>, feel the pain hardest, and adopt new infra fastest. <b>~50,000 teams globally</b>, growing <b>10× annually</b>.</div>
+          </div>
+          <div class="market-stage wedge-2">
+            <div class="stage-lbl">expansion</div>
+            <div class="stage-title">Mid-market & enterprise product teams</div>
+            <div class="stage-desc">Then every knowledge-work function — <b>legal, ops, finance, support</b>.</div>
+          </div>
+          <div class="market-stage wedge-3">
+            <div class="stage-lbl">end game</div>
+            <div class="stage-title">The cognitive layer for every hybrid team on earth</div>
+            <div class="stage-desc">Not pricing per seat or per agent. <b>Per operator.</b> Our TAM grows with <b>both</b> human employment and agent proliferation.</div>
+          </div>
+        </div>
+
+        <div class="arrow-bar">
+          <span class="a">[ wedge ]</span> &nbsp;⟶&nbsp; <span class="b">[ knowledge teams ]</span> &nbsp;⟶&nbsp; <span class="c">[ every hybrid team ]</span>
+        </div>
+        <aside class="notes">
+          Per-operator pricing is the TAM unlock. It compounds with two megatrends at once.
+        </aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 9 — BUSINESS MODEL
+      ============================================================ -->
+      <section>
+        <div class="label-tag">08 · business model</div>
+        <h2>Per-user pricing <span class="hl">today</span>. Per-operator <span class="hl">tomorrow</span>.</h2>
+
+        <div class="price-grid">
+          <div class="price-col">
+            <div class="tier-name">free</div>
+            <div class="tier-val">$0</div>
+            <div class="tier-per">solo user</div>
+            <ul class="tier-list">
+              <li><b>1,000</b> memory items</li>
+              <li>1 seat · 1 operator</li>
+              <li>Full MCP toolset</li>
+            </ul>
+          </div>
+          <div class="price-col featured">
+            <div class="tier-name">team <span class="tier-pop">most popular</span></div>
+            <div class="tier-val">$15</div>
+            <div class="tier-per">per user / month · min 3 seats</div>
+            <ul class="tier-list">
+              <li><b class="hl">Unlimited AI agents per user</b></li>
+              <li>Unlimited memory & conversations</li>
+              <li>Full MCP toolset · Drive sync · agent library</li>
+              <li>Team-scoped truth engine</li>
+            </ul>
+          </div>
+          <div class="price-col">
+            <div class="tier-name">enterprise</div>
+            <div class="tier-val">Custom</div>
+            <div class="tier-per">SSO · SLA · on-prem</div>
+            <ul class="tier-list">
+              <li>Self-hosted xbrain</li>
+              <li>Dedicated VPC / on-prem</li>
+              <li>Audit + compliance pack</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="info-box accent" data-label="// pricing thesis">
+          Most products charge <b>per seat</b> (humans only) or <b>per agent</b> (compute units). We charge <b>per human user</b> and bundle <b>unlimited AI agents per seat</b>. A 4-person team running 12 agents pays for <b>4 seats</b> — and our ARPU per human grows as customers add more agents. As the category matures and "operator" becomes a recognized billing unit, we evolve toward per-operator pricing.
+        </div>
+
+        <p class="caption"><b>Open-core wedge:</b> xbrain (MIT) ships for self-hosters. Hosted product + Team features capture commercial demand. Standard <b>Vercel / Supabase</b> playbook.</p>
+        <aside class="notes">
+          Unlimited agents per seat is the key inversion vs every competitor. It drives agent adoption inside our customers — exactly the behavior we want.
+        </aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 10 — TRACTION
+      ============================================================ -->
+      <section>
+        <div class="label-tag">09 · traction</div>
+        <h2>Already in production. <span class="hl">On our team</span> and <span class="hl">two named design partners</span>.</h2>
+
+        <div class="tract-grid">
+          <div>
+            <div class="info-box" data-label="// product depth shipped">
+              <ul class="tract-list">
+                <li>Hosted platform <b>live at grooveos.app</b></li>
+                <li><b>xbrain</b> open-source engine (MIT) on GitHub</li>
+                <li><b>9 MCP tools</b> live at <code>mcp.grooveos.app/mcp</code></li>
+                <li><b>4 built-in LangGraph agents</b> — <code>@meeting-recap</code>, <code>@doc-ingest</code>, <code>@promote</code>, <code>@research</code></li>
+                <li>Temporal entity graph (<b>Graphiti + Neo4j</b>) with time-bounded relationships</li>
+                <li><b>30+ REST endpoints</b> in the public API</li>
+                <li>Native integrations: <b>Claude Code, Cursor, ChatGPT, Grok, Granola, Google Drive, Chrome</b></li>
+                <li><b>MCP-native</b> from day one</li>
+              </ul>
+            </div>
+            <p class="caption" style="margin-top:10px;"><b>3 hybrid teams in production</b>, including our own. <b>We dogfood end-to-end</b>: our company operates on the cognitive substrate we sell.</p>
+          </div>
+
+          <div class="partners">
+            <div class="partner">
+              <div class="p-head">Superwallet <span class="dom">superwallet.fi</span> <span class="badge badge-green"><span class="dot-live"></span> design partner</span></div>
+              <div class="p-desc"><b>AI-powered Solana trading wallet</b> building autonomous trading agents. Uses GrooveOS to coordinate humans and AI agents building a multi-agent trading system. <b>Living proof of the wedge</b>: teams <em>building</em> AI agents are exactly the teams that most need a shared brain.</div>
+            </div>
+            <div class="partner">
+              <div class="p-head">AI Brussels Now <span class="badge badge-green"><span class="dot-live"></span> design partner</span></div>
+              <div class="p-desc">Organizer of the <b>4,000-attendee AI conference</b> at SQUARE Brussels (21–22 Oct 2026). Coordinates a <b>hybrid team of organizers and AI agents</b> across content, marketing, and ops.</div>
+            </div>
+            <div class="info-box green" data-label="// why this matters">
+              Most pre-seed applicants pitch from a deck. <b>We pitch from a substantial live product</b> that we, an AI-native fintech, and a major EU AI event already depend on <b>daily</b>.
+            </div>
+          </div>
+        </div>
+        <aside class="notes">
+          Two named partners and full dogfooding. "Already shipping" is the strongest signal we can give.
+        </aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 11 — COMPETITION
+      ============================================================ -->
+      <section>
+        <div class="label-tag">10 · competition</div>
+        <h2>Two adjacent categories. One empty one. <span class="hl">We own the empty one</span>.</h2>
+
+        <table class="comp-table">
+          <thead>
+            <tr>
+              <th style="width:32%">Category</th>
+              <th style="width:28%">Players</th>
+              <th>Limitation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Multi-agent memory infra</td>
+              <td class="dim">Letta, Zep, mem0, Cognee</td>
+              <td class="dim">Agent-centric. Humans are <em>data sources</em>, not peers.</td>
+            </tr>
+            <tr>
+              <td>AI features in team apps</td>
+              <td class="dim">Slack AI, Linear, Notion AI</td>
+              <td class="dim">AI is a <em>feature</em>, not a teammate. No shared cognitive substrate.</td>
+            </tr>
+            <tr class="us">
+              <td><b>Hybrid team cognition</b></td>
+              <td><b>GrooveOS</b></td>
+              <td><b>One brain. Humans + agents as co-equal operators.</b></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="info-box accent" data-label="// why we win">
+          The <b>memory infra players</b> are racing to be the best vector DB for agents. The <b>collaboration players</b> are racing to bolt AI onto existing tools. <b>Neither is building the substrate where humans and agents actually work as one team.</b> That's an organizational + technical bet, not just a memory bet.
+        </div>
+        <aside class="notes">
+          We don't compete with Letta or Notion. We define the category between them. Empty quadrant is the whole pitch.
+        </aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 12 — TEAM
+      ============================================================ -->
+      <section>
+        <div class="label-tag">11 · team</div>
+        <h2>Three operators. Complementary edges. <span class="hl">Already shipping</span>.</h2>
+
+        <div class="team-grid">
+          <div class="person">
+            <div class="avatar">MB</div>
+            <div class="name">Mr Boups</div>
+            <div class="role">CEO · strategy + people systems</div>
+            <div class="bio"><b>Masters in Software Development & HR.</b> The OS for hybrid teams needs a founder who understands how teams actually function — not just how memory stores work.</div>
+            <div class="link"><a href="https://x.com/mrboups" target="_blank" rel="noopener">x.com/mrboups</a></div>
+          </div>
+          <div class="person">
+            <div class="avatar">DO</div>
+            <div class="name">Denis Omelcenco</div>
+            <div class="role">CTO · full-stack + web3</div>
+            <div class="bio"><b>Full-stack + Web3 engineer, IT consultant.</b> Distributed systems, real-time sync, multi-tenant architecture — exactly the primitives the cognitive core demands.</div>
+            <div class="link"><a href="https://linkedin.com/in/denisomelcenco" target="_blank" rel="noopener">linkedin.com/in/denisomelcenco</a></div>
+          </div>
+          <div class="person">
+            <div class="avatar">LD</div>
+            <div class="name">Lionel Dekoninck</div>
+            <div class="role">CMO · creative + brand</div>
+            <div class="bio"><b>Multi-award creative director + marketing expert.</b> The team chat is also a brand surface. We don't ship an AI-infra product that looks like everyone else's.</div>
+            <div class="link"><a href="https://linkedin.com/in/lionel-dekoninck-b259566" target="_blank" rel="noopener">linkedin.com/in/lionel-dekoninck-b259566</a></div>
+          </div>
+        </div>
+
+        <p class="caption" style="margin-top:6px;">Most "memory for agents" companies are built by <em>ML researchers</em>. We're built by an <b>HR-trained strategist, a systems engineer, and a creative director</b>. That mix is correct for an "OS for hybrid teams" — because the product is about <b>how teams work</b>, not just how memory stores.</p>
+        <aside class="notes">
+          The team is the proof we understand the product. People systems + distributed systems + brand. Not the default founding stack — on purpose.
+        </aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 13 — THE ASK
+      ============================================================ -->
+      <section>
+        <div class="label-tag">12 · the ask</div>
+        <h2><span class="hl">$1M</span> to make GrooveOS the <span class="hl">default</span> for hybrid teams.</h2>
+        <p class="muted">We're applying to SR007 to:</p>
+
+        <ol class="ask-list">
+          <li>Move the team to <b>San Francisco</b> for 12 weeks of execution velocity</li>
+          <li>Hire <b>2 founding engineers</b> from the Speedrun network — the talent edge alone is worth the program</li>
+          <li>Convert <b>50+ design partners</b> into paying customers by Demo Day</li>
+          <li>Lock in the <b>"hybrid teams cognition"</b> category before Letta or Zep pivot into it</li>
+          <li>Position for a <b>Series A</b> within 18 months on the back of the $500K next-round follow-on</li>
+        </ol>
+
+        <div class="info-box accent" data-label="// why speedrun, specifically">
+          We're <b>not building another agent wrapper</b>. We're building infrastructure for a category that doesn't have a name yet. That requires <b>distribution</b> to AI-native founders (your portfolio), <b>brand-credibility</b> partners (a16z), and the <b>velocity</b> that 12 in-person SF weeks force. <b>No other program offers this combination.</b>
+        </div>
+
+        <div class="vision-block">
+          In <b>5 years</b>, every hybrid team — startup, enterprise, government — runs its cognitive layer on <b>GrooveOS</b>. Humans and agents stop being a UX problem and become <b>a coordinated org</b>.
+        </div>
+
+        <div class="signature">
+          <span class="hl">grooveos.app</span> &nbsp;·&nbsp; team@grooveos.app &nbsp;·&nbsp; a16z Speedrun SR007 — Application · May 2026
+        </div>
+        <aside class="notes">
+          End on the vision. Five years. Hybrid teams stop being a UX problem and become a coordinated org. That's the bet.
+        </aside>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+  <script>
+    Reveal.initialize({
+      hash: true,
+      controls: true,
+      controlsTutorial: false,
+      progress: true,
+      center: false,
+      slideNumber: 'c/t',
+      transition: 'slide',
+      transitionSpeed: 'default',
+      backgroundTransition: 'fade',
+      width: 1280,
+      height: 800,
+      margin: 0.04,
+      minScale: 0.2,
+      maxScale: 2.0,
+      keyboard: true,
+      overview: true,
+      touch: true,
+      help: true,
+      plugins: [ RevealNotes ]
+    });
+  </script>
+</body>
+</html>
