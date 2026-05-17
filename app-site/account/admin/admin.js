@@ -208,9 +208,94 @@ function renderOverview() {
   wireDrillDown(root);
 }
 
+// ── Human-readable byte formatter (Task 3) ───────────────────────────────
+function humanBytes(n) {
+  if (n === null || n === undefined) return "N/A";
+  if (n === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.min(
+    units.length - 1,
+    Math.floor(Math.log(n) / Math.log(1024)),
+  );
+  return `${(n / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+}
+
 function renderStorage() {
   const root = document.getElementById("storage-content");
-  if (root) root.innerHTML = `<p class="empty">Storage renderer not wired yet.</p>`;
+  const data = state.storage;
+  if (!root) return;
+  if (!data || data.length === 0) {
+    root.innerHTML = `<p class="empty">No storage data.</p>`;
+    return;
+  }
+
+  let totalPgRows = 0;
+  let totalQdrant = 0;
+  let totalMinio = 0;
+  let qdrantHasNull = false;
+  let minioHasNull = false;
+
+  let html = `<table class="admin-table"><thead><tr>
+    <th>Team</th>
+    <th class="count">PG rows</th>
+    <th class="count">Qdrant points</th>
+    <th class="bytes">MinIO bytes</th>
+    <th>Actions</th>
+  </tr></thead><tbody>`;
+
+  for (const team of data) {
+    const pgRows = team.pg_rows || {};
+    const pgTotal = Object.values(pgRows).reduce((a, b) => a + b, 0);
+    totalPgRows += pgTotal;
+    // Tooltip exposes per-table breakdown on hover.
+    const pgEntries = Object.entries(pgRows);
+    const pgTooltip = pgEntries.length
+      ? pgEntries.map(([tbl, c]) => `${tbl}: ${c}`).join("\n")
+      : "0";
+
+    const qd = team.qdrant_points;
+    if (qd === null || qd === undefined) qdrantHasNull = true;
+    else totalQdrant += qd;
+    const qdCell =
+      qd === null || qd === undefined ? "N/A" : qd.toLocaleString();
+
+    const mb = team.minio_bytes;
+    if (mb === null || mb === undefined) minioHasNull = true;
+    else totalMinio += mb;
+    const mbCell = humanBytes(mb);
+
+    html += `<tr>
+      <td class="team-name">${escapeHtml(
+        team.team_slug,
+      )}<span class="team-uuid">${escapeHtml(shortenUUID(team.team_id))}</span></td>
+      <td class="count" title="${escapeHtml(pgTooltip)}">${pgTotal.toLocaleString()}</td>
+      <td class="count">${qdCell}</td>
+      <td class="bytes">${escapeHtml(mbCell)}</td>
+      ${buildDrillDownCell(team.team_slug)}
+    </tr>`;
+  }
+
+  // Total row aggregates across teams. Null cells (N/A) are excluded
+  // from the running total; an asterisk warns the operator.
+  html += `<tr class="total-row">
+    <td class="team-name">All teams</td>
+    <td class="count">${totalPgRows.toLocaleString()}</td>
+    <td class="count">${
+      qdrantHasNull
+        ? `${totalQdrant.toLocaleString()}*`
+        : totalQdrant.toLocaleString()
+    }</td>
+    <td class="bytes">${
+      minioHasNull ? `${humanBytes(totalMinio)}*` : humanBytes(totalMinio)
+    }</td>
+    <td class="actions"></td>
+  </tr>`;
+  html += `</tbody></table>`;
+  if (qdrantHasNull || minioHasNull) {
+    html += `<p class="section-desc"><code>*</code> Some teams returned <code>N/A</code> (backing store unavailable); totals exclude those rows.</p>`;
+  }
+  root.innerHTML = html;
+  wireDrillDown(root);
 }
 function renderActivity() {
   const root = document.getElementById("activity-content");
