@@ -349,7 +349,85 @@ function renderActivity() {
 }
 function renderSources() {
   const root = document.getElementById("sources-content");
-  if (root) root.innerHTML = `<p class="empty">Sources renderer not wired yet.</p>`;
+  const data = state.sources;
+  if (!root) return;
+  if (!data || data.length === 0) {
+    root.innerHTML = `<p class="empty">No source data.</p>`;
+    return;
+  }
+
+  // First pass: aggregate global source counts to pick the top-5 columns.
+  // Sources beyond rank 5 are lumped into an "other" column to keep the
+  // column count bounded regardless of how many distinct sources exist.
+  const globalCounts = {};
+  for (const team of data) {
+    const sources = team.sources || {};
+    for (const [label, count] of Object.entries(sources)) {
+      globalCounts[label] = (globalCounts[label] || 0) + count;
+    }
+  }
+  const sortedSources = Object.entries(globalCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label]) => label);
+  const topSources = sortedSources.slice(0, 5);
+  const hasOther = sortedSources.length > 5;
+  const otherSet = new Set(sortedSources.slice(5));
+
+  let html = `<table class="admin-table"><thead><tr><th>Team</th>`;
+  for (const src of topSources) {
+    html += `<th class="source-col">${escapeHtml(src)}</th>`;
+  }
+  if (hasOther) html += `<th class="source-col">other</th>`;
+  html += `<th class="count">Total</th><th>Actions</th></tr></thead><tbody>`;
+
+  // Per-column totals for the bottom row.
+  const colTotals = Object.fromEntries(topSources.map((s) => [s, 0]));
+  let otherTotal = 0;
+  let grandTotal = 0;
+
+  for (const team of data) {
+    const sources = team.sources || {};
+    let rowTotal = 0;
+    let rowOther = 0;
+    html += `<tr><td class="team-name">${escapeHtml(
+      team.team_slug,
+    )}<span class="team-uuid">${escapeHtml(
+      shortenUUID(team.team_id),
+    )}</span></td>`;
+    for (const src of topSources) {
+      const c = Number(sources[src] || 0);
+      colTotals[src] += c;
+      rowTotal += c;
+      html += `<td class="source-cell${
+        c === 0 ? " zero" : ""
+      }">${c.toLocaleString()}</td>`;
+    }
+    if (hasOther) {
+      for (const [label, count] of Object.entries(sources)) {
+        if (otherSet.has(label)) rowOther += Number(count) || 0;
+      }
+      otherTotal += rowOther;
+      rowTotal += rowOther;
+      html += `<td class="source-cell other">${rowOther.toLocaleString()}</td>`;
+    }
+    grandTotal += rowTotal;
+    html += `<td class="count"><strong>${rowTotal.toLocaleString()}</strong></td>`;
+    html += buildDrillDownCell(team.team_slug);
+    html += `</tr>`;
+  }
+
+  // Total row aggregates across teams.
+  html += `<tr class="total-row"><td class="team-name">All teams</td>`;
+  for (const src of topSources) {
+    html += `<td class="source-cell">${colTotals[src].toLocaleString()}</td>`;
+  }
+  if (hasOther) {
+    html += `<td class="source-cell other">${otherTotal.toLocaleString()}</td>`;
+  }
+  html += `<td class="count">${grandTotal.toLocaleString()}</td><td class="actions"></td></tr>`;
+  html += `</tbody></table>`;
+  root.innerHTML = html;
+  wireDrillDown(root);
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
