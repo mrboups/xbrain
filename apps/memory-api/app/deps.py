@@ -103,12 +103,86 @@ async def get_current_principal(
             # Fall through to other auth methods
             pass
 
+    # Phase 12 (Plan 12-06) — GitHub App user-to-server token. Same logical
+    # principal as the legacy gho_ branch below, but with transparent refresh
+    # handling AND O(log n) lookup via the indexed token_hash column.
+    if token.startswith("ghu_"):
+        try:
+            from sqlalchemy import select
+
+            from app.models.user import User as UserModel
+            from app.services.github_user_token import (
+                GitHubReauthRequired,
+                refresh_user_token_if_needed,
+            )
+            from app.services.token_crypto import (
+                TokenCryptoInvalid,
+                decrypt_token,
+                token_lookup_hash,
+            )
+
+            # REVISION 2 (M-5 fix) — indexed hash lookup instead of O(n)
+            # decrypt-all-rows scan. HMAC-SHA256(FERNET_KEY, plaintext) is
+            # deterministic, the index is partial (WHERE NOT NULL — skips
+            # legacy rows). Collision space is 2^256.
+            hashed = token_lookup_hash(token)
+            candidate_user = (await session.execute(
+                select(UserModel).where(
+                    UserModel.github_access_token_hash == hashed
+                )
+            )).scalar_one_or_none()
+            if candidate_user is None:
+                raise HTTPException(401, "Unknown GitHub user token")
+
+            # Defense in depth — verify the decrypted plaintext matches.
+            # Catches the implausible-but-possible case where the hash leaked
+            # separately from FERNET_KEY, or DB corruption.
+            try:
+                if decrypt_token(candidate_user.github_access_token_enc) != token:
+                    raise HTTPException(401, "GitHub user token mismatch")
+            except TokenCryptoInvalid as exc:
+                raise HTTPException(
+                    401, "GitHub user token corrupt — re-authorize required"
+                ) from exc
+
+            # Transparent refresh before returning the principal.
+            try:
+                await refresh_user_token_if_needed(session, candidate_user)
+            except GitHubReauthRequired as exc:
+                raise HTTPException(
+                    401, "GitHub re-authorization required"
+                ) from exc
+
+            # Phase 10 GHA-06 — follow merge pointer if this user row was
+            # soft-merged into another.
+            from app.repos.users import follow_merge_pointer
+            candidate_user = await follow_merge_pointer(session, candidate_user)
+            await session.commit()
+
+            return {
+                "kind": "user",
+                "user": candidate_user,
+                "claims": {
+                    "sub": f"github:{candidate_user.github_username}",
+                    "login": candidate_user.github_username,
+                },
+                "sub": f"github:{candidate_user.github_username}",
+                # ghu_ branch trusts the App OAuth flow (user.id is the
+                # canonical principal); team_scope is enforced by get_team_scope.
+                "github_is_org_member": None,
+            }
+        except HTTPException:
+            raise
+        except Exception:
+            # Fall through to other auth methods on unexpected failures.
+            pass
+
     # Try GitHub OAuth token (tokens start with "gho_" prefix).
     # D4: GitHub Org members get full team access; non-members get team_scope=None.
     #
     # Phase 12 (Plan 12-04) — legacy gho_ branch retained for transitional
     # compatibility ONLY (Phase 5 LibreChat OAuth App tokens; Plan 12-06
-    # adds the ghu_ parallel branch). The membership check no longer needs a
+    # adds the ghu_ parallel branch above). The membership check no longer needs a
     # PAT — installation tokens are minted internally via check_github_org_membership.
     if token.startswith("gho_"):
         try:
