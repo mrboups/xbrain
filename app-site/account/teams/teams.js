@@ -31,7 +31,10 @@
 
   const MEMORY_API_BASE = "https://api.grooveos.app";
   const GOOGLE_CLIENT_ID = "50097563098-rdh24v05dcp0ees8o4kqviuuoi5sup3n.apps.googleusercontent.com";
-  const GITHUB_CLIENT_ID = "Ov23liy7tZekl0uEztoj";
+  // Phase 12 — GitHub App client_id (replaces the legacy OAuth App).
+  // Multi-callback URL support means the same client_id works for both the
+  // web app and the Chrome extension — see 12-RESEARCH.md §Q11.
+  const GITHUB_CLIENT_ID = "Iv23liVnZvIN0Lo6isof";
   const GITHUB_REDIRECT_URI = window.location.origin + "/account/teams/";
   const GITHUB_OAUTH_SCOPES = "read:user user:email read:org";
 
