@@ -350,7 +350,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 8. Granola Per-User + Universal Extraction + Platform Agents | 8/8 | ✅ Complete | 2026-05-09 (verify 7/7 PASS reconfirmed 2026-05-17) |
 | 9. Session Bridge — Pro/Max Routing via Chrome Extension | 6/6 | ✅ LIVE | 2026-05-12 (verify 6/6 PASS + 2 SKIP reconfirmed 2026-05-17) |
 | 10. GitHub-Primary Auth + Org-Driven Team Membership | 6/6 | ✅ LIVE | 2026-05-14 (deployed + verify PASS) — OAuth client_id+callback URL bug fixed 2026-05-17 |
-| 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 0/11 | ⚪ Planned | — |
+| 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 11/11 | ✅ LIVE | 2026-05-17 (verify-phase11.sh PASS 5/5 + 11 SKIP fixture, alembic 0018 head on VM, brain-janitor running, UI live grooveos.app/account/teams/brain/ + /account/admin/) |
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 0/0 (planning pending: `/gsd:plan-phase 12`) | ⚪ Roadmapped | — |
 
 ---
