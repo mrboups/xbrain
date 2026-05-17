@@ -470,3 +470,44 @@ async def assert_can_edit_brain_event(
         "You can only edit items you created. Contact a team admin to modify "
         "items created by others.",
     )
+
+
+# === Superadmin authorization (Phase 11 BMO-10 / BMO-11) ===
+
+
+async def assert_is_superadmin(
+    principal: dict[str, Any] = Depends(get_current_principal),
+) -> None:
+    """FastAPI dependency that raises 403 if principal is not a superadmin.
+
+    Wraps the existing ``_is_admin()`` predicate at deps.py:322-333. Reuses
+    ``ADMIN_USER_SUBS`` env var as the authoritative list of superadmin subs.
+    Bridge JWTs (``kind='bridge'`` / ``kind='service'``) are also treated as
+    superadmin — matches the existing ``_is_admin`` pattern.
+
+    Returns None on success (FastAPI dependency contract); raises
+    ``HTTPException(403)`` with a non-leaky detail message on failure.
+
+    Lockdown behavior: if ``ADMIN_USER_SUBS`` is empty (env unset or set to
+    ``''``), no real-user principal can be a superadmin — ``_is_admin()``
+    returns False for ``kind='user'`` / ``kind='user_api_token'`` principals.
+    Bridge JWTs still pass (service trust). Test in plan 11-10 Task 6 covers
+    this case.
+
+    Bridge JWTs (``kind='bridge'``) still pass — they inherit the trust model
+    from ``_is_admin()``. When a bridge JWT calls a superadmin endpoint, the
+    audit_log entry has ``actor_user_id=None`` and the bridge service identity
+    is captured in ``audit_log.payload.actor_sub`` (the JWT ``sub`` claim).
+
+    SECURITY NOTE: bridge JWTs accessing cross-team brain data is supported
+    but the design intent is that bridges are emitted by internal trusted
+    services (granola-sync, agent-runtime, librechat-bridge). If a bridge
+    secret is compromised, an attacker could read cross-team brain content.
+    Mitigation: rotate ``BRIDGE_SHARED_SECRET`` periodically and review
+    ``audit_log`` entries where ``actor_user_id IS NULL``.
+    """
+    if not _is_admin(principal):
+        raise HTTPException(
+            status_code=403,
+            detail="superadmin access required",
+        )
