@@ -32,3 +32,18 @@ class User(Base):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Phase 12 — GitHub App user-to-server token storage (Fernet-encrypted at rest).
+    # Populated/rotated by app/services/github_user_token.py (Plan 12-06). The
+    # `_enc` suffix is mandatory naming so future readers can tell at a glance
+    # the column holds Fernet base64 bytes, never raw token text.
+    # github_access_token_expires_at: ~8h after issue (GitHub default).
+    # github_refresh_expires_at: ~6 months after issue (GitHub default).
+    # Plan 12-06 will append a 5th column github_access_token_hash (M-5 fix).
+    github_access_token_enc: Mapped[str | None] = mapped_column(String, nullable=True)
+    github_refresh_token_enc: Mapped[str | None] = mapped_column(String, nullable=True)
+    github_token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    github_refresh_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

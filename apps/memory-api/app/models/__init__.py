@@ -1,6 +1,7 @@
 """ORM model exports for Alembic autogenerate + app code."""
 from app.models.audit import AuditLog
 from app.models.conversation import Conversation
+from app.models.installation import Installation
 from app.models.message import Message
 from app.models.promotion import Promotion
 from app.models.team import Team, TeamMember
@@ -14,4 +15,5 @@ __all__ = [
     "Message",
     "AuditLog",
     "Promotion",
+    "Installation",
 ]
