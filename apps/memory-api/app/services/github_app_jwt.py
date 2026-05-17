@@ -1,4 +1,5 @@
-"""Phase 12 — GitHub App JWT signing (App JWT, 10-min, RS256).
+"""Phase 12 — GitHub App JWT signing (App JWT, 10-min, RS256, used to mint
+installation tokens — NOT user-to-server tokens).
 
 This module mints the FIRST of three distinct GitHub App token kinds. Naming
 discipline matters — do NOT shorten `mint_app_jwt` to `mint_jwt`. The three
@@ -86,11 +87,12 @@ def _reset_private_key_cache_for_tests() -> None:
 
 
 def mint_app_jwt(client_id: str | None = None) -> str:
-    """Mint an App JWT signed RS256, 10-min lifetime.
+    """Mint an App JWT, 10-min, RS256, used to mint installation tokens
+    (NOT user-to-server tokens).
 
-    Used to mint installation tokens (Plan 12-03) and to discover/list
-    installations (Plan 12-04). NOT used for user-to-server tokens — that
-    flow uses the OAuth client_secret (see Plan 12-06).
+    Used by Plan 12-03 (POST /app/installations/{id}/access_tokens) and
+    Plan 12-04 (GET /orgs/{org}/installation). The user-to-server flow
+    uses the OAuth client_secret instead (Plan 12-06).
 
     Args:
       client_id: GitHub App client_id (e.g. 'Iv23li...'). Defaults to
