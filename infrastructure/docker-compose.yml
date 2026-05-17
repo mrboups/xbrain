@@ -913,3 +913,38 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  # === brain-janitor (plan 11-07) — daily 03:00 UTC hard-purge of soft-deleted rows ===
+  # Boots, runs one purge cycle immediately (instant verify-phase11 signal), then
+  # sleeps until next 03:00 UTC. Touches /tmp/brain-janitor-alive after each cycle;
+  # healthcheck reads its mtime and marks the container unhealthy if the daily run
+  # hasn't fired in ~25h. RETENTION_DAYS=30 is the contract — see Phase 11 CONTEXT.md.
+  brain-janitor:
+    build:
+      context: ..
+      dockerfile: apps/brain-janitor/Dockerfile
+    image: xbrain/brain-janitor:phase11
+    container_name: xbrain-brain-janitor
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-memory_items}
+      NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      RETENTION_DAYS: "30"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks: [xbrain_net]
+    mem_limit: 192m
+    depends_on:
+      postgres: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+      neo4j: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/brain-janitor-alive && [ $$(($$(date +%s) - $$(stat -c %Y /tmp/brain-janitor-alive))) -lt 90000 ] || exit 1"]
+      interval: 1h
+      timeout: 10s
+      retries: 3
+      start_period: 60s
