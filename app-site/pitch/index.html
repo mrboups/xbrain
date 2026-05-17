@@ -851,9 +851,10 @@
     ================================================================ */
     .team-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 18px;
-      margin: 14px 0;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+      margin: 18px auto;
+      max-width: 880px;
     }
     .person {
       border: 1px solid var(--border);
@@ -1094,9 +1095,8 @@
 
           <div class="footer-stack">
             <div class="founders">
-              <b>Mr Boups</b> · CEO &nbsp;&nbsp;·&nbsp;&nbsp;
-              <b>Denis Omelcenco</b> · CTO &nbsp;&nbsp;·&nbsp;&nbsp;
-              <b>Lionel Dekoninck</b> · CMO
+              <b>Nicolas Forton</b> · CEO &nbsp;&nbsp;·&nbsp;&nbsp;
+              <b>Denis Omelcenco</b> · CTO
             </div>
             <div class="submission-meta">
               <span class="hl">a16z Speedrun SR007</span> — Application<br/>
@@ -1105,7 +1105,7 @@
           </div>
         </div>
         <aside class="notes">
-          Open from substrate, not features. Three founders. We ship from the product we sell.
+          Open from substrate, not features. Two founders. We ship from the product we sell.
         </aside>
       </section>
 
@@ -1117,7 +1117,7 @@
         <h2>Every team is about to become <span class="hl">hybrid</span>.</h2>
 
         <p>By 2027, the average product team won't be 4 humans. It'll be <b>4 humans operating 12 AI agents</b> — coding agents, marketing agents, ops agents, research agents.</p>
-        <p class="muted">This isn't a forecast. It's already happening. Cursor ships code. Granola takes meeting notes. n8n runs ops. Each of these is an <em>operator</em> — a teammate that produces work, makes decisions, and needs context. The org chart of the next decade has <b>two species</b> on it.</p>
+        <p class="muted">This isn't a forecast. It's already happening. Cursor ships code. Claude Code reviews and refactors. Granola takes meeting notes. Hermes runs ops. Each of these is an <em>operator</em> — a teammate that produces work, makes decisions, and needs context. The org chart of the next decade has <b>two species</b> on it.</p>
 
         <div class="split-grid">
           <div class="team-card">
@@ -1153,7 +1153,7 @@
         <h2>The paradox of <span class="hl">agentic work</span>.</h2>
         <p class="muted" style="font-size:18px;margin-top:-6px;">Every agent is a new silo.</p>
 
-        <p>Every team is moving its work through AI agents — Cursor, Claude Code, ChatGPT, Hermes. <b>Each one is brilliant. Each one is a silo.</b> The collaboration we'd built in Slack, Notion, and Linear is regressing.</p>
+        <p>Every team is moving its work through AI agents — Cursor, Claude Code, ChatGPT, Granola, Hermes. <b>Each one is brilliant. Each one is a silo.</b> The collaboration we'd built in Slack, Notion, and Linear is regressing.</p>
         <p class="muted">Decisions get made in chats no agent can read. Code ships from sessions trapped where they were made. Briefs get re-explained every conversation. And every AI interaction adds to a flood of context no human can process and no agent can access.</p>
 
         <div class="term">
@@ -1414,7 +1414,7 @@
           <div class="market-stage wedge-3">
             <div class="stage-lbl">end game</div>
             <div class="stage-title">The cognitive layer for every hybrid team on earth</div>
-            <div class="stage-desc">Not pricing per seat or per agent. <b>Per operator.</b> Our TAM grows with <b>both</b> human employment and agent proliferation.</div>
+            <div class="stage-desc">We bundle unlimited AI agents per human user — so <b>ARPU per user grows with both seat expansion <em>and</em> agent proliferation</b>. As <em>operator</em> becomes a recognized billing unit, we'll evolve toward per-operator pricing. Either way: <b>our TAM grows with both human employment and agent adoption.</b></div>
           </div>
         </div>
 
@@ -1422,7 +1422,7 @@
           <span class="a">[ wedge ]</span> &nbsp;⟶&nbsp; <span class="b">[ knowledge teams ]</span> &nbsp;⟶&nbsp; <span class="c">[ every hybrid team ]</span>
         </div>
         <aside class="notes">
-          Per-operator pricing is the TAM unlock. It compounds with two megatrends at once.
+          Per-user with unlimited agents bundled today. ARPU compounds with two megatrends at once: seat growth AND agent adoption inside each customer. Per-operator becomes the natural billing unit later.
         </aside>
       </section>
 
@@ -1567,12 +1567,12 @@
       ============================================================ -->
       <section>
         <div class="label-tag">12 · team</div>
-        <h2>Three operators. Complementary edges. <span class="hl">Already shipping</span>.</h2>
+        <h2>Two operators. Complementary edges. <span class="hl">Already shipping</span>.</h2>
 
         <div class="team-grid">
           <div class="person">
-            <div class="avatar">MB</div>
-            <div class="name">Mr Boups</div>
+            <div class="avatar">NF</div>
+            <div class="name">Nicolas Forton</div>
             <div class="role">CEO · strategy + people systems</div>
             <div class="bio"><b>Masters in Software Development & HR.</b> The OS for hybrid teams needs a founder who understands how teams actually function — not just how memory stores work.</div>
             <div class="link"><a href="https://x.com/mrboups" target="_blank" rel="noopener">x.com/mrboups</a></div>
@@ -1584,18 +1584,11 @@
             <div class="bio"><b>Full-stack + Web3 engineer, IT consultant.</b> Distributed systems, real-time sync, multi-tenant architecture — exactly the primitives the cognitive core demands.</div>
             <div class="link"><a href="https://linkedin.com/in/denisomelcenco" target="_blank" rel="noopener">linkedin.com/in/denisomelcenco</a></div>
           </div>
-          <div class="person">
-            <div class="avatar">LD</div>
-            <div class="name">Lionel Dekoninck</div>
-            <div class="role">CMO · creative + brand</div>
-            <div class="bio"><b>Multi-award creative director + marketing expert.</b> The team chat is also a brand surface. We don't ship an AI-infra product that looks like everyone else's.</div>
-            <div class="link"><a href="https://linkedin.com/in/lionel-dekoninck-b259566" target="_blank" rel="noopener">linkedin.com/in/lionel-dekoninck-b259566</a></div>
-          </div>
         </div>
 
-        <p class="caption" style="margin-top:6px;">Most "memory for agents" companies are built by <em>ML researchers</em>. We're built by an <b>HR-trained strategist, a systems engineer, and a creative director</b>. That mix is correct for an "OS for hybrid teams" — because the product is about <b>how teams work</b>, not just how memory stores.</p>
+        <p class="caption" style="margin-top:6px;">Most "memory for agents" companies are built by <em>ML researchers</em>. We're built by an <b>HR-trained strategist and a systems engineer</b>. That mix is correct for an OS for hybrid teams — because the product is about <b>how teams work</b>, not just how memory stores.</p>
         <aside class="notes">
-          The team is the proof we understand the product. People systems + distributed systems + brand. Not the default founding stack — on purpose.
+          The team is the proof we understand the product. People systems + distributed systems. Not the default founding stack — on purpose.
         </aside>
       </section>
 
