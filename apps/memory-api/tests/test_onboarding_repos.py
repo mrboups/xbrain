@@ -85,7 +85,7 @@ async def test_get_teams_with_github_org(session):
     team_with = await repo.create_team(
         session, slug="github-team", display_name="GitHub Team", creator_user_id=creator.id
     )
-    team_with.github_org = "your-github-org"
+    team_with.github_org = "acme-corp"
     await repo.create_team(
         session, slug="no-github-team", display_name="No GitHub", creator_user_id=creator.id
     )

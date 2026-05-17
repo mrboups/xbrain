@@ -87,17 +87,17 @@ export POOL_ID=$(gcloud iam workload-identity-pools describe github-pool \
 echo "POOL_ID: $POOL_ID"
 # Exemple: projects/495115/locations/global/workloadIdentityPools/github-pool
 
-# Autoriser les repos de l'org your-github-org à impersonner le SA
-# IMPORTANT: remplacer your-github-org par l'org GitHub exacte
+# Autoriser les repos de l'org <your-org> à impersonner le SA
+# IMPORTANT: remplacer <your-org> par l'org GitHub exacte
 gcloud iam service-accounts add-iam-policy-binding $SA \
   --project=$PROJECT \
   --role=roles/iam.workloadIdentityUser \
-  --member="principalSet://iam.googleapis.com/${POOL_ID}/attribute.repository_owner/your-github-org"
+  --member="principalSet://iam.googleapis.com/${POOL_ID}/attribute.repository_owner/<your-org>"
 ```
 
-**Note sur l'audience :** La commande ci-dessus autorise **tous les repos** de l'org `your-github-org`. Pour restreindre à un repo spécifique, remplacer la dernière ligne par :
+**Note sur l'audience :** La commande ci-dessus autorise **tous les repos** de l'org `<your-org>`. Pour restreindre à un repo spécifique, remplacer la dernière ligne par :
 ```bash
---member="principalSet://iam.googleapis.com/${POOL_ID}/attribute.repository/your-github-org/REPO_NAME"
+--member="principalSet://iam.googleapis.com/${POOL_ID}/attribute.repository/<your-org>/REPO_NAME"
 ```
 
 **Secret GitHub à configurer (Variable — pas Secret) :**

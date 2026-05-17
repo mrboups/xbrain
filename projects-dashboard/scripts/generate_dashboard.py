@@ -3,7 +3,7 @@
 generate_dashboard.py — Génère public/index.html depuis GitHub API + memory-api.
 
 Variables d'environnement requises :
-  GITHUB_ORG            — Org GitHub (défaut: your-github-org)
+  GITHUB_ORG            — Org GitHub (défaut: vide, doit être défini explicitement)
   GITHUB_USER           — Compte GitHub perso (défaut: mrboups)
   GITHUB_API_PAT        — Fine-grained PAT read:org read:repo
   XBRAIN_MEMORY_API_URL — URL de l'API xbrain (défaut: https://api.grooveos.app)

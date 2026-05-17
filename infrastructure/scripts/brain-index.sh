@@ -9,7 +9,7 @@
 #
 # Variables optionnelles :
 #   MEMORY_API_URL       — URL de l'API xbrain (défaut: https://api.grooveos.app)
-#   GITHUB_REPOSITORY    — Owner/repo (ex: your-github-org/my-project, auto-détecté en CI)
+#   GITHUB_REPOSITORY    — Owner/repo (ex: <your-org>/my-project, auto-détecté en CI)
 #
 # Dépendances : bash, curl, python3 (avec pyyaml — disponible dans ubuntu-latest)
 #

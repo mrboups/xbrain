@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     # 12-CONTEXT.md. Do NOT confuse with GITHUB_APP_CLIENT_ID below.
     GITHUB_CLIENT_ID: str = ""
     GITHUB_CLIENT_SECRET: str = ""
-    GITHUB_ORG: str = "your-github-org"
+    GITHUB_ORG: str = ""
     # Org-membership checks use installation tokens minted by the xbrain
     # GitHub App (see app/services/github_installation.py + Plan 12-04).
 

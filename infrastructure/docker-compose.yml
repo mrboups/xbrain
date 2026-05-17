@@ -117,7 +117,7 @@ services:
       # Phase 5 plan 05-02: GitHub OAuth membership verification
       # GITHUB_API_PAT was removed by Plan 12-04 — installation tokens
       # minted from the GitHub App replace the long-lived PAT.
-      GITHUB_ORG: ${GITHUB_ORG:-your-github-org}
+      GITHUB_ORG: ${GITHUB_ORG:-}
       # Phase 10: GitHub-primary auth — POST /v1/auth/github/signin code-exchanges
       # server-side. client_secret stays in memory-api; never reaches frontend.
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}

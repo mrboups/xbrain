@@ -12,7 +12,7 @@ interface:
 registration:
   socialLogins: ["google", "github"]
   allowedDomains:
-    - "acme.example.com"
+    - "grooveos.app"
     - "gmail.com"
     # Note: no domain filter for GitHub — org membership is enforced in memory-api (plan 05-02)
 
