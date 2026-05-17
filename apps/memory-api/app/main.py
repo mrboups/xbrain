@@ -38,6 +38,7 @@ from app.routes import (
     team_chat,
     teams,
     waitlist,
+    webhooks_github,
 )
 
 logging.basicConfig(level=settings.LOG_LEVEL)
@@ -116,3 +117,8 @@ app.include_router(external_sessions.router, prefix="/v1", tags=["external-sessi
 app.include_router(team_chat.router, prefix="/v1", tags=["team-chat"])
 app.include_router(brain.router, prefix="/v1", tags=["brain"])
 app.include_router(admin_brain.router, prefix="/v1", tags=["admin-brain"])
+app.include_router(
+    webhooks_github.router,
+    prefix="/v1/webhooks/github",
+    tags=["webhooks-github"],
+)
