@@ -24,6 +24,7 @@
  *
  * No real-time polling on this page (manual refresh = page reload).
  */
+import { renderSparkline } from "/account/admin/sparkline.js";
 
 // ── Config ────────────────────────────────────────────────────────────────
 const MEMORY_API_BASE = "https://api.grooveos.app";
@@ -299,7 +300,52 @@ function renderStorage() {
 }
 function renderActivity() {
   const root = document.getElementById("activity-content");
-  if (root) root.innerHTML = `<p class="empty">Activity renderer not wired yet.</p>`;
+  const data = state.activity;
+  if (!root) return;
+  if (!data || data.length === 0) {
+    root.innerHTML = `<p class="empty">No activity data.</p>`;
+    return;
+  }
+
+  let html = `<table class="admin-table"><thead><tr>
+    <th>Team</th>
+    <th>30-day sparkline</th>
+    <th class="count">Total events</th>
+    <th>Actions</th>
+  </tr></thead><tbody>`;
+
+  for (const team of data) {
+    const total = (team.daily || []).reduce(
+      (a, b) => a + (Number(b.events) || 0),
+      0,
+    );
+    html += `<tr>
+      <td class="team-name">${escapeHtml(
+        team.team_slug,
+      )}<span class="team-uuid">${escapeHtml(shortenUUID(team.team_id))}</span></td>
+      <td><div class="sparkline-cell" data-team="${escapeHtml(team.team_slug)}"></div></td>
+      <td class="total-events">${total.toLocaleString()}</td>
+      ${buildDrillDownCell(team.team_slug)}
+    </tr>`;
+  }
+  html += `</tbody></table>`;
+  root.innerHTML = html;
+
+  // Render one sparkline per team into its placeholder div. CSS.escape
+  // is required because team slugs may contain selector-special chars.
+  for (const team of data) {
+    const cell = root.querySelector(
+      `.sparkline-cell[data-team="${CSS.escape(team.team_slug)}"]`,
+    );
+    if (cell) {
+      renderSparkline(cell, team.daily || [], {
+        width: 200,
+        height: 40,
+        color: "currentColor",
+      });
+    }
+  }
+  wireDrillDown(root);
 }
 function renderSources() {
   const root = document.getElementById("sources-content");
