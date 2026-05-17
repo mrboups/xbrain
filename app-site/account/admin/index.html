@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Superadmin Dashboard — GrooveOS</title>
+  <meta name="description" content="Cross-team brain overview, storage, activity and source breakdowns for xbrain superadmins." />
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/css/brain.css" />
+  <link rel="stylesheet" href="/account/admin/admin.css" />
+</head>
+<body>
+  <header class="hdr">
+    <div class="hdr__brand">
+      <span class="dot" aria-hidden="true"></span>
+      <span>GrooveOS · superadmin dashboard</span>
+    </div>
+    <div class="hdr__user" id="hdr-user" hidden>
+      <span id="hdr-email">—</span>
+      <a class="btn btn-sm" href="/account/teams/">Teams</a>
+      <button class="btn btn-sm" id="btn-signout">Sign out</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 403 / error fallback (revealed if probe fails) -->
+    <div id="forbidden-fallback" class="forbidden" hidden>
+      <h2>Access denied</h2>
+      <p class="reason">You are not a superadmin. This dashboard is restricted.</p>
+      <p class="reason-secondary">Contact an admin if you believe you should have access.</p>
+      <a class="btn btn-primary" href="/account/teams/">&larr; Back to teams</a>
+    </div>
+
+    <!-- Authenticated dashboard (revealed after successful superadmin probe) -->
+    <div id="app" hidden>
+      <div class="page-toolbar">
+        <h1>Superadmin Dashboard</h1>
+        <p class="subtitle">
+          Cross-team aggregates for the xbrain memory layer. Use
+          <strong>Drill down</strong> on any team row to inspect its full brain
+          feed (every access is logged).
+        </p>
+      </div>
+
+      <section id="section-overview" class="admin-section">
+        <h2>Brain Overview</h2>
+        <p class="section-desc">Counts of items per team, broken down by entity type. Hover a cell for the truth-level breakdown.</p>
+        <div class="section-content" id="overview-content"></div>
+        <div class="section-loading" id="overview-loading">Loading&hellip;</div>
+      </section>
+
+      <section id="section-storage" class="admin-section">
+        <h2>Storage</h2>
+        <p class="section-desc">Postgres rows, Qdrant vector points and MinIO bytes per team. <code>N/A</code> means the backing store is not configured.</p>
+        <div class="section-content" id="storage-content"></div>
+        <div class="section-loading" id="storage-loading">Loading&hellip;</div>
+      </section>
+
+      <section id="section-activity" class="admin-section">
+        <h2>Activity (last 30 days)</h2>
+        <p class="section-desc">Daily event volume per team. Hover a point on the sparkline for the date and count.</p>
+        <div class="section-content" id="activity-content"></div>
+        <div class="section-loading" id="activity-loading">Loading&hellip;</div>
+      </section>
+
+      <section id="section-sources" class="admin-section">
+        <h2>Top Sources (last 30 days)</h2>
+        <p class="section-desc">Top 5 sources per team plus an &ldquo;other&rdquo; bucket for the long tail.</p>
+        <div class="section-content" id="sources-content"></div>
+        <div class="section-loading" id="sources-loading">Loading&hellip;</div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    xbrain &middot; superadmin layer &middot;
+    <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener">github</a>
+  </footer>
+
+  <script type="module" src="/account/admin/admin.js"></script>
+</body>
+</html>
