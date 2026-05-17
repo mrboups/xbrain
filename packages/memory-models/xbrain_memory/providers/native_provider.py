@@ -132,10 +132,22 @@ class NativeProvider(MemoryProvider):
         return item_id
 
     async def get(self, item_id: str, *, team_scope: str) -> MemoryItem | None:
+        """Fetch a single memory_item by id within the caller's team scope.
+
+        Phase 11 (BMO-07): returns None for soft-deleted rows. Callers that
+        need to reach a tombstoned row (the brain monitor PATCH/DELETE
+        path) bypass this method — they go through
+        `app.repos.brain.fetch_event_row` via the `v_brain_events` view,
+        which does NOT filter `deleted_at`. The `GET /v1/memory/{id}`
+        endpoint and the internal `update()`/`history()` helpers all
+        delegate here, so this single guard hides tombstones from every
+        legacy read path in one place.
+        """
         pool = await self._ensure_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM memory_items WHERE id=$1 AND team_scope=$2",
+                "SELECT * FROM memory_items "
+                "WHERE id=$1 AND team_scope=$2 AND deleted_at IS NULL",
                 UUID(item_id), team_scope,
             )
         return _row_to_item(row) if row else None
@@ -188,8 +200,21 @@ class NativeProvider(MemoryProvider):
 
         pool = await self._ensure_pool()
         async with pool.acquire() as conn:
+            # Phase 11 (BMO-07) — belt-and-suspenders soft-delete filter on
+            # the PG hydration step. The Qdrant `Range(lte=0.0)` filter
+            # upstream already excludes soft-deleted points whose payload
+            # `deleted_at_ts` was written or backfilled. This second clause
+            # catches the residual: a memory_item flipped to deleted in PG
+            # between the Qdrant write and the search call, before the
+            # `mark_deleted()` payload set landed. Without this filter, the
+            # search hit would silently surface a tombstoned row hydrated
+            # from PG. See 11-RESEARCH §Q3 PITFALL ("deleted_at filter must
+            # be added to NativeProvider.search() at the Postgres level,
+            # not just Qdrant").
             rows = await conn.fetch(
-                "SELECT * FROM memory_items WHERE id = ANY($1::uuid[]) AND team_scope=$2",
+                "SELECT * FROM memory_items "
+                "WHERE id = ANY($1::uuid[]) AND team_scope=$2 "
+                "  AND deleted_at IS NULL",
                 [UUID(i) for i in ids], team_scope,
             )
         items_by_id = {str(r["id"]): _row_to_item(r) for r in rows}
