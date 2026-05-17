@@ -1,0 +1,16 @@
+# Shell scripts MUST keep LF line endings — they are executed by bash on the
+# Linux VM. The Phase 11 ship-out hit a CRLF break (commit dc9a74c "fix CRLF
+# on verify script") because verify-phase11.sh was checked out with Windows
+# line endings on a fresh clone. Pinning eol=lf prevents the regression for
+# verify-phase12.sh and any future *.sh.
+*.sh text eol=lf
+
+# Bash-equivalents
+*.bash text eol=lf
+
+# Other infrastructure formats that the Linux VM consumes (avoid surprises)
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
