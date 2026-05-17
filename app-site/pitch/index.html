@@ -15,23 +15,26 @@
 
   <style>
     /* ================================================================
-       GROOVEOS PALETTE — mirrors app-site/index.html
+       GROOVEOS PALETTE — LIGHT (mirrors app-site/index.html [data-theme="light"])
+       Default and only palette. No toggle.
     ================================================================ */
     :root {
-      --bg:       #0D1117;
-      --bg-2:     #161B22;
-      --bg-3:     #21262D;
-      --text:     #E6EDF3;
-      --muted:    #8B949E;
-      --accent:   #22D3EE;
-      --green:    #3FB950;
-      --amber:    #D29922;
-      --red:      #F85149;
-      --border:   #30363D;
-      --tag-bg:   rgba(34,211,238,.12);
-      --green-bg: rgba(63,185,80,.10);
-      --amber-bg: rgba(210,153,34,.10);
-      --red-bg:   rgba(248,81,73,.10);
+      --bg:       #FFFFFF;
+      --bg-2:     #F6F8FA;
+      --bg-3:     #EAEEF2;
+      --text:     #1F2328;
+      --muted:    #57606A;
+      --accent:   #0E7490;
+      --green:    #1A7F37;
+      --amber:    #9A6700;
+      --red:      #CF222E;
+      --border:   #D0D7DE;
+      --tag-bg:   rgba(14,116,144,.08);
+      --green-bg: rgba(26,127,55,.08);
+      --amber-bg: rgba(154,103,0,.08);
+      --red-bg:   rgba(207,34,46,.08);
+      --paid-bg:  rgba(207,34,46,.08);
+      --paid-col: #CF222E;
     }
 
     /* ================================================================
@@ -362,7 +365,7 @@
       border: 1px solid var(--border);
       background: var(--bg-2);
       margin: 10px 0 14px 0;
-      box-shadow: 0 0 0 1px rgba(34,211,238,.04), 0 18px 60px rgba(0,0,0,.45);
+      box-shadow: 0 0 0 1px rgba(14,116,144,.06), 0 12px 36px rgba(15,23,28,.08);
     }
     .chat-bar {
       display: flex;
@@ -429,7 +432,7 @@
       border-color: var(--green);
       color: var(--green);
       background: var(--green-bg);
-      box-shadow: 0 0 0 1px rgba(63,185,80,0.35), 0 0 22px rgba(63,185,80,0.18);
+      box-shadow: 0 0 0 1px rgba(26,127,55,0.22), 0 0 14px rgba(14,116,144,0.10);
     }
     .who-pill.brain::before {
       content: "◉";
@@ -456,7 +459,7 @@
       font-family: inherit;
     }
     .msg.brain-msg {
-      background: linear-gradient(90deg, rgba(63,185,80,0.10), rgba(63,185,80,0.02) 60%, transparent);
+      background: linear-gradient(90deg, rgba(26,127,55,0.10), rgba(26,127,55,0.02) 60%, transparent);
       border-left: 2px solid var(--green);
       padding: 10px 12px 10px 14px;
       margin: 6px -12px 6px -14px;
@@ -502,7 +505,7 @@
     .caption b { color: var(--text); font-weight: 700; }
 
     /* ================================================================
-       SLIDE 5 — PRIMITIVES (3 columns)
+       SLIDE 6 — PRIMITIVES (3 columns)
     ================================================================ */
     .three-col {
       display: grid;
@@ -537,7 +540,7 @@
     .prim-card .desc b { color: var(--text); font-weight: 700; }
 
     /* ================================================================
-       SLIDE 6 — MOAT (4 stacked layers)
+       SLIDE 7 — MOAT (4 stacked layers)
     ================================================================ */
     .stack {
       display: flex;
@@ -582,7 +585,7 @@
     }
 
     /* ================================================================
-       SLIDE 7 — WHY NOW
+       SLIDE 8 — WHY NOW
     ================================================================ */
     .why-grid {
       display: grid;
@@ -626,7 +629,7 @@
     .wedge-line .hl { color: var(--accent); font-weight: 700; }
 
     /* ================================================================
-       SLIDE 8 — MARKET (wedges)
+       SLIDE 9 — MARKET (wedges)
     ================================================================ */
     .market-row {
       display: grid;
@@ -674,7 +677,7 @@
     .arrow-bar .c { color: var(--green); }
 
     /* ================================================================
-       SLIDE 9 — PRICING
+       SLIDE 10 — PRICING
     ================================================================ */
     .price-grid {
       display: grid;
@@ -739,7 +742,7 @@
     .tier-list li .hl { color: var(--accent); font-weight: 700; }
 
     /* ================================================================
-       SLIDE 10 — TRACTION
+       SLIDE 11 — TRACTION
     ================================================================ */
     .tract-grid {
       display: grid;
@@ -806,7 +809,7 @@
     .partner .p-desc b { color: var(--text); }
 
     /* ================================================================
-       SLIDE 11 — COMPETITION TABLE
+       SLIDE 12 — COMPETITION TABLE
     ================================================================ */
     .comp-table {
       width: 100%;
@@ -844,7 +847,7 @@
     .comp-table td b { color: var(--text); font-weight: 700; }
 
     /* ================================================================
-       SLIDE 12 — TEAM
+       SLIDE 13 — TEAM
     ================================================================ */
     .team-grid {
       display: grid;
@@ -901,7 +904,7 @@
     .person .link::before { content: "→ "; }
 
     /* ================================================================
-       SLIDE 13 — ASK
+       SLIDE 14 — ASK
     ================================================================ */
     .ask-list {
       list-style: none;
@@ -1003,6 +1006,69 @@
     ================================================================ */
     .reveal .fragment.fade-in-then-out { transition: opacity 0.3s ease; }
     .reveal .slides section .fragment { transition: all 0.4s cubic-bezier(.2,.7,.2,1); }
+
+    /* ================================================================
+       SLIDE 5 (NEW) — DEMO
+    ================================================================ */
+    .video-placeholder {
+      display: flex;
+      justify-content: center;
+      margin: 18px 0 6px;
+    }
+    .video-frame {
+      width: 720px;
+      max-width: 100%;
+      aspect-ratio: 16 / 9;
+      border: 1px dashed var(--border);
+      background: var(--bg-2);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      position: relative;
+    }
+    .video-frame::before {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border: 1px solid transparent;
+      pointer-events: none;
+    }
+    .play-icon {
+      font-size: 48px;
+      line-height: 1;
+      color: var(--accent);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 76px;
+      height: 76px;
+      border: 1px solid var(--accent);
+      border-radius: 50%;
+      background: var(--tag-bg);
+      padding-left: 6px;
+    }
+    .video-caption {
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: lowercase;
+    }
+    .video-link {
+      text-align: center;
+      padding-top: 20px;
+      margin: 0;
+      font-size: 15px;
+      color: var(--muted);
+    }
+    .video-link a {
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .video-link a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -1188,10 +1254,42 @@
       </section>
 
       <!-- ============================================================
-           SLIDE 5 — HOW IT WORKS
+           SLIDE 5 — DEMO (video placeholder)
+      ============================================================ -->
+      <section class="center">
+        <div class="label-tag">04 · demo</div>
+
+        <h2>See it <span class="hl">in action</span>.</h2>
+
+        <p class="muted" style="font-size:18px;max-width:880px;margin:0 auto 22px;">2-minute walkthrough — humans and agents working on the same brain, in real time.</p>
+
+        <!-- Video placeholder -->
+        <div class="video-placeholder" aria-label="Demo video placeholder">
+          <div class="video-frame">
+            <div class="play-icon">▶</div>
+            <div class="video-caption">Video coming soon</div>
+          </div>
+        </div>
+
+        <!-- Reference link -->
+        <p class="video-link">
+          <a href="https://grooveos.app/demo" target="_blank" rel="noopener">
+            → watch at grooveos.app/demo
+          </a>
+        </p>
+
+        <aside class="notes">
+          This is the demo slide. 2-min Loom walkthrough showing the iconic team-chat flow live
+          (slide 4 brought to life). If presenting in person, run the demo here. Otherwise point
+          a16z reviewers to the link.
+        </aside>
+      </section>
+
+      <!-- ============================================================
+           SLIDE 6 — HOW IT WORKS
       ============================================================ -->
       <section>
-        <div class="label-tag">04 · architecture</div>
+        <div class="label-tag">05 · architecture</div>
         <h2>Three primitives. <span class="hl">One substrate</span>.</h2>
         <p class="muted">A cognitive OS, not a chatbot. Three layers, every operator on the same bus.</p>
 
@@ -1220,10 +1318,10 @@
       </section>
 
       <!-- ============================================================
-           SLIDE 6 — TECHNICAL MOAT
+           SLIDE 7 — TECHNICAL MOAT
       ============================================================ -->
       <section>
-        <div class="label-tag">05 · technical moat</div>
+        <div class="label-tag">06 · technical moat</div>
         <h2>Four layers. <span class="hl">One substrate</span>.</h2>
 
         <div class="stack">
@@ -1264,10 +1362,10 @@
       </section>
 
       <!-- ============================================================
-           SLIDE 7 — WHY NOW
+           SLIDE 8 — WHY NOW
       ============================================================ -->
       <section>
-        <div class="label-tag">06 · why now</div>
+        <div class="label-tag">07 · why now</div>
         <h2>2026 is the <span class="hl">wedge year</span>.</h2>
         <p class="muted">Three curves just crossed.</p>
 
@@ -1296,10 +1394,10 @@
       </section>
 
       <!-- ============================================================
-           SLIDE 8 — MARKET
+           SLIDE 9 — MARKET
       ============================================================ -->
       <section>
-        <div class="label-tag">07 · market</div>
+        <div class="label-tag">08 · market</div>
         <h2>Every knowledge team <span class="hl">becomes a customer</span>.</h2>
 
         <div class="market-row">
@@ -1329,10 +1427,10 @@
       </section>
 
       <!-- ============================================================
-           SLIDE 9 — BUSINESS MODEL
+           SLIDE 10 — BUSINESS MODEL
       ============================================================ -->
       <section>
-        <div class="label-tag">08 · business model</div>
+        <div class="label-tag">09 · business model</div>
         <h2>Per-user pricing <span class="hl">today</span>. Per-operator <span class="hl">tomorrow</span>.</h2>
 
         <div class="price-grid">
@@ -1380,10 +1478,10 @@
       </section>
 
       <!-- ============================================================
-           SLIDE 10 — TRACTION
+           SLIDE 11 — TRACTION
       ============================================================ -->
       <section>
-        <div class="label-tag">09 · traction</div>
+        <div class="label-tag">10 · traction</div>
         <h2>Already in production. <span class="hl">On our team</span> and <span class="hl">two named design partners</span>.</h2>
 
         <div class="tract-grid">
@@ -1423,10 +1521,10 @@
       </section>
 
       <!-- ============================================================
-           SLIDE 11 — COMPETITION
+           SLIDE 12 — COMPETITION
       ============================================================ -->
       <section>
-        <div class="label-tag">10 · competition</div>
+        <div class="label-tag">11 · competition</div>
         <h2>Two adjacent categories. One empty one. <span class="hl">We own the empty one</span>.</h2>
 
         <table class="comp-table">
@@ -1465,10 +1563,10 @@
       </section>
 
       <!-- ============================================================
-           SLIDE 12 — TEAM
+           SLIDE 13 — TEAM
       ============================================================ -->
       <section>
-        <div class="label-tag">11 · team</div>
+        <div class="label-tag">12 · team</div>
         <h2>Three operators. Complementary edges. <span class="hl">Already shipping</span>.</h2>
 
         <div class="team-grid">
@@ -1502,10 +1600,10 @@
       </section>
 
       <!-- ============================================================
-           SLIDE 13 — THE ASK
+           SLIDE 14 — THE ASK
       ============================================================ -->
       <section>
-        <div class="label-tag">12 · the ask</div>
+        <div class="label-tag">13 · the ask</div>
         <h2><span class="hl">$1M</span> to make GrooveOS the <span class="hl">default</span> for hybrid teams.</h2>
         <p class="muted">We're applying to SR007 to:</p>
 
