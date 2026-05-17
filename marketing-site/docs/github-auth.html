@@ -77,214 +77,241 @@
       </nav>
 
       <!-- Page title -->
-      <h1>GitHub Auth + Org Membership</h1>
+      <h1>GitHub App Authentication</h1>
 
       <div class="docs-meta">
-        <span class="docs-meta__badge">Phase 5</span>
-        <span>GitHub OAuth + Org verification</span>
-        <span>Migration 0007</span>
+        <span class="docs-meta__badge">Phase 12</span>
+        <span>GitHub App + Installation Tokens</span>
+        <span>Migration 0019</span>
       </div>
 
       <!-- OVERVIEW -->
       <h2>Overview</h2>
       <p>
-        xbrain supports two authentication methods: <strong>Google OAuth</strong> (default) and
-        <strong>GitHub OAuth</strong>. GitHub auth adds team membership verification via GitHub
-        Organization membership — only members of your configured GitHub Org can access xbrain.
+        xbrain uses a <strong>GitHub App</strong> for authentication. Sign in once with your
+        GitHub account, and xbrain will read your basic profile, your verified primary email,
+        and the orgs you belong to &mdash; nothing more.
       </p>
       <p>
-        Both methods produce JWT sessions in LibreChat. The auth method is transparent to the
-        memory-api interface — the same API endpoints work regardless of how the user authenticated.
+        The GitHub App architecture lets xbrain (a) call the GitHub API on behalf of your
+        organization with short-lived installation tokens (no long-lived PAT in our env), and
+        (b) keep your sign-in alive for ~6 months without re-authorizing, by transparently
+        refreshing your user token in the background.
       </p>
 
-      <!-- AUTH METHODS TABLE -->
-      <h2>Authentication Methods</h2>
+      <div class="callout callout--info">
+        <p class="callout__title">Migrated from OAuth (Phase 12)</p>
+        <p>
+          xbrain previously authenticated via a legacy OAuth application. As of Phase 12,
+          all auth paths use the <strong>xbrain GitHub App</strong>. The migration is
+          transparent to end-users &mdash; sign-in happens at the same URL with the same
+          GitHub consent screen, but the App is what GitHub authorizes (you may be prompted
+          to authorize the new App once).
+        </p>
+      </div>
+
+      <!-- SIGN-IN FLOW -->
+      <h2>How sign-in works</h2>
+      <p>The flow is identical for the web app and the Chrome extension:</p>
+      <pre class="code-block">User clicks "Sign in with GitHub" in xbrain
+       |
+       v
+GitHub consent screen for the "xbrain" App
+       |
+       v
+xbrain receives a short OAuth code (~10 min TTL)
+       |
+       v
+memory-api swaps the code (server-side, client_secret never leaves the VM)
+       |
+       v
+GitHub returns:
+   - ghu_... user-to-server access token (~8h TTL)
+   - ghr_... refresh token (~6 months TTL)
+       |
+       v
+memory-api persists both tokens encrypted (Fernet) on the user row,
+mints an xbt_ session token, returns it to the frontend.</pre>
+
+      <h3>Automatic token refresh</h3>
+      <p>
+        Your <code>ghu_</code> access token expires after ~8 hours. memory-api detects an
+        expired token on the next request and silently swaps the refresh token for a fresh
+        <code>ghu_</code>/<code>ghr_</code> pair &mdash; you stay signed in for ~6 months
+        without re-authorizing.
+      </p>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Where the tokens live</p>
+        <p>
+          Both the access token and the refresh token are stored Fernet-encrypted in the
+          <code>users</code> table (columns <code>github_access_token_enc</code>,
+          <code>github_refresh_token_enc</code>, plus their expiries and a SHA-256 lookup
+          hash). They never leave the memory-api process to the browser or any other service.
+        </p>
+      </div>
+
+      <!-- ORG INSTALL FLOW -->
+      <h2>Org install flow</h2>
+      <p>
+        Some xbrain features (org-membership verification, team auto-grant) need the GitHub
+        App installed on your organization. The first time anyone from your org signs in,
+        xbrain checks whether the App is installed:
+      </p>
+      <ul>
+        <li>
+          <strong>App installed:</strong> you land on the teams page with your teams visible
+          and any auto-grant team membership applied.
+        </li>
+        <li>
+          <strong>App NOT installed:</strong> you see a banner with an
+          <strong>Install xbrain on <code>&lt;org&gt;</code></strong> button. Clicking it
+          opens GitHub's install screen, where an org admin selects which repos the App can
+          access (the App only requests read-only permissions &mdash; see below).
+        </li>
+      </ul>
+
+      <div class="callout callout--warning">
+        <p class="callout__title">Org admin required</p>
+        <p>
+          Installing a GitHub App on an organization requires <strong>org admin</strong>
+          rights. If you are not an admin, GitHub will offer to request the install on your
+          behalf &mdash; your admin then approves it from the org settings.
+        </p>
+      </div>
+
+      <h3>What the App requests (minimal scopes)</h3>
       <table class="docs-table">
         <thead>
           <tr>
-            <th>Method</th>
-            <th>Provider</th>
-            <th>User ID format</th>
-            <th>Org restriction</th>
+            <th>Permission</th>
+            <th>Access</th>
+            <th>Why</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Google OAuth</td>
-            <td>Google SSO</td>
-            <td><code>google:{sub}</code></td>
-            <td>No</td>
+            <td>Organization &rarr; Members</td>
+            <td>Read</td>
+            <td>Verify whether you are a member of the org for team-scope routing.</td>
           </tr>
           <tr>
-            <td>GitHub OAuth</td>
-            <td>GitHub</td>
-            <td><code>github:{login}</code></td>
-            <td>Yes (optional, via <code>GITHUB_ORG</code>)</td>
+            <td>Account &rarr; Email addresses</td>
+            <td>Read</td>
+            <td>Resolve your primary verified email for user identity.</td>
+          </tr>
+          <tr>
+            <td>Account &rarr; Profile</td>
+            <td>Read</td>
+            <td>Display name + GitHub login for the team UI.</td>
           </tr>
         </tbody>
       </table>
       <p>
-        Both methods use the same session mechanism. A user authenticated with Google and the same
-        person authenticated with GitHub are treated as <strong>separate user records</strong> in
-        xbrain unless account linking is configured (see below).
+        No repo access, no write permissions. xbrain cannot create issues, push commits, or
+        read private code from your org via this App.
       </p>
 
-      <!-- GITHUB OAUTH SETUP -->
-      <h2>GitHub OAuth Setup</h2>
-
-      <h3>Step 1 — Create GitHub OAuth App</h3>
+      <!-- INSTALLATION TOKENS -->
+      <h2>Installation tokens (server-side)</h2>
       <p>
-        In your GitHub organization settings:
-        <strong>Settings → Developer settings → OAuth Apps → New OAuth App</strong>
+        Beyond user tokens, memory-api mints short-lived <em>installation tokens</em> for
+        backend operations like org-membership checks. The flow:
       </p>
-      <ul>
-        <li><strong>Application name:</strong> xbrain</li>
-        <li><strong>Homepage URL:</strong> <code>https://your-domain</code></li>
-        <li><strong>Authorization callback URL:</strong> <code>https://your-domain/oauth/github/callback</code></li>
-      </ul>
-
-      <h3>Step 2 — Configure LibreChat</h3>
-      <p>Add the GitHub OAuth credentials to LibreChat's environment:</p>
-      <pre class="code-block"><span class="code-block__label">infrastructure/.env</span>GITHUB_CLIENT_ID=your_github_client_id
-GITHUB_CLIENT_SECRET=your_github_client_secret</pre>
+      <pre class="code-block">memory-api needs to call api.github.com on behalf of &lt;org&gt;
+       |
+       v
+Mint an App JWT (RS256, 10 min TTL) using the App's private key
+       |
+       v
+POST /app/installations/&lt;inst_id&gt;/access_tokens with the App JWT
+       |
+       v
+GitHub returns a ghs_ installation token (~1h TTL)
+       |
+       v
+Cache it in-process for 55 min, then re-mint on demand.</pre>
       <p>
-        LibreChat will display a "Sign in with GitHub" button on the login page alongside the
-        existing "Sign in with Google" button.
+        Installation tokens are scoped to the org they were minted for and to the App's
+        minimal permission set. The App's private key (PEM) lives on the VM as
+        <code>GITHUB_APP_PRIVATE_KEY_B64</code> and is never logged or returned.
       </p>
 
-      <h3>Step 3 — Configure Org verification in memory-api</h3>
-      <pre class="code-block"><span class="code-block__label">infrastructure/.env</span>GITHUB_ORG=your-github-org-name    # e.g. "your-github-org"
-GITHUB_API_PAT=ghp_...             # Personal Access Token with read:org scope</pre>
-
-      <div class="callout callout--info">
-        <p class="callout__title">Org restriction</p>
-        <p>
-          Set <code>GITHUB_ORG</code> to restrict access to org members only. If left empty,
-          any GitHub user can authenticate successfully. The <code>GITHUB_API_PAT</code> must
-          have <code>read:org</code> permission to check organization membership via the GitHub API.
-        </p>
-      </div>
-
-      <!-- HOW ORG MEMBERSHIP WORKS -->
-      <h2>How Org Membership Verification Works</h2>
+      <!-- WEBHOOK -->
+      <h2>Install / uninstall webhooks</h2>
       <p>
-        When a user authenticates with GitHub, memory-api detects the token type by its prefix
-        and verifies org membership before granting access:
-      </p>
-      <pre class="code-block">User clicks "Sign in with GitHub" in LibreChat
-       │
-       ▼
-GitHub OAuth → returns gho_ prefixed access token
-       │
-       ▼
-memory-api detects token prefix (gho_) → GitHub auth path
-       │
-       ▼
-GET https://api.github.com/orgs/{GITHUB_ORG}/members/{login}
-    using GITHUB_API_PAT
-       │
-   ┌───┴───┐
-   │ 204   │ 404
-   ▼       ▼
- Allow   Return 403
-  (github_is_org_member=True)   (not an org member)</pre>
-
-      <p>
-        The <code>gho_</code> prefix is the standard prefix for GitHub OAuth user access tokens.
-        Detecting it requires no additional API call — memory-api routes the token to the GitHub
-        verification path immediately upon seeing the prefix.
+        GitHub notifies xbrain when the App is installed, uninstalled, or its repo selection
+        changes, via a webhook at <code>POST /v1/webhooks/github/installation</code>.
+        memory-api verifies the <code>X-Hub-Signature-256</code> HMAC and updates the
+        <code>installations</code> table accordingly &mdash; no manual sync needed.
       </p>
 
       <!-- DATABASE SCHEMA -->
-      <h2>Database Schema</h2>
+      <h2>Database schema</h2>
       <p>
-        GitHub user data is stored in the <code>users</code> table. Migration 0007 (Alembic) adds
-        the GitHub-specific columns:
+        Phase 12 introduces migration <code>0019_github_app_install.py</code>:
       </p>
-      <pre class="code-block"><span class="code-block__label">sql — migration 0007</span>-- Migration 0007 adds GitHub identity columns:
-ALTER TABLE users ADD COLUMN github_username VARCHAR(255);
-ALTER TABLE users ADD COLUMN github_id BIGINT;
+      <pre class="code-block"><span class="code-block__label">sql -- migration 0019</span>-- Per-org install records, populated by the install webhook.
+CREATE TABLE installations (
+  id BIGINT PRIMARY KEY,            -- GitHub installation_id
+  org_login VARCHAR(255) NOT NULL,
+  installed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  removed_at TIMESTAMPTZ
+);
 
--- github_is_org_member uses three-state logic:
---   True  → verified org member (GitHub user, check passed)
---   False → not an org member (GitHub user, check failed)
---   None  → not applicable (Google user — NOT False)
---
--- This allows: if user.github_is_org_member is False: reject
--- Without accidentally blocking Google users (who have NULL)</pre>
+-- Per-user encrypted token storage (additions to users).
+ALTER TABLE users
+  ADD COLUMN github_access_token_enc  TEXT,
+  ADD COLUMN github_access_token_exp  TIMESTAMPTZ,
+  ADD COLUMN github_refresh_token_enc TEXT,
+  ADD COLUMN github_refresh_token_exp TIMESTAMPTZ,
+  ADD COLUMN github_access_token_hash CHAR(64);
 
-      <div class="callout callout--warning">
-        <p class="callout__title">Three-state logic</p>
-        <p>
-          <code>github_is_org_member=None</code> (NULL) is the correct value for Google-authenticated
-          users — not <code>False</code>. This distinction prevents a naive <code>if not github_is_org_member</code>
-          check from blocking all Google users. Always use explicit <code>is False</code> comparison
-          when checking org membership.
-        </p>
-      </div>
+CREATE INDEX users_github_access_token_hash_idx
+  ON users (github_access_token_hash)
+  WHERE github_access_token_hash IS NOT NULL;</pre>
 
-      <!-- USER IDENTITY -->
-      <h2>User Identity</h2>
+      <!-- SESSION SEMANTICS -->
+      <h2>Session semantics</h2>
       <p>
-        GitHub users are identified by their login handle. The <code>source_user_id</code> format
-        is <code>github:{login}</code>:
+        Sign-in returns an <code>xbt_</code> session token used by the frontend for all
+        subsequent xbrain API calls. The <code>ghu_</code>/<code>ghr_</code> pair stays
+        server-side; the frontend never sees them. Sign-out invalidates the
+        <code>xbt_</code> token but leaves the encrypted tokens in place &mdash; the next
+        sign-in reuses or rotates them depending on expiry.
       </p>
-      <pre class="code-block"><span class="code-block__label">python</span># Example GitHub user identity
-source_user_id = "github:mrboups"
-github_username = "mrboups"
-github_id = 12345678  # GitHub numeric user ID
-
-# Note: GitHub email can be null if the user has hidden their email
-# xbrain uses github:{login} as the stable identifier, not email.
-# Email is stored only when GitHub returns it in the OAuth response.</pre>
-
-      <!-- ACCOUNT LINKING -->
-      <h2>Account Linking</h2>
-      <p>
-        A user can sign in with both Google AND GitHub. Each creates a <strong>separate user record</strong>
-        in xbrain's database. The two identities are not automatically merged.
-      </p>
-      <pre class="code-block"><span class="code-block__label">bash</span># Check the identity of a GitHub-authenticated user
-curl "https://api.grooveos.app/v1/me" \
-  -H "Authorization: Bearer $GITHUB_JWT"
-# Returns: {"source_user_id": "github:mrboups", "github_username": "mrboups", ...}
-
-# The same physical person with Google auth would return:
-# {"source_user_id": "google:115...", "github_username": null, ...}</pre>
-
-      <div class="callout callout--info">
-        <p class="callout__title">Future enhancement</p>
-        <p>
-          Automatic account linking — merging Google and GitHub identities into a single user record
-          — is a planned future enhancement. For now, each auth method creates a separate record and
-          the user's memory entries are scoped to that identity. Manual linking can be done via direct
-          database update by an admin.
-        </p>
-      </div>
 
       <!-- SECURITY NOTES -->
-      <h2>Security Notes</h2>
+      <h2>Security notes</h2>
       <ul>
         <li>
-          <strong>Token detection:</strong> GitHub tokens are detected by the <code>gho_</code>
-          prefix — no additional API call is required to determine the token type.
+          <strong>Client secret server-only:</strong> <code>GITHUB_APP_CLIENT_SECRET</code>
+          is only ever read on the memory-api VM. It never reaches the browser or the
+          Chrome extension.
         </li>
         <li>
-          <strong>PAT storage:</strong> <code>GITHUB_API_PAT</code> is stored as an environment
-          variable on the VM. It is never written to the database or returned in API responses.
+          <strong>Encrypted token storage:</strong> both the user access token and the
+          refresh token are Fernet-encrypted in PostgreSQL. Decryption happens in-process
+          only when a request needs to call the GitHub API on the user's behalf.
         </li>
         <li>
-          <strong>Membership caching:</strong> Org membership is verified at login time only.
-          The result is stored in <code>github_is_org_member</code> and cached for the session
-          duration. No per-request GitHub API call is made.
+          <strong>Webhook HMAC:</strong> install/uninstall webhooks are authenticated by
+          HMAC-SHA256 over the raw request body using
+          <code>GITHUB_APP_WEBHOOK_SECRET</code>. IP allowlisting is intentionally NOT
+          required &mdash; HMAC is the authentication boundary.
         </li>
         <li>
-          <strong>Null safety:</strong> <code>github_is_org_member=None</code> for Google users
-          prevents accidental access restriction on non-GitHub auth paths.
+          <strong>State parameter:</strong> the OAuth <code>state</code> is generated and
+          verified client-side (sessionStorage), preventing CSRF on the callback.
         </li>
         <li>
-          <strong>GITHUB_ORG env var:</strong> Set to your org slug (e.g. <code>your-github-org</code>).
-          If unset, GitHub OAuth works but without org restriction.
+          <strong>Minimal scopes:</strong> the App requests three read-only permissions and
+          nothing else. No repo access, no write to any org or repo.
+        </li>
+        <li>
+          <strong>Refresh-token rotation:</strong> each refresh issues a new
+          <code>ghu_</code>/<code>ghr_</code> pair. Old tokens are invalidated by GitHub on
+          rotation; memory-api updates the encrypted row atomically.
         </li>
       </ul>
 
