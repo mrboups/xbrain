@@ -127,8 +127,8 @@
     ================================================================ */
     .sh {
       display: flex; align-items: center; gap: 12px;
-      margin-bottom: 24px; font-size: 11px; font-weight: 700;
-      letter-spacing: .16em; text-transform: uppercase; color: var(--muted);
+      margin-bottom: 24px; font-size: 14px; font-weight: 700;
+      letter-spacing: .14em; text-transform: uppercase; color: var(--text);
     }
     .sh::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
@@ -520,10 +520,20 @@
   <div class="wrap"><hr/></div>
 
   <!-- ═══════════════════════════════════════════════════
-       THE PROBLEM
+       THE PARADOX OF AGENTIC WORK
   ═══════════════════════════════════════════════════ -->
   <section class="wrap sec" id="problem">
-    <div class="sh">// the problem · context loss at every boundary</div>
+    <div class="sh">// the paradox of agentic work · every agent makes you forget more</div>
+
+    <p style="font-size:13.5px;color:var(--muted);line-height:1.8;margin-bottom:18px;max-width:720px;">
+      Every team is moving its work through AI agents — Cursor, Claude Code, ChatGPT, n8n, Granola.
+      <strong style="color:var(--text);font-weight:500;">Each one is brilliant. Each one is a silo.</strong>
+    </p>
+    <p style="font-size:13.5px;color:var(--muted);line-height:1.8;margin-bottom:24px;max-width:720px;">
+      The collaboration we'd built in Slack, Notion, and Linear is regressing. Decisions get made in chats no agent can read.
+      Code ships from sessions no human will revisit. Briefs get re-explained every conversation.
+      And every AI interaction adds to a flood of context <strong style="color:var(--text);font-weight:500;">no human can process and no agent will remember</strong>.
+    </p>
 
     <div class="term">
       <div class="term-bar">
@@ -533,19 +543,27 @@
         <span class="term-label">hybrid team · no shared cognition</span>
       </div>
       <div class="term-body">
-        <span class="tl"><span class="p">founder    $</span> <span class="c">decided pricing v2 last week — discussed in chat, doc somewhere</span></span>
-        <span class="tl"><span class="w">  !</span> <span class="c">agents never indexed the conversation. work from old pricing.</span></span>
-        <span class="tl"><span class="w">  !</span> <span class="c">3 humans on the team each remembered a different version.</span></span>
+        <span class="tl"><span class="cm">[09:14]</span>  <span class="p">founder   </span> <span class="c">decided pricing v2 in chat</span></span>
+        <span class="tl">         <span class="w">!</span> <span class="c">conversation never indexed</span></span>
+        <span class="tl">         <span class="w">!</span> <span class="c">3 agents still using old pricing</span></span>
         <span class="tl"> </span>
-        <span class="tl"><span class="p">dev-agent  $</span> <span class="c">ship feature payment-v2</span></span>
-        <span class="tl"><span class="ok">  ✓</span> <span class="c">shipped. memory stored: 0 items in team brain.</span></span>
+        <span class="tl"><span class="cm">[10:30]</span>  <span class="p">dev-agent </span> <span class="c">shipped payment-v2</span></span>
+        <span class="tl">         <span class="w">!</span> <span class="c">memory stored: 0</span></span>
+        <span class="tl">         <span class="w">!</span> <span class="c">tomorrow's session starts from zero</span></span>
         <span class="tl"> </span>
-        <span class="tl"><span class="p">marketing  $</span> <span class="c">planning launch — what's actually in payment-v2?</span></span>
-        <span class="tl"><span class="w">  !</span> <span class="c">pings dev. dev reads spec out loud. mkt-agent re-asked.</span></span>
+        <span class="tl"><span class="cm">[11:45]</span>  <span class="p">mkt-agent </span> <span class="c">planning launch</span></span>
+        <span class="tl">         <span class="w">!</span> <span class="c">no spec found. asks dev (human).</span></span>
+        <span class="tl">         <span class="w">!</span> <span class="c">dev re-reads spec out loud. brief copy-pasted.</span></span>
         <span class="tl"> </span>
-        <span class="tl"><span class="cm">  # context loss happens at every boundary.</span></span>
-        <span class="tl"><span class="cm">  # human ↔ human · human ↔ agent · agent ↔ agent</span></span>
-        <span class="tl"><span class="cm">  # the team has no shared mind.</span></span>
+        <span class="tl"><span class="cm">[13:00]</span>  <span class="p">ops-agent </span> <span class="c">asks about webhook config</span></span>
+        <span class="tl">         <span class="w">!</span> <span class="c">cannot find canonical spec. blocked.</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  # 3 humans · 4 agents · 1 day</span></span>
+        <span class="tl"><span class="cm">  # 7 silos. 0 shared mind.</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  # more agents = faster work = more forgotten work.</span></span>
+        <span class="tl"><span class="cm">  # you don't need another tool.</span></span>
+        <span class="tl"><span class="cm">  # you need a substrate that captures and validates everything.</span></span>
       </div>
     </div>
   </section>
