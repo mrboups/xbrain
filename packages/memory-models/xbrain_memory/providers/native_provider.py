@@ -99,18 +99,34 @@ class NativeProvider(MemoryProvider):
                     item.confidence, item.source,
                 )
 
-        # Upsert vector to Qdrant (team_scope is filter key)
+        # Upsert vector to Qdrant (team_scope is filter key).
+        #
+        # Phase 11 (plan 11-03) adds `deleted_at_ts` as a numeric payload field:
+        #   0.0       → not deleted (default for fresh upserts)
+        #   epoch_sec → soft-deleted at that UTC timestamp
+        # The retrieval-side filter in `search()` uses `Range(lte=0.0)` to exclude
+        # soft-deleted points without touching the vector data. Storing as float
+        # (not ISO string / not None) sidesteps qdrant-client `IsEmpty`/`IsNull`
+        # ambiguity — `Range` on a numeric field is unambiguous and is
+        # well-supported by qdrant-client 1.17.1 (see 11-RESEARCH §Q3).
+        #
+        # NOTE: legacy Qdrant points that pre-date this field are backfilled
+        # by `infrastructure/scripts/backfill_qdrant_deleted_at.py` (one-shot,
+        # idempotent). The retrieval filter (Task 3 in the same plan) ships AFTER
+        # the backfill — see plan 11-03 §1b for the deployment gate.
+        payload: dict[str, Any] = {
+            "team_scope": item.team_scope,
+            "project_scope": item.project_scope,
+            "truth_level": item.truth_level.value,
+            "source": item.source,
+            "deleted_at_ts": 0.0,
+        }
         await self._qdrant.upsert(
             collection_name=self._collection,
             points=[PointStruct(
                 id=item_id,
                 vector=embedding,
-                payload={
-                    "team_scope": item.team_scope,
-                    "project_scope": item.project_scope,
-                    "truth_level": item.truth_level.value,
-                    "source": item.source,
-                },
+                payload=payload,
             )],
         )
         return item_id
