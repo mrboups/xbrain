@@ -13,6 +13,7 @@ from app.neo4j_client import close_driver, init_driver
 from app.outbox_worker import drain_outbox
 from app.qdrant_setup import ensure_collections
 from app.routes import (
+    admin_brain,
     admin_drive,
     admin_projects,
     agents,
@@ -114,3 +115,4 @@ app.include_router(agents.router, prefix="/v1", tags=["agents"])
 app.include_router(external_sessions.router, prefix="/v1", tags=["external-sessions"])
 app.include_router(team_chat.router, prefix="/v1", tags=["team-chat"])
 app.include_router(brain.router, prefix="/v1", tags=["brain"])
+app.include_router(admin_brain.router, prefix="/v1", tags=["admin-brain"])
