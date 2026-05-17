@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Agents on GrooveOS — invoke @agent-name from any chat to run team-scoped LangGraph workflows that read and write your team's memory. Admins curate the agent library." />
+  <title>Agents — GrooveOS Docs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root{--bg:#0D1117;--bg-2:#161B22;--bg-3:#21262D;--text:#E6EDF3;--muted:#8B949E;--accent:#58A6FF;--green:#3FB950;--amber:#D29922;--red:#F85149;--border:#30363D;--paid-bg:rgba(248,81,73,.12);--paid-col:#F85149;--tag-bg:rgba(88,166,255,.12)}
+    [data-theme="light"]{--bg:#FFFFFF;--bg-2:#F6F8FA;--bg-3:#EAEEF2;--text:#1F2328;--muted:#57606A;--accent:#0969DA;--green:#1A7F37;--amber:#9A6700;--red:#CF222E;--border:#D0D7DE;--paid-bg:rgba(207,34,46,.08);--paid-col:#CF222E;--tag-bg:rgba(9,105,218,.08)}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+    body{font-family:'JetBrains Mono','Courier New',monospace;background:var(--bg);color:var(--text);font-size:13.5px;line-height:1.7;transition:background .15s ease,color .15s ease}
+    a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+    code{background:var(--bg-3);color:var(--accent);padding:1px 6px;font-family:inherit;font-size:.9em}
+    .nav{position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid var(--border);padding:0 24px;height:46px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .nav__logo{font-size:15px;font-weight:700;color:var(--text);letter-spacing:.06em;white-space:nowrap}.nav__logo span{color:var(--accent)}
+    .nav__links{display:flex;align-items:center;gap:20px;flex:1;justify-content:center}
+    .nav__link{color:var(--muted);font-size:12.5px;transition:color .1s}.nav__link:hover{color:var(--text);text-decoration:none}
+    .nav__right{display:flex;align-items:center;gap:10px;white-space:nowrap}
+    .theme-btn{background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-family:inherit;font-size:11.5px;padding:3px 10px;border-radius:3px;transition:border-color .15s,color .15s}.theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+    .btn-cta{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff;padding:5px 14px;border-radius:3px;font-size:12.5px;font-weight:500;transition:opacity .15s;white-space:nowrap}.btn-cta:hover{opacity:.85;text-decoration:none}
+    @media(max-width:640px){.nav__links{display:none}}
+    .docs-layout{display:grid;grid-template-columns:220px 1fr;max-width:1100px;margin:0 auto;padding:32px 24px;gap:48px;align-items:start}
+    @media(max-width:768px){.docs-layout{grid-template-columns:1fr}.sidebar{display:none}}
+    .sidebar{position:sticky;top:62px}.sidebar__section{margin-bottom:24px}
+    .sidebar__group-label{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+    .sidebar__link{display:block;font-size:12.5px;color:var(--muted);padding:4px 0;text-decoration:none;transition:color .1s;border-left:2px solid transparent;padding-left:10px;margin-left:-10px}.sidebar__link:hover{color:var(--text)}.sidebar__link.active{color:var(--accent);border-left-color:var(--accent);font-weight:500}
+    .docs-content h1{font-size:24px;font-weight:700;color:var(--text);margin-bottom:16px;line-height:1.2}
+    .docs-content h2{font-size:16px;font-weight:700;color:var(--text);margin-top:40px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+    .docs-content h3{font-size:13.5px;font-weight:700;color:var(--text);margin-top:24px;margin-bottom:8px}
+    .docs-content p{color:var(--muted);font-size:13px;line-height:1.8;margin-bottom:14px}
+    .docs-content strong{color:var(--text);font-weight:500}
+    .docs-content ul,.docs-content ol{color:var(--muted);font-size:13px;line-height:1.8;margin:0 0 14px 20px}.docs-content li{margin-bottom:4px}
+    .docs-content a{color:var(--accent)}.docs-content a:hover{text-decoration:underline}
+    pre.code-block{background:var(--bg-2);border:1px solid var(--border);padding:16px 18px;overflow-x:auto;margin:16px 0;font-size:12.5px;color:var(--text);line-height:1.7}
+    pre.code-block code{background:none;padding:0;color:inherit;font-size:inherit}
+    .callout{border:1px solid var(--border);padding:14px 18px;margin:20px 0;position:relative;font-size:13px;color:var(--muted);line-height:1.7}
+    .callout::before{content:attr(data-label);position:absolute;top:-9px;left:14px;background:var(--bg);padding:0 6px;font-size:10.5px;letter-spacing:.08em;color:var(--muted)}
+    .callout--info{border-color:var(--accent)}.callout--info::before{color:var(--accent);background:var(--bg)}
+    .callout--tip{border-color:var(--green)}.callout--tip::before{color:var(--green);background:var(--bg)}
+    .callout--warning{border-color:var(--amber)}.callout--warning::before{color:var(--amber);background:var(--bg)}
+    .callout__title{font-weight:700;color:var(--text);margin-bottom:4px;font-size:13px}
+    .docs-table{width:100%;border-collapse:collapse;font-size:12.5px;margin:16px 0}
+    .docs-table th{background:var(--bg-2);color:var(--muted);font-weight:600;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:10px 14px;text-align:left;border:1px solid var(--border)}
+    .docs-table td{padding:10px 14px;border:1px solid var(--border);color:var(--text);vertical-align:top}.docs-table tr:hover td{background:var(--bg-2)}
+    .breadcrumb{font-size:11.5px;color:var(--muted);margin-bottom:20px}.breadcrumb a{color:var(--muted)}.breadcrumb a:hover{color:var(--accent);text-decoration:none}.breadcrumb__separator{margin:0 6px}.breadcrumb__current{color:var(--text)}
+    .docs-meta{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:32px;font-size:11.5px;color:var(--muted);padding-bottom:16px;border-bottom:1px solid var(--border)}
+    .docs-meta__badge{padding:2px 8px;border:1px solid var(--border);font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--accent);border-color:var(--accent)}
+    .xb-footer{border-top:1px solid var(--border);padding:32px 24px 20px;margin-top:64px}.xb-footer__inner{max-width:1100px;margin:0 auto}
+    .xb-footer__grid{display:grid;grid-template-columns:repeat(4,1fr);gap:32px;margin-bottom:24px}
+    @media(max-width:640px){.xb-footer__grid{grid-template-columns:repeat(2,1fr)}}
+    .xb-footer__col-title{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+    .xb-footer__links{list-style:none;display:flex;flex-direction:column;gap:8px}
+    .xb-footer__link{font-size:12px;color:var(--muted);text-decoration:none}.xb-footer__link:hover{color:var(--accent)}
+    .xb-footer__bottom{border-top:1px solid var(--border);padding-top:16px;font-size:11px;color:var(--muted)}
+  </style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="../index.html" class="nav__logo">GROOVE<span>OS</span></a>
+  <nav class="nav__links">
+    <a href="../index.html#features" class="nav__link">features</a>
+    <a href="../index.html#pricing" class="nav__link">pricing</a>
+    <a href="index.html" class="nav__link">docs</a>
+  </nav>
+  <div class="nav__right">
+    <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">◑ light</button>
+    <a href="mailto:team@grooveos.app?subject=GrooveOS early access" class="btn-cta">→ join waitlist</a>
+  </div>
+</header>
+
+<div class="docs-layout">
+
+  <aside class="sidebar">
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">Get started</div>
+      <a href="index.html" class="sidebar__link">Getting Started</a>
+      <a href="onboarding.html" class="sidebar__link">Onboarding Guide</a>
+      <a href="billing.html" class="sidebar__link">Plans &amp; Billing</a>
+      <a href="auth.html" class="sidebar__link">Authentication</a>
+      <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
+    </div>
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">Daily use</div>
+      <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
+      <a href="sessions.html" class="sidebar__link">Sessions (Pro/Max)</a>
+      <a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a>
+      <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
+    </div>
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">Memory &amp; data</div>
+      <a href="memory.html" class="sidebar__link">Memory &amp; Knowledge</a>
+      <a href="brain-monitor.html" class="sidebar__link">Brain Monitor</a>
+      <a href="graphiti.html" class="sidebar__link">Entity Graph</a>
+    </div>
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">Integrations</div>
+      <a href="drive-sync.html" class="sidebar__link">Drive Sync</a>
+      <a href="meetings.html" class="sidebar__link">Meetings (Granola)</a>
+    </div>
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">Productivity</div>
+      <a href="agents.html" class="sidebar__link active">Agents</a>
+      <a href="crm.html" class="sidebar__link">CRM</a>
+      <a href="tasks.html" class="sidebar__link">Tasks</a>
+    </div>
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">Reference</div>
+      <a href="api.html" class="sidebar__link">API Reference</a>
+    </div>
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">On this page</div>
+      <a href="#what" class="sidebar__link">What agents do</a>
+      <a href="#invoke" class="sidebar__link">Invoking an agent</a>
+      <a href="#library" class="sidebar__link">The agent library</a>
+      <a href="#approvals" class="sidebar__link">Approvals (HITL)</a>
+      <a href="#admin" class="sidebar__link">Admins — curating agents</a>
+      <a href="#observability" class="sidebar__link">Where output lands</a>
+    </div>
+  </aside>
+
+  <main class="docs-content">
+
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="index.html">Docs</a>
+      <span class="breadcrumb__separator">/</span>
+      <span class="breadcrumb__current">Agents</span>
+    </nav>
+
+    <h1>Agents</h1>
+
+    <div class="docs-meta">
+      <span class="docs-meta__badge">Feature</span>
+      <span>5 min read</span>
+      <span>Updated May 2026</span>
+    </div>
+
+    <p>
+      Agents are pre-built workflows your team can call from any chat. Type
+      <code>@meeting-recap</code> in LibreChat and an agent searches the last 7 days of
+      meetings, drafts a recap, asks an admin to approve key facts, and saves the result
+      to your team's memory — all without you leaving the chat.
+    </p>
+
+    <p>
+      GrooveOS ships a starter agent library curated by the GrooveOS team. Your team
+      admins can edit, disable, or add new agents from the admin panel. Every agent runs
+      inside your team's scope — it reads only your team's memory, writes only to your
+      team's memory, and shows up in your team's audit log.
+    </p>
+
+    <h2 id="what">What agents do</h2>
+
+    <p>
+      Each agent is a small workflow built on top of <strong>LangGraph</strong> (the
+      same open-source agent framework used at OpenAI, LangChain, and others). The
+      workflow can:
+    </p>
+
+    <ul>
+      <li>Search your team's memory, CRM, tasks, meeting notes, or Drive-synced docs.</li>
+      <li>Call any MCP tool your team has enabled (scrape a URL, read calendar, etc.).</li>
+      <li>Use Claude, GPT-4, or Grok — the agent picks the right model for each step.</li>
+      <li>Pause and ask a team admin to approve a step before continuing (HITL).</li>
+      <li>Write the result back into memory at the truth level chosen by the admin.</li>
+    </ul>
+
+    <p>
+      Because the agent runs inside your team's scope, the same agent gives Team A and
+      Team B different results: the inputs (your memory) and outputs (your audit log)
+      are isolated end to end.
+    </p>
+
+    <h2 id="invoke">Invoking an agent from chat</h2>
+
+    <p>The simplest way to run an agent is from LibreChat:</p>
+
+    <ol>
+      <li>Open <a href="https://chat.grooveos.app" target="_blank" rel="noopener">chat.grooveos.app</a> and pick any conversation (or start a new one).</li>
+      <li>Type <code>@</code> — an autocomplete menu lists the agents your team has access to.</li>
+      <li>Pick one — for example <code>@meeting-recap</code>.</li>
+      <li>Add any free-form prompt the agent needs (e.g. "for the last week").</li>
+      <li>Press Enter. The agent runs in the background; progress streams into the conversation.</li>
+    </ol>
+
+    <pre class="code-block"><code>You: @meeting-recap for the last 7 days
+@meeting-recap: Reading 4 Granola meetings + 12 memory items...
+@meeting-recap: Found 3 candidate facts. Sending to admin for approval.
+@meeting-recap: Approved by Alice. Recap saved as memory_item mem_xyz...</code></pre>
+
+    <div class="callout callout--info" data-label="// any frontend works">
+      <p class="callout__title">Same agents in Open WebUI and via the API</p>
+      <p>
+        Agents are not LibreChat-specific. They are exposed by the GrooveOS agent
+        runtime; LibreChat, Open WebUI, and the <a href="api.html">API</a> all call the
+        same backend. The chat-frontend integration is just one way to start a run.
+      </p>
+    </div>
+
+    <h2 id="library">The starter agent library</h2>
+
+    <p>GrooveOS ships with these agents pre-seeded on every new team:</p>
+
+    <table class="docs-table">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>What it does</th>
+          <th>Inputs</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>@meeting-recap</code></td>
+          <td>Reads recent Granola meeting notes, drafts a recap, extracts decisions and action items.</td>
+          <td>Time window (e.g. "last 7 days")</td>
+        </tr>
+        <tr>
+          <td><code>@doc-ingest</code></td>
+          <td>Takes a Drive-synced or pasted document, extracts facts at <code>WORKING</code> truth, and routes low-confidence facts to an admin.</td>
+          <td>Document URL or pasted text</td>
+        </tr>
+        <tr>
+          <td><code>@promote</code></td>
+          <td>Suggests <code>WORKING → VALIDATED → CANONICAL</code> promotions for items that match a query. Admins approve / reject in one click.</td>
+          <td>Topic or search query</td>
+        </tr>
+        <tr>
+          <td><code>@research</code></td>
+          <td>Combines memory search with a web scrape (via MCP) to answer questions that need both team context and live data.</td>
+          <td>Natural-language question</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      Your team's admins can add their own agents in the admin panel. See
+      <a href="#admin">Admins — curating the agent library</a> below.
+    </p>
+
+    <h2 id="approvals">Approvals — human in the loop</h2>
+
+    <p>
+      Agents are not autonomous black boxes. When an agent reaches a low-confidence
+      decision — for example, it isn't sure whether a fact deserves
+      <code>VALIDATED</code> or <code>CANONICAL</code> — it pauses and asks a team
+      admin for approval.
+    </p>
+
+    <p>The admin sees the question in their notification feed:</p>
+
+    <pre class="code-block"><code>@meeting-recap is paused — needs your decision
+
+Fact: "Q2 fundraising target is 2M€"
+Confidence: 0.62
+Suggested truth level: WORKING
+Source: Granola note "Investor call — May 6"
+
+[ approve as WORKING ]  [ promote to VALIDATED ]  [ discard ]</code></pre>
+
+    <p>
+      The admin clicks one button. The agent resumes from exactly where it paused and
+      keeps going — even if the approval comes hours or days later. Nothing is lost
+      between pause and resume.
+    </p>
+
+    <div class="callout callout--tip" data-label="// tip">
+      <p class="callout__title">Members see, admins decide</p>
+      <p>
+        Any team member can invoke an agent and watch it run. Only team admins can
+        approve <code>VALIDATED</code> and <code>CANONICAL</code> writes. This matches
+        the <a href="memory.html">truth-level</a> rules everywhere else in GrooveOS.
+      </p>
+    </div>
+
+    <h2 id="admin">Admins — curating the agent library</h2>
+
+    <p>
+      Team admins manage the agent library from
+      <a href="https://grooveos.app/account/admin/agents/" target="_blank" rel="noopener">grooveos.app/account/admin/agents/</a>.
+      From there you can:
+    </p>
+
+    <ul>
+      <li>Enable or disable any starter agent for your team.</li>
+      <li>Edit the prompt or model picked by a starter agent.</li>
+      <li>Add a new agent definition — give it a name, a prompt, and a list of MCP tools it may call.</li>
+      <li>Inspect every past run (inputs, intermediate steps, final output, admin approvals).</li>
+    </ul>
+
+    <p>
+      Agent definitions live in the <code>agent_definitions</code> table inside your
+      team's scope. Edits propagate immediately — the next time a member types
+      <code>@your-agent</code> they get the new prompt and tool list.
+    </p>
+
+    <pre class="code-block"><code># Example agent_definition row (read-only view)
+{
+  "name": "weekly-digest",
+  "description": "Compiles last week's decisions for stand-up.",
+  "model": "claude-sonnet-4-7",
+  "tools": ["memory_search", "task_list", "contact_lookup"],
+  "system_prompt": "You are an internal scribe. Summarize last week...",
+  "requires_admin_approval": true,
+  "truth_level_on_success": "WORKING"
+}</code></pre>
+
+    <h2 id="observability">Where agent output lands</h2>
+
+    <p>Every agent run produces three artefacts you can browse later:</p>
+
+    <ul>
+      <li>
+        A <strong>conversation</strong> in the chat where you invoked it — readable
+        from <a href="https://chat.grooveos.app" target="_blank" rel="noopener">chat.grooveos.app</a>.
+      </li>
+      <li>
+        <strong>Memory items</strong> the agent wrote — readable from the
+        <a href="brain-monitor.html">Brain Monitor</a> and searchable via the
+        <a href="api.html">API</a>.
+      </li>
+      <li>
+        An <strong>audit-log entry</strong> per write — admins can see who ran the
+        agent, what it wrote, and which approvals it asked for.
+      </li>
+    </ul>
+
+    <p>
+      The same audit feed shows up in the <strong>superadmin dashboard</strong> at
+      <a href="https://grooveos.app/account/admin/" target="_blank" rel="noopener">grooveos.app/account/admin/</a>
+      so the team owner can confirm agents are behaving as intended.
+    </p>
+
+    <h2 id="faq">FAQ</h2>
+
+    <h3>Are my prompts to an agent shared with other teams?</h3>
+
+    <p>
+      No. Agents run inside your team's scope. Your prompts, your team's memory, and
+      the agent's writes are isolated end to end — Team A's <code>@meeting-recap</code>
+      cannot see Team B's meetings.
+    </p>
+
+    <h3>Can I cancel a running agent?</h3>
+
+    <p>
+      Yes. The chat conversation shows a <strong>Stop</strong> action while the agent
+      is mid-run. Stopping mid-run leaves no partial writes — any writes that were not
+      already approved are rolled back.
+    </p>
+
+    <h3>How much does an agent run cost?</h3>
+
+    <p>
+      Agent runs draw from your team's plan-included LLM credits (Team plan: 5M tokens
+      / month, Enterprise: custom). Heavy users on the Team plan can buy add-on token
+      packs — see <a href="billing.html">Plans &amp; Billing</a>.
+    </p>
+
+    <h2>What's next</h2>
+
+    <ul>
+      <li><a href="memory.html">Memory &amp; Knowledge</a> — How agents write into the truth-level pipeline.</li>
+      <li><a href="brain-monitor.html">Brain Monitor</a> — Where to see what your agents have written.</li>
+      <li><a href="mcp-tools.html">MCP Tools</a> — The tools your agents can call.</li>
+      <li><a href="api.html">API Reference</a> — Invoke agents programmatically.</li>
+    </ul>
+
+    <div class="callout callout--info" data-label="// self-hosting (advanced)">
+      <p class="callout__title">Open-source agent runtime</p>
+      <p>
+        The agent runtime is open-source under MIT —
+        <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener">github.com/mrboups/xbrain</a>
+        — and ships its own Docker container. Self-hosters can plug in custom LangGraph
+        graphs without using the SaaS at all. The hosted GrooveOS experience runs the
+        same code with managed updates, billing, and observability.
+      </p>
+    </div>
+
+  </main>
+</div>
+
+<footer class="xb-footer">
+  <div class="xb-footer__inner">
+    <div class="xb-footer__grid">
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Product</p>
+        <ul class="xb-footer__links">
+          <li><a href="../index.html#features" class="xb-footer__link">Features</a></li>
+          <li><a href="../index.html#pricing" class="xb-footer__link">Pricing</a></li>
+        </ul>
+      </div>
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Docs</p>
+        <ul class="xb-footer__links">
+          <li><a href="index.html" class="xb-footer__link">Getting Started</a></li>
+          <li><a href="onboarding.html" class="xb-footer__link">Onboarding Guide</a></li>
+          <li><a href="auth.html" class="xb-footer__link">Authentication</a></li>
+          <li><a href="brain-monitor.html" class="xb-footer__link">Brain Monitor</a></li>
+          <li><a href="agents.html" class="xb-footer__link">Agents</a></li>
+          <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
+          <li><a href="billing.html" class="xb-footer__link">Plans &amp; Billing</a></li>
+        </ul>
+      </div>
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Open Source</p>
+        <ul class="xb-footer__links">
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">xbrain (MIT) ↗</a></li>
+          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub ↗</a></li>
+        </ul>
+      </div>
+      <div class="xb-footer__col">
+        <p class="xb-footer__col-title">Contact</p>
+        <ul class="xb-footer__links">
+          <li><a href="mailto:team@grooveos.app" class="xb-footer__link">team@grooveos.app</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="xb-footer__bottom">© 2026 GrooveOS · powered by <a href="https://xbrain-marketing.web.app" style="color:var(--muted)" target="_blank">xbrain</a></div>
+  </div>
+</footer>
+
+<script>
+  const btn = document.getElementById('theme-toggle');
+  const html = document.documentElement;
+  function setTheme(t) {
+    html.setAttribute('data-theme', t);
+    btn.textContent = t === 'dark' ? '◑ light' : '◐ dark';
+    try { localStorage.setItem('xb-theme', t); } catch(e) {}
+  }
+  btn.addEventListener('click', () => {
+    setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+  try {
+    const saved = localStorage.getItem('xb-theme');
+    if (saved === 'light' || saved === 'dark') setTheme(saved);
+  } catch(e) {}
+</script>
+</body>
+</html>
