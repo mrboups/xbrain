@@ -349,7 +349,8 @@ test_10_webhook_in_openapi() {
   echo
   echo "[10/$TOTAL] POST /v1/webhooks/github/installation registered in openapi"
   local has
-  has=$(curl -sS -m 10 "$MEMAPI_HOST/openapi.json" 2>/dev/null \
+  # nginx does NOT expose /openapi.json publicly (correct hardening) — fetch via container
+  has=$(docker exec "$API_CONTAINER" curl -sS -m 10 http://localhost:8000/openapi.json 2>/dev/null \
         | python3 -c "
 import json, sys
 try:
@@ -431,7 +432,8 @@ test_14_signin_schema() {
   echo
   echo "[14/$TOTAL] SigninGithubOut schema includes install_required + install_url + org_login (M-1 fix)"
   local has
-  has=$(curl -sS -m 10 "$MEMAPI_HOST/openapi.json" 2>/dev/null \
+  # nginx does NOT expose /openapi.json publicly (correct hardening) — fetch via container
+  has=$(docker exec "$API_CONTAINER" curl -sS -m 10 http://localhost:8000/openapi.json 2>/dev/null \
         | python3 -c "
 import json, sys
 try:

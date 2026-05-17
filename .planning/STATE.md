@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: shipped
-stopped_at: "Phase 11 LIVE 2026-05-17 — Brain Monitor + Superadmin Dashboard fully shipped (11/11 plans, 6 waves, all wave-4 parallel agents reconciled after a quota interrupt). VM deploy applied alembic 0017+0018, brain-janitor container running, both UIs (grooveos.app/account/teams/brain/ + /account/admin/) live. verify-phase11.sh PASS 5/5 + 11 SKIP (fixture/operator). Phase 12 ROADMAPPED — next milestone is /gsd:plan-phase 12 (GitHub App migration)."
-last_updated: "2026-05-17T04:55:00.000Z"
-last_activity: "2026-05-17 -- Phase 11 SHIPPED end-to-end (11/11 plans). Wave 4 hit a Claude quota interrupt mid-flight; 3 partial agents recovered via cherry-pick + finish-only re-dispatch; 11-10 redone fresh from current main (its stale-base attempt had clobbered nothing). Phase 11 deploy: tarball 95 files, memory-api rebuilt with boto3 dep, alembic chain 0016->0017->0018 applied at container start, brain-janitor cron-loop container live, Qdrant deleted_at_ts backfill PASS on empty collection."
+stopped_at: "Phase 12 LIVE 2026-05-17 — GitHub App Migration fully shipped (11/11 plans, 9 waves). VM deploy: alembic 0019 head, memory-api rebuilt with PyJWT[crypto], 5 GITHUB_APP_* secrets live, OAuth App `xbrain` (Ov23liy7tZekl0uEztoj) dispatch removed, new GitHub App client_id Iv23liVnZvIN0Lo6isof live on Firebase + Chrome ext. verify-phase12.sh PASS 13/13 + 5 SKIP (fixture). Milestone v1.0 EXTENDED to 12 phases — 12/12 complete. mrboups re-auth at next sign-in. Standing order: auto-run full integration check now."
+last_updated: "2026-05-17T15:30:00.000Z"
+last_activity: "2026-05-17 -- Phase 12 SHIPPED end-to-end (11/11 plans, 9 waves, ~57 commits). 1 SERVER rate-limit interrupt mid-Wave 5 (12-06) cleanly recovered via finish-only re-dispatch + 1 Task 1 commit-on-wrong-branch incident (12-03) cleanly recovered via Option B (leave commit on main, agent finishes on worktree). VM deploy: alembic chain 0018->0019 auto-applied at container start, memory-api rebuilt with PyJWT[crypto]>=2.10,<3, all 5 GITHUB_APP_* secrets verified. verify-phase12.sh post-fix PASS 13/13 (nginx hides /openapi.json publicly — tests #10 + #14 now use docker exec internal fetch)."
 progress:
   total_phases: 12
-  completed_phases: 11
-  total_plans: 90
-  completed_plans: 90
-  percent: 92
+  completed_phases: 12
+  total_plans: 101
+  completed_plans: 101
+  percent: 100
 ---
 
 # Project State
