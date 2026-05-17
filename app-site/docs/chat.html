@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="GrooveOS provides two chat interfaces — LibreChat and Open WebUI — both connected to the same team memory. Learn how to use them." />
-  <title>Chat Interfaces — GrooveOS Docs</title>
+  <meta name="description" content="Team Chat — humans and agents converse as peers in the same thread, on the same brain. Multi-participant chat where AI answers when it knows, proposes actions, and the brain itself replies when an answer exists in validated memory." />
+  <title>Team Chat — GrooveOS Docs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
@@ -86,8 +86,7 @@
     </div>
     <div class="sidebar__section">
       <div class="sidebar__group-label">Daily use</div>
-      <a href="chat.html" class="sidebar__link active">Chat Interfaces</a>
-      <a href="sessions.html" class="sidebar__link">Sessions (Pro/Max)</a>
+      <a href="chat.html" class="sidebar__link active">Team Chat</a>
       <a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a>
       <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
     </div>
@@ -119,10 +118,10 @@
     <nav class="breadcrumb" aria-label="Breadcrumb">
       <a href="index.html">Docs</a>
       <span class="breadcrumb__separator">/</span>
-      <span class="breadcrumb__current">Chat Interfaces</span>
+      <span class="breadcrumb__current">Team Chat</span>
     </nav>
 
-    <h1>Chat Interfaces</h1>
+    <h1>Team Chat</h1>
 
     <div class="docs-meta">
       <span class="docs-meta__badge">Guide</span>
@@ -130,16 +129,32 @@
       <span>Updated May 2026</span>
     </div>
 
-    <h2>Two interfaces, one brain</h2>
+    <h2>Humans and agents in the same thread</h2>
 
     <p>
-      GrooveOS provides two chat interfaces included in your plan: LibreChat for day-to-day
-      team AI use, and Open WebUI for power users and admins. Both connect to the same team
-      memory — a conversation started in LibreChat is searchable from Open WebUI, and
-      CANONICAL facts promoted in Open WebUI are immediately available in LibreChat.
+      Team Chat is GrooveOS's centerpiece surface: a multi-participant thread where
+      <strong>humans and AI agents converse as peers</strong>. AI participates as a team
+      member — answers when it knows, proposes actions, signals when it doesn't. The brain
+      itself can reply directly when an answer already exists in validated memory.
     </p>
 
-    <h2>LibreChat — Your Team's Chat Hub</h2>
+    <p>
+      Every message in Team Chat flows into the shared brain continuously. A decision made
+      mid-thread becomes queryable memory immediately, and can be promoted to
+      <code>CANONICAL</code> the moment it's worth keeping forever. Chat <em>is</em> a source
+      for memory — not a side channel.
+    </p>
+
+    <div class="callout callout--tip" data-label="// the proof">
+      <p class="callout__title">Why this is the iconic GrooveOS surface</p>
+      <p>
+        On most products you can tell at a glance who is human and who is AI. In Team Chat
+        you often can't — because both draw from the same brain. The reply is what matters,
+        not the species behind it.
+      </p>
+    </div>
+
+    <h2>How it works</h2>
 
     <table class="docs-table">
       <tbody>
@@ -149,7 +164,7 @@
         </tr>
         <tr>
           <td style="font-weight:600;color:var(--text)">Models</td>
-          <td>Claude (Anthropic), GPT-4o (OpenAI), Grok (xAI)</td>
+          <td>Claude, GPT, and Grok via their APIs (bring your own keys per team)</td>
         </tr>
         <tr>
           <td style="font-weight:600;color:var(--text)">Auth</td>
@@ -157,76 +172,97 @@
         </tr>
         <tr>
           <td style="font-weight:600;color:var(--text)">Memory</td>
-          <td>Every conversation automatically saved and indexed</td>
+          <td>Every message indexed in real time, scoped to your team</td>
         </tr>
       </tbody>
     </table>
 
-    <h3>Switching models</h3>
+    <h3>Conversing with AI as a peer</h3>
     <p>
-      Use the model picker in the top bar to choose between Claude, GPT-4o, and Grok.
-      You can switch mid-conversation — the context carries over automatically so you don't
-      have to re-explain anything.
+      Address an AI participant by mention (e.g. <code>@dev-agent</code>) or just by
+      asking a question in the channel. The relevant operator replies — sometimes that's
+      an AI agent, sometimes it's a human teammate, sometimes it's the brain itself.
     </p>
 
-    <h3>Memory-aware conversations</h3>
+    <h3>Brain auto-replies</h3>
     <p>
-      LibreChat automatically includes your team's CANONICAL facts in the system prompt
-      before every conversation. Ask "what's our Q2 revenue target?" — GrooveOS answers from
-      your team's validated knowledge, not just the model's training data. No copy-pasting
-      context required.
+      When a teammate asks a question whose answer already exists in your team's validated
+      memory (<code>VALIDATED</code> or <code>CANONICAL</code>), the brain can reply directly
+      — citing the underlying memory item by ID so anyone can trace the source. No model
+      call, no token cost, instant truth.
+    </p>
+
+    <h3>Switching models mid-thread</h3>
+    <p>
+      Use the model picker to choose between Claude, GPT, and Grok. Context carries over
+      automatically — you don't have to re-explain anything when you switch.
     </p>
 
     <h3>MCP Tools in chat</h3>
     <p>
       When your team has MCP tools enabled (Team plan), they appear automatically in
-      LibreChat. Ask the AI to "scrape this URL", "read the Q2 roadmap from Drive",
+      Team Chat. Ask the AI to "scrape this URL", "read the Q2 roadmap from Drive",
       "check our calendar for this week", or "create a presentation" — the right tool
       activates automatically based on your request. See <a href="mcp-tools.html">MCP Tools</a>
       for the full list.
     </p>
 
-    <h2>Open WebUI — Admin and Power User Interface</h2>
+    <h2>Example thread</h2>
+
+    <pre class="code-block"><code>#payments-launch · acme team
+
+  Léa (founder)     What's the eta on payment-v2?
+  dev-agent         Shipped at 09:14 — Stripe + 3DS + fraud detection.
+                    canonical spec: brain://payments/v2
+
+  Tom (marketing)   Cool — launch copy draft?
+  mkt-agent         Drafted from canonical spec.
+                    brain://launch/payments-v2 · awaiting your review.
+
+  Léa (founder)     @ops-agent runbook?
+  ops-agent         Updated 09:18, monitoring rules added for Stripe webhooks.
+
+  Tom (marketing)   Anyone know why we deprecated 3DS-light?
+  brain             Léa marked it deprecated last Tuesday.
+                    decision-log/3ds-light · reason: PSD2 changes
+
+  Tom (marketing)   thanks, updating the FAQ.
+                    [message indexed → mkt-agent will surface this next time]</code></pre>
+
+    <h2>Other human surfaces</h2>
+
+    <p>
+      Team Chat is the primary human surface, but not the only one. GrooveOS offers several
+      ways to read from and write to the shared brain:
+    </p>
 
     <table class="docs-table">
       <tbody>
         <tr>
-          <td style="font-weight:600;width:140px;color:var(--text)">URL</td>
-          <td><a href="https://adm.grooveos.app" target="_blank" rel="noopener">adm.grooveos.app</a></td>
+          <td style="font-weight:600;width:140px;color:var(--text)">Web app</td>
+          <td>Search the brain, browse truths, promote/demote items, see the live state of team memory — at <a href="https://grooveos.app/account/teams/">grooveos.app/account/teams/</a>.</td>
         </tr>
         <tr>
-          <td style="font-weight:600;color:var(--text)">Auth</td>
-          <td>Same GitHub identity as LibreChat — no separate login</td>
+          <td style="font-weight:600;color:var(--text)">Brain Monitor</td>
+          <td>The team-scoped admin surface — curate truth levels, soft-delete items, audit changes. See <a href="brain-monitor.html">Brain Monitor</a>.</td>
         </tr>
         <tr>
-          <td style="font-weight:600;color:var(--text)">Best for</td>
-          <td>Truth-level approvals, RAG testing, agent pipelines</td>
+          <td style="font-weight:600;color:var(--text)">Chrome extension</td>
+          <td>Right-click any page to clip content directly into the team brain. See <a href="chrome-ext.html">Chrome Extension</a>.</td>
+        </tr>
+        <tr>
+          <td style="font-weight:600;color:var(--text)">CLI</td>
+          <td><em>Coming soon</em> — query the brain from any terminal.</td>
         </tr>
       </tbody>
     </table>
 
-    <h3>Truth-level approval workflow</h3>
-    <p>
-      Pending VALIDATED and CANONICAL promotion requests appear in Open WebUI for admins to
-      review. Click any request to read the justification submitted by your team member, then
-      Approve or Reject. Approved items are promoted immediately and become available across
-      all AI conversations. Most teams now also curate truth_level directly from the
-      <a href="brain-monitor.html">Brain Monitor</a> — same outcome, faster path.
-    </p>
-
-    <h3>RAG testing</h3>
-    <p>
-      Upload a document, configure retrieval settings, and test how the AI uses your team's
-      memory to answer questions. Useful for validating that your CANONICAL facts are being
-      retrieved correctly before rolling out a new knowledge base section.
-    </p>
-
     <h2>Conversation History</h2>
 
-    <p>All conversations from both interfaces are saved automatically in GrooveOS. Search across all your conversations:</p>
+    <p>All threads and messages are saved automatically and scoped to your team. Search across them:</p>
 
     <ul>
-      <li><strong>From LibreChat:</strong> History sidebar in the left panel — search by keyword, date, or model.</li>
+      <li><strong>From Team Chat:</strong> History sidebar — search by keyword, date, or model.</li>
       <li><strong>From the API:</strong> <code>GET /v1/conversations</code> with optional <code>?q=</code> and <code>?team_scope=</code> filters.</li>
     </ul>
 
@@ -235,16 +271,16 @@
     <h2>AI Model Configuration</h2>
 
     <p>
-      GrooveOS comes pre-configured with Claude, GPT-4o, and Grok. You don't need your own
-      API keys — your plan includes access to all three models with usage pooled across
-      your team.
+      GrooveOS connects to Claude, GPT, and Grok via their standard APIs. Bring your own
+      API keys per team — your usage stays on your provider account, GrooveOS just
+      orchestrates the brain layer.
     </p>
 
     <div class="callout callout--info" data-label="// info">
-      <p class="callout__title">Enterprise API keys</p>
+      <p class="callout__title">Enterprise API key management</p>
       <p>
-        Team plan API usage is pooled across your team. If you need dedicated API key
-        management, custom model endpoints, or per-user rate limiting, contact us at
+        If you need dedicated API key rotation, custom model endpoints, or per-operator
+        rate limiting, contact us at
         <a href="mailto:team@grooveos.app">team@grooveos.app</a> for Enterprise options.
       </p>
     </div>
@@ -269,7 +305,7 @@
           <li><a href="onboarding.html" class="xb-footer__link">Onboarding Guide</a></li>
           <li><a href="auth.html" class="xb-footer__link">Authentication</a></li>
           <li><a href="brain-monitor.html" class="xb-footer__link">Brain Monitor</a></li>
-          <li><a href="sessions.html" class="xb-footer__link">Sessions (Pro/Max)</a></li>
+          <li><a href="chat.html" class="xb-footer__link">Team Chat</a></li>
           <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
           <li><a href="billing.html" class="xb-footer__link">Plans &amp; Billing</a></li>
         </ul>
