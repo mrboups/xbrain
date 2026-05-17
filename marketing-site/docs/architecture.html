@@ -85,10 +85,12 @@
 
       <h1>Architecture</h1>
       <div class="docs-meta">
-        <span>25 containers</span>
+        <span>30+ containers</span>
         <span>&#183;</span>
-        <span>Phases 1–5</span>
+        <span>Phases 1–12</span>
         <span class="docs-meta__badge">v1.0</span>
+        <span class="docs-meta__badge">Phase 11</span>
+        <span class="docs-meta__badge">Phase 12</span>
       </div>
 
       <!-- ======================================================
@@ -96,9 +98,16 @@
            ====================================================== -->
       <h2>Overview</h2>
       <p>
-        xbrain runs as 25 Docker containers on a single VM, connected via a private Docker network
+        xbrain runs as 30+ Docker containers on a single VM, connected via a private Docker network
         (<code>xbrain_net</code>). All external traffic enters through nginx on port 80/443. Internal
         services never expose ports to the internet.
+      </p>
+      <p>
+        Since Phase 11 (Brain Monitor + Superadmin Dashboard, 2026-05-17) the stack also includes
+        <code>brain-janitor</code> &mdash; a daily cron container that hard-purges soft-deleted entities
+        from Postgres, Qdrant, and Neo4j after the 30-day retention window. Phase 12 introduced the
+        <strong>GitHub App</strong> auth model (multi-callback + refresh tokens + installation
+        webhooks), replacing the legacy OAuth App + long-lived <code>GITHUB_API_PAT</code>.
       </p>
       <p>
         The central invariant is <strong>memory-api</strong>: every data point from every frontend
@@ -340,8 +349,78 @@
               <td>Team project dashboard — React SPA, deployed on Firebase Hosting</td>
               <td>N/A</td>
             </tr>
+            <tr>
+              <td><code>brain-janitor</code></td>
+              <td>xbrain/brain-janitor:phase11</td>
+              <td>11</td>
+              <td>Daily cron (03:00 UTC) — hard-purges <code>deleted_at &lt; NOW() - 30 days</code> rows
+                from Postgres, Qdrant, and Neo4j. APScheduler-based, sentinel file at
+                <code>/tmp/brain-janitor-alive</code>.</td>
+              <td>128 MB</td>
+            </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- ======================================================
+           Phase 11 + 12 capabilities
+           ====================================================== -->
+      <h2>Phase 11 — Brain Monitor + Superadmin Dashboard</h2>
+      <p>
+        Phase 11 (shipped 2026-05-17) extends the universal truth-level + soft-delete contract from
+        <code>memory_items</code> to every brainable entity: <code>conversations</code>,
+        <code>messages</code>, <code>team_messages</code>, <code>tasks</code>, <code>contacts</code>,
+        plus Granola transcripts. Three columns (<code>truth_level</code>, <code>deleted_at</code>,
+        <code>deleted_by</code>) are now mandatory on every entity table.
+      </p>
+      <ul>
+        <li>Migration <code>0017_brain_monitor_base</code> patches the 5 missing tables with the
+          columns and per-type backfill defaults (e.g. <code>task</code> → <code>WORKING</code>,
+          <code>contact</code> → <code>VALIDATED</code>).</li>
+        <li>Migration <code>0018_brain_events_view</code> creates the <code>v_brain_events</code>
+          view — a UNION-ALL across the 7 entity types that powers the universal feed at
+          <code>GET /v1/brain/events</code>.</li>
+        <li>A new <code>brain-janitor</code> container runs the 30-day hard-purge cron (Postgres
+          first, then Qdrant points, then Neo4j nodes — idempotent).</li>
+        <li>Superadmin endpoints (<code>/v1/admin/brain/*</code>) gate behind
+          <code>ADMIN_USER_SUBS</code> with synchronous <code>audit_log</code> writes
+          <strong>before</strong> any data read. See the
+          <a href="brain-monitor.html">Brain Monitor guide</a>.</li>
+      </ul>
+
+      <h2>Phase 12 — GitHub App migration</h2>
+      <p>
+        Phase 12 (shipped 2026-05-17) retired the legacy OAuth App + long-lived
+        <code>GITHUB_API_PAT</code> in favour of a GitHub App. The new model unlocks multi-callback
+        (web + Chrome extension), short-lived installation tokens for org-membership lookups, and
+        user-token refresh (~6 month rolling sessions).
+      </p>
+      <ul>
+        <li>Server-side: <code>PyJWT[crypto]&gt;=2.10</code> in <code>memory-api</code> for RS256
+          signing of the App JWT. Three token types: App JWT (10 min), installation token
+          <code>ghs_</code> (1h, cached in-process 55 min), user-to-server <code>ghu_</code> (8h)
+          + <code>ghr_</code> refresh (6 months).</li>
+        <li>Migration <code>0019_github_app_install</code> adds the <code>installations</code>
+          table and the encrypted token columns on <code>users</code>:
+          <code>github_access_token_enc</code>, <code>github_refresh_token_enc</code>, an HMAC
+          <code>github_access_token_hash</code> for O(log n) Bearer lookup.</li>
+        <li>Webhook handler <code>POST /v1/webhooks/github/installation</code> verifies HMAC-SHA256
+          and upserts on <code>installation.created</code> / <code>deleted</code> /
+          <code>suspend</code> / <code>unsuspend</code>.</li>
+        <li>The Chrome extension and the web app share the same GitHub App client ID
+          (<code>Iv23liVnZvIN0Lo6isof</code>) because GitHub Apps support multiple callback URLs
+          natively. See the <a href="github-auth.html">GitHub Auth guide</a>.</li>
+      </ul>
+
+      <div class="callout callout--info">
+        <p class="callout__title">Authentication recap (post-Phase 12)</p>
+        <p>
+          Sign-in goes through the <strong>xbrain GitHub App</strong> (Phase 12). Tokens are
+          stored Fernet-encrypted on <code>users</code> with HMAC-indexed lookup. Per-org installs
+          unlock the auto-grant team-membership flow from Phase 10. Google OAuth and the LibreChat
+          OAuth App (<code>xbrain LibreChat</code>) remain available as separate, scoped legacy
+          paths; the <code>GITHUB_API_PAT</code> env var is removed.
+        </p>
       </div>
 
       <!-- ======================================================
