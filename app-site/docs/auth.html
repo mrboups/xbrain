@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="How signing in with GitHub works on GrooveOS — the xbrain GitHub App, installing it on your org, refresh tokens, and auto-joining teams." />
-  <title>Authentication — GrooveOS Docs</title>
+  <meta name="description" content="How signing in with GitHub works on GrooveOS â€” the xbrain GitHub App, installing it on your org, refresh tokens, and auto-joining teams." />
+  <title>Authentication â€” GrooveOS Docs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
@@ -69,8 +69,8 @@
     <a href="index.html" class="nav__link">docs</a>
   </nav>
   <div class="nav__right">
-    <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">◑ light</button>
-    <a href="mailto:team@grooveos.app?subject=GrooveOS early access" class="btn-cta">→ join waitlist</a>
+    <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">â—‘ light</button>
+    <a href="mailto:team@grooveos.app?subject=GrooveOS early access" class="btn-cta">â†’ join waitlist</a>
   </div>
 </header>
 
@@ -78,26 +78,40 @@
 
   <aside class="sidebar">
     <div class="sidebar__section">
-      <div class="sidebar__group-label">Getting Started</div>
+      <div class="sidebar__group-label">Get started</div>
       <a href="index.html" class="sidebar__link">Getting Started</a>
       <a href="onboarding.html" class="sidebar__link">Onboarding Guide</a>
+      <a href="billing.html" class="sidebar__link">Plans &amp; Billing</a>
       <a href="auth.html" class="sidebar__link active">Authentication</a>
+      <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
     </div>
     <div class="sidebar__section">
-      <div class="sidebar__group-label">Features</div>
+      <div class="sidebar__group-label">Daily use</div>
+      <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
+      <a href="sessions.html" class="sidebar__link">Sessions (Pro/Max)</a>
+      <a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a>
+      <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
+    </div>
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">Memory &amp; data</div>
       <a href="memory.html" class="sidebar__link">Memory &amp; Knowledge</a>
       <a href="brain-monitor.html" class="sidebar__link">Brain Monitor</a>
-      <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
-      <a href="chat.html" class="sidebar__link">Chat Interfaces</a>
-      <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
+      <a href="graphiti.html" class="sidebar__link">Entity Graph</a>
+    </div>
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">Integrations</div>
       <a href="drive-sync.html" class="sidebar__link">Drive Sync</a>
-      <a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a>
-      <a href="sessions.html" class="sidebar__link">Sessions (Claude Pro/Max)</a>
+      <a href="meetings.html" class="sidebar__link">Meetings (Granola)</a>
+    </div>
+    <div class="sidebar__section">
+      <div class="sidebar__group-label">Productivity</div>
+      <a href="agents.html" class="sidebar__link">Agents</a>
+      <a href="crm.html" class="sidebar__link">CRM</a>
+      <a href="tasks.html" class="sidebar__link">Tasks</a>
     </div>
     <div class="sidebar__section">
       <div class="sidebar__group-label">Reference</div>
       <a href="api.html" class="sidebar__link">API Reference</a>
-      <a href="billing.html" class="sidebar__link">Plans &amp; Billing</a>
     </div>
     <div class="sidebar__section">
       <div class="sidebar__group-label">On this page</div>
@@ -131,7 +145,7 @@
       GrooveOS signs you in with <strong>GitHub</strong>. The same "Sign in with
       GitHub" button works on the web app at
       <a href="https://grooveos.app/account/teams/" target="_blank" rel="noopener">grooveos.app</a>,
-      in the Chrome extension popup, and in any other GrooveOS surface — they all
+      in the Chrome extension popup, and in any other GrooveOS surface â€” they all
       share the same identity. There is no password to manage.
     </p>
 
@@ -139,7 +153,7 @@
       Behind the scenes GrooveOS uses a <strong>GitHub App</strong> (the modern
       successor to OAuth Apps). The difference matters: the GitHub App can be
       installed on your GitHub organization once, which then lets any org member
-      join your GrooveOS team automatically — no manual invites needed.
+      join your GrooveOS team automatically â€” no manual invites needed.
     </p>
 
     <h2 id="sign-in">Sign in with GitHub</h2>
@@ -162,15 +176,15 @@
       <tbody>
         <tr>
           <td>Web app</td>
-          <td><a href="https://grooveos.app/account/teams/" target="_blank" rel="noopener">grooveos.app/account/teams/</a> — primary button</td>
+          <td><a href="https://grooveos.app/account/teams/" target="_blank" rel="noopener">grooveos.app/account/teams/</a> â€” primary button</td>
         </tr>
         <tr>
           <td>Chrome extension</td>
-          <td>Extension popup — first launch</td>
+          <td>Extension popup â€” first launch</td>
         </tr>
         <tr>
           <td>LibreChat</td>
-          <td><a href="https://chat.grooveos.app" target="_blank" rel="noopener">chat.grooveos.app</a> — "Sign in with GitHub" on the login screen</td>
+          <td><a href="https://chat.grooveos.app" target="_blank" rel="noopener">chat.grooveos.app</a> â€” "Sign in with GitHub" on the login screen</td>
         </tr>
       </tbody>
     </table>
@@ -193,7 +207,7 @@
     </p>
 
     <pre class="code-block"><code>Install xbrain on `your-org-name`
-[ Install xbrain on org → ]</code></pre>
+[ Install xbrain on org â†’ ]</code></pre>
 
     <p>What happens next depends on your role inside the GitHub org:</p>
 
@@ -201,7 +215,7 @@
       <li>
         <strong>You are a GitHub org owner / admin.</strong> Click the button.
         GitHub asks you to choose which repos xbrain can see (you can pick
-        "All repositories" or a subset — xbrain doesn't actually need any
+        "All repositories" or a subset â€” xbrain doesn't actually need any
         repo access for sign-in, only the org membership read). Approve.
         GitHub sends you back to GrooveOS, and the rest of your org can now
         sign in.
@@ -228,7 +242,7 @@
       Every xbrain team can declare a <code>github_org</code> field in its
       settings. When you sign in with GitHub, GrooveOS reads the list of
       organizations you belong to, and adds you to every team whose
-      <code>github_org</code> matches one of your orgs — no manual invite needed.
+      <code>github_org</code> matches one of your orgs â€” no manual invite needed.
     </p>
 
     <p>This is the default way to add people to a team:</p>
@@ -242,7 +256,7 @@
 
     <p>
       If an auto-join is unexpected, an admin can <strong>block</strong> the user
-      from the team — see <a href="#blocking">Blocking members</a> below.
+      from the team â€” see <a href="#blocking">Blocking members</a> below.
     </p>
 
     <h2 id="tokens">Tokens &amp; refresh</h2>
@@ -258,7 +272,7 @@
     <p>
       You can list, name, and revoke your <code>xbt_</code> tokens from your
       profile page. See the <a href="api.html">API Reference</a> for the full
-      programmatic surface — <code>xbt_</code> tokens are how you build your own
+      programmatic surface â€” <code>xbt_</code> tokens are how you build your own
       scripts and integrations.
     </p>
 
@@ -289,7 +303,7 @@
     </table>
 
     <p>
-      You don't see these — they're managed for you, encrypted at rest, and
+      You don't see these â€” they're managed for you, encrypted at rest, and
       rotated automatically. After 6 months of no GrooveOS activity the refresh
       token expires; on your next visit you click "Sign in with GitHub" again
       and the cycle restarts.
@@ -305,7 +319,7 @@
     </p>
 
     <ul>
-      <li>Every team-scoped API call returns HTTP 403 — even with a valid <code>xbt_</code> token created before the block.</li>
+      <li>Every team-scoped API call returns HTTP 403 â€” even with a valid <code>xbt_</code> token created before the block.</li>
       <li>The block survives sign-out / sign-in. The user cannot recover access by re-authorizing GitHub.</li>
     </ul>
 
@@ -323,8 +337,8 @@
     <p>When you authorize xbrain via GitHub, the App asks for:</p>
 
     <ul>
-      <li><strong>Email addresses (read-only)</strong> — to attach your verified email to your user row so admins can invite you and notifications reach you.</li>
-      <li><strong>Members (read-only)</strong> — so xbrain can read which orgs you belong to and apply the auto-join rule.</li>
+      <li><strong>Email addresses (read-only)</strong> â€” to attach your verified email to your user row so admins can invite you and notifications reach you.</li>
+      <li><strong>Members (read-only)</strong> â€” so xbrain can read which orgs you belong to and apply the auto-join rule.</li>
     </ul>
 
     <p>
@@ -374,9 +388,9 @@
           <td>Sign in with GitHub again. If your <code>xbt_</code> was revoked, mint a new one from your profile.</td>
         </tr>
         <tr>
-          <td>HTTP 403 with "Member blocked from team …"</td>
+          <td>HTTP 403 with "Member blocked from team â€¦"</td>
           <td>A team admin blocked you.</td>
-          <td>Contact the admin. Re-signing-in won't help — the block is server-side.</td>
+          <td>Contact the admin. Re-signing-in won't help â€” the block is server-side.</td>
         </tr>
       </tbody>
     </table>
@@ -384,9 +398,9 @@
     <h2>What's next</h2>
 
     <ul>
-      <li><a href="onboarding.html">Onboarding Guide</a> — Step-by-step from sign-in to a working Claude.ai / ChatGPT integration.</li>
-      <li><a href="teams.html">Teams &amp; Projects</a> — Setting <code>github_org</code>, inviting members, project scopes.</li>
-      <li><a href="api.html">API Reference</a> — Using your <code>xbt_</code> token programmatically.</li>
+      <li><a href="onboarding.html">Onboarding Guide</a> â€” Step-by-step from sign-in to a working Claude.ai / ChatGPT integration.</li>
+      <li><a href="teams.html">Teams &amp; Projects</a> â€” Setting <code>github_org</code>, inviting members, project scopes.</li>
+      <li><a href="api.html">API Reference</a> â€” Using your <code>xbt_</code> token programmatically.</li>
     </ul>
 
   </main>
@@ -417,8 +431,8 @@
       <div class="xb-footer__col">
         <p class="xb-footer__col-title">Open Source</p>
         <ul class="xb-footer__links">
-          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">xbrain (MIT) ↗</a></li>
-          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub ↗</a></li>
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">xbrain (MIT) â†—</a></li>
+          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub â†—</a></li>
         </ul>
       </div>
       <div class="xb-footer__col">
@@ -428,7 +442,7 @@
         </ul>
       </div>
     </div>
-    <div class="xb-footer__bottom">© 2026 GrooveOS · powered by <a href="https://xbrain-marketing.web.app" style="color:var(--muted)" target="_blank">xbrain</a></div>
+    <div class="xb-footer__bottom">Â© 2026 GrooveOS Â· powered by <a href="https://xbrain-marketing.web.app" style="color:var(--muted)" target="_blank">xbrain</a></div>
   </div>
 </footer>
 
@@ -437,7 +451,7 @@
   const html = document.documentElement;
   function setTheme(t) {
     html.setAttribute('data-theme', t);
-    btn.textContent = t === 'dark' ? '◑ light' : '◐ dark';
+    btn.textContent = t === 'dark' ? 'â—‘ light' : 'â— dark';
     try { localStorage.setItem('xb-theme', t); } catch(e) {}
   }
   btn.addEventListener('click', () => {
