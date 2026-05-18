@@ -14,6 +14,7 @@
   />
   <link rel="stylesheet" href="/css/brain.css" />
   <link rel="stylesheet" href="/account/admin/admin.css" />
+  <link rel="stylesheet" href="/account/admin/wipe.css" />
 </head>
 <body>
   <header class="hdr">
@@ -75,6 +76,9 @@
         <div class="section-content" id="sources-content"></div>
         <div class="section-loading" id="sources-loading">Loading&hellip;</div>
       </section>
+
+      <!-- Danger zone — superadmin wipe operations (hydrated by wipe.js) -->
+      <section id="danger-zone"></section>
     </div>
   </main>
 
@@ -84,5 +88,6 @@
   </footer>
 
   <script type="module" src="/account/admin/admin.js"></script>
+  <script type="module" src="/account/admin/wipe.js"></script>
 </body>
 </html>

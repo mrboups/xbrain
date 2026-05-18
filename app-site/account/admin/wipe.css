@@ -1,0 +1,198 @@
+/* wipe.css — Danger zone (superadmin wipe operations).
+ * Loaded alongside brain.css + admin.css. Uses the same palette tokens
+ * (var(--red), var(--bg-2), var(--border)) so it stays visually coherent
+ * with the rest of the Brain Monitor / Superadmin dashboard.
+ */
+
+.danger-section {
+  margin-top: 36px;
+  border-top: 1px solid var(--red);
+  padding-top: 22px;
+}
+.danger-section h2 {
+  color: var(--red);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.danger-section .section-desc {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin-bottom: 16px;
+  line-height: 1.55;
+}
+
+.danger-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+@media (min-width: 760px) {
+  .danger-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.danger-card {
+  background: var(--bg-2);
+  border: 1px solid var(--red);
+  border-radius: 8px;
+  padding: 18px 20px;
+  background-image: linear-gradient(180deg, rgba(248, 81, 73, 0.05), transparent);
+}
+.danger-card--critical {
+  border-width: 2px;
+  background-image: linear-gradient(180deg, rgba(248, 81, 73, 0.09), transparent);
+}
+.danger-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.danger-card__head h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--red);
+  margin: 0;
+}
+.danger-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: var(--red);
+  color: var(--bg);
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.danger-card p {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+.danger-card__row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+.danger-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border-2, var(--border));
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+.danger-select:focus { border-color: var(--accent); }
+.btn-wipe-full {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red);
+  font-weight: 700;
+  padding: 9px 22px;
+  letter-spacing: 0.04em;
+}
+.btn-wipe-full:hover:not(:disabled) {
+  background: #C73A33;
+  border-color: #C73A33;
+  color: #fff;
+}
+.danger-status {
+  font-size: 12px;
+  margin-top: 12px;
+  min-height: 18px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.danger-status.is-success { color: var(--green); }
+.danger-status.is-error { color: var(--red); }
+.danger-status pre {
+  font-family: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text);
+  overflow-x: auto;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+/* === Modal === */
+.wipe-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+.wipe-modal__panel {
+  background: var(--bg-2);
+  border: 1px solid var(--red);
+  border-radius: 10px;
+  padding: 24px 26px;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.wipe-modal__panel h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--red);
+  margin-bottom: 12px;
+}
+.wipe-modal__body {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+.wipe-modal__hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.wipe-modal__input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border-2, var(--border));
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 16px;
+}
+.wipe-modal__input:focus { border-color: var(--red); }
+.wipe-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.wipe-modal__error {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--red-bg);
+  color: var(--red);
+  border: 1px solid var(--red);
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+[hidden] { display: none !important; }

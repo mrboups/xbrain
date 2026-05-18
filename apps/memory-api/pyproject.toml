@@ -24,6 +24,8 @@ dependencies = [
   "aiosmtplib>=3.0.0",   # Phase 7 plan 07-06: async SMTP for task notifications
   "anthropic>=0.50.0",   # Phase 7 plan 07-06: Claude (Haiku) for CRM contact + task extraction
   "boto3>=1.35",  # Phase 11 plan 11-10: MinIO/S3 client for superadmin storage metrics (lazy-imported)
+  "motor>=3.6",   # superadmin wipe-database: drop LibreChat Mongo DB (lazy-imported)
+  "minio>=7.2",   # superadmin wipe-database: clear MinIO xbrain-decks bucket (lazy-imported)
   "xbrain-memory @ file:///app/packages/memory-models",  # path mounted in compose build
 ]
 

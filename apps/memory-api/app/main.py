@@ -16,6 +16,7 @@ from app.routes import (
     admin_brain,
     admin_drive,
     admin_projects,
+    admin_wipe,
     agents,
     audit,
     auth_github,
@@ -117,6 +118,7 @@ app.include_router(external_sessions.router, prefix="/v1", tags=["external-sessi
 app.include_router(team_chat.router, prefix="/v1", tags=["team-chat"])
 app.include_router(brain.router, prefix="/v1", tags=["brain"])
 app.include_router(admin_brain.router, prefix="/v1", tags=["admin-brain"])
+app.include_router(admin_wipe.router, prefix="/v1/admin", tags=["admin-wipe"])
 app.include_router(
     webhooks_github.router,
     prefix="/v1/webhooks/github",

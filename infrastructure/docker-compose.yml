@@ -145,6 +145,12 @@ services:
       CENTRIFUGO_API_KEY: ${CENTRIFUGO_API_KEY:-}
       CENTRIFUGO_HTTP_URL_INTERNAL: ${CENTRIFUGO_HTTP_URL_INTERNAL:-http://centrifugo:8000}
       CENTRIFUGO_WS_URL_PUBLIC: ${CENTRIFUGO_WS_URL_PUBLIC:-wss://centrifugo.grooveos.app/connection/websocket}
+      # Superadmin wipe-database: drop LibreChat Mongo DB + clear MinIO xbrain-decks bucket.
+      LIBRECHAT_MONGO_URI: ${LIBRECHAT_MONGO_URI:-mongodb://librechat-mongo:27017/LibreChat}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-langfuse-minio:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
+      MINIO_DECKS_BUCKET: ${MINIO_DECKS_BUCKET:-xbrain-decks}
     networks: [xbrain_net]
     mem_limit: 384m
     depends_on:
