@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     #   - app/routes/github_webhooks.py (Plan 12-05): X-Hub-Signature-256 verify
     #   - app/services/github_user_token.py (Plan 12-06): user-to-server refresh flow
     GITHUB_APP_ID: int = 0                          # numeric App ID, e.g. 3743573
-    GITHUB_APP_SLUG: str = "xbrain"                 # URL slug for the install URL
+    GITHUB_APP_SLUG: str = "xbrain-auth"            # URL slug for the install URL
                                                     # (https://github.com/apps/<slug>/installations/new)
     GITHUB_APP_CLIENT_ID: str = ""                  # 'Iv23li…' — issued by GitHub on App creation
     GITHUB_APP_CLIENT_SECRET: str = ""              # paired secret (server-side only)
