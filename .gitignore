@@ -59,3 +59,19 @@ backups/
 
 # Phase 12 GitHub App credentials (dev local — never commit)
 .env.phase12
+
+# Playwright MCP capture artifacts (page snapshots, screenshots) — never commit
+.playwright-mcp/
+
+# Defensive: additional credential file types
+*.pfx
+*.p12
+*.jks
+*.crt
+*.cer
+*.der
+id_rsa
+id_ed25519
+*credentials*.json
+*service-account*.json
+*firebase-adminsdk*.json

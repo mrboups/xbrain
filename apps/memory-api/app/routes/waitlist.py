@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-WAITLIST_TO = os.getenv("WAITLIST_TO", "team@grooveos.app")
+WAITLIST_TO = os.getenv("WAITLIST_TO", "")
 WAITLIST_FROM = os.getenv("WAITLIST_FROM", "GrooveOS <waitlist@grooveos.app>")
 
 
@@ -23,7 +23,7 @@ class WaitlistRequest(BaseModel):
 
 @router.post("/waitlist", status_code=200)
 async def join_waitlist(body: WaitlistRequest):
-    if not RESEND_API_KEY:
+    if not RESEND_API_KEY or not WAITLIST_TO:
         raise HTTPException(status_code=503, detail="Email service not configured")
 
     payload = {
