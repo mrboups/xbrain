@@ -49,7 +49,7 @@ The new code is SW-only chrome.* glue + a popup DOM interaction (post-loadUserTe
 
 1. `git pull` → `chrome://extensions` → xbrain → ↻
 2. Right-click any text on any page → expand "CortX OS" submenu.
-3. **Connected case**: see one child per team you belong to (e.g. "Add selection to xbrain", "Add selection to Acme", etc).
+3. **Connected case**: see one child per team you belong to (e.g. "Add selection to xbrain", "Add selection to xbrain", etc).
 4. **Not-connected case**: see a single "Connect xbrain account…" item.
 5. Click a team child → side panel opens with text pre-filled in Content AND dropdown set to the chosen team → click Send to brain → upsert lands in the right team_scope.
 6. **Connect freshness test**: disconnect, right-click → shows "Connect xbrain account…" → click → connect via the panel button → re-open right-click → submenu now lists your teams (refreshed via the storage.onChanged listener).

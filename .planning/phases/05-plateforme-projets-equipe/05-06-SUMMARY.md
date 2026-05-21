@@ -40,7 +40,7 @@ metrics:
 
 # Phase 5 Plan 06: nginx vhost + Cloudflare Access + .env.example Summary
 
-**One-liner:** Runbook Cloudflare Access (4 étapes Firebase DNS + Zero Trust + policy Acme), 6 variables Phase 5 dans .env.example, et correction du bug code-mort dans 30-projects.conf.
+**One-liner:** Runbook Cloudflare Access (4 étapes Firebase DNS + Zero Trust + policy xbrain), 6 variables Phase 5 dans .env.example, et correction du bug code-mort dans 30-projects.conf.
 
 ## Tasks Completed
 

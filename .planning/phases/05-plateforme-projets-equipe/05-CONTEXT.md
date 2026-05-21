@@ -226,7 +226,7 @@ Le RBAC par projet pour Google users (équivalent outside collaborator GitHub) e
 - **RBAC par projet pour Google users** — déféré v2. Requiert `project_members` table + endpoints. Architecture prête, juste pas implémenté.
 - **Hot-reload au push** — les projets ne se rechargent pas en temps réel quand quelqu'un édite. C'est un `git push` → deploy → URL mise à jour. Live collaborative editing → Google Docs/Drive.
 - **Versioning des projets déployés** — pas de rollback automatique. Git est le rollback.
-- **Drive sync autres teams** (Personal, AI Brussels, WWJD, Blockparty) — déféré, Acme configuré et fonctionnel.
+- **Drive sync autres teams** (Personal, AI Brussels, WWJD, Blockparty) — déféré, xbrain configuré et fonctionnel.
 - **MCP tool registry public** — MCP-V2-01 dans REQUIREMENTS.md.
 - **Notion/Slack/Linear connectors** — INT-V2-01..05.
 

@@ -269,7 +269,7 @@ L'URL complète de callback enregistrée dans GitHub App sera :
 registration:
   socialLogins: ["google", "github"]   # ajout "github" à la liste existante
   allowedDomains:
-    - "acme.example.com"
+    - "grooveos.app"
     - "gmail.com"
     # Note : pas de filtre domaine pour GitHub — la GitHub App restreint déjà l'accès
 ```
@@ -811,7 +811,7 @@ Values: team@grooveos.app, team@grooveos.app  (ou tous les emails équipe)
 Alternative plus flexible :
 ```
 Rule type: Email domain
-Values: acme.example.com
+Values: grooveos.app
 ```
 
 **Résultat :** Tout accès à `https://projects.dejavu.cat` est intercepté par Cloudflare Access, qui affiche un écran de login Google. Seuls les emails whitelistés passent. **Zéro code côté serveur requis.**

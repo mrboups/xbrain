@@ -75,3 +75,21 @@ id_ed25519
 *credentials*.json
 *service-account*.json
 *firebase-adminsdk*.json
+
+# Repo-root screenshots — operational/setup artifacts captured ad-hoc;
+# never commit (one leaked an OAuth secret on 2026-05-21). PNGs in
+# subdirectories (chrome-extension icons, app-site assets) are still tracked.
+/*.png
+/*.jpg
+/*.jpeg
+
+# Scratch/temp files (agent-generated, accidental commits)
+tmp_*
+*.tmp
+
+# Firebase deploy cache (machine-local, auto-regenerated)
+.firebase/
+
+# GSD ephemeral runtime state
+.claude/scheduled_tasks.lock
+.claude/worktrees/
