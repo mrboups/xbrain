@@ -48,7 +48,7 @@
 2. Policy name: `xbrain Team`
 3. Action: Allow
 4. Rule type: Emails
-5. Values: `team@grooveos.app`, `team@grooveos.app`, `<team-member@example.com>`
+5. Values: `team@grooveos.app`, `<team-member-1@example.com>`, `<team-member-2@example.com>`
 
 ## Résultat attendu
 
