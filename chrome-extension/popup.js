@@ -648,8 +648,16 @@ async function openClipOverlay() {
     /* ignore */
   }
 
+  // Ask the content script for selection + url + title. content.js runs on
+  // <all_urls>, so window.location.href / document.title are always readable
+  // from the page context — unlike chrome.tabs.query, whose tab.url/tab.title
+  // are stripped to empty on hosts not in host_permissions when only the
+  // activeTab grant applies (e.g. the side panel on a third-party page).
+  // We therefore prefer the content-script values and fall back to tab.*.
   let selectedText = "";
-  if (tab && tab.id && tab.url && !tab.url.startsWith("chrome://")) {
+  let csUrl = "";
+  let csTitle = "";
+  if (tab && tab.id && !(tab.url || "").startsWith("chrome://")) {
     try {
       const sel = await new Promise((resolve) => {
         chrome.tabs.sendMessage(tab.id, { type: "GET_SELECTION" }, (resp) => {
@@ -658,16 +666,22 @@ async function openClipOverlay() {
         });
       });
       selectedText = (sel && sel.selectedText && sel.selectedText.trim()) || "";
+      csUrl = (sel && sel.url) || "";
+      csTitle = (sel && sel.title) || "";
     } catch {
       /* ignore */
     }
   }
 
   // Stash on the overlay so submitClip doesn't need to re-query the tab.
+  // Content-script values win; tab.* is the fallback (it may be empty without
+  // host permission, which is exactly the "Nothing to send" bug we fix here).
+  const resolvedUrl = csUrl || (tab && tab.url) || "";
+  const resolvedTitle = csTitle || (tab && tab.title) || "";
   const overlayEl = $("clip-overlay");
   overlayEl.dataset.clipMode = selectedText ? "selection" : "page";
-  overlayEl.dataset.clipUrl = (tab && tab.url) || "";
-  overlayEl.dataset.clipTitle = (tab && tab.title) || "";
+  overlayEl.dataset.clipUrl = resolvedUrl;
+  overlayEl.dataset.clipTitle = resolvedTitle;
   overlayEl.dataset.clipSelection = selectedText;
 
   // Render the "what will be sent" preview.
@@ -681,8 +695,8 @@ async function openClipOverlay() {
         : selectedText;
   } else {
     modeEl.textContent = "📄 Page";
-    detailEl.textContent = tab
-      ? `${tab.title || "(no title)"} — ${hostnameFromUrl(tab.url || "")}`
+    detailEl.textContent = resolvedUrl
+      ? `${resolvedTitle || "(no title)"} — ${hostnameFromUrl(resolvedUrl)}`
       : "No active tab";
   }
 
