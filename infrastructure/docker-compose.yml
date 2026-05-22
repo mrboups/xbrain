@@ -99,6 +99,14 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       QDRANT_URL: ${QDRANT_URL}
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      # Memory backend: "native" = real PG memory_items + Qdrant embeddings.
+      # Default native so the searchable brain actually persists — the prior
+      # implicit "stub" default was an in-process no-op, which is why Qdrant
+      # stayed at 0 points and no frontend could retrieve memory. Embeddings
+      # use OpenAI text-embedding-3-small (OPENAI_API_KEY required).
+      MEMORY_BACKEND: ${MEMORY_BACKEND:-native}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
