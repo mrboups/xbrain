@@ -152,7 +152,11 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
       MINIO_DECKS_BUCKET: ${MINIO_DECKS_BUCKET:-xbrain-decks}
     networks: [xbrain_net]
-    mem_limit: 384m
+    # 384m was the Phase 1 (e2-medium 4GB) budget. The signin path (PyJWT
+    # RS256 + GitHub token exchange + profile fetch + DB writes) pushed RSS
+    # past the cap → uvicorn worker OOM-killed mid-request → 502 at the edge.
+    # VM is now 8GB with headroom; 768m removes the OOM churn.
+    mem_limit: 768m
     depends_on:
       postgres: { condition: service_healthy }
       qdrant: { condition: service_healthy }
