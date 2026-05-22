@@ -63,7 +63,10 @@ endpoints:
     # apiKey: user_provided → LibreChat sends what the user pastes as
     # Authorization: Bearer <xbt_token>. session-bridge validates against
     # memory-api /v1/me, looks up the user's WS, relays the chat.
-    - name: "Claude Pro/Max"
+    # NOTE: name must NOT contain "/" — LibreChat routes custom endpoints via
+    # /api/.../{name}, so a slash splits the path → "Endpoint not found" and the
+    # request never reaches baseURL. Keep the slash only in modelDisplayLabel.
+    - name: "Claude Pro Max"
       apiKey: "user_provided"
       baseURL: "https://bridge.grooveos.app/v1"
       models:
