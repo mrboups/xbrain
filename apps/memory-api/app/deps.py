@@ -297,19 +297,31 @@ async def get_current_principal(
         if claims.get("iss") == "librechat-onboarding" and claims.get("email"):
             raw_gh_id = claims.get("github_id")
             github_id = int(raw_gh_id) if raw_gh_id else None
-            user = await get_or_create_user(
-                session,
-                source_user_id=f"email:{claims['email']}",
-                email=claims["email"],
-                display_name=None,
-                github_id=github_id,
-            )
+            # If the caller carries a github_id that already maps to a user
+            # (e.g. they signed in via GitHub on grooveos.app first), reuse that
+            # row instead of minting an email:<...> identity — the github_id
+            # UNIQUE constraint would otherwise reject the insert and surface a
+            # spurious 401. This is the account-linking convergence point
+            # between the GitHub-primary and LibreChat-onboarding entry paths.
+            from app.repos.users import find_user_by_github_id
+
+            user = None
+            if github_id is not None:
+                user = await find_user_by_github_id(session, github_id)
+            if user is None:
+                user = await get_or_create_user(
+                    session,
+                    source_user_id=f"email:{claims['email']}",
+                    email=claims["email"],
+                    display_name=None,
+                    github_id=github_id,
+                )
             await session.commit()
             return {
                 "kind": "user",
                 "user": user,
                 "claims": claims,
-                "sub": f"email:{claims['email']}",
+                "sub": user.source_user_id,
             }
         return {
             "kind": "bridge",
