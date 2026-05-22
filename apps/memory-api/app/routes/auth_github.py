@@ -443,6 +443,13 @@ async def signin_github(
         xbt_token=xbt,
         user={
             "id": str(user.id),
+            # source_user_id is the CANONICAL principal key (e.g. "github:login"
+            # or "email:addr"). The Chrome extension uses it verbatim for the
+            # session-bridge WS path; without it the extension falls back to
+            # deriving "github:<username>", which mismatches when the canonical
+            # identity is an email:<...> row (prior Google sign-in) → WS 403
+            # sub_mismatch. Surfacing it here is the durable fix.
+            "source_user_id": user.source_user_id,
             "email": user.email,
             "display_name": user.display_name,
             "github_username": user.github_username,
