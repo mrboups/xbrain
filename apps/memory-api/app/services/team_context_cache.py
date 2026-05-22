@@ -42,6 +42,16 @@ class _CacheEntry:
 _cache: dict[str, _CacheEntry] = {}
 
 
+def invalidate(team_id) -> None:
+    """Drop the cached bundle for a team so the next read rebuilds from the DB.
+
+    Called after a new memory item is ingested for the team (e.g. brain_ingest)
+    so freshly-ingested chat facts surface in the @claude bundle immediately
+    instead of after the 5-min TTL.
+    """
+    _cache.pop(str(team_id), None)
+
+
 def _now() -> float:
     """Indirection so tests can monkeypatch time."""
     return time.monotonic()

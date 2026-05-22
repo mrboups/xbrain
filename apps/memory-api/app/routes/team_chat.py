@@ -34,7 +34,13 @@ from app.deps import get_current_principal, get_session
 from app.models.team import Team
 from app.repos import team_messages as tm_repo
 from app.repos import teams as teams_repo
-from app.services import centrifugo_client, mention_detector, team_chat_agent, team_context_cache
+from app.services import (
+    brain_ingest,
+    centrifugo_client,
+    mention_detector,
+    team_chat_agent,
+    team_context_cache,
+)
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
@@ -173,7 +179,7 @@ async def post_team_message(
       6. Return the serialized message
     """
     user = _require_user_principal(principal)
-    await _resolve_team_and_check_membership(session, user.id, team_id)
+    team = await _resolve_team_and_check_membership(session, user.id, team_id)
 
     msg = await tm_repo.insert_user_message(
         session,
@@ -184,6 +190,19 @@ async def post_team_message(
     )
     await session.commit()
     payload = _serialize_message(msg)
+
+    # Core differentiator (MEM-04 / CHAT-03): every substantive human chat
+    # message lands in the searchable brain. Fire-and-forget — upserts a
+    # WORKING memory_item + Qdrant vector that the @claude bundle and MCP
+    # memory_search already read from. Never blocks or breaks the send.
+    asyncio.create_task(
+        brain_ingest.ingest_team_message(
+            team_scope=team.slug,
+            team_id=team_id,
+            content=body.content,
+            author_sub=user.source_user_id,
+        )
+    )
 
     # Realtime fan-out — never block the response.
     asyncio.create_task(
