@@ -184,7 +184,11 @@ export async function handleClaude(msg, sendFrame) {
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
+      // claude.ai delimits SSE events with CRLF-CRLF (\r\n\r\n). Normalise to
+      // LF so the \n\n block split + parseSSE work. Without this, indexOf("\n\n")
+      // never matches (a \r sits between the two \n) → zero blocks → empty reply.
       buffer += decoder.decode(value, { stream: true });
+      buffer = buffer.replace(/\r\n/g, "\n");
 
       let idx;
       while ((idx = buffer.indexOf("\n\n")) !== -1) {
