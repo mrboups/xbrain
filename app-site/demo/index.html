@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>See it in action — GrooveOS</title>
+  <meta name="description" content="2-minute walkthrough — humans and agents working on the same brain, in real time." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    /* ================================================================
+       THEME VARIABLES  (shared with the landing page)
+    ================================================================ */
+    :root {
+      --bg:       #0D1117;
+      --bg-2:     #161B22;
+      --bg-3:     #21262D;
+      --text:     #E6EDF3;
+      --muted:    #8B949E;
+      --accent:   #22D3EE;
+      --green:    #3FB950;
+      --amber:    #D29922;
+      --red:      #F85149;
+      --border:   #30363D;
+      --tag-bg:   rgba(34,211,238,.12);
+    }
+    [data-theme="light"] {
+      --bg:       #FFFFFF;
+      --bg-2:     #F6F8FA;
+      --bg-3:     #EAEEF2;
+      --text:     #1F2328;
+      --muted:    #57606A;
+      --accent:   #0E7490;
+      --green:    #1A7F37;
+      --amber:    #9A6700;
+      --red:      #CF222E;
+      --border:   #D0D7DE;
+      --tag-bg:   rgba(14,116,144,.08);
+    }
+
+    /* ================================================================
+       BASE
+    ================================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+    body {
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13.5px;
+      line-height: 1.7;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      transition: background .15s ease, color .15s ease;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ================================================================
+       NAV  (matches the landing page)
+    ================================================================ */
+    .nav {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px; height: 46px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .nav__logo { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: .14em; white-space: nowrap; }
+    .nav__logo span { color: var(--accent); }
+    .nav__links { display: flex; align-items: center; gap: 20px; flex: 1; justify-content: center; }
+    .nav__link { color: var(--muted); font-size: 12.5px; transition: color .1s; }
+    .nav__link:hover { color: var(--text); text-decoration: none; }
+    .nav__right { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+    .theme-btn {
+      background: none; border: 1px solid var(--border);
+      color: var(--muted); cursor: pointer; font-family: inherit;
+      font-size: 11.5px; padding: 3px 10px; border-radius: 3px;
+      transition: border-color .15s, color .15s;
+    }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-cta {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--accent); color: var(--bg);
+      padding: 5px 14px; border-radius: 3px;
+      font-size: 12.5px; font-weight: 500;
+      transition: opacity .15s; white-space: nowrap;
+    }
+    .btn-cta:hover { opacity: .85; text-decoration: none; }
+
+    /* ================================================================
+       DEMO
+    ================================================================ */
+    .demo-wrap {
+      flex: 1;
+      max-width: 980px; width: 100%; margin: 0 auto;
+      padding: clamp(40px, 8vh, 88px) 24px 48px;
+      text-align: center;
+    }
+    .demo-eyebrow {
+      font-size: 12px; letter-spacing: .12em; color: var(--muted);
+      margin-bottom: 20px;
+    }
+    .demo-eyebrow b { color: var(--accent); font-weight: 700; }
+    .demo-h1 {
+      font-size: clamp(30px, 6vw, 54px); font-weight: 700;
+      line-height: 1.1; letter-spacing: -.02em; color: var(--text);
+      margin-bottom: 18px;
+    }
+    .demo-h1 .hl { color: var(--accent); }
+    .demo-sub {
+      font-size: clamp(13px, 1.6vw, 15px); color: var(--muted);
+      max-width: 760px; margin: 0 auto 38px; line-height: 1.7;
+    }
+    .demo-frame {
+      position: relative; width: 100%; aspect-ratio: 16 / 9;
+      border: 1px solid var(--border); border-radius: 6px;
+      background: var(--bg-2); overflow: hidden;
+    }
+    .demo-video {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: contain; background: #000; display: block;
+    }
+    .demo-overlay {
+      position: absolute; inset: 0; z-index: 2;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; background: transparent; border: 0;
+    }
+    .demo-overlay.hidden { display: none; }
+    .demo-play {
+      width: clamp(72px, 10vw, 96px); height: clamp(72px, 10vw, 96px);
+      border-radius: 50%; border: 1.5px solid var(--accent);
+      background: var(--tag-bg); color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      transition: transform .15s ease, background .15s ease;
+    }
+    .demo-overlay:hover .demo-play {
+      transform: scale(1.06);
+      background: color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+    .demo-play svg { width: 38%; height: 38%; margin-left: 8%; }
+    .demo-foot { margin-top: 32px; }
+    .demo-foot a { font-size: 14px; color: var(--accent); }
+
+    /* ================================================================
+       FOOTER  (matches the landing page)
+    ================================================================ */
+    .footer { border-top: 1px solid var(--border); padding: 28px 24px 20px; }
+    .footer-inner { max-width: 900px; margin: 0 auto; }
+    .footer-main { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; }
+    .footer-logo { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: .12em; }
+    .footer-logo span { color: var(--accent); }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+    .flink { font-size: 12px; color: var(--muted); }
+    .flink:hover { color: var(--accent); text-decoration: none; }
+    .footer-oss {
+      margin-top: 14px; padding-top: 14px;
+      border-top: 1px solid var(--border);
+      font-size: 11px; color: var(--muted);
+    }
+    .footer-oss a { color: var(--muted); }
+    .footer-oss a:hover { color: var(--accent); text-decoration: none; }
+
+    @media (max-width: 640px) {
+      .nav__links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <header class="nav">
+    <a href="/" class="nav__logo">GROOVE<span>OS</span></a>
+    <nav class="nav__links">
+      <a href="/#how"       class="nav__link">how it works</a>
+      <a href="/#team-chat" class="nav__link">team chat</a>
+      <a href="/#operators" class="nav__link">operators</a>
+      <a href="/#flow"      class="nav__link">in action</a>
+      <a href="/#pricing"   class="nav__link">pricing</a>
+      <a href="/docs/index.html" class="nav__link">docs</a>
+    </nav>
+    <div class="nav__right">
+      <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">◑ light</button>
+      <a href="/" class="btn-cta">← grooveos.app</a>
+    </div>
+  </header>
+
+  <!-- DEMO -->
+  <main class="demo-wrap">
+    <div class="demo-eyebrow"><b>//</b> demo · the hybrid org, in motion</div>
+    <h1 class="demo-h1">See it <span class="hl">in action</span>.</h1>
+    <p class="demo-sub">2-minute walkthrough — humans and agents working on the same brain, in real time.</p>
+
+    <div class="demo-frame">
+      <video id="demo-video" class="demo-video" preload="metadata" playsinline controls>
+        <source src="Architecting_the_Hybrid_Org.mp4" type="video/mp4" />
+        Your browser can&rsquo;t play embedded video.
+        <a href="Architecting_the_Hybrid_Org.mp4">Download the walkthrough &rarr;</a>
+      </video>
+      <button class="demo-overlay" id="demo-overlay" aria-label="Play demo video">
+        <span class="demo-play">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>
+        </span>
+      </button>
+    </div>
+
+    <div class="demo-foot">
+      <a href="/">&larr; back to grooveos.app</a>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-main">
+        <span class="footer-logo">GROOVE<span>OS</span></span>
+        <div class="footer-links">
+          <a href="/docs/index.html" class="flink">docs</a>
+          <a href="/docs/api.html" class="flink">api</a>
+          <a href="/#pricing" class="flink">pricing</a>
+          <a href="mailto:team@grooveos.app" class="flink">contact</a>
+        </div>
+        <span style="font-size:11px;color:var(--muted);">© 2026 GrooveOS</span>
+      </div>
+      <div class="footer-oss">
+        open-source engine: <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener">xbrain (MIT)</a> ·
+        self-host on your own machine · <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener">github ↗</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    /* ── theme toggle (shared behavior with landing) ── */
+    const btn  = document.getElementById('theme-toggle');
+    const html = document.documentElement;
+    function setTheme(t) {
+      html.setAttribute('data-theme', t);
+      btn.textContent = t === 'dark' ? '◑ light' : '◐ dark';
+      try { localStorage.setItem('xb-theme', t); } catch(e) {}
+    }
+    btn.addEventListener('click', () => {
+      setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+    try {
+      const saved = localStorage.getItem('xb-theme');
+      if (saved === 'light' || saved === 'dark') setTheme(saved);
+    } catch(e) {}
+
+    /* ── play overlay ── */
+    const video   = document.getElementById('demo-video');
+    const overlay = document.getElementById('demo-overlay');
+    overlay.addEventListener('click', () => {
+      overlay.classList.add('hidden');
+      const p = video.play();
+      if (p && p.catch) p.catch(() => overlay.classList.remove('hidden'));
+    });
+    video.addEventListener('play',  () => overlay.classList.add('hidden'));
+    video.addEventListener('ended', () => overlay.classList.remove('hidden'));
+  </script>
+</body>
+</html>

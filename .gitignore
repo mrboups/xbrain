@@ -93,3 +93,6 @@ tmp_*
 # GSD ephemeral runtime state
 .claude/scheduled_tasks.lock
 .claude/worktrees/
+
+# Demo video — large marketing asset, deployed to Firebase Hosting, not tracked in git
+app-site/demo/*.mp4

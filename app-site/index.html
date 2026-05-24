@@ -481,9 +481,8 @@
 
     <nav class="nav__links">
       <a href="#how"      class="nav__link">how it works</a>
-      <a href="#team-chat" class="nav__link">team chat</a>
-      <a href="#operators" class="nav__link">operators</a>
       <a href="#flow"     class="nav__link">in action</a>
+      <a href="#team-chat" class="nav__link">team chat</a>
       <a href="#pricing"  class="nav__link">pricing</a>
       <a href="docs/index.html" class="nav__link">docs</a>
     </nav>
@@ -515,25 +514,26 @@
         <a href="docs/index.html" class="btn-outline">docs ↗</a>
       </div>
 
-      <!-- status terminal -->
-      <div class="term" style="margin-top:28px;">
+      <!-- demo video -->
+      <div class="term hero-vid" style="margin-top:28px;">
         <div class="term-bar">
           <div class="term-dot" style="background:#FF5F57;"></div>
           <div class="term-dot" style="background:#FEBC2E;"></div>
           <div class="term-dot" style="background:#28C840;"></div>
-          <span class="term-label">grooveos · team: acme · 6 operators connected</span>
+          <span class="term-label">grooveos · see it in action</span>
         </div>
-        <div class="term-body">
-          <span class="tl"><span class="ok">  ●</span> <span class="ac">Léa            </span><span class="cm"> human · founder       </span>  <span class="c">Promoted payment-v2 spec → CANONICAL</span></span>
-          <span class="tl"><span class="ok">  ●</span> <span class="ac">dev-agent      </span><span class="cm"> claude-code           </span>  <span class="c">Shipped payment-v2 → brain updated</span></span>
-          <span class="tl"><span class="w">  ◌</span> <span class="ac">Tom            </span><span class="cm"> human · marketing     </span>  <span class="c">Reviewing launch draft from mkt-agent</span></span>
-          <span class="tl"><span class="ok">  ●</span> <span class="ac">mkt-agent      </span><span class="cm"> gpt-4o                </span>  <span class="c">Drafted launch copy from canonical spec</span></span>
-          <span class="tl"><span class="ok">  ●</span> <span class="ac">ops-agent      </span><span class="cm"> claude-opus           </span>  <span class="c">Runbook auto-synced from brain delta</span></span>
-          <span class="tl"><span class="ok">  ●</span> <span class="ac">cognitive-core </span><span class="cm"> memory kernel         </span>  <span class="c">284 memories · 6 truths promoted today</span></span>
-          <span class="tl"> </span>
-          <span class="tl"><span class="cm">  last sync: just now · all operators in sync</span></span>
+        <div class="term-body" style="padding:0;">
+          <div class="hv-frame">
+            <video id="hero-video" class="hv-video" preload="metadata" playsinline controls>
+              <source src="demo/Architecting_the_Hybrid_Org.mp4" type="video/mp4" />
+            </video>
+            <button class="hv-overlay" id="hero-overlay" aria-label="Play demo video">
+              <span class="hv-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></span>
+            </button>
+          </div>
         </div>
       </div>
+      <a class="hv-link" href="demo/">&rarr; 2-min walkthrough · watch full screen at grooveos.app/demo</a>
 
       <div class="hero-meta">
         <span><span class="dot-live"></span>&nbsp; private beta — early access open</span>
@@ -751,6 +751,93 @@
   <div class="wrap"><hr/></div>
 
   <!-- ═══════════════════════════════════════════════════
+       IN ACTION
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="flow">
+    <div class="sh">// in action · humans decide. agents propagate. brain remembers.</div>
+
+    <div class="term">
+      <div class="term-bar">
+        <div class="term-dot" style="background:#FF5F57;"></div>
+        <div class="term-dot" style="background:#FEBC2E;"></div>
+        <div class="term-dot" style="background:#28C840;"></div>
+        <span class="term-label">grooveos · watch --team=acme --live</span>
+      </div>
+      <div class="term-body">
+        <span class="tl"><span class="cm">  09:14  Léa (founder) ·</span> <span class="c">marked payment-v2 spec as CANONICAL</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">propagated to all 6 operators</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  09:15  dev-agent ·</span> <span class="c">shipped payment-v2 — Stripe, 3DS, fraud detection</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">31 memory nodes indexed</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">auto-handoff: mkt-agent + ops-agent notified</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  09:16  mkt-agent ·</span> <span class="c">drafted launch copy</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">pulled from canonical spec — no brief sent</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  09:17  Tom (marketing) ·</span> <span class="c">reviewed draft, promoted to VALIDATED</span></span>
+        <span class="tl"><span class="ok">         ✓</span> <span class="c">launch-ready content now CANONICAL</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  09:18  ops-agent ·</span>  <span class="c">updated runbook from canonical spec</span></span>
+        <span class="tl"> </span>
+        <span class="tl"><span class="cm">  ──── 4 operators (2 humans · 2 agents) · 4 minutes · 0 messages sent ────</span></span>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       FEATURES
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="features">
+    <div class="sh">// features · everything a hybrid team needs.</div>
+
+    <div class="feat-grid">
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Shared Memory</div>
+        <div class="feat-desc">Every team member — human or agent — reads and writes the same context. Tagged, stored, scoped by team and project.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Team Bus</div>
+        <div class="feat-desc">Humans join via team chat, the web app, or the CLI. Agents join via MCP. One brain, every surface.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Truth Engine</div>
+        <div class="feat-desc">Collaborative validation. Humans promote agent outputs. Agents flag inconsistencies. Five levels: EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC. Truth converges.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Team Scoping</div>
+        <div class="feat-desc">Engineering context stays with engineering. Marketing with marketing. Cross-team visibility exactly where it's needed.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Drive Sync</div>
+        <div class="feat-desc">Google Drive docs auto-indexed on change. Humans drop a spec in Drive — every operator on the team reads it instantly.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Chrome Clipper</div>
+        <div class="feat-desc">Right-click any page — it enters the brain tagged by team and project. Humans contribute to the brain in their natural workflow.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> CRM &amp; Contacts <span class="tag-paid">team</span></div>
+        <div class="feat-desc">Every meeting and conversation automatically extracts contacts into a team CRM. Humans and agents query the same address book.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Task Tracking <span class="tag-paid">team</span></div>
+        <div class="feat-desc">Action items generated automatically from meetings and chats. Tracked, assigned, and surfaced to every operator on the team.</div>
+      </div>
+      <div class="feat-cell">
+        <div class="feat-name"><span class="marker">—</span> Meeting Intelligence <span class="tag-paid">team</span></div>
+        <div class="feat-desc">Granola meeting notes auto-ingested every 5 minutes. Summaries, participants, and action items flow into the team brain.</div>
+      </div>
+    </div>
+    <p style="margin-top:10px;font-size:11px;color:var(--muted);">
+      <span style="color:var(--paid-col);font-weight:600;">team</span> — available on Team &amp; Enterprise plans only.
+    </p>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
        TEAM CHAT — CENTERPIECE
   ═══════════════════════════════════════════════════ -->
   <section class="wrap sec" id="team-chat">
@@ -805,143 +892,6 @@
         <div class="layer-desc">For devs who live in the terminal — query the brain from any shell. <em>Coming soon.</em></div>
       </div>
     </div>
-  </section>
-
-  <div class="wrap"><hr/></div>
-
-  <!-- ═══════════════════════════════════════════════════
-       IN ACTION
-  ═══════════════════════════════════════════════════ -->
-  <section class="wrap sec" id="flow">
-    <div class="sh">// in action · humans decide. agents propagate. brain remembers.</div>
-
-    <div class="term">
-      <div class="term-bar">
-        <div class="term-dot" style="background:#FF5F57;"></div>
-        <div class="term-dot" style="background:#FEBC2E;"></div>
-        <div class="term-dot" style="background:#28C840;"></div>
-        <span class="term-label">grooveos · watch --team=acme --live</span>
-      </div>
-      <div class="term-body">
-        <span class="tl"><span class="cm">  09:14  Léa (founder) ·</span> <span class="c">marked payment-v2 spec as CANONICAL</span></span>
-        <span class="tl"><span class="ok">         ✓</span> <span class="c">propagated to all 6 operators</span></span>
-        <span class="tl"> </span>
-        <span class="tl"><span class="cm">  09:15  dev-agent ·</span> <span class="c">shipped payment-v2 — Stripe, 3DS, fraud detection</span></span>
-        <span class="tl"><span class="ok">         ✓</span> <span class="c">31 memory nodes indexed</span></span>
-        <span class="tl"><span class="ok">         ✓</span> <span class="c">auto-handoff: mkt-agent + ops-agent notified</span></span>
-        <span class="tl"> </span>
-        <span class="tl"><span class="cm">  09:16  mkt-agent ·</span> <span class="c">drafted launch copy</span></span>
-        <span class="tl"><span class="ok">         ✓</span> <span class="c">pulled from canonical spec — no brief sent</span></span>
-        <span class="tl"> </span>
-        <span class="tl"><span class="cm">  09:17  Tom (marketing) ·</span> <span class="c">reviewed draft, promoted to VALIDATED</span></span>
-        <span class="tl"><span class="ok">         ✓</span> <span class="c">launch-ready content now CANONICAL</span></span>
-        <span class="tl"> </span>
-        <span class="tl"><span class="cm">  09:18  ops-agent ·</span>  <span class="c">updated runbook from canonical spec</span></span>
-        <span class="tl"> </span>
-        <span class="tl"><span class="cm">  ──── 4 operators (2 humans · 2 agents) · 4 minutes · 0 messages sent ────</span></span>
-      </div>
-    </div>
-  </section>
-
-  <div class="wrap"><hr/></div>
-
-  <!-- ═══════════════════════════════════════════════════
-       OPERATORS
-  ═══════════════════════════════════════════════════ -->
-  <section class="wrap sec" id="operators">
-    <div class="sh">// operators · every function. humans + agents. one shared brain.</div>
-
-    <table class="atable">
-      <thead>
-        <tr>
-          <th>Function</th>
-          <th>Human roles</th>
-          <th>AI agents</th>
-          <th>What flows through the brain</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>Engineering</strong></td>
-          <td class="dim">Founders · devs · EMs</td>
-          <td class="dim">Claude Code · Cursor · Windsurf</td>
-          <td class="dim">Architecture decisions, shipped features, code patterns</td>
-        </tr>
-        <tr>
-          <td><strong>Marketing</strong></td>
-          <td class="dim">Marketers · content leads</td>
-          <td class="dim">GPT-4o · Grok</td>
-          <td class="dim">Launch specs, canonical positioning, competitor research</td>
-        </tr>
-        <tr>
-          <td><strong>Operations</strong></td>
-          <td class="dim">Ops · support · infra</td>
-          <td class="dim">Claude Opus · n8n</td>
-          <td class="dim">Runbooks, incident context, infra state</td>
-        </tr>
-        <tr>
-          <td><strong>Leadership</strong></td>
-          <td class="dim">Founders · team leads</td>
-          <td class="dim">Any model</td>
-          <td class="dim">Strategy, decisions, propagated cross-team</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <p style="margin-top:10px;font-size:11px;color:var(--muted);">
-      Humans join via team chat, the web app, or the CLI. Agents join via MCP or HTTP — Claude Code, Cursor, Windsurf, ChatGPT, Grok, n8n, and custom agents. Same brain, every surface.
-    </p>
-  </section>
-
-  <div class="wrap"><hr/></div>
-
-  <!-- ═══════════════════════════════════════════════════
-       FEATURES
-  ═══════════════════════════════════════════════════ -->
-  <section class="wrap sec" id="features">
-    <div class="sh">// features · everything a hybrid team needs.</div>
-
-    <div class="feat-grid">
-      <div class="feat-cell">
-        <div class="feat-name"><span class="marker">—</span> Shared Memory</div>
-        <div class="feat-desc">Every team member — human or agent — reads and writes the same context. Tagged, stored, scoped by team and project.</div>
-      </div>
-      <div class="feat-cell">
-        <div class="feat-name"><span class="marker">—</span> Team Bus</div>
-        <div class="feat-desc">Humans join via team chat, the web app, or the CLI. Agents join via MCP. One brain, every surface.</div>
-      </div>
-      <div class="feat-cell">
-        <div class="feat-name"><span class="marker">—</span> Truth Engine</div>
-        <div class="feat-desc">Collaborative validation. Humans promote agent outputs. Agents flag inconsistencies. Five levels: EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC. Truth converges.</div>
-      </div>
-      <div class="feat-cell">
-        <div class="feat-name"><span class="marker">—</span> Team Scoping</div>
-        <div class="feat-desc">Engineering context stays with engineering. Marketing with marketing. Cross-team visibility exactly where it's needed.</div>
-      </div>
-      <div class="feat-cell">
-        <div class="feat-name"><span class="marker">—</span> Drive Sync</div>
-        <div class="feat-desc">Google Drive docs auto-indexed on change. Humans drop a spec in Drive — every operator on the team reads it instantly.</div>
-      </div>
-      <div class="feat-cell">
-        <div class="feat-name"><span class="marker">—</span> Chrome Clipper</div>
-        <div class="feat-desc">Right-click any page — it enters the brain tagged by team and project. Humans contribute to the brain in their natural workflow.</div>
-      </div>
-      <div class="feat-cell">
-        <div class="feat-name"><span class="marker">—</span> CRM &amp; Contacts <span class="tag-paid">team</span></div>
-        <div class="feat-desc">Every meeting and conversation automatically extracts contacts into a team CRM. Humans and agents query the same address book.</div>
-      </div>
-      <div class="feat-cell">
-        <div class="feat-name"><span class="marker">—</span> Task Tracking <span class="tag-paid">team</span></div>
-        <div class="feat-desc">Action items generated automatically from meetings and chats. Tracked, assigned, and surfaced to every operator on the team.</div>
-      </div>
-      <div class="feat-cell">
-        <div class="feat-name"><span class="marker">—</span> Meeting Intelligence <span class="tag-paid">team</span></div>
-        <div class="feat-desc">Granola meeting notes auto-ingested every 5 minutes. Summaries, participants, and action items flow into the team brain.</div>
-      </div>
-    </div>
-    <p style="margin-top:10px;font-size:11px;color:var(--muted);">
-      <span style="color:var(--paid-col);font-weight:600;">team</span> — available on Team &amp; Enterprise plans only.
-    </p>
   </section>
 
   <div class="wrap"><hr/></div>
@@ -1277,6 +1227,28 @@
         btn.textContent = 'Try again →';
       }
     }
+  </script>
+  <style>
+    .hero-vid .term-body { padding: 0; }
+    .hv-frame { position: relative; width: 100%; aspect-ratio: 16/9; background:#000; overflow:hidden; }
+    .hv-video { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; display:block; }
+    .hv-overlay { position:absolute; inset:0; z-index:2; display:flex; align-items:center; justify-content:center; cursor:pointer; background:transparent; border:0; }
+    .hv-overlay.hidden { display:none; }
+    .hv-play { width:clamp(64px,9vw,84px); height:clamp(64px,9vw,84px); border-radius:50%; border:1.5px solid var(--accent); background:var(--tag-bg); color:var(--accent); display:flex; align-items:center; justify-content:center; transition:transform .15s ease, background .15s ease; }
+    .hv-overlay:hover .hv-play { transform:scale(1.06); }
+    .hv-play svg { width:38%; height:38%; margin-left:8%; }
+    .hv-link { display:inline-block; margin-top:12px; font-size:12.5px; color:var(--accent); }
+  </style>
+  <script>
+    (function(){
+      var v = document.getElementById('hero-video');
+      var o = document.getElementById('hero-overlay');
+      if (v && o) {
+        o.addEventListener('click', function(){ o.classList.add('hidden'); var p=v.play(); if(p&&p.catch)p.catch(function(){o.classList.remove('hidden');}); });
+        v.addEventListener('play', function(){ o.classList.add('hidden'); });
+        v.addEventListener('ended', function(){ o.classList.remove('hidden'); });
+      }
+    })();
   </script>
 </body>
 </html>
