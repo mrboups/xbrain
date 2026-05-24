@@ -1,28 +1,28 @@
 # xbrain
 
-> **Shared cognition for teams of humans and AI agents.**
-> The open-source, MCP-native memory engine behind [GrooveOS](https://grooveos.app).
+> Self-hostable, MCP-native memory backend for teams of humans and AI agents.
+> The open-source engine behind [GrooveOS](https://grooveos.app).
 
-xbrain is **not a chatbot workspace**. The differentiator is the layer underneath: a
-single memory plane where every human and every agent reads and writes the **same
-team brain**, tagged by team, project, and **truth level**. If everything else breaks,
-that contract holds.
+xbrain is a single memory plane. Every human and every agent reads and writes the same
+team brain through one FastAPI service (`memory-api`). Each record carries a tagging
+contract — team scope, project scope, visibility, confidence, truth level, source, and
+validation status — enforced at the API boundary. Storage is split across PostgreSQL
+(system of record), Qdrant (vector search), and Neo4j (entity graph). Retrieval is
+always team-scoped and truth-filtered.
 
 ---
 
-## The problem
+## Overview
 
-Hybrid teams — humans plus AI agents working together — are becoming the default, but
-they have no shared mind. Context is lost at every handoff: human→human, human→agent,
-agent→agent. Every session starts at zero. Every tool (Claude, Cursor, ChatGPT, Grok,
-Granola…) keeps its own private memory, and none of them talk to each other.
+Teams increasingly mix human members and AI agents (Claude, Cursor, ChatGPT, Grok,
+Granola, …). Each tool keeps its own private memory and none of them share state, so
+context is lost at every handoff — human↔human, human↔agent, agent↔agent — and each
+session starts from nothing.
 
-## The idea
-
-Every decision, message, document, and shipped output flows through **one API**
-(`memory-api`) that enforces a strict tagging contract and lands in a shared,
-searchable brain. Any member, agent, or tool can then retrieve it — scoped to their
-team and filtered by how trustworthy the information is.
+xbrain centralizes that state. Every decision, message, document, and tool output is
+written through one API (`memory-api`), which enforces a tagging contract and stores
+the record in a shared, searchable brain. Any member, agent, or tool retrieves it
+scoped to its team and filtered by truth level.
 
 ```
 Claude Code · Cursor · ChatGPT · Grok · LibreChat · Open WebUI · Chrome Clipper · Granola
@@ -34,9 +34,9 @@ Claude Code · Cursor · ChatGPT · Grok · LibreChat · Open WebUI · Chrome Cl
         Postgres (truth)     Qdrant (vectors)      Neo4j (graph)
 ```
 
-## The differentiator: the tagging contract
+## Tagging contract
 
-Every data point carries **7 fields**, enforced at the boundary:
+Every record carries 7 fields, enforced at the API boundary:
 
 | Field | Purpose |
 |-------|---------|
@@ -48,15 +48,15 @@ Every data point carries **7 fields**, enforced at the boundary:
 | `source` | provenance (which human, agent, or tool produced it) |
 | `validation_status` | promotion / review state |
 
-Validation flows **both directions**: humans promote agent outputs up the truth
-ladder; agents flag inconsistencies. Retrieval is always scoped and truth-filtered, so
-a chat reply can be enriched with only the team's `CANONICAL` facts.
+Validation is bidirectional: humans promote agent output up the truth ladder; agents
+flag inconsistencies. Retrieval is always team-scoped and truth-filtered — for example,
+a reply can be restricted to the team's `CANONICAL` records.
 
 ## Architecture
 
-- **Multi-frontend by construction** — LibreChat, Open WebUI, ChatGPT (API), and
-  Claude Code all read/write the same memory. Logic that locks data to one frontend is
-  wrong by design.
+- **Multi-frontend** — LibreChat, Open WebUI, ChatGPT (API), and Claude Code all read
+  and write the same memory through `memory-api`; storage is never bound to a single
+  frontend.
 - **MCP-native** — an MCP gateway exposes the brain (memory search/add, tasks,
   contacts, calendar, drive, decks) to any MCP-capable client.
 - **Temporal knowledge graph** — Neo4j + Graphiti track how entities and facts evolve.
