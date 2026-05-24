@@ -234,7 +234,7 @@
     /* minimal line icons, square look, in site colors */
     .ic { width: 38px; height: 38px; display: block; flex-shrink: 0; }
     .ic-h { color: var(--accent); }   /* human — cyan */
-    .ic-r { color: var(--amber); }    /* agent — amber */
+    .ic-r { color: var(--green); }    /* agent — green */
     .evo-node-row { display: flex; justify-content: center; gap: 6px; }
     .evo-gap3 { gap: 16px; }
     .evo-fan { width: 150px; height: 24px; }
@@ -242,16 +242,16 @@
     .evo-silos { display: flex; gap: 10px; justify-content: center; }
     .evo-silo {
       display: flex; flex-direction: column; align-items: center; gap: 0;
-      border: 1.5px dashed var(--border);
+      border: 1.5px dashed var(--muted);
       border-radius: 8px;
       padding: 8px 8px;
     }
-    .evo-link { width: 0; height: 12px; border-left: 1.5px dashed var(--muted); margin: 1px 0; }
+    .evo-link { width: 0; height: 12px; border-left: 1.5px solid var(--border); margin: 1px 0; }
     /* FUTURE — humans on a shared bus over a pool of agents */
     .evo-bus { width: 100%; max-width: 230px; height: 24px; }
     .evo-robots-box {
-      border: 1.5px dashed var(--amber);
-      background: rgba(210,153,34,.10);
+      border: 1.5px dashed var(--green);
+      background: rgba(63,185,80,.10);
       border-radius: 10px;
       padding: 8px 12px;
     }
@@ -595,15 +595,15 @@
     <!-- Team-evolution chart: BEFORE / TODAY / FUTURE -->
     <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
       <symbol id="ic-human" viewBox="0 0 40 40">
-        <rect x="3.5" y="3.5" width="33" height="33" rx="7" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <rect x="3.5" y="3.5" width="33" height="33" fill="none" stroke="currentColor" stroke-width="1.6"/>
         <circle cx="20" cy="16.5" r="3.6" fill="none" stroke="currentColor" stroke-width="1.6"/>
         <path d="M12.5 29.5c0-4.4 3.4-7.5 7.5-7.5s7.5 3.1 7.5 7.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
       </symbol>
       <symbol id="ic-agent" viewBox="0 0 40 40">
-        <rect x="3.5" y="3.5" width="33" height="33" rx="7" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <rect x="3.5" y="3.5" width="33" height="33" fill="none" stroke="currentColor" stroke-width="1.6"/>
         <line x1="20" y1="8.5" x2="20" y2="12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
         <circle cx="20" cy="7.4" r="1.1" fill="currentColor"/>
-        <rect x="13" y="12.5" width="14" height="13" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <rect x="13" y="12.5" width="14" height="13" fill="none" stroke="currentColor" stroke-width="1.6"/>
         <circle cx="17" cy="19" r="1.25" fill="currentColor"/>
         <circle cx="23" cy="19" r="1.25" fill="currentColor"/>
         <line x1="16.5" y1="29.5" x2="23.5" y2="29.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
@@ -665,7 +665,7 @@
                 <svg class="ic ic-h"><use href="#ic-human"/></svg>
               </div>
               <svg class="evo-bus" viewBox="0 0 230 26" preserveAspectRatio="none">
-                <path d="M45 0 V9 M115 0 V9 M185 0 V9 M20 9 H210 M115 9 V26" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+                <path d="M45 0 V9 M115 0 V9 M185 0 V9 M20 9 H210 M115 9 V26" fill="none" stroke="var(--border)" stroke-width="1.5"/>
               </svg>
               <div class="evo-robots-box">
                 <div class="evo-robots-grid">
