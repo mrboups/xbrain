@@ -211,6 +211,7 @@
 
     /* Team-evolution chart — BEFORE / TODAY / FUTURE (inside terminal frame) */
     .evo-term { margin: 8px 0 4px; }
+    .evo-bar-label { margin-left: 0; }   /* left-aligned, no traffic-light dots */
     .evo-body { padding: 26px 24px 30px; }
     .team-evo {
       display: grid;
@@ -230,16 +231,10 @@
     .evo-head { font-size: 16px; font-weight: 700; color: var(--text); margin: 4px 0 2px; letter-spacing: -.01em; }
     .evo-sub  { font-size: 12.5px; color: var(--muted); margin-bottom: 16px; }
     .evo-viz  { display: flex; flex-direction: column; align-items: center; }
-    /* ASCII-style nodes in site colors */
-    .node {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 42px; height: 38px;
-      font-family: 'JetBrains Mono', ui-monospace, monospace;
-      font-size: 18px; font-weight: 700; letter-spacing: -1px;
-      line-height: 1;
-    }
-    .node.h { color: var(--accent); }   /* human — cyan */
-    .node.r { color: var(--amber); }    /* agent — amber */
+    /* minimal line icons, square look, in site colors */
+    .ic { width: 38px; height: 38px; display: block; flex-shrink: 0; }
+    .ic-h { color: var(--accent); }   /* human — cyan */
+    .ic-r { color: var(--amber); }    /* agent — amber */
     .evo-node-row { display: flex; justify-content: center; gap: 6px; }
     .evo-gap3 { gap: 16px; }
     .evo-fan { width: 150px; height: 24px; }
@@ -260,7 +255,7 @@
       border-radius: 10px;
       padding: 8px 12px;
     }
-    .evo-robots-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 4px; justify-items: center; }
+    .evo-robots-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; justify-items: center; }
     .evo-arrow { display: flex; align-items: center; justify-content: center; font-size: 20px; color: var(--muted); padding-top: 66px; }
     .evo-caption { font-size: 14px; color: var(--muted); line-height: 1.7; margin-top: 22px; max-width: 760px; }
     .evo-caption strong { color: var(--text); font-weight: 600; }
@@ -598,12 +593,26 @@
     </p>
 
     <!-- Team-evolution chart: BEFORE / TODAY / FUTURE -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+      <symbol id="ic-human" viewBox="0 0 40 40">
+        <rect x="3.5" y="3.5" width="33" height="33" rx="7" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <circle cx="20" cy="16.5" r="3.6" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M12.5 29.5c0-4.4 3.4-7.5 7.5-7.5s7.5 3.1 7.5 7.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="ic-agent" viewBox="0 0 40 40">
+        <rect x="3.5" y="3.5" width="33" height="33" rx="7" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <line x1="20" y1="8.5" x2="20" y2="12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <circle cx="20" cy="7.4" r="1.1" fill="currentColor"/>
+        <rect x="13" y="12.5" width="14" height="13" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <circle cx="17" cy="19" r="1.25" fill="currentColor"/>
+        <circle cx="23" cy="19" r="1.25" fill="currentColor"/>
+        <line x1="16.5" y1="29.5" x2="23.5" y2="29.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </symbol>
+    </svg>
+
     <div class="term evo-term">
-      <div class="term-bar">
-        <div class="term-dot" style="background:#FF5F57;"></div>
-        <div class="term-dot" style="background:#FEBC2E;"></div>
-        <div class="term-dot" style="background:#28C840;"></div>
-        <span class="term-label">team evolution · humans + agents</span>
+      <div class="term-bar evo-bar">
+        <span class="term-label evo-bar-label">team evolution · humans + agents</span>
       </div>
       <div class="term-body evo-body">
         <div class="team-evo">
@@ -614,12 +623,14 @@
             <div class="evo-head">Human team</div>
             <div class="evo-sub">4 humans</div>
             <div class="evo-viz">
-              <div class="evo-node-row"><span class="node h">(o)</span></div>
+              <div class="evo-node-row"><svg class="ic ic-h"><use href="#ic-human"/></svg></div>
               <svg class="evo-fan" viewBox="0 0 180 28" preserveAspectRatio="none">
                 <path d="M90 0 V9 M30 9 H150 M30 9 V28 M90 9 V28 M150 9 V28" fill="none" stroke="var(--border)" stroke-width="1.5"/>
               </svg>
               <div class="evo-node-row evo-gap3">
-                <span class="node h">(o)</span><span class="node h">(o)</span><span class="node h">(o)</span>
+                <svg class="ic ic-h"><use href="#ic-human"/></svg>
+                <svg class="ic ic-h"><use href="#ic-human"/></svg>
+                <svg class="ic ic-h"><use href="#ic-human"/></svg>
               </div>
             </div>
           </div>
@@ -629,13 +640,13 @@
           <!-- TODAY -->
           <div class="evo-col">
             <div class="evo-label">today</div>
-            <div class="evo-head">Agentic teams</div>
+            <div class="evo-head">Agentic team</div>
             <div class="evo-sub">3 humans + 3 agents</div>
             <div class="evo-viz">
               <div class="evo-silos">
-                <div class="evo-silo"><span class="node h">(o)</span><span class="evo-link"></span><span class="node r">[o]</span></div>
-                <div class="evo-silo"><span class="node h">(o)</span><span class="evo-link"></span><span class="node r">[o]</span></div>
-                <div class="evo-silo"><span class="node h">(o)</span><span class="evo-link"></span><span class="node r">[o]</span></div>
+                <div class="evo-silo"><svg class="ic ic-h"><use href="#ic-human"/></svg><span class="evo-link"></span><svg class="ic ic-r"><use href="#ic-agent"/></svg></div>
+                <div class="evo-silo"><svg class="ic ic-h"><use href="#ic-human"/></svg><span class="evo-link"></span><svg class="ic ic-r"><use href="#ic-agent"/></svg></div>
+                <div class="evo-silo"><svg class="ic ic-h"><use href="#ic-human"/></svg><span class="evo-link"></span><svg class="ic ic-r"><use href="#ic-agent"/></svg></div>
               </div>
             </div>
           </div>
@@ -646,18 +657,24 @@
           <div class="evo-col">
             <div class="evo-label">future</div>
             <div class="evo-head">Hybrid team</div>
-            <div class="evo-sub">3 humans + 9 agents</div>
+            <div class="evo-sub">3 humans + 6 agents</div>
             <div class="evo-viz">
               <div class="evo-node-row evo-gap3">
-                <span class="node h">(o)</span><span class="node h">(o)</span><span class="node h">(o)</span>
+                <svg class="ic ic-h"><use href="#ic-human"/></svg>
+                <svg class="ic ic-h"><use href="#ic-human"/></svg>
+                <svg class="ic ic-h"><use href="#ic-human"/></svg>
               </div>
               <svg class="evo-bus" viewBox="0 0 230 26" preserveAspectRatio="none">
                 <path d="M45 0 V9 M115 0 V9 M185 0 V9 M20 9 H210 M115 9 V26" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
               </svg>
               <div class="evo-robots-box">
                 <div class="evo-robots-grid">
-                  <span class="node r">[o]</span><span class="node r">[o]</span><span class="node r">[o]</span>
-                  <span class="node r">[o]</span><span class="node r">[o]</span><span class="node r">[o]</span>
+                  <svg class="ic ic-r"><use href="#ic-agent"/></svg>
+                  <svg class="ic ic-r"><use href="#ic-agent"/></svg>
+                  <svg class="ic ic-r"><use href="#ic-agent"/></svg>
+                  <svg class="ic ic-r"><use href="#ic-agent"/></svg>
+                  <svg class="ic ic-r"><use href="#ic-agent"/></svg>
+                  <svg class="ic ic-r"><use href="#ic-agent"/></svg>
                 </div>
               </div>
             </div>
