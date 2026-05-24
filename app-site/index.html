@@ -208,6 +208,65 @@
     .term-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
     .term-label { font-size: 11px; color: var(--muted); margin-left: auto; letter-spacing: .06em; }
     .term-body { padding: 18px 20px; }
+
+    /* Team-evolution chart — BEFORE / TODAY / FUTURE */
+    .team-evo {
+      display: grid;
+      grid-template-columns: 1fr 30px 1fr 30px 1.25fr;
+      align-items: start;
+      gap: 8px;
+      margin: 8px 0 4px;
+    }
+    .evo-col {
+      border: 1px solid var(--border);
+      background: var(--bg-2);
+      border-radius: 10px;
+      padding: 18px 18px 22px;
+      min-height: 100%;
+    }
+    .evo-label {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 11px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .evo-label::before { content: "// "; color: var(--accent); }
+    .evo-head { font-size: 17px; font-weight: 700; color: var(--text); margin: 4px 0 2px; letter-spacing: -.01em; }
+    .evo-sub  { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+    .evo-viz  { display: flex; flex-direction: column; align-items: center; }
+    .ic { width: 40px; height: 40px; display: block; }
+    .ic-h { color: #1F6FEB; }   /* human — GitHub blue */
+    .ic-r { color: #BB800B; }   /* agent — amber */
+    .evo-node-row { display: flex; justify-content: center; gap: 8px; }
+    .evo-gap3 { gap: 18px; }
+    .evo-fan { width: 150px; height: 24px; }
+    /* TODAY — siloed human↕agent pairs */
+    .evo-silos { display: flex; gap: 10px; justify-content: center; }
+    .evo-silo {
+      display: flex; flex-direction: column; align-items: center; gap: 0;
+      border: 1.5px dashed var(--border);
+      border-radius: 8px;
+      padding: 12px 10px;
+    }
+    .evo-link { width: 0; height: 14px; border-left: 1.5px dashed var(--muted); margin: 1px 0; }
+    /* FUTURE — humans on a shared bus over a pool of agents */
+    .evo-bus { width: 100%; max-width: 230px; height: 24px; }
+    .evo-robots-box {
+      border: 1.5px dashed #BB800B;
+      background: rgba(187,128,11,.10);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .evo-robots-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; justify-items: center; }
+    .evo-arrow { display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--muted); padding-top: 70px; }
+    .evo-caption { font-size: 14px; color: var(--muted); line-height: 1.7; margin-top: 22px; max-width: 760px; }
+    .evo-caption strong { color: var(--text); font-weight: 600; }
+    @media (max-width: 760px) {
+      .team-evo { grid-template-columns: 1fr; gap: 14px; }
+      .evo-arrow { transform: rotate(90deg); padding: 0; height: 24px; }
+    }
+
     .tl { font-size: 12.5px; line-height: 2; white-space: pre; display: block; }
     .tl .p  { color: var(--green); }
     .tl .c  { color: var(--text); }
@@ -536,37 +595,106 @@
       And every AI interaction adds to a flood of context <strong style="color:var(--text);font-weight:500;">no human can process and no agent can access</strong>.
     </p>
 
-    <div class="term">
-      <div class="term-bar">
-        <div class="term-dot" style="background:#FF5F57;"></div>
-        <div class="term-dot" style="background:#FEBC2E;"></div>
-        <div class="term-dot" style="background:#28C840;"></div>
-        <span class="term-label">hybrid team · no shared cognition</span>
+    <!-- Team-evolution chart: BEFORE / TODAY / FUTURE -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+      <symbol id="ic-human" viewBox="0 0 44 44">
+        <rect x="2" y="2" width="40" height="40" rx="9" fill="currentColor"/>
+        <circle cx="22" cy="18" r="5.4" fill="#fff"/>
+        <path d="M12.5 34c0-5.4 4.3-8.8 9.5-8.8s9.5 3.4 9.5 8.8z" fill="#fff"/>
+      </symbol>
+      <symbol id="ic-robot" viewBox="0 0 44 44">
+        <rect x="2" y="2" width="40" height="40" rx="9" fill="currentColor"/>
+        <line x1="22" y1="8.5" x2="22" y2="12.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="22" cy="7.6" r="1.7" fill="#fff"/>
+        <rect x="12.5" y="12.5" width="19" height="15" rx="3.5" fill="#fff"/>
+        <circle cx="18.4" cy="20" r="2" fill="currentColor"/>
+        <circle cx="25.6" cy="20" r="2" fill="currentColor"/>
+        <line x1="16" y1="30.5" x2="28" y2="30.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+      </symbol>
+    </svg>
+
+    <div class="team-evo">
+      <!-- BEFORE -->
+      <div class="evo-col">
+        <div class="evo-label">before</div>
+        <div class="evo-head">Human team</div>
+        <div class="evo-sub">4 humans</div>
+        <div class="evo-viz">
+          <div class="evo-node-row"><svg class="ic ic-h"><use href="#ic-human"/></svg></div>
+          <svg class="evo-fan" viewBox="0 0 180 28" preserveAspectRatio="none">
+            <path d="M90 0 V9 M30 9 H150 M30 9 V28 M90 9 V28 M150 9 V28" fill="none" stroke="var(--border)" stroke-width="1.5"/>
+          </svg>
+          <div class="evo-node-row evo-gap3">
+            <svg class="ic ic-h"><use href="#ic-human"/></svg>
+            <svg class="ic ic-h"><use href="#ic-human"/></svg>
+            <svg class="ic ic-h"><use href="#ic-human"/></svg>
+          </div>
+        </div>
       </div>
-      <div class="term-body">
-        <span class="tl"><span class="cm">[09:14]</span>  <span class="p">founder   </span> <span class="c">decided pricing v2 in chat</span></span>
-        <span class="tl">         <span class="w">!</span> <span class="c">conversation never indexed</span></span>
-        <span class="tl">         <span class="w">!</span> <span class="c">3 agents still using old pricing</span></span>
-        <span class="tl"> </span>
-        <span class="tl"><span class="cm">[10:30]</span>  <span class="p">dev-agent </span> <span class="c">shipped payment-v2</span></span>
-        <span class="tl">         <span class="w">!</span> <span class="c">memory stored: 0</span></span>
-        <span class="tl">         <span class="w">!</span> <span class="c">tomorrow's session starts from zero</span></span>
-        <span class="tl"> </span>
-        <span class="tl"><span class="cm">[11:45]</span>  <span class="p">mkt-agent </span> <span class="c">planning launch</span></span>
-        <span class="tl">         <span class="w">!</span> <span class="c">no spec found. asks dev (human).</span></span>
-        <span class="tl">         <span class="w">!</span> <span class="c">dev re-reads spec out loud. brief copy-pasted.</span></span>
-        <span class="tl"> </span>
-        <span class="tl"><span class="cm">[13:00]</span>  <span class="p">ops-agent </span> <span class="c">asks about webhook config</span></span>
-        <span class="tl">         <span class="w">!</span> <span class="c">cannot find canonical spec. blocked.</span></span>
-        <span class="tl"> </span>
-        <span class="tl"><span class="cm">  # 3 humans · 4 agents · 1 day</span></span>
-        <span class="tl"><span class="cm">  # 7 silos. 0 shared mind.</span></span>
-        <span class="tl"> </span>
-        <span class="tl"><span class="cm">  # more agents = faster work = more forgotten work.</span></span>
-        <span class="tl"><span class="cm">  # you don't need another tool.</span></span>
-        <span class="tl"><span class="cm">  # you need a substrate that captures and validates everything.</span></span>
+
+      <div class="evo-arrow" aria-hidden="true">&rarr;</div>
+
+      <!-- TODAY -->
+      <div class="evo-col">
+        <div class="evo-label">today</div>
+        <div class="evo-head">Agentic teams silo</div>
+        <div class="evo-sub">3 humans + 3 agents</div>
+        <div class="evo-viz">
+          <div class="evo-silos">
+            <div class="evo-silo">
+              <svg class="ic ic-h"><use href="#ic-human"/></svg>
+              <span class="evo-link"></span>
+              <svg class="ic ic-r"><use href="#ic-robot"/></svg>
+            </div>
+            <div class="evo-silo">
+              <svg class="ic ic-h"><use href="#ic-human"/></svg>
+              <span class="evo-link"></span>
+              <svg class="ic ic-r"><use href="#ic-robot"/></svg>
+            </div>
+            <div class="evo-silo">
+              <svg class="ic ic-h"><use href="#ic-human"/></svg>
+              <span class="evo-link"></span>
+              <svg class="ic ic-r"><use href="#ic-robot"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="evo-arrow" aria-hidden="true">&rarr;</div>
+
+      <!-- FUTURE -->
+      <div class="evo-col">
+        <div class="evo-label">future</div>
+        <div class="evo-head">Hybrid team</div>
+        <div class="evo-sub">3 humans + 9 agents</div>
+        <div class="evo-viz">
+          <div class="evo-node-row evo-gap3">
+            <svg class="ic ic-h"><use href="#ic-human"/></svg>
+            <svg class="ic ic-h"><use href="#ic-human"/></svg>
+            <svg class="ic ic-h"><use href="#ic-human"/></svg>
+          </div>
+          <svg class="evo-bus" viewBox="0 0 230 26" preserveAspectRatio="none">
+            <path d="M45 0 V9 M115 0 V9 M185 0 V9 M20 9 H210 M115 9 V26" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+          </svg>
+          <div class="evo-robots-box">
+            <div class="evo-robots-grid">
+              <svg class="ic ic-r"><use href="#ic-robot"/></svg>
+              <svg class="ic ic-r"><use href="#ic-robot"/></svg>
+              <svg class="ic ic-r"><use href="#ic-robot"/></svg>
+              <svg class="ic ic-r"><use href="#ic-robot"/></svg>
+              <svg class="ic ic-r"><use href="#ic-robot"/></svg>
+              <svg class="ic ic-r"><use href="#ic-robot"/></svg>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+
+    <p class="evo-caption">
+      More agents = faster work = more forgotten work. Every agent is a new silo —
+      and no human or agent shares the same mind. <strong>You don't need another tool.
+      You need a substrate that captures and validates everything.</strong>
+    </p>
   </section>
 
   <div class="wrap"><hr/></div>
