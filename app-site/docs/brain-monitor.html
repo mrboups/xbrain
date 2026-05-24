@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="The Brain Monitor is your team's universal feed across every memory item, conversation, message, task, contact, and note â€” with inline truth-level editing, soft delete with 30-day restore, and filters." />
-  <title>Brain Monitor â€” GrooveOS Docs</title>
+  <meta name="description" content="The Brain Monitor is your team's universal feed across every memory item, conversation, message, task, contact, and note — with inline truth-level editing, soft delete with 30-day restore, and filters." />
+  <title>Brain Monitor — GrooveOS Docs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
@@ -82,8 +82,8 @@
     <a href="index.html" class="nav__link">docs</a>
   </nav>
   <div class="nav__right">
-    <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">â—‘ light</button>
-    <a href="mailto:team@grooveos.app?subject=GrooveOS early access" class="btn-cta">â†’ join waitlist</a>
+    <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">◑ light</button>
+    <a href="mailto:team@grooveos.app?subject=GrooveOS early access" class="btn-cta">→ join waitlist</a>
   </div>
 </header>
 
@@ -94,7 +94,6 @@
       <div class="sidebar__group-label">Get started</div>
       <a href="index.html" class="sidebar__link">Getting Started</a>
       <a href="onboarding.html" class="sidebar__link">Onboarding Guide</a>
-      <a href="billing.html" class="sidebar__link">Plans &amp; Billing</a>
       <a href="auth.html" class="sidebar__link">Authentication</a>
       <a href="teams.html" class="sidebar__link">Teams &amp; Projects</a>
     </div>
@@ -156,7 +155,7 @@
     <p>
       The Brain Monitor is a single feed that shows <strong>everything that lives in
       your team's brain</strong>: memory items, conversations, individual messages,
-      tasks, contacts, team chat, and Granola meeting notes â€” all on one screen,
+      tasks, contacts, team chat, and Granola meeting notes — all on one screen,
       newest first.
     </p>
 
@@ -177,14 +176,14 @@
     <pre class="code-block"><code>https://grooveos.app/account/teams/brain/?team=&lt;your-team-slug&gt;</code></pre>
 
     <p>
-      Bookmark that URL with your team slug pre-filled â€” you'll likely come back to
+      Bookmark that URL with your team slug pre-filled — you'll likely come back to
       it daily once your team's brain gets active.
     </p>
 
     <h2 id="what-you-see">What you see</h2>
 
     <p>
-      Each row is one <strong>brain event</strong> â€” a single item that exists somewhere
+      Each row is one <strong>brain event</strong> — a single item that exists somewhere
       in your team's data. The feed unifies seven kinds of entities into one view:
     </p>
 
@@ -239,15 +238,15 @@
 
     <ul>
       <li><strong>Entity type</strong> badge and a short content preview.</li>
-      <li><strong>Truth level</strong> â€” clickable to edit inline (see below).</li>
-      <li><strong>Source</strong> â€” where this came from (<code>chrome-extension</code>, <code>drive:&lt;folder&gt;</code>, <code>librechat:conv_â€¦</code>, <code>granola</code>, <code>api:&lt;script-name&gt;</code>, etc.).</li>
+      <li><strong>Truth level</strong> — clickable to edit inline (see below).</li>
+      <li><strong>Source</strong> — where this came from (<code>chrome-extension</code>, <code>drive:&lt;folder&gt;</code>, <code>librechat:conv_…</code>, <code>granola</code>, <code>api:&lt;script-name&gt;</code>, etc.).</li>
       <li><strong>Created at</strong> + <strong>created by</strong> (when known).</li>
-      <li><strong>Soft-delete</strong> button â€” moves the row to the 30-day trash window.</li>
+      <li><strong>Soft-delete</strong> button — moves the row to the 30-day trash window.</li>
     </ul>
 
     <div class="callout callout--info" data-label="// note">
       <p class="callout__title">Team scoping is automatic</p>
-      <p>The feed is filtered to your team's <code>team_scope</code> on the server. You cannot accidentally see another team's data â€” and other teams cannot see yours. Isolation is enforced at the infrastructure level, not just the UI.</p>
+      <p>The feed is filtered to your team's <code>team_scope</code> on the server. You cannot accidentally see another team's data — and other teams cannot see yours. Isolation is enforced at the infrastructure level, not just the UI.</p>
     </div>
 
     <h2 id="truth-levels">Editing truth_level inline</h2>
@@ -315,7 +314,7 @@
       <p>
         Items at CANONICAL are automatically pulled into every AI conversation's
         system prompt. If you want a fact to always be available to Claude, GPT-4,
-        or Grok across your whole team â€” promote it to CANONICAL. See
+        or Grok across your whole team — promote it to CANONICAL. See
         <a href="memory.html">Memory &amp; Knowledge</a> for the full truth-level
         playbook.
       </p>
@@ -332,7 +331,7 @@
     <ul>
       <li>The row immediately disappears from feeds, search results, and AI context (including semantic search).</li>
       <li>For <strong>30 days</strong>, it stays restorable. Toggle the <strong>"show deleted"</strong> filter to see it again.</li>
-      <li>After 30 days, GrooveOS purges it permanently from Postgres, the vector store, and the entity graph â€” no recovery after that.</li>
+      <li>After 30 days, GrooveOS purges it permanently from Postgres, the vector store, and the entity graph — no recovery after that.</li>
     </ul>
 
     <h3>Restoring a deleted item</h3>
@@ -348,7 +347,7 @@
       <p>
         The 30-day window is not configurable from the UI. If you need an item
         back, restore it within 30 days. After that, the daily purge job removes
-        all traces. Enterprise plans can negotiate a longer retention window â€”
+        all traces. Enterprise plans can negotiate a longer retention window —
         <a href="mailto:team@grooveos.app?subject=GrooveOS retention">contact us</a>.
       </p>
     </div>
@@ -368,14 +367,14 @@
     <p>The top bar lets you narrow the feed:</p>
 
     <ul>
-      <li><strong>Entity type</strong> â€” show only memory items, only conversations, only tasks, etc.</li>
-      <li><strong>Truth level</strong> â€” show only CANONICAL items, or only the unverified EPHEMERAL stream.</li>
-      <li><strong>Source</strong> â€” show only Chrome clips, only Drive-synced docs, only chat-extracted facts, etc.</li>
-      <li><strong>Show deleted</strong> â€” include items in the 30-day soft-delete window.</li>
-      <li><strong>Search</strong> â€” free-text match across content previews.</li>
+      <li><strong>Entity type</strong> — show only memory items, only conversations, only tasks, etc.</li>
+      <li><strong>Truth level</strong> — show only CANONICAL items, or only the unverified EPHEMERAL stream.</li>
+      <li><strong>Source</strong> — show only Chrome clips, only Drive-synced docs, only chat-extracted facts, etc.</li>
+      <li><strong>Show deleted</strong> — include items in the 30-day soft-delete window.</li>
+      <li><strong>Search</strong> — free-text match across content previews.</li>
     </ul>
 
-    <p>Filters combine â€” pick "task + WORKING" to see only your active tasks, or "memory_item + CANONICAL" for your team's ground-truth knowledge base.</p>
+    <p>Filters combine — pick "task + WORKING" to see only your active tasks, or "memory_item + CANONICAL" for your team's ground-truth knowledge base.</p>
 
     <h2 id="permissions">Who can edit what</h2>
 
@@ -399,7 +398,7 @@
           <td>
             Everything Members can do, plus edit / delete / restore <strong>any
             team item</strong>, regardless of who created it. Admins typically own
-            promotion to CANONICAL â€” your team's ground-truth shelf.
+            promotion to CANONICAL — your team's ground-truth shelf.
           </td>
         </tr>
       </tbody>
@@ -407,7 +406,7 @@
 
     <p>
       Some entity types (memory items, contacts, messages) don't track a per-row
-      author. For those, only team admins can edit truth_level or soft-delete â€”
+      author. For those, only team admins can edit truth_level or soft-delete —
       the per-author check has nothing to match against. This is intentional:
       facts your team shares should be owned by the team, not by whoever happened
       to clip them.
@@ -418,7 +417,7 @@
     <h3>Why isn't my Drive doc showing up?</h3>
 
     <p>
-      Drive sync is asynchronous â€” give it 30 seconds after a save. If it still
+      Drive sync is asynchronous — give it 30 seconds after a save. If it still
       isn't there after a minute, check <a href="drive-sync.html">Drive Sync</a>
       for folder mapping and connection status.
     </p>
@@ -427,14 +426,14 @@
 
     <p>
       Not yet. v1 of the Brain Monitor edits one row at a time. Bulk operations
-      are on the roadmap â€” if you need it, tell us at
+      are on the roadmap — if you need it, tell us at
       <a href="mailto:team@grooveos.app?subject=Brain Monitor bulk ops">team@grooveos.app</a>.
     </p>
 
     <h3>Can I export my team's brain to CSV?</h3>
 
     <p>
-      Not from the UI. For now, use the <a href="api.html">API</a> â€”
+      Not from the UI. For now, use the <a href="api.html">API</a> —
       <code>GET /v1/memory/search</code> with a high limit returns memory items as
       JSON, and the other entity endpoints (conversations, tasks, contacts) follow
       the same pattern. Export-to-CSV is a deferred feature; voice it on the
@@ -445,7 +444,7 @@
 
     <p>
       v1 refreshes every 30 seconds. Real-time streaming (WebSocket or SSE) is
-      deferred â€” most teams don't write to the brain often enough for 30s to feel
+      deferred — most teams don't write to the brain often enough for 30s to feel
       slow. If your use case needs it, tell us.
     </p>
 
@@ -461,9 +460,9 @@
     <h2>What's next</h2>
 
     <ul>
-      <li><a href="memory.html">Memory &amp; Knowledge</a> â€” Truth-level theory and promotion workflow end to end.</li>
-      <li><a href="teams.html">Teams &amp; Projects</a> â€” Roles, project scopes, and inviting team members.</li>
-      <li><a href="api.html">API Reference</a> â€” Programmatic access to the same entities, including <code>truth_level_min</code> filtering.</li>
+      <li><a href="memory.html">Memory &amp; Knowledge</a> — Truth-level theory and promotion workflow end to end.</li>
+      <li><a href="teams.html">Teams &amp; Projects</a> — Roles, project scopes, and inviting team members.</li>
+      <li><a href="api.html">API Reference</a> — Programmatic access to the same entities, including <code>truth_level_min</code> filtering.</li>
     </ul>
 
   </main>
@@ -487,14 +486,13 @@
           <li><a href="auth.html" class="xb-footer__link">Authentication</a></li>
           <li><a href="brain-monitor.html" class="xb-footer__link">Brain Monitor</a></li>
           <li><a href="api.html" class="xb-footer__link">API Reference</a></li>
-          <li><a href="billing.html" class="xb-footer__link">Plans &amp; Billing</a></li>
         </ul>
       </div>
       <div class="xb-footer__col">
         <p class="xb-footer__col-title">Open Source</p>
         <ul class="xb-footer__links">
-          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">xbrain (MIT) â†—</a></li>
-          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub â†—</a></li>
+          <li><a href="https://xbrain-marketing.web.app" class="xb-footer__link" target="_blank" rel="noopener">xbrain (MIT) ↗</a></li>
+          <li><a href="https://github.com/mrboups/xbrain" class="xb-footer__link" target="_blank" rel="noopener">GitHub ↗</a></li>
         </ul>
       </div>
       <div class="xb-footer__col">
@@ -504,7 +502,7 @@
         </ul>
       </div>
     </div>
-    <div class="xb-footer__bottom">Â© 2026 GrooveOS Â· powered by <a href="https://xbrain-marketing.web.app" style="color:var(--muted)" target="_blank">xbrain</a></div>
+    <div class="xb-footer__bottom">© 2026 GrooveOS · powered by <a href="https://xbrain-marketing.web.app" style="color:var(--muted)" target="_blank">xbrain</a></div>
   </div>
 </footer>
 
@@ -513,7 +511,7 @@
   const html = document.documentElement;
   function setTheme(t) {
     html.setAttribute('data-theme', t);
-    btn.textContent = t === 'dark' ? 'â—‘ light' : 'â— dark';
+    btn.textContent = t === 'dark' ? '◑ light' : 'â— dark';
     try { localStorage.setItem('xb-theme', t); } catch(e) {}
   }
   btn.addEventListener('click', () => {
