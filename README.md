@@ -1,118 +1,135 @@
 # xbrain
 
-> Mémoire collective persistante pour humains + agents, organisée par équipe et par niveau de vérité. **Pas un workspace de chatbot** — le différenciateur est la couche mémoire + truth-level + team-scope, pas l'interface.
+> **Shared cognition for teams of humans and AI agents.**
+> The open-source, MCP-native memory engine behind [GrooveOS](https://grooveos.app).
 
-## État
+xbrain is **not a chatbot workspace**. The differentiator is the layer underneath: a
+single memory plane where every human and every agent reads and writes the **same
+team brain**, tagged by team, project, and **truth level**. If everything else breaks,
+that contract holds.
 
-- **Phase 1** : Socle infra + frontends (LibreChat + Open WebUI) + memory-api Python avec contrat de tagging 7 champs.
-- Architecture cible : voir [`CLAUDE.md`](./CLAUDE.md) et [`.planning/PROJECT.md`](./.planning/PROJECT.md).
+---
 
-## Quickstart Phase 1
+## The problem
 
-### Pré-requis
+Hybrid teams — humans plus AI agents working together — are becoming the default, but
+they have no shared mind. Context is lost at every handoff: human→human, human→agent,
+agent→agent. Every session starts at zero. Every tool (Claude, Cursor, ChatGPT, Grok,
+Granola…) keeps its own private memory, and none of them talk to each other.
 
-- Une VM Ubuntu 24.04 avec Docker + Docker Compose installés (cf. memory `project_xbrain_phase1_infra.md`)
-- Compte Google Cloud avec OAuth client configuré (cf. [Configuration Google OAuth](#configuration-google-oauth))
-- Clé SSH pour la VM accessible localement
+## The idea
 
-### Setup local
+Every decision, message, document, and shipped output flows through **one API**
+(`memory-api`) that enforces a strict tagging contract and lands in a shared,
+searchable brain. Any member, agent, or tool can then retrieve it — scoped to their
+team and filtered by how trustworthy the information is.
+
+```
+Claude Code · Cursor · ChatGPT · Grok · LibreChat · Open WebUI · Chrome Clipper · Granola
+                                   │
+                          ┌────────▼────────┐
+                          │   memory-api    │   ← tagging contract enforced here
+                          └────────┬────────┘
+              ┌────────────────────┼────────────────────┐
+        Postgres (truth)     Qdrant (vectors)      Neo4j (graph)
+```
+
+## The differentiator: the tagging contract
+
+Every data point carries **7 fields**, enforced at the boundary:
+
+| Field | Purpose |
+|-------|---------|
+| `team_scope` | hard isolation between teams |
+| `project_scope` | optional project partition |
+| `visibility` | who can read it |
+| `confidence` | 0..1 |
+| `truth_level` | `EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC` |
+| `source` | provenance (which human, agent, or tool produced it) |
+| `validation_status` | promotion / review state |
+
+Validation flows **both directions**: humans promote agent outputs up the truth
+ladder; agents flag inconsistencies. Retrieval is always scoped and truth-filtered, so
+a chat reply can be enriched with only the team's `CANONICAL` facts.
+
+## Architecture
+
+- **Multi-frontend by construction** — LibreChat, Open WebUI, ChatGPT (API), and
+  Claude Code all read/write the same memory. Logic that locks data to one frontend is
+  wrong by design.
+- **MCP-native** — an MCP gateway exposes the brain (memory search/add, tasks,
+  contacts, calendar, drive, decks) to any MCP-capable client.
+- **Temporal knowledge graph** — Neo4j + Graphiti track how entities and facts evolve.
+- **Self-hostable, 100% OSS** — no managed-cloud-only services in the critical path.
+  Runs on a single VM via Docker Compose.
+
+**Stack:** LibreChat · Open WebUI · FastAPI `memory-api` · PostgreSQL · Qdrant · Neo4j ·
+MCP gateway + sidecars · session-bridge · Centrifugo (realtime) · Langfuse
+(observability) · LangGraph agents.
+
+## Quickstart (self-host)
+
+Requirements: an Ubuntu VM with Docker + Docker Compose, a Google OAuth client, and a
+GitHub App (for auth). Everything runs from one `docker compose`.
 
 ```bash
 git clone https://github.com/mrboups/xbrain.git
 cd xbrain
 cp .env.example .env
-# Éditer .env : remplacer tous les __FILL__ par les vraies valeurs (voir section secrets ci-dessous)
-make env-check    # vérifie qu'aucun secret critique ne manque
+# Fill every __FILL__ placeholder (secrets, OAuth, GitHub App). Generate randoms with:
+#   openssl rand -base64 48   # 64-char secrets
+#   openssl rand -hex 32      # 64-hex secrets
+make env-check                # verify no critical secret is missing
 ```
 
-### Génération des secrets
+Deploy:
 
 ```bash
-# Pour chaque __FILL_RANDOM_32_CHARS__ :
-openssl rand -base64 32
-
-# Pour chaque __FILL_RANDOM_64_CHARS__ :
-openssl rand -base64 48
-
-# Pour chaque __FILL_RANDOM_64_HEX__ :
-openssl rand -hex 32
-
-# Pour __FILL_RANDOM_32_HEX__ :
-openssl rand -hex 16
+make deploy     # build + docker compose up -d on the VM
+make vm-ps      # confirm all containers are healthy
+make vm-logs    # tail logs if something fails to start
 ```
 
-### Configuration Google OAuth
-
-1. https://console.cloud.google.com → projet `xbrain-495115` → APIs & Services → Credentials
-2. Create Credentials → OAuth client ID → Web application
-3. Authorized redirect URIs (les deux) :
-   - `http://__VM_HOST__/oauth/google/callback`
-   - `http://__VM_HOST__/openwebui/oauth/google/callback`
-4. Copier `Client ID` → `GOOGLE_CLIENT_ID` et `OAUTH_GOOGLE_CLIENT_ID` dans `.env`
-5. Copier `Client secret` → `GOOGLE_CLIENT_SECRET` et `OAUTH_GOOGLE_CLIENT_SECRET`
-
-### Déploiement sur la VM
+Develop & verify:
 
 ```bash
-make sync       # rsync code vers la VM (sans build)
-make deploy     # build + up -d sur la VM
-make vm-ps      # vérifier que tous les containers sont healthy
-make vm-logs    # tail logs si quelque chose ne démarre pas
+make test       # memory-api tests (pytest + testcontainers)
+make lint       # ruff across the Python services
+make help       # list all targets
 ```
 
-Une fois déployé : http://__VM_HOST__
-
-- LibreChat à la racine : http://__VM_HOST__/
-- Open WebUI : http://__VM_HOST__/openwebui/
-- memory-api : http://__VM_HOST__/api/v1/healthz
-
-### Tests
-
-```bash
-make test       # tests memory-api (pytest + testcontainers)
-make lint       # ruff sur les 3 services Python
-```
-
-### Backup / Restore (success criterion 5)
-
-```bash
-make backup           # backup manuel vers GCS bucket xbrain-backups-prod
-make restore-test     # test E2E restore sur env clean (mandatory gate Phase 1 done)
-```
-
-## Structure du repo
+## Repo layout
 
 ```
-.
-├── apps/                       # Services applicatifs Python
-│   ├── memory-api/             # FastAPI core (plan 01-02)
-│   ├── librechat-bridge/       # Sidecar MongoDB → memory-api (plan 01-03)
-│   └── openwebui-pipeline/     # Pipeline Open WebUI → memory-api (plan 01-04)
-├── services/                   # Réservé Phase 3 (scraper, calendar, drive-sync)
-├── packages/                   # Schémas partagés (Phase 2+)
-│   └── schemas/
-├── infrastructure/             # Docker Compose, nginx, scripts deploy
-│   ├── docker-compose.yml
-│   ├── nginx/conf.d/
-│   └── scripts/
-├── .planning/                  # GSD planning artifacts (PROJECT.md, ROADMAP.md, phases/)
-└── .claude/                    # GSD toolchain
+apps/                  # Python services
+  memory-api/          # FastAPI core — the single memory plane + tagging contract
+  agent-runtime/       # LangGraph agents (HITL, extraction, team-chat @claude)
+  mcp-gateway/         # aggregates MCP tools for all frontends
+  mcp-*/               # brain / calendar / drive / deck / scraper MCP sidecars
+  session-bridge/      # routes chat to a user's own model session
+  librechat-bridge/    # LibreChat ↔ memory-api
+  openwebui-pipeline/  # Open WebUI ↔ memory-api
+  drive-sync/ granola-sync/ graphiti-service/ brain-janitor/
+packages/memory-models/  # MemoryProvider contract + native/mem0 backends
+infrastructure/          # docker-compose.yml, nginx, deploy scripts
+chrome-extension/        # web clipper + team chat
+app-site/ marketing-site/  # GrooveOS web + docs
 ```
 
-## Commandes utiles
+## Status
 
-```bash
-make help         # liste tous les targets
-make ssh          # SSH interactive sur la VM
-make vm-down      # arrêter le stack (volumes préservés)
-```
+Production. Twelve phases shipped: core memory + tagging contract, intelligent memory +
+agents (HITL), graph + extraction + integrations, MCP consolidation, team platform
+(GitOps + Chrome extension), marketing site + docs, CRM/Granola/tasks, universal
+extraction pipeline, session bridge, GitHub-primary auth, brain monitor + soft-delete,
+and GitHub App migration.
 
-## Documentation
+## Links
 
-- Architecture & contraintes : [`CLAUDE.md`](./CLAUDE.md)
-- Plan complet : [`.planning/ROADMAP.md`](./.planning/ROADMAP.md)
-- Recherche Phase 1 : [`.planning/phases/01-socle-infra-frontends-memory-api/01-RESEARCH.md`](./.planning/phases/01-socle-infra-frontends-memory-api/01-RESEARCH.md)
+- **Hosted product:** [grooveos.app](https://grooveos.app)
+- Architecture & constraints: [`CLAUDE.md`](./CLAUDE.md)
+- Roadmap & planning: [`.planning/`](./.planning/)
 
-## Licence
+## License
 
-À définir (probablement MIT ou Apache 2.0).
+MIT.
