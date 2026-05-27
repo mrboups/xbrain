@@ -6,7 +6,10 @@ surface that ``purge_pg`` actually uses (acquire, transaction, fetch, execute).
 What we lock down here:
   1. Every table in PURGE_TABLES gets a DELETE issued in order, with the
      ``deleted_at IS NOT NULL AND deleted_at < now() - $1::interval`` predicate
-     and the correct ``$1`` interval argument shaped as ``"<N> days"``.
+     and the correct ``$1`` interval argument is a ``datetime.timedelta`` (NOT a
+     plain string like ``"30 days"``). asyncpg serialises timedelta natively to
+     the Postgres interval wire type; passing a bare str causes
+     ``'str' object has no attribute 'days'`` at query-execution time.
   2. The audit_log INSERT fires exactly ONCE per run and only when at least
      one row was purged (sum of all RETURNING lists > 0).
   3. When zero rows are purged, NO audit_log INSERT runs (avoids noise).
@@ -18,6 +21,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import timedelta
 from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID, uuid4
@@ -219,3 +223,54 @@ def test_purge_tables_covers_six_brain_entities():
 def test_memory_items_comes_first_in_purge_tables():
     """memory_items must be first so its UUIDs reach Qdrant/Neo4j purgers."""
     assert PURGE_TABLES[0][0] == "memory_items"
+
+
+# ---------------------------------------------------------------------------
+# Regression test: asyncpg timedelta requirement (bug fix 2026-05-24)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_purge_pg_passes_timedelta_not_string_to_asyncpg():
+    """$1 bound to the DELETE query MUST be a datetime.timedelta, not a str.
+
+    asyncpg serialises timedelta to the Postgres interval wire type.
+    Passing a bare Python str (e.g. "30 days") causes::
+
+        'str' object has no attribute 'days'
+
+    at query-execution time because asyncpg tries to call ``.days`` on the
+    bound argument when encoding the interval codec.
+
+    This test reproduces the production regression that caused every
+    brain-janitor daily run to abort silently since 2026-05-18.
+    """
+    conn = _FakeConn({t: [] for t, _ in PURGE_TABLES})
+    pool = _FakePool(conn)
+
+    await purge_pg(pool, retention_days=30)  # type: ignore[arg-type]
+
+    assert conn.fetched, "expected at least one DELETE query"
+    for sql, args in conn.fetched:
+        assert len(args) == 1, f"expected exactly one $1 arg, got {args!r}"
+        arg = args[0]
+        assert isinstance(arg, timedelta), (
+            f"$1 must be datetime.timedelta, got {type(arg).__name__!r}: {arg!r}. "
+            "asyncpg requires a timedelta for interval-typed parameters; "
+            "passing a plain str causes 'str' object has no attribute .days'."
+        )
+        assert arg.days == 30, f"expected 30 days, got {arg.days}"
+
+
+@pytest.mark.asyncio
+async def test_purge_pg_timedelta_uses_correct_retention_days():
+    """retention_days value flows through to the timedelta correctly."""
+    conn = _FakeConn({t: [] for t, _ in PURGE_TABLES})
+    pool = _FakePool(conn)
+
+    await purge_pg(pool, retention_days=90)  # type: ignore[arg-type]
+
+    for _sql, args in conn.fetched:
+        assert len(args) == 1
+        assert isinstance(args[0], timedelta)
+        assert args[0].days == 90
