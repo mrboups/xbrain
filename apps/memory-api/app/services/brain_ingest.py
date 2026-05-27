@@ -67,7 +67,12 @@ async def ingest_team_message(
     Never raises — ingestion must never break the chat-send response path.
     """
     try:
-        if not is_brain_relevant(content):
+        # Phase 13 D1/D4 — Haiku 4.5 classifier replaces standalone heuristic.
+        # classify() runs is_brain_relevant() first as a fast-path filter,
+        # then Haiku for semantic relevance, with heuristic fallback on error.
+        from app.services.relevance_filter import classify  # local import — avoids cycle at module load
+        if not await classify(content, team_scope=team_scope):
+            log.info("brain_ingest.team_message.skipped_by_filter", team_scope=team_scope)
             return
         provider = get_memory_provider()
         now = datetime.now(timezone.utc)
