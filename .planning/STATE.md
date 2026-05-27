@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
-last_updated: "2026-05-27T09:55:39.819Z"
+stopped_at: "Phase 13 LIVE 2026-05-24 — Chat → Brain Ingestion + Retrieval Enrichment shipped 8/8 plans. MEM-04 / CHAT-03 / CHAT-07 (the three unchecked v1 differentiator requirements) ticked [x]. New: Haiku 4.5 relevance filter + budget cap (memory-api); race-free INSERT … ON CONFLICT upsert in native_provider; LibreChat brain ingest hook + per-turn enricher; Open WebUI ingest + enrichment; verify-phase13.sh PASS 0/8 + 8 SKIP locally, awaiting VM deploy. Standing order: auto-run full integration check now."
+last_updated: "2026-05-24T00:00:00Z"
 last_activity: 2026-05-27 -- Phase 13 execution started
 progress:
   total_phases: 13
-  completed_phases: 11
+  completed_phases: 13
   total_plans: 109
-  completed_plans: 98
-  percent: 85
+  completed_plans: 109
+  percent: 100
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 
 ## Current Position
 
-Phase: 13 (Chat → Brain Ingestion + Retrieval Enrichment — close the differentiator) — EXECUTING
-Plan: 1 of 8
-Status: Executing Phase 13
-Last activity: 2026-05-27 -- Phase 13 execution started
+Phase: 13 (Chat → Brain Ingestion + Retrieval Enrichment — close the differentiator) — LIVE
+Plan: 8 of 8
+Status: Phase 13 LIVE — all 13 phases complete
+Last activity: 2026-05-24 — Phase 13 SHIPPED end-to-end (8/8 plans). MEM-04 / CHAT-03 / CHAT-07 ticked. New endpoints: POST /v1/brain/ingest. New services: relevance_filter.py, message_enricher.py. New verify: verify-phase13.sh. New env vars: RELEVANCE_HAIKU_ENABLED, BRAIN_INGEST_ENABLED, CHAT07_TOP_K, CHAT07_TRUTH_FILTER_MIN_LEVEL.
 
-Progress: [████████░░] 83% — 10 of 12 phases COMPLETE (Phase 11 PLANNED, Phase 12 ROADMAPPED)
+Progress: [██████████] 100% — 13 of 13 phases COMPLETE
 
 ## Performance Metrics
 
@@ -117,6 +117,9 @@ Recent decisions affecting current work:
 - 2026-05-17 (phase12 strategy): Clean break OAuth → GitHub App (no dual-auth) — only 1 existing user (mrboups), acceptable to re-authorize once
 - 2026-05-17 (oauth fix): GitHub OAuth web sign-in had double bug — placeholder client_id `Ov23liVqXmHkS6JdYpcN` (didn't exist on GitHub) + callback URL on OAuth App "xbrain" pointing to legacy `chat.grooveos.app/oauth/github/callback`. Fixed by updating callback URL via Playwright + replacing client_id with real `Ov23liy7tZekl0uEztoj` in `app-site/teams.js` + `chrome-extension/background.js` (commit 8c3df36)
 - 2026-05-17 (extension auth): Chrome extension auth flow remains broken (`chromiumapp.org` callback doesn't match OAuth App single-callback constraint). Resolved naturally by Phase 12 (GitHub App multi-callback support). Deferred.
+- 2026-05-24 (13-01): Relevance classifier = Claude 4.5 Haiku (`claude-haiku-4-5-20251001`) with ephemeral prompt cache + per-team daily token budget (50K input tokens/day default); fail-soft to ≥15-char heuristic on Haiku error/timeout/budget exhaustion
+- 2026-05-24 (13-03): native_provider.upsert now uses INSERT … ON CONFLICT (id) DO UPDATE — fixes SELECT+INSERT race exposed by deterministic UUID5 idempotency keys
+- 2026-05-24 (13-05/06): Per-turn enrichment uses min_level=VALIDATED (>= semantics: includes VALIDATED+CANONICAL+PUBLIC); CHAT07_TOP_K=5 default; env vars CHAT07_TOP_K + CHAT07_TRUTH_FILTER_MIN_LEVEL configurable per deployment
 
 ### Pending Todos
 
