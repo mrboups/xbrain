@@ -148,6 +148,12 @@ services:
       LIBRECHAT_INTERNAL_URL: ${LIBRECHAT_INTERNAL_URL:-http://librechat:3080}
       # Phase 7 — Anthropic SDK fallback when @claude mentioner has no Pro/Max bridge.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Phase 13 — Haiku relevance filter + brain ingest knobs.
+      RELEVANCE_HAIKU_ENABLED: ${RELEVANCE_HAIKU_ENABLED:-true}
+      RELEVANCE_HAIKU_MODEL: ${RELEVANCE_HAIKU_MODEL:-claude-haiku-4-5-20251001}
+      RELEVANCE_HAIKU_TIMEOUT_S: ${RELEVANCE_HAIKU_TIMEOUT_S:-3.0}
+      RELEVANCE_DAILY_TOKEN_CAP_PER_TEAM: ${RELEVANCE_DAILY_TOKEN_CAP_PER_TEAM:-50000}
+      BRAIN_INGEST_ENABLED: ${BRAIN_INGEST_ENABLED:-true}
       # Quick task 260512-tcr — team chat realtime via Centrifugo.
       CENTRIFUGO_TOKEN_HMAC_SECRET: ${CENTRIFUGO_TOKEN_HMAC_SECRET:-}
       CENTRIFUGO_API_KEY: ${CENTRIFUGO_API_KEY:-}
@@ -235,6 +241,10 @@ services:
       TASK_INTENT_DETECTION: ${TASK_INTENT_DETECTION:-false}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       ANTHROPIC_TASK_INTENT_MODEL: ${ANTHROPIC_TASK_INTENT_MODEL:-claude-3-5-haiku-20241022}
+      # Phase 13 — brain ingest + per-turn enrichment for LibreChat
+      BRAIN_INGEST_ENABLED: ${BRAIN_INGEST_ENABLED:-true}
+      CHAT07_TOP_K: ${CHAT07_TOP_K:-5}
+      CHAT07_TRUTH_FILTER_MIN_LEVEL: ${CHAT07_TRUTH_FILTER_MIN_LEVEL:-VALIDATED}
     networks: [xbrain_net]
     mem_limit: 128m
     depends_on:
@@ -269,6 +279,10 @@ services:
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
       LANGFUSE_HOST: http://langfuse:3000   # internal docker DNS — bypass Cloudflare for SDK calls
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Phase 13 — brain ingest + per-turn enrichment for Open WebUI
+      BRAIN_INGEST_ENABLED: ${BRAIN_INGEST_ENABLED:-true}
+      CHAT07_TOP_K: ${CHAT07_TOP_K:-5}
+      CHAT07_TRUTH_FILTER_MIN_LEVEL: ${CHAT07_TRUTH_FILTER_MIN_LEVEL:-VALIDATED}
     networks: [xbrain_net]
     mem_limit: 192m
     depends_on:
