@@ -63,36 +63,50 @@ class NativeProvider(MemoryProvider):
         embedding = item.embedding or await self._embedder(item.content)
 
         async with pool.acquire() as conn:
-            existing = None
-            if item.id:
-                existing = await conn.fetchrow(
-                    "SELECT * FROM memory_items WHERE id = $1 AND team_scope = $2",
-                    UUID(item_id), item.team_scope,
-                )
-            if existing:
-                # Snapshot to history table
+            async with conn.transaction():
+                # Phase 13 plan 13-03 — race-free upsert (13-RESEARCH §Pitfall 6).
+                #
+                # The old SELECT+INSERT/UPDATE pattern races under concurrent ingest:
+                # two callers with the same deterministic UUID both see existing=None
+                # and both attempt INSERT, causing asyncpg.UniqueViolationError.
+                #
+                # Fix: snapshot-then-upsert inside a single transaction.
+                #
+                # Step 1 — Snapshot the CURRENT row to history (if it exists).
+                # Runs inside the transaction before the upsert so the snapshot
+                # reflects the state being overwritten. If no prior row exists,
+                # this INSERT ... SELECT returns 0 rows inserted (no-op). The
+                # transaction guarantees atomicity: history and upsert succeed
+                # together or both roll back.
                 await conn.execute(
                     "INSERT INTO memory_items_history "
-                    "(item_id, team_scope, content, metadata, truth_level, validation_status, "
-                    " visibility, confidence, source) "
-                    "SELECT id, team_scope, content, metadata, truth_level, validation_status, "
-                    "  visibility, confidence, source FROM memory_items WHERE id = $1",
-                    UUID(item_id),
+                    "  (item_id, team_scope, content, metadata, truth_level, "
+                    "   validation_status, visibility, confidence, source) "
+                    "SELECT id, team_scope, content, metadata, truth_level, "
+                    "       validation_status, visibility, confidence, source "
+                    "  FROM memory_items "
+                    " WHERE id = $1 AND team_scope = $2",
+                    UUID(item_id), item.team_scope,
                 )
-                await conn.execute(
-                    "UPDATE memory_items SET content=$2, metadata=$3, truth_level=$4, "
-                    "  validation_status=$5, visibility=$6, confidence=$7, source=$8, "
-                    "  updated_at=now() WHERE id=$1",
-                    UUID(item_id), item.content, json.dumps(item.metadata),
-                    item.truth_level.value, item.validation_status.value,
-                    item.visibility.value, item.confidence, item.source,
-                )
-            else:
+                # Step 2 — Race-free upsert via INSERT ... ON CONFLICT (id) DO UPDATE.
+                # PostgreSQL acquires a row-level write lock on the conflicting row,
+                # serialising concurrent callers on the same UUID. A second concurrent
+                # caller's history-snapshot SELECT (step 1) will see the row already
+                # committed by the first caller — so its snapshot is accurate.
                 await conn.execute(
                     "INSERT INTO memory_items "
-                    "(id, team_scope, project_scope, content, metadata, truth_level, "
-                    " validation_status, visibility, confidence, source) "
-                    "VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10)",
+                    "  (id, team_scope, project_scope, content, metadata, truth_level, "
+                    "   validation_status, visibility, confidence, source) "
+                    "VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10) "
+                    "ON CONFLICT (id) DO UPDATE "
+                    "SET content           = EXCLUDED.content, "
+                    "    metadata          = EXCLUDED.metadata, "
+                    "    truth_level       = EXCLUDED.truth_level, "
+                    "    validation_status = EXCLUDED.validation_status, "
+                    "    visibility        = EXCLUDED.visibility, "
+                    "    confidence        = EXCLUDED.confidence, "
+                    "    source            = EXCLUDED.source, "
+                    "    updated_at        = now()",
                     UUID(item_id), item.team_scope, item.project_scope, item.content,
                     json.dumps(item.metadata), item.truth_level.value,
                     item.validation_status.value, item.visibility.value,
