@@ -208,4 +208,4 @@ async def test_post_message_extra_field_returns_422(client, seeded_two_teams, br
 
 # Verify regex pattern is what we expect (regression guard for the source_pattern constant)
 def test_source_pattern_constant_is_correct():
-    assert SOURCE_PATTERN == r"^[a-z][a-z0-9_-]*:[a-z0-9._-]+$"
+    assert SOURCE_PATTERN == r"^[a-z][a-z0-9_]*:[a-z0-9._-]+$"

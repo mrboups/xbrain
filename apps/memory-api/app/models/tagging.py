@@ -8,7 +8,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SOURCE_PATTERN = r"^[a-z][a-z0-9_-]*:[a-z0-9._-]+$"
+SOURCE_PATTERN = r"^[a-z][a-z0-9_]*:[a-z0-9._-]+$"
 
 
 class Visibility(str, Enum):
