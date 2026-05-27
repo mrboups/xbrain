@@ -72,6 +72,52 @@ async def map_message(mongo_doc: dict, mongo_db) -> dict | None:
     }
 
 
+async def _maybe_ingest_to_brain(
+    payload: dict,
+    mem: MemoryApiClient,
+    team_scope: str,
+) -> None:
+    """Fire-and-forget: upsert a LibreChat user message into memory_items + Qdrant.
+
+    User messages only (assistant messages are LLM output, not new team facts).
+    Gated by BRAIN_INGEST_ENABLED (default True). Idempotency: deterministic
+    idempotency_key=f"librechat:{librechat_id}" -- safe under Mongo change-stream
+    resume-token re-delivery (Phase 13 13-RESEARCH Pitfall 1 + Plan 13-03 race fix).
+
+    Never raises -- failure is logged and swallowed; the change-stream loop continues.
+    """
+    if not settings.BRAIN_INGEST_ENABLED:
+        return
+    if payload.get("role") != "user":
+        return
+    content = payload.get("content") or ""
+    if not content.strip():
+        return
+    librechat_id = (payload.get("metadata") or {}).get("librechat_id", "")
+    if not librechat_id:
+        return
+    try:
+        await mem.brain_ingest(
+            sub=payload["sub"],
+            team_scope=team_scope,
+            content=content,
+            source=payload.get("source") or "librechat:unknown",
+            metadata={
+                "origin": "librechat",
+                "librechat_id": librechat_id,
+                "idempotency_key": f"librechat:{librechat_id}",
+            },
+        )
+    except Exception as exc:  # noqa: BLE001 -- fire-and-forget must not propagate
+        log.warning(
+            "librechat_brain_ingest.failed",
+            err=str(exc),
+            sub=payload.get("sub"),
+            team_scope=team_scope,
+            librechat_id=librechat_id,
+        )
+
+
 async def _resolve_sub_for_conv(conv_doc: dict, mongo_db) -> str | None:
     """Map a conversations doc to a sub the bridge can sign as. Returns None if unresolved."""
     user_id = conv_doc.get("user")
@@ -131,6 +177,12 @@ async def messages_watch_loop(db, mem: MemoryApiClient) -> None:
                         lc_id=payload["metadata"]["librechat_id"],
                         team=team_scope,
                         source=payload["source"],
+                    )
+                    # Phase 13 plan 13-04 -- fire-and-forget brain ingest (MEM-04 / CHAT-03).
+                    # User messages only; idempotent via librechat_id-derived key.
+                    # Independent of post_message above -- runs in parallel via create_task.
+                    asyncio.create_task(
+                        _maybe_ingest_to_brain(payload, mem, team_scope)
                     )
                     # Phase 8 plan 08-06 — fire-and-forget contact extraction (D3 RESEARCH.md)
                     # Process BOTH user AND assistant messages (Open Question 2 resolution).

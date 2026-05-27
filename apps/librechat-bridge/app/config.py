@@ -22,5 +22,8 @@ class Settings(BaseSettings):
     CONTACT_EXTRACTION: bool = False  # opt-in — set CONTACT_EXTRACTION=true to enable
     ANTHROPIC_CONTACT_MODEL: str = "claude-3-5-haiku-20241022"
 
+    # Phase 13 plan 13-04 — Chat -> Brain ingestion (MEM-04 / CHAT-03)
+    BRAIN_INGEST_ENABLED: bool = True  # kill-switch for the LibreChat brain ingest hook
+
 
 settings = Settings()  # type: ignore[call-arg]
