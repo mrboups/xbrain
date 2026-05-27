@@ -106,6 +106,18 @@ Initial edits to REQUIREMENTS.md went to the main repo path instead of the workt
 
 Phase 13 is the final phase of the planned roadmap. The three unchecked v1 differentiator requirements (MEM-04, CHAT-03, CHAT-07) are now [x]. The full integration check standing order (from project_xbrain_phase12_post_ship_integration_check.md) should be triggered now that Phase 13 is marked LIVE in ROADMAP.md.
 
+## Self-Check: PASSED
+
+All files exist and all commits verified:
+- `.planning/REQUIREMENTS.md` — MEM-04/CHAT-03/CHAT-07 [x], traceability Done: FOUND
+- `.planning/ROADMAP.md` — 8/8 LIVE 2026-05-24: FOUND
+- `.planning/STATE.md` — completed_phases:13, completed_plans:109: FOUND
+- `marketing-site/docs/memory.html` — id="chat-to-brain": FOUND
+- `marketing-site/docs/chat.html` — id="auto-enrichment": FOUND
+- `13-08-SUMMARY.md`: FOUND
+
+Commits: 9a4e71b, b506363, 809645a, 5e28fa5, 9f2493b, b0c5ff4 — all present in git log.
+
 ---
 *Phase: 13-chat-brain-ingestion-retrieval-enrichment-close-the-differen*
 *Completed: 2026-05-24*
