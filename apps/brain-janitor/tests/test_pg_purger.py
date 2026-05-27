@@ -111,12 +111,12 @@ async def test_purge_pg_issues_one_delete_per_table_in_order():
     for (table, _), (sql, args) in zip(PURGE_TABLES, conn.fetched, strict=True):
         # Right table targeted
         assert f"DELETE FROM {table}" in sql, sql
-        # Predicate references deleted_at + an interval cast
+        # Predicate references deleted_at
         assert "deleted_at IS NOT NULL" in sql
-        assert "deleted_at < now() - $1::interval" in sql
+        assert "deleted_at < now() - $1" in sql
         assert "RETURNING id" in sql
-        # Argument is "<retention> days"
-        assert args == ("30 days",)
+        # Argument is a timedelta (asyncpg interval codec requirement — NOT a str)
+        assert args == (timedelta(days=30),)
 
 
 @pytest.mark.asyncio
@@ -183,14 +183,14 @@ async def test_purge_pg_skips_audit_when_nothing_purged():
 
 @pytest.mark.asyncio
 async def test_purge_pg_accepts_custom_retention():
-    """retention_days flows into the $1 arg verbatim."""
+    """retention_days flows into the $1 timedelta arg correctly."""
     conn = _FakeConn({t: [] for t, _ in PURGE_TABLES})
     pool = _FakePool(conn)
 
     await purge_pg(pool, retention_days=90)  # type: ignore[arg-type]
 
     for _, args in conn.fetched:
-        assert args == ("90 days",)
+        assert args == (timedelta(days=90),)
 
 
 def test_pg_url_strips_sqlalchemy_async_prefix():

@@ -2,8 +2,12 @@
 
 For each Phase 11 brain-tracked table that exposes `deleted_at`, the purger:
   1. Opens a single transaction.
-  2. Issues `DELETE ... WHERE deleted_at < now() - $1::interval RETURNING id`
-     per table, collecting the UUIDs that were physically removed.
+  2. Issues `DELETE ... WHERE deleted_at < now() - $1 RETURNING id` per table,
+     collecting the UUIDs that were physically removed.  ``$1`` is a
+     ``datetime.timedelta`` — asyncpg serialises it natively to the Postgres
+     ``interval`` wire type.  Passing a plain str like ``"30 days"`` causes
+     asyncpg to call ``.days`` on the argument (str has no ``.days``),
+     resulting in ``'str' object has no attribute 'days'`` at runtime.
   3. Writes ONE audit_log row summarising the batch (per-table counts in payload).
   4. Commits.
 
@@ -18,6 +22,7 @@ real schema instead and put the per-table summary in the JSONB payload.
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from uuid import UUID
 
 import asyncpg
@@ -57,20 +62,22 @@ async def purge_pg(
     next run retries the whole batch (Postgres is the source of truth).
     """
     purged: dict[str, list[UUID]] = {}
-    interval_text = f"{int(retention_days)} days"
+    # Use datetime.timedelta so asyncpg serialises it to the Postgres interval
+    # wire type directly.  Passing a plain str like "30 days" causes asyncpg to
+    # call .days on the argument (str has no .days), producing:
+    #   'str' object has no attribute 'days'
+    # This was the bug causing every daily purge run to abort since 2026-05-18.
+    interval = timedelta(days=int(retention_days))
 
     async with pool.acquire() as conn:
         async with conn.transaction():
             for table, _scope_col in PURGE_TABLES:
-                # Pass the interval as an explicit ::interval cast on a $1 text
-                # parameter — avoids asyncpg's "cannot have interval params"
-                # quirk on the Postgres protocol.
                 rows = await conn.fetch(
                     f"DELETE FROM {table} "
                     f"WHERE deleted_at IS NOT NULL "
-                    f"  AND deleted_at < now() - $1::interval "
+                    f"  AND deleted_at < now() - $1 "
                     f"RETURNING id",
-                    interval_text,
+                    interval,
                 )
                 purged[table] = [r["id"] for r in rows]
                 if rows:
