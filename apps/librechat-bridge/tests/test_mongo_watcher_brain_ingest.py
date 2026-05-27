@@ -63,15 +63,23 @@ def make_mem_mock():
 async def test_user_message_triggers_brain_ingest():
     """A user-role payload must cause _maybe_ingest_to_brain to call mem.brain_ingest."""
     from app.mongo_watcher import _maybe_ingest_to_brain
-    from app.config import settings
-
-    assert settings.BRAIN_INGEST_ENABLED is True
+    import app.config as config_mod
 
     mem = make_mem_mock()
     librechat_id = str(ObjectId())
     payload = make_payload(role="user", librechat_id=librechat_id)
 
-    await _maybe_ingest_to_brain(payload, mem, "t1")
+    # Use a settings object with BRAIN_INGEST_ENABLED=True explicitly
+    # to be test-ordering independent
+    from app.config import Settings
+    enabled_settings = Settings(  # type: ignore[call-arg]
+        LIBRECHAT_MONGO_URI="mongodb://localhost:27017/test",
+        BRIDGE_SHARED_SECRET="test-bridge-secret-do-not-use-in-prod",
+        BRAIN_INGEST_ENABLED=True,
+    )
+
+    with patch("app.mongo_watcher.settings", enabled_settings):
+        await _maybe_ingest_to_brain(payload, mem, "t1")
 
     mem.brain_ingest.assert_called_once()
     call_kwargs = mem.brain_ingest.call_args.kwargs
@@ -91,11 +99,19 @@ async def test_user_message_triggers_brain_ingest():
 async def test_assistant_message_does_not_trigger_brain_ingest():
     """Assistant messages (role='assistant') must NOT call brain_ingest."""
     from app.mongo_watcher import _maybe_ingest_to_brain
+    from app.config import Settings
+
+    enabled_settings = Settings(  # type: ignore[call-arg]
+        LIBRECHAT_MONGO_URI="mongodb://localhost:27017/test",
+        BRIDGE_SHARED_SECRET="test-bridge-secret-do-not-use-in-prod",
+        BRAIN_INGEST_ENABLED=True,
+    )
 
     mem = make_mem_mock()
     payload = make_payload(role="assistant")
 
-    await _maybe_ingest_to_brain(payload, mem, "t1")
+    with patch("app.mongo_watcher.settings", enabled_settings):
+        await _maybe_ingest_to_brain(payload, mem, "t1")
 
     mem.brain_ingest.assert_not_called()
 
@@ -135,18 +151,26 @@ async def test_brain_ingest_kill_switch_disabled(monkeypatch):
 async def test_empty_content_skipped():
     """User payload with empty/whitespace content must NOT trigger brain_ingest."""
     from app.mongo_watcher import _maybe_ingest_to_brain
+    from app.config import Settings
+
+    enabled_settings = Settings(  # type: ignore[call-arg]
+        LIBRECHAT_MONGO_URI="mongodb://localhost:27017/test",
+        BRIDGE_SHARED_SECRET="test-bridge-secret-do-not-use-in-prod",
+        BRAIN_INGEST_ENABLED=True,
+    )
 
     mem = make_mem_mock()
 
-    # Test with empty string
-    payload_empty = make_payload(role="user", content="")
-    await _maybe_ingest_to_brain(payload_empty, mem, "t1")
-    mem.brain_ingest.assert_not_called()
+    with patch("app.mongo_watcher.settings", enabled_settings):
+        # Test with empty string
+        payload_empty = make_payload(role="user", content="")
+        await _maybe_ingest_to_brain(payload_empty, mem, "t1")
+        mem.brain_ingest.assert_not_called()
 
-    # Test with whitespace only
-    payload_ws = make_payload(role="user", content="   ")
-    await _maybe_ingest_to_brain(payload_ws, mem, "t1")
-    mem.brain_ingest.assert_not_called()
+        # Test with whitespace only
+        payload_ws = make_payload(role="user", content="   ")
+        await _maybe_ingest_to_brain(payload_ws, mem, "t1")
+        mem.brain_ingest.assert_not_called()
 
 
 # ---- Test 5: brain_ingest failure does NOT break loop ----
@@ -276,6 +300,8 @@ async def test_existing_hooks_still_fire():
         # Schedule it properly so it actually runs
         return asyncio.ensure_future(coro)
 
+    from app.mongo_watcher import messages_watch_loop
+
     with patch.object(db, "watch", return_value=mock_stream):
         with patch("app.mongo_watcher.save_resume_token"):
             with patch("app.mongo_watcher.asyncio.create_task", side_effect=capture_create_task):
@@ -299,19 +325,27 @@ async def test_idempotency_key_shape():
     (server-side uuid5 deduplicates via Plan 13-03's race-free upsert).
     """
     from app.mongo_watcher import _maybe_ingest_to_brain
+    from app.config import Settings
+
+    enabled_settings = Settings(  # type: ignore[call-arg]
+        LIBRECHAT_MONGO_URI="mongodb://localhost:27017/test",
+        BRIDGE_SHARED_SECRET="test-bridge-secret-do-not-use-in-prod",
+        BRAIN_INGEST_ENABLED=True,
+    )
 
     librechat_id = str(ObjectId())
     payload = make_payload(role="user", librechat_id=librechat_id)
 
-    # First call
-    mem1 = make_mem_mock()
-    await _maybe_ingest_to_brain(payload, mem1, "t1")
-    key1 = mem1.brain_ingest.call_args.kwargs["metadata"]["idempotency_key"]
+    with patch("app.mongo_watcher.settings", enabled_settings):
+        # First call
+        mem1 = make_mem_mock()
+        await _maybe_ingest_to_brain(payload, mem1, "t1")
+        key1 = mem1.brain_ingest.call_args.kwargs["metadata"]["idempotency_key"]
 
-    # Second call with same payload (same id)
-    mem2 = make_mem_mock()
-    await _maybe_ingest_to_brain(payload, mem2, "t1")
-    key2 = mem2.brain_ingest.call_args.kwargs["metadata"]["idempotency_key"]
+        # Second call with same payload (same id)
+        mem2 = make_mem_mock()
+        await _maybe_ingest_to_brain(payload, mem2, "t1")
+        key2 = mem2.brain_ingest.call_args.kwargs["metadata"]["idempotency_key"]
 
     assert key1 == f"librechat:{librechat_id}"
     assert key2 == f"librechat:{librechat_id}"
