@@ -128,6 +128,12 @@ class Settings(BaseSettings):
     # docker-compose env QDRANT_COLLECTION can override per-environment.
     QDRANT_COLLECTION: str = "messages"
 
+    # Phase 13 — Chat → Brain Ingestion + Retrieval Enrichment
+    RELEVANCE_HAIKU_ENABLED: bool = True
+    RELEVANCE_DAILY_TOKEN_CAP_PER_TEAM: int = 50_000  # input tokens per team per day
+    RELEVANCE_HAIKU_MODEL: str = "claude-haiku-4-5-20251001"
+    RELEVANCE_HAIKU_TIMEOUT_S: float = 3.0
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}

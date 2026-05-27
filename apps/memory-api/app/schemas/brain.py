@@ -20,6 +20,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
+
+
 class BrainEventOut(BaseModel):
     """One row from `v_brain_events` projected over the wire.
 
@@ -74,3 +76,18 @@ class TruthLevelPatchBody(BaseModel):
         pattern=r"^(EPHEMERAL|WORKING|VALIDATED|CANONICAL|PUBLIC)$",
         description="One of the 5 canonical truth levels from the tagging contract.",
     )
+
+
+class BrainIngestRequest(BaseModel):
+    """POST /v1/brain/ingest body — used by librechat-bridge and openwebui-pipeline.
+
+    The server builds the MemoryItem (truth_level=WORKING per Phase 13 D3) and
+    runs the Haiku relevance filter before upserting. Fire-and-forget on success.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    content: str = Field(..., min_length=1, max_length=32_000)
+    source: str = Field(..., min_length=1, max_length=128)
+    metadata: dict = Field(default_factory=dict)
+    project_scope: str | None = Field(default=None, max_length=64)
