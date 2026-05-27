@@ -16,6 +16,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from app.config import settings
 from app.conv_enricher import enrich_new_conversation
 from app.memory_api_client import MemoryApiClient
+from app.message_enricher import enrich_turn
 from app.state_store import load_resume_token, save_resume_token
 from app.task_intent_detector import detect_task_intent
 from app.contact_extractor import extract_contacts_from_message
@@ -184,6 +185,14 @@ async def messages_watch_loop(db, mem: MemoryApiClient) -> None:
                     asyncio.create_task(
                         _maybe_ingest_to_brain(payload, mem, team_scope)
                     )
+                    # Phase 13 plan 13-05 — per-turn RAG enrichment (CHAT-07 D5).
+                    # User messages only. Injects a system message via Mongo
+                    # before the LLM processes this user turn. Fire-and-forget;
+                    # enrich_turn is idempotent under change-stream resume re-delivery.
+                    if payload.get("role") == "user":
+                        asyncio.create_task(
+                            enrich_turn(doc, db, mem, sub=payload["sub"], team_scope=team_scope)
+                        )
                     # Phase 8 plan 08-06 — fire-and-forget contact extraction (D3 RESEARCH.md)
                     # Process BOTH user AND assistant messages (Open Question 2 resolution).
                     if payload.get("content"):

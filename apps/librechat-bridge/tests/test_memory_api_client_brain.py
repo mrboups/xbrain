@@ -232,3 +232,153 @@ async def test_brain_ingest_raises_on_5xx_after_retries():
             )
     finally:
         await client.aclose()
+
+
+# ===== Task 1 Tests (Phase 13 plan 13-05): get_system_prompt min_level extension =====
+
+# -- Test 7 (plan-spec Test 1): signature has min_level param --
+
+
+def test_get_system_prompt_has_min_level_param():
+    """get_system_prompt must accept min_level: str | None = None."""
+    from app.memory_api_client import MemoryApiClient
+
+    sig = inspect.signature(MemoryApiClient.get_system_prompt)
+    params = sig.parameters
+    assert "min_level" in params, "Expected param 'min_level' in get_system_prompt signature"
+    assert params["min_level"].default is None, "min_level must default to None"
+
+
+# -- Test 8 (plan-spec Test 2): request includes min_level and top_k in query string --
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_system_prompt_request_shape_with_min_level():
+    """When min_level=VALIDATED and top_k=5, request URL must contain both params."""
+    from app.memory_api_client import MemoryApiClient
+
+    route = respx.get("http://memory-api.test/v1/system-prompt").mock(
+        return_value=httpx.Response(200, json={"system_addendum": "## facts", "fact_count": 1})
+    )
+
+    client = MemoryApiClient()
+    try:
+        result = await client.get_system_prompt(
+            sub="x",
+            team_scope="t1",
+            query="deploy window",
+            min_level="VALIDATED",
+            top_k=5,
+        )
+    finally:
+        await client.aclose()
+
+    assert route.called
+    url = str(route.calls[0].request.url)
+    assert "min_level=VALIDATED" in url
+    assert "top_k=5" in url
+    assert "query=deploy" in url  # URL-encoded query present
+    assert result["fact_count"] == 1
+
+
+# -- Test 9 (plan-spec Test 3): default behavior (no min_level) omits param --
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_system_prompt_default_no_min_level():
+    """Calling without min_level must NOT include min_level= in request URL (server CANONICAL default)."""
+    from app.memory_api_client import MemoryApiClient
+
+    route = respx.get("http://memory-api.test/v1/system-prompt").mock(
+        return_value=httpx.Response(200, json={"system_addendum": "", "fact_count": 0})
+    )
+
+    client = MemoryApiClient()
+    try:
+        await client.get_system_prompt(sub="x", team_scope="t1", query="some query text")
+    finally:
+        await client.aclose()
+
+    assert route.called
+    url = str(route.calls[0].request.url)
+    assert "min_level=" not in url, "min_level must be absent when not passed"
+
+
+# -- Test 10 (plan-spec Test 4): CHAT07_TOP_K + CHAT07_TRUTH_FILTER_MIN_LEVEL config --
+
+
+def test_chat07_config_knobs():
+    """CHAT07_TOP_K defaults to 5 and CHAT07_TRUTH_FILTER_MIN_LEVEL defaults to VALIDATED."""
+    import importlib
+    import app.config as config_mod
+
+    importlib.reload(config_mod)
+    from app.config import settings as fresh_settings
+
+    assert fresh_settings.CHAT07_TOP_K == 5
+    assert fresh_settings.CHAT07_TRUTH_FILTER_MIN_LEVEL == "VALIDATED"
+
+
+# -- Test 11 (plan-spec Test 5): conv_enricher passes min_level and top_k --
+
+
+def test_conv_enricher_uses_validated_min_level():
+    """enrich_new_conversation call to get_system_prompt must pass min_level=VALIDATED and top_k."""
+    from pathlib import Path
+
+    source = Path(__file__).parent.parent / "app" / "conv_enricher.py"
+    source = source.read_text()
+    assert "min_level=settings.CHAT07_TRUTH_FILTER_MIN_LEVEL" in source, (
+        "conv_enricher.py must pass min_level=settings.CHAT07_TRUTH_FILTER_MIN_LEVEL"
+    )
+    assert "top_k=settings.CHAT07_TOP_K" in source, (
+        "conv_enricher.py must pass top_k=settings.CHAT07_TOP_K"
+    )
+
+
+# -- Test 12 (plan-spec Test 6): conv_enricher end-to-end with updated signature --
+
+
+@pytest.mark.asyncio
+async def test_conv_enricher_end_to_end_with_validated(mongomock_db):
+    """enrich_new_conversation works end-to-end after signature update."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.conv_enricher import enrich_new_conversation
+
+    db, _alice, _bob = mongomock_db
+    await db["conversations"].update_one(
+        {"conversationId": "conv-1"}, {"$set": {"title": "deploy window question"}}
+    )
+    conv_doc = await db["conversations"].find_one({"conversationId": "conv-1"})
+
+    mem = MagicMock()
+    mem.get_system_prompt = AsyncMock(
+        return_value={
+            "system_addendum": (
+                "## Team facts (VALIDATED+ truth level)\n"
+                "- (deadbeef, conf=0.92): The deploy window is every Tuesday 14:00 UTC"
+            ),
+            "fact_count": 1,
+        }
+    )
+
+    result = await enrich_new_conversation(
+        conv_doc, db, mem, sub="u@e.com", team_scope="t1"
+    )
+
+    assert result is True
+    mem.get_system_prompt.assert_called_once()
+    call_kwargs = mem.get_system_prompt.call_args.kwargs
+    assert call_kwargs["query"] == "deploy window question"
+    assert call_kwargs["team_scope"] == "t1"
+    # Must pass min_level and top_k now
+    assert "min_level" in call_kwargs
+    assert "top_k" in call_kwargs
+
+    sys_msgs = await db["messages"].find({"messageId": "xbrain-system-conv-1"}).to_list(length=5)
+    assert len(sys_msgs) == 1
+    assert sys_msgs[0]["metadata"]["xbrain_injected"] is True
+    assert sys_msgs[0]["metadata"]["fact_count"] == 1

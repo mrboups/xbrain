@@ -25,5 +25,9 @@ class Settings(BaseSettings):
     # Phase 13 plan 13-04 — Chat -> Brain ingestion (MEM-04 / CHAT-03)
     BRAIN_INGEST_ENABLED: bool = True  # kill-switch for the LibreChat brain ingest hook
 
+    # Phase 13 plan 13-05 — Chat enrichment (CHAT-07)
+    CHAT07_TOP_K: int = 5
+    CHAT07_TRUTH_FILTER_MIN_LEVEL: str = "VALIDATED"  # VALIDATED + CANONICAL + PUBLIC per >= semantics
+
 
 settings = Settings()  # type: ignore[call-arg]

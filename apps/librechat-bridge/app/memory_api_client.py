@@ -84,14 +84,22 @@ class MemoryApiClient:
         query: str,
         project_scope: str | None = None,
         top_k: int | None = None,
+        min_level: str | None = None,
     ) -> dict:
-        """Fetch the team's CANONICAL-fact addendum for a given query (RAG)."""
+        """Fetch the team's fact addendum for a given query (RAG).
+
+        Phase 13 D6: pass min_level='VALIDATED' to include VALIDATED + CANONICAL + PUBLIC
+        (the >= comparison in NativeProvider.search). Default None preserves the
+        server-side CANONICAL default for backward compat.
+        """
         token = make_bridge_jwt(sub=sub, team_scope=team_scope)
         params: dict[str, str | int] = {"query": query[:500]}
         if project_scope:
             params["project_scope"] = project_scope
         if top_k is not None:
             params["top_k"] = top_k
+        if min_level is not None:
+            params["min_level"] = min_level
         r = await self.client.get(
             f"{self.base}/v1/system-prompt",
             headers={"Authorization": f"Bearer {token}", "X-Team-Scope": team_scope},
