@@ -432,6 +432,31 @@ curl https://api.grooveos.app/v1/memory/search \
 # Returns top 20 CANONICAL facts for the team,
 # pre-formatted for system prompt injection</code></pre>
 
+      <!-- ========================================================
+           Auto-enriched chat (Phase 13)
+           ======================================================== -->
+      <section class="mb-12" id="auto-enrichment">
+        <h2>Auto-enriched chat (Phase 13)</h2>
+        <p>
+          Since Phase 13, every chat reply across LibreChat and Open WebUI is automatically
+          enriched with relevant team facts (validated or canonical truth level) before the model
+          replies. You do not need to copy-paste context &mdash; your team&rsquo;s memory is already in the
+          system prompt.
+        </p>
+        <p>
+          Substantive user messages also automatically populate the team brain. The
+          <a href="brain-monitor.html">Brain Monitor</a>
+          is the canonical place to promote a fact from <code>WORKING</code> to <code>VALIDATED</code>
+          or <code>CANONICAL</code>. Once promoted, the fact is retrievable in any chat turn on any
+          frontend (LibreChat, Open WebUI, team chat) for the same team scope.
+        </p>
+        <p>
+          Trivial messages (&ldquo;ok&rdquo;, &ldquo;thanks&rdquo;, &ldquo;@claude what&rsquo;s up&rdquo;) are filtered by a Haiku 4.5
+          relevance classifier and never pollute the brain. Cost is bounded by a per-team daily
+          token budget.
+        </p>
+      </section>
+
     </main>
   </div>
 

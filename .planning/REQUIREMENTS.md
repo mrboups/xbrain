@@ -32,7 +32,7 @@ Périmètre du milestone d'initialisation (Phases 1 + 2 + 3 de la roadmap). Tout
 - [ ] **MEM-01**: Every datum written to the system carries the 7-field tagging contract (`team_scope`, `project_scope`, `visibility`, `confidence`, `truth_level`, `source`, `validation_status`); writes missing any field are rejected at `memory-api` layer
 - [ ] **MEM-02**: New data is born at `truth_level=EPHEMERAL` by default
 - [ ] **MEM-03**: Every memory item has provenance metadata: who created it (user/service), from which frontend or tool, on which conversation/event
-- [ ] **MEM-04**: Conversations from any frontend (LibreChat, Open WebUI) are persisted via `memory-api` and indexed for retrieval
+- [x] **MEM-04**: Conversations from any frontend (LibreChat, Open WebUI) are persisted via `memory-api` and indexed for retrieval
 - [ ] **MEM-05**: Documents and assets (PDFs, images, decks, datasets) are stored in object storage and indexed with full tagging contract
 - [ ] **MEM-06**: Memory items support entity-aware long-term storage (entities surface across conversations and projects within a team)
 - [ ] **MEM-07**: Memory items support fact versioning — updating a fact creates a new version with diff retained, never a silent overwrite
@@ -44,11 +44,11 @@ Périmètre du milestone d'initialisation (Phases 1 + 2 + 3 de la roadmap). Tout
 
 - [ ] **CHAT-01**: User can chat with multiple LLMs (Claude, GPT, Grok minimum) from a single team frontend (LibreChat)
 - [ ] **CHAT-02**: New LLM providers can be added by org admin via configuration without code change
-- [ ] **CHAT-03**: Conversation history persists per user and is queryable as team memory
+- [x] **CHAT-03**: Conversation history persists per user and is queryable as team memory
 - [ ] **CHAT-04**: User can upload files (PDF, image, dataset) into a conversation and ask questions over them (basic RAG)
 - [ ] **CHAT-05**: Open WebUI is available as a separate admin/tooling workspace (RAG config, agent tests, monitoring)
 - [ ] **CHAT-06**: User can request a parallel "second opinion" from a different model on the same prompt (e.g., ask Claude, get Grok's parallel critique)
-- [ ] **CHAT-07**: Chat replies are auto-enriched with relevant `CANONICAL` facts from the user's team/project memory before the LLM call
+- [x] **CHAT-07**: Chat replies are auto-enriched with relevant `CANONICAL` facts from the user's team/project memory before the LLM call
 - [ ] **CHAT-08**: Members who use ChatGPT externally can read/write team memory via a `memory-api` OpenAI-compatible endpoint
 
 ### Search & RAG
@@ -215,7 +215,7 @@ Mapping requirement → phase. Rempli par le roadmapper — 2026-05-02.
 | MEM-01 | Phase 1 | Pending |
 | MEM-02 | Phase 1 | Pending |
 | MEM-03 | Phase 1 | Pending |
-| MEM-04 | Phase 1 | Pending |
+| MEM-04 | Phase 1 (closed Phase 13) | Done |
 | MEM-05 | Phase 1 | Pending |
 | MEM-06 | Phase 2 | Pending |
 | MEM-07 | Phase 2 | Pending |
@@ -224,11 +224,11 @@ Mapping requirement → phase. Rempli par le roadmapper — 2026-05-02.
 | MEM-10 | Phase 2 | Pending |
 | CHAT-01 | Phase 1 | Pending |
 | CHAT-02 | Phase 1 | Pending |
-| CHAT-03 | Phase 1 | Pending |
+| CHAT-03 | Phase 1 (closed Phase 13) | Done |
 | CHAT-04 | Phase 1 | Pending |
 | CHAT-05 | Phase 1 | Pending |
 | CHAT-06 | Phase 2 | Pending |
-| CHAT-07 | Phase 2 | Pending |
+| CHAT-07 | Phase 2 (closed Phase 13) | Done |
 | CHAT-08 | Phase 1 | Pending |
 | SRCH-01 | Phase 1 | Pending |
 | SRCH-02 | Phase 1 | Pending |
@@ -351,4 +351,4 @@ Several capabilities shipped between phases via the GSD Quick Task surface (atom
 
 ---
 *Requirements defined: 2026-05-02 (v1 73 REQ-IDs frozen)*
-*Last updated: 2026-05-17 — post-v1 capabilities section added (Phases 8-12 + Quick Tasks shipped); v1 73-REQ contract unchanged.*
+*Last updated: 2026-05-24 — MEM-04 / CHAT-03 / CHAT-07 ticked [x] (closed Phase 13 — Chat → Brain Ingestion + Retrieval Enrichment). Post-v1 capabilities section added (Phases 8-12 + Quick Tasks shipped).*

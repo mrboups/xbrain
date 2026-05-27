@@ -452,6 +452,50 @@ PATCH /v1/promotions/{promotion_id}
       </p>
 
       <!-- ======================================================
+           Chat → Brain Ingestion
+           ====================================================== -->
+      <section class="mb-12" id="chat-to-brain">
+        <h2>Chat &rarr; Brain Ingestion</h2>
+        <p>
+          Every substantive chat message &mdash; across team chat, LibreChat, and Open WebUI &mdash; is automatically
+          ingested into the team brain as a <code>WORKING</code> memory item. This is the core xbrain
+          contract: any chat content, human or agent, any frontend, lands in a shared team-scoped brain
+          and is reusable on the next conversation.
+        </p>
+
+        <h3>Relevance filter (Claude Haiku 4.5)</h3>
+        <p>
+          Before any upsert, the message passes through a Haiku 4.5 binary classifier with ephemeral
+          prompt caching. Trivial messages (greetings, single-word acks, questions without content,
+          <code>@claude</code> command prefixes) are filtered out so the brain stores facts, not chatter.
+          A per-team daily token budget (default 50&#x2009;000 input tokens) bounds cost.
+        </p>
+        <p>
+          On Haiku error, timeout, or budget exhaustion the system falls back to a heuristic
+          (&ge;15 chars + non-<code>@claude</code> prefix). The ingest hook is fire-and-forget &mdash; chat
+          responses are never delayed by classifier latency, and a memory-api outage does not break
+          the chat send.
+        </p>
+
+        <h3>Per-turn retrieval enrichment</h3>
+        <p>
+          On every user turn (LibreChat, Open WebUI, team chat), xbrain fetches the team&rsquo;s top
+          <code>VALIDATED</code> + <code>CANONICAL</code> facts relevant to the message (top-K=5) and
+          injects them as a system message before the LLM call. Promotions via the
+          <a href="brain-monitor.html">Brain Monitor</a>
+          are reflected in the next chat turn &mdash; no caching, no rebuild.
+        </p>
+
+        <h3>Implementation reference</h3>
+        <ul>
+          <li><code>apps/memory-api/app/services/relevance_filter.py</code> &mdash; Haiku classifier + budget cap</li>
+          <li><code>POST /v1/brain/ingest</code> &mdash; fire-and-forget upsert endpoint (bridge JWT auth)</li>
+          <li><code>apps/librechat-bridge/app/message_enricher.py</code> &mdash; LibreChat per-turn enricher</li>
+          <li><code>apps/openwebui-pipeline/app/main.py</code> &mdash; Open WebUI ingest + Anthropic system-param injection</li>
+        </ul>
+      </section>
+
+      <!-- ======================================================
            Error Reference
            ====================================================== -->
       <h2>Error Reference</h2>
