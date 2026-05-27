@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
-last_updated: "2026-05-27T09:52:46.234Z"
-last_activity: 2026-05-27 -- Phase 13 planning complete
+last_updated: "2026-05-27T09:55:39.819Z"
+last_activity: 2026-05-27 -- Phase 13 execution started
 progress:
   total_phases: 13
   completed_phases: 11
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 11 — Brain Monitor (Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard) — ready for `/gsd:execute-phase 11`. Phase 12 (GitHub App migration) roadmapped, planning pending until Phase 11 ships.
+**Current focus:** Phase 13 — Chat → Brain Ingestion + Retrieval Enrichment — close the differentiator
 
 ## Current Position
 
-Phase: 10 (GitHub-Primary Auth + Org-Driven Team Membership) — **LIVE 2026-05-14** (web sign-in fix 2026-05-17, commit 8c3df36)
-Plan: 6 of 6 (all plans shipped + verify-phase10.sh PASS + Playwright smoke PASS); OAuth web sign-in end-to-end validated 2026-05-17
-Status: Ready to execute
-Last activity: 2026-05-27 -- Phase 13 planning complete
+Phase: 13 (Chat → Brain Ingestion + Retrieval Enrichment — close the differentiator) — EXECUTING
+Plan: 1 of 8
+Status: Executing Phase 13
+Last activity: 2026-05-27 -- Phase 13 execution started
 
 Progress: [████████░░] 83% — 10 of 12 phases COMPLETE (Phase 11 PLANNED, Phase 12 ROADMAPPED)
 

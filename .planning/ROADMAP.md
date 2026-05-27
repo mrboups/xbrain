@@ -385,12 +385,12 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 13-01-PLAN.md — relevance_filter (Haiku 4.5 + cache + budget cap) + POST /v1/brain/ingest endpoint
+- [x] 13-01-PLAN.md — relevance_filter (Haiku 4.5 + cache + budget cap) + POST /v1/brain/ingest endpoint
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [ ] 13-02-PLAN.md — team_chat ingest uses relevance_filter.classify (swap heuristic gate)
-- [ ] 13-03-PLAN.md — native_provider upsert race fix (INSERT … ON CONFLICT DO UPDATE)
+- [x] 13-03-PLAN.md — native_provider upsert race fix (INSERT … ON CONFLICT DO UPDATE)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -460,7 +460,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 10. GitHub-Primary Auth + Org-Driven Team Membership | 6/6 | ✅ LIVE | 2026-05-14 (deployed + verify PASS) — OAuth client_id+callback URL bug fixed 2026-05-17 |
 | 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 11/11 | ✅ LIVE | 2026-05-17 (verify-phase11.sh PASS 5/5 + 11 SKIP fixture, alembic 0018 head on VM, brain-janitor running, UI live grooveos.app/account/teams/brain/ + /account/admin/) |
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 11/11 | ✅ LIVE | 2026-05-17 (alembic 0019 head, memory-api rebuilt, verify-phase12.sh PASS 13/13 + 5 SKIP fixture, Firebase teams.js with new client_id Iv23liVnZvIN0Lo6isof live) |
-| 13. Chat → Brain Ingestion + Retrieval Enrichment | 0/8 | 🟡 Planned | 2026-05-24 (8 plans created, ready for `/gsd:execute-phase 13`) |
+| 13. Chat → Brain Ingestion + Retrieval Enrichment | 2/8 | In Progress|  |
 
 ---
 
