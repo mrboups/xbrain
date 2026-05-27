@@ -7,6 +7,7 @@ xbrain est construit en trois phases qui correspondent aux trois invariants du p
 ## Phases
 
 **Phase Numbering:**
+
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
@@ -26,45 +27,55 @@ Decimal phases appear between their surrounding integers in numeric order.
 ## Phase Details
 
 ### Phase 1: Socle Infra + Frontends + memory-api
+
 **Goal**: Un membre de l'équipe peut ouvrir LibreChat, chatter avec au moins deux modèles (Claude + GPT), et cette conversation est stockée dans memory-api avec les 7 champs de tagging. Team A ne peut pas voir les conversations de Team B.
 **Depends on**: Nothing (first phase)
 **Entry gate**: Compte GCP `team@grooveos.app`, projet `xbrain-prod` créé, VM `e2-medium` (4 GB) provisionnée, Docker installé, firewall configuré.
 **Requirements**: AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, TEAM-01, TEAM-02, TEAM-03, TEAM-04, TEAM-05, TEAM-06, MEM-01, MEM-02, MEM-03, MEM-04, MEM-05, CHAT-01, CHAT-02, CHAT-03, CHAT-04, CHAT-05, CHAT-08, SRCH-01, SRCH-02, OBS-01, OBS-04, ADMIN-01, ADMIN-02, ADMIN-03, ADMIN-04, ADMIN-05, ADMIN-06
 **Success Criteria** (what must be TRUE):
+
   1. Un membre de l'équipe peut se connecter via Google SSO depuis LibreChat et Open WebUI — les deux frontends reconnaissent la même identité (même `source_user_id` OIDC `sub` dans memory-api)
   2. Un utilisateur peut lancer une conversation dans LibreChat avec Claude, puis une autre avec GPT ou Grok, et les deux conversations sont retrievables depuis memory-api avec tous les 7 champs de tagging présents (`team_scope`, `project_scope`, `visibility`, `confidence`, `truth_level=EPHEMERAL`, `source`, `validation_status`) — un write sans l'un de ces champs retourne 422
   3. Un admin peut créer une équipe, inviter un membre, et les données de Team A sont invisibles à un utilisateur authentifié de Team B — vérifié via query directe à memory-api et non seulement via l'UI
   4. L'intégralité du stack (LibreChat + Open WebUI + PostgreSQL + Qdrant + memory-api) démarre avec un seul `docker compose up` depuis le repo et les healthchecks passent
   5. Un test de restore depuis backup a été exécuté sur un environnement clean et tous les services redémarrent avec les données correctes (gate obligatoire avant de déclarer Phase 1 terminée)
+
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 2: Mémoire Intelligente + Agents
+
 **Goal**: La mémoire d'équipe devient intelligente — les faits sont versionnés, les promotions truth-level passent par un workflow humain, les agents ingèrent et valident via LangGraph avec HITL, et chaque réponse de chat est enrichie avec les faits CANONICAL de l'équipe.
 **Depends on**: Phase 1
 **Entry gate**: VM upgradée vers `e2-standard-2` (8 GB, ~38-49€/mo) AVANT d'ajouter le moindre service Phase 2. POC 1-jour mem0 vs native réalisé et résultat documenté. `MemoryProvider` interface créée dans `/packages/memory-models`.
 **Requirements**: MEM-06, MEM-07, MEM-08, MEM-09, MEM-10, CHAT-06, CHAT-07, SRCH-03, SRCH-04, TRUTH-01, TRUTH-02, TRUTH-03, TRUTH-04, TRUTH-05, TRUTH-06, TRUTH-07, TRUTH-08, TRUTH-09, AGENT-01, AGENT-02, AGENT-03, AGENT-04, AGENT-05, AGENT-06, AGENT-07, OBS-02, OBS-03, OBS-05
 **Success Criteria** (what must be TRUE):
+
   1. Un membre peut proposer la promotion d'un fait de `WORKING` à `VALIDATED` depuis Open WebUI, un admin reçoit la demande, approuve, et l'événement apparaît dans le log immuable avec promoteur, approbateur, date et justification — un `PATCH /facts/{id}` direct sur `truth_level` retourne 405
   2. Un agent LangGraph peut être mis en pause à un checkpoint d'approbation, un humain valide dans Open WebUI, et l'agent reprend à partir de l'état checkpointé sans perte de contexte
   3. Une conversation dans LibreChat avec Claude inclut automatiquement dans son system prompt les faits `CANONICAL` de l'équipe/projet pertinents, récupérés depuis Qdrant avec filtre `team_scope` + `truth_level >= CANONICAL`
   4. L'agent d'ingestion de documents convertit automatiquement un PDF uploadé en faits structurés avec provenance back-linkée à la conversation/upload source, déposés à `EPHEMERAL` ou `WORKING` seulement — aucun chemin ne permet d'atterrir directement à `VALIDATED+` via import
   5. Un admin voit le dashboard de coût par équipe (token spend, breakdown modèle, contribution agent-vs-human) dans Langfuse
+
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 3: Graphe + Extraction + Intégrations
+
 **Goal**: La mémoire d'équipe est connectée au monde extérieur — Drive sync incrémental, outils internes en MCP, et le graphe Neo4j rend les relations entre entités et le lineage des faits queryables.
 **Depends on**: Phase 2
 **Entry gate**: Décision VM Phase 3 prise : `e2-standard-4` (16 GB, ~98€/mo) OU Langfuse migré sur VM séparée `e2-small` (~62€/mo total) selon charge observée en fin de Phase 2. POC Memori BYODB réalisé avant planning Phase 3.
 **Requirements**: SRCH-05, MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06, MCP-07, INT-01, INT-02, INT-03, INT-04
 **Success Criteria** (what must be TRUE):
+
   1. Un utilisateur peut demander depuis LibreChat "qu'est-ce qui dépend de l'entité X ?" et obtenir une réponse graph-traversal depuis Neo4j via memory-api — sans requête Cypher directe ni accès DB
   2. Un dossier Google Drive mappé à une équipe est synchronisé incrementalement dans memory-api (seuls les fichiers modifiés sont re-traités), chaque document indexé avec le contrat de tagging complet, déposé à `WORKING`
   3. Un développeur peut enregistrer un nouveau service MCP (scraper, calendar, deck-service) via le gateway sans modifier l'infra centrale, et chaque appel outil depuis LibreChat ou un agent inclut le `team_scope` et `user_id` injectés par le gateway
   4. Les résumés produits par un agent peuvent être écrits en retour dans un document Drive avec opt-in utilisateur explicite, et cette action est tracée dans l'audit log memory-api
+
 **Plans**: 12 plans
 Plans:
+
 - [ ] 03-01-PLAN.md — Neo4j compose service + volume + .env.example
 - [ ] 03-02-PLAN.md — Alembic migration 0004 (neo4j_outbox + team_drive_mappings + UNIQUE source)
 - [ ] 03-03-PLAN.md — Google OAuth scope upgrade runbook (docs/google-oauth-scope-upgrade.md)
@@ -79,18 +90,22 @@ Plans:
 - [ ] 03-12-PLAN.md — MCP tool registration script + E2E validation
 
 ### Phase 4: Consolidation MCP Frontends + Intégrations Avancées
+
 **Goal**: Fermer la boucle multi-frontend des MCP tools (LibreChat + agent-runtime appellent réellement la gateway), supprimer les frictions résiduelles (Open WebUI logging conversations, latence Drive sync), livrer le dernier MCP tool requirement (deck-service), et ouvrir le mapping Drive multi-dossier par équipe — sans ajouter de service lourd.
 **Depends on**: Phase 3 + Phase 3.5
 **Entry gate**: Phase 3.5 fully shipped (mcp-gateway tool-call E2E PASS) ; verify-phase1/2/3 PASS ; `docker stats` confirme ≥ 2 GB headroom sur la VM e2-standard-2.
 **Requirements**: MEM-04 (résiduel Phase 2), MCP-05, MCP-06, MCP-07, INT-02 (élargi push webhooks), INT-03 (élargi multi-folder)
 **Success Criteria** (what must be TRUE):
+
   1. Un user qui chatte dans LibreChat peut écrire "scrape https://example.com" et le LLM appelle réellement `mcp-scraper` via la gateway, retourne le contenu, et l'appel apparaît dans `audit_log` avec `team_scope` + `user_sub` corrects (MCP-05 réel).
   2. Un user qui chatte dans Open WebUI dans une conversation neuve voit le chat correctement loggé dans memory-api (`POST /v1/messages` retourne 201, conversation row créée silencieusement) — vérifié via SELECT direct sur la table `conversations` (MEM-04 résiduel).
   3. Un agent LangGraph peut appeler un MCP tool via le wrapper `mcp_gateway_client.py` et l'output atterrit dans memory-api avec le tagging contract complet (MCP-06 réel).
   4. Un fichier sauvegardé dans Drive devient queryable dans memory-api en moins de 30 secondes en cas nominal (push webhook), avec le polling 5min comme fallback (INT-02 amélioré).
   5. Un admin peut mapper 2+ dossiers Drive distincts à la même équipe avec project_scope distinct par mapping (INT-03 élargi multi-folder) ; un user peut prompter "génère un deck pour X" et obtenir un `.pptx` dans MinIO indexé en mémoire (MCP-07).
+
 **Plans**: 8 plans
 Plans:
+
 - [x] 04-01-PLAN.md — memory-api upsert silencieux conversations sur POST /v1/messages
 - [ ] 04-02-PLAN.md — mcp-gateway endpoint GET /mcp/aggregate (serveur MCP agrégé pour LibreChat)
 - [ ] 04-03-PLAN.md — LibreChat config mcpServers + smoke E2E
@@ -101,11 +116,13 @@ Plans:
 - [ ] 04-08-PLAN.md — register-mcp-tools.sh update + verify-phase4.sh + UAT
 
 ### Phase 5: Plateforme Projets Équipe
+
 **Goal**: Transformer xbrain en plateforme complète pour les équipes : pipeline de déploiement GitOps (GitHub Actions → Cloud Run + Firebase), extraction intelligente temporelle (Graphiti), extension Chrome pour validation truth-level, modèle d'authentification unifié (GitHub Org + Google + account linking), et dashboard des projets déployés.
 **Depends on**: Phase 4
 **Entry gate**: Phase 4 fully shipped (verify-phase4.sh PASS 8/8) ; VM e2-standard-2 avec headroom suffisant (graphiti-service ajoute ~512m).
 **Requirements**: TEAM-01, TEAM-03, AUTH-01, AUTH-03, MEM-06, MEM-07, MEM-08, CHAT-08
 **Success Criteria** (what must be TRUE):
+
   1. `GET http://graphiti-service:8300/v1/healthz` retourne `{"status": "ok", "graphiti": true}` et `POST /v1/ingest` retourne 202 en moins de 500ms.
   2. LibreChat affiche deux boutons de connexion (Google + GitHub) — un user peut se connecter avec son compte GitHub de l'org configurée (`GITHUB_ORG`).
   3. La table `users` PostgreSQL a les colonnes `github_username` et `github_id` (migration 0007 appliquée).
@@ -113,8 +130,10 @@ Plans:
   5. L'extension Chrome (Manifest V3) peut envoyer du contenu sélectionné sur une page web vers `api.grooveos.app/v1/memory` avec le truth_level choisi par l'utilisateur — memory-api retourne 201.
   6. `projects-dashboard/public/index.html` est généré par `generate_dashboard.py` et déployé sur Firebase Hosting (ou testable localement).
   7. `bash infrastructure/scripts/verify-phase5.sh` retourne `PASS: 8 / 8`.
+
 **Plans**: 7 plans
 Plans:
+
 - [x] 05-01-PLAN.md — graphiti-service container (FastAPI wrapper graphiti-core, port 8300, Neo4j backend)
 - [x] 05-02-PLAN.md — GitHub OAuth LibreChat + migration 0007 github_username + membership middleware
 - [x] 05-03-PLAN.md — brain.yaml schema + GitHub Actions templates Cloud Run / Firebase + POST /v1/admin/projects
@@ -124,19 +143,23 @@ Plans:
 - [x] 05-07-PLAN.md — register-mcp-tools.sh vérification + verify-phase5.sh (8 tests)
 
 ### Phase 6: Marketing Site + Documentation
+
 **Goal**: Livrer un site marketing statique en anglais (fond blanc, cible startup teams implémentant l'AI) + documentation complète de toutes les features Phase 1-5, déployés en ligne via Firebase Hosting.
 **Depends on**: Phase 5
 **Entry gate**: Phase 5 fully shipped.
 **Requirements**: (non-requirements phase — pure content/docs delivery)
 **Success Criteria** (what must be TRUE):
+
   1. `https://xbrain-marketing.web.app` accessible (HTTP 200) avec la landing page complète (7 sections : Hero, Problem, Solution, Features, How it works, Technical overview, Footer)
   2. Les 13 pages de documentation sont accessibles via leurs URLs Firebase et la sidebar 14 liens est fonctionnelle sur toutes les pages
   3. `docs/memory.html` contient les 5 truth levels et les 7 champs de tagging avec exemples curl
   4. `docs/api-reference.html` documente >= 15 endpoints memory-api avec exemples request/response
   5. `docs/deployment.html` couvre les Phases 1 à 5 avec les commandes exactes (docker compose, firebase, gcloud)
   6. Le design est cohérent : fond blanc, accent violet #7C3AED, TailwindCSS CDN, aucun build step
+
 **Plans**: 8 plans
 Plans:
+
 - [x] 06-01-PLAN.md — Firebase config + CSS foundation (style.css + docs.css)
 - [x] 06-02-PLAN.md — Landing page index.html (7 sections, TailwindCSS CDN)
 - [x] 06-03-PLAN.md — Docs home + Architecture + Memory System pages
@@ -147,11 +170,13 @@ Plans:
 - [x] 06-08-PLAN.md — Firebase deploy + checkpoint human verification
 
 ### Phase 8: Granola Per-User + Universal Extraction Pipeline + Platform Agents
+
 **Goal**: Chaque utilisateur entre sa clé API Granola manuellement dans l'onboarding (Fernet chiffré, stocké dans `granola_user_connections`, révocable), toutes les sorties applicatives (LibreChat, Chrome extension, Granola meetings) alimentent automatiquement le CRM et les tâches, et les admins peuvent créer/éditer des agents de plateforme configurables (registry `agent_definitions`) accessibles depuis la plateforme.
 **Depends on**: Phase 7
 **Entry gate**: Phase 7 SHIPPED. Tables `contacts`, `tasks`, `granola_integrations` présentes.
 **Requirements**: (phase post-v1 — nouvelles capacités hors scope 73 REQ-IDs v1)
 **Success Criteria** (what must be TRUE):
+
   1. Un utilisateur entre sa clé API Granola dans l'étape optionnelle de l'onboarding → clé stockée chiffrée Fernet dans `granola_user_connections` (liée à `user_id`) via `POST /v1/me/granola-key` ; la connexion est visible dans son profil (GET retourne {connected: true}) et révocable (DELETE /v1/me/granola-key)
   2. Après saisie de la clé, granola-sync poll per-user et ingère les meetings → contacts + tasks (même pipeline Phase 7 mais déclenché par `user_id`, non team-API-key)
   3. Tout output LibreChat (message assistant) contenant des patterns contact (nom/email/entreprise) déclenche l'extraction contact → CRM (pipeline robuste, fail-soft, idempotent)
@@ -160,8 +185,10 @@ Plans:
   6. L'agent `meeting-recap` seedé peut être invoqué via `POST /v1/agents/{id}/invoke` avec un transcript et retourne un recap structuré (format docs/meeting-recap.md)
   7. Dashboard GitHub dynamique : un user authentifié voit ses repos privés + ceux de son org GitHub liée — le dashboard appelle `GET /v1/github/repos` (memory-api) qui utilise le `github_access_token` stocké en MongoDB ; le scope OAuth GitHub inclut `repo` ; les repos privés sont visibles uniquement par le user concerné
   8. `bash infrastructure/scripts/verify-phase8.sh` retourne `PASS: 7 / 7`
+
 **Plans**: 8 plans
 Plans:
+
 - [x] 08-01-PLAN.md — Migration Alembic 0012 (granola_user_connections + agent_definitions + seed meeting-recap) + alembic upgrade head
 - [x] 08-02-PLAN.md — memory-api: routes agents.py (CRUD admin /v1/admin/agents + /v1/agents/{id}/invoke synchrone Anthropic)
 - [x] 08-03-PLAN.md — memory-api: routes /v1/me/granola-key (POST/GET/DELETE) + Fernet encryption
@@ -172,32 +199,39 @@ Plans:
 - [x] 08-08-PLAN.md — verify-phase8.sh (7 tests) + .env.example section Phase 8
 
 ### Phase 9: Session Bridge — Pro/Max Routing via Chrome Extension
+
 **Goal**: Un user xbrain qui possède un abonnement Claude Pro/Max peut consommer son propre quota d'inférence depuis LibreChat, au lieu de la clé API team. Quand son extension xbrain est active et qu'il est logué sur claude.ai dans son navigateur, les requêtes chat sont routées via WebSocket vers son browser, qui fait un fetch credentialed contre l'API interne claude.ai et streame la réponse de retour. ChatGPT Plus routing est explicitement déféré (Phase 10).
 **Depends on**: Phase 8
 **Entry gate**: Extension xbrain v1 actuelle stable (Phase 4 + Phase 8 team discovery), claude.ai accessible depuis browser des testeurs, sous-domaine `bridge.grooveos.app` disponible côté Cloudflare DNS, table `user_external_credentials` ou équivalent inexistante (à créer dans cette phase).
 **Requirements**: (phase post-v1 — nouvelles capacités hors scope 73 REQ-IDs v1) — SESSION-01 à SESSION-06 (extension WebSocket bridge / claude.ai routing / per-user session tracking / graceful fallback / Sonnet via routed chat / SSE streaming translation)
 **Success Criteria** (what must be TRUE):
+
   1. Un user xbrain logué sur claude.ai dans son browser, extension xbrain v2 installée, peut sélectionner "Claude (mon abonnement)" dans LibreChat et envoyer un message — la réponse arrive en streaming et le quota Pro/Max de l'user est décrémenté (visible sur claude.ai/settings/usage), pas la facture API team
   2. La même requête sans extension active OU sans onglet claude.ai actif retourne un message d'erreur explicite "Install xbrain extension and login to claude.ai" — aucun fallback silencieux vers la clé API team (l'user voit la friction)
   3. Le microservice `session-bridge` tourne en container docker-compose, expose `/v1/chat/completions` (OpenAI-compat sur HTTP) + `/ws/{user_sub}` (WebSocket persistante pour extension), accessible publiquement via nginx vhost `bridge.grooveos.app` (TLS via Cloudflare)
   4. Le popup de l'extension xbrain affiche le statut de la session ("Claude session: 🟢 Active / 🔴 None") avec l'email claude.ai loggé et permet refresh/disconnect ; la table `user_external_sessions` track les extensions connectées avec last_seen_at et metadata JSONB
   5. Le format de réponse claude.ai interne (SSE event-style) est correctement translaté en SSE OpenAI-compat dans `session-bridge` pour que LibreChat consomme la réponse sans patch
   6. `bash infrastructure/scripts/verify-phase9.sh` retourne `PASS: N / N` (compte de tests TBD au planning) — au minimum : (a) session-bridge healthcheck, (b) nginx vhost répond 200 sur `/v1/chat/completions` avec body d'auth attendu, (c) extension WebSocket connecte et echo bidirectionnel marche, (d) end-to-end LibreChat → session-bridge → extension → claude.ai mock retourne un texte
+
 **Plans**: 6 plans
 Plans:
+
 - [x] 09-01-PLAN.md — session-bridge FastAPI skeleton (pool + auth + 401/503 chat stub + docker-compose entry)
 - [x] 09-02-PLAN.md — claude.ai client + SSE translator (live DevTools capture + claude_ai_client.js + translate_sse.js + node tests)
 - [x] 09-03-PLAN.md — Chrome extension v1.1.0 — WebSocket persistent + chrome.alarms watchdog + handleClaude dispatcher
 - [x] 09-04-PLAN.md — Cloudflare DNS + nginx 50-bridge.conf + Alembic 0014 + memory-api /v1/me/external-sessions GET/DELETE
 - [x] 09-05-PLAN.md — librechat.yaml "Claude (mon abonnement)" endpoint + extension popup Sessions section
 - [x] 09-06-PLAN.md — verify-phase9.sh (8 tests) + .env.example + docs/sessions.html + 09-UAT.md
+
 **UI hint**: yes (extension popup + LibreChat endpoint dropdown + settings page session status)
 
 ### Phase 10: GitHub-Primary Auth + Org-Driven Team Membership
+
 **Goal**: GitHub devient l'identité principale de xbrain. Un user signe avec GitHub OAuth, ses team memberships sont auto-créées depuis les org GitHub matchant `teams.github_org`, et un admin peut bloquer un user spécifique même s'il est membre de l'org. Google reste un lien secondaire (Drive/Calendar/email lookup), pas l'auth principale. Les user rows orphelines (signé en Google puis GitHub, ou inverse) sont auto-mergées sur link/sign-in.
 **Depends on**: Phase 5 (team platform), Phase 7 (SMTP notifications déjà wired dans `notifications.py`)
 **Entry gate**: Auth Google-primary fonctionnelle (current state). Endpoint `POST /v1/me/link-github-with-code` shipped. SMTP fail-soft helper dispo dans `app/services/notifications.py`. Migration `0007_github_users` appliquée (colonnes `users.github_id`, `users.github_username`). Table `team_members` avec `joined_at`.
 **Requirements**: (phase post-v1 — nouvelles capacités hors scope 73 REQ-IDs v1) — GHA-01 à GHA-08
+
 - GHA-01: GitHub OAuth code exchange endpoint qui mint un `xbt_` directement (pas de Google requis en amont)
 - GHA-02: Auto-grant team membership au 1er sign-in via GitHub org match (`teams.github_org` = un des orgs GitHub du user)
 - GHA-03: Block/unblock d'un member existant (admin endpoint), persiste même si re-sign via org match
@@ -208,6 +242,7 @@ Plans:
 - GHA-08: Sign-in GitHub primaire dans `app-site/account/teams/index.html`
 
 **Success Criteria** (what must be TRUE):
+
   1. Un user sans compte Google peut signer dans l'extension popup ET sur `grooveos.app/account/teams/` en cliquant "Sign in with GitHub" → un `xbt_` token est minté, stocké en `chrome.storage.local` ou `localStorage`, et il voit ses teams immédiatement via `/v1/teams/my-teams`
   2. Quand un user GitHub appartient à org `acme-corp` (vérifié via GitHub `/user/orgs`) et qu'une team xbrain existe avec `github_org='acme-corp'`, son 1er sign-in déclenche `INSERT team_members(role='member')` automatiquement — sauf si une ligne `team_org_blocks(team_id, github_login)` existe pour lui
   3. L'admin d'une team peut bloquer un member existant via `POST /v1/teams/{id}/members/{user_id}/block` (set `team_members.blocked_at`) ou pré-bloquer un GitHub login pas encore signé via `POST /v1/teams/{id}/org-blocks {github_login}` ; un user bloqué reçoit 403 sur toute route team-scoped même s'il est dans l'org
@@ -215,8 +250,10 @@ Plans:
   5. Sur auto-grant déclenché par GHA-02, un email est envoyé à tous les admins de la team via `send_member_autojoined_email()` (fail-soft si `SMTP_HOST` vide) avec le username GitHub + lien vers `grooveos.app/account/teams/` pour Block
   6. Le bouton "Sign in with GitHub" est le bouton primaire (visuellement dominant) dans `chrome-extension/popup.html` ET `app-site/account/teams/index.html` ; "Sign in with Google" reste accessible mais secondaire ("More options" ou lien plus petit)
   7. `bash infrastructure/scripts/verify-phase10.sh` retourne `PASS: N / N` (count TBD au planning) — au minimum : (a) `/v1/auth/github/exchange` mint un xbt_ pour un user sans compte Google préalable, (b) auto-grant respecte `team_org_blocks`, (c) `POST /block` refuse principal non-admin (403), (d) auto-merge migre `team_members` et soft-delete row orpheline, (e) email admin déclenché sur auto-grant (capté via SMTP mock)
+
 **Plans**: 6 plans
 Plans:
+
 - [ ] 10-01-PLAN.md — Migrations 0016 (team_members.blocked_at + team_org_blocks + users.merged_into_user_id) + ORM + repo helpers + merge_user_rows
 - [ ] 10-02-PLAN.md — POST /v1/auth/github/signin + auto-grant service + identity merge (GHA-01/02/05/06)
 - [ ] 10-03-PLAN.md — Admin block/unblock + GitHub-login pre-block endpoints + 403 enforcement (GHA-03/04)
@@ -235,10 +272,12 @@ parallel in wave 3.)
 **UI hint**: yes (chrome-extension popup + chrome-extension options.html Settings, app-site /account/teams/)
 
 ### Phase 11: Brain Monitor — Universal Truth-Level Inspector + Soft Delete
+
 **Goal**: Donner à chaque user/admin une **vue unifiée temps-réel de tout ce qui entre dans le brain** de sa team (memories, facts, conversations, transcripts Granola, tasks, contacts CRM, team messages), avec le `truth_level` affiché et éditable, et la possibilité de soft-delete tout item (rétention 30 jours puis purge réelle Postgres + Qdrant + Neo4j). Étend le tagging contract `truth_level` à TOUTES les entités (pas seulement memory layer) — c'est la concrétisation du différenciateur xbrain documenté dans CLAUDE.md.
 **Depends on**: Phase 5 (team platform + `/account/teams/`), Phase 7 (entités tasks/contacts/team_messages), Phase 10 (auth GitHub-primary, surface `/account/teams/[slug]/` pour le brain page)
 **Entry gate**: Phase 10 SHIPPED (auth + team membership stables). Toutes les entités cibles ont une colonne `team_id` ou `team_scope` permettant le filtrage par team. `memory_items` a déjà `truth_level` (Phase 2). `notifications.py` SMTP fail-soft dispo. Job runner ou cron container dispo pour purge quotidienne.
 **Requirements**: BMO-01 à BMO-12 (phase post-v1)
+
 - BMO-01: Migration ajout colonne `truth_level` (TEXT NOT NULL DEFAULT) + `deleted_at TIMESTAMPTZ NULL` + `deleted_by UUID NULL` sur `tasks`, `contacts`, `team_messages`, `conversations`, `granola_notes` (et toute table d'entité non-memory écrite dans le brain)
 - BMO-02: Universal event view `v_brain_events` (UNION ALL des 7+ tables sources) avec colonnes normalisées : `entity_type`, `entity_id`, `team_id`, `created_at`, `created_by`, `truth_level`, `deleted_at`, `preview` (truncate 200 chars), `source`
 - BMO-03: `GET /v1/brain/events` paginated (cursor `created_at + id`) + filtres `entity_type[]`, `truth_level[]`, `source[]`, `created_by`, `q` (text search sur preview), `include_deleted`, `since` — team-scoped via `X-Team-Scope`
@@ -253,6 +292,7 @@ parallel in wave 3.)
 - BMO-12: app-site superadmin dashboard at `/account/admin/` (or `/account/admin/index.html`) — 4 sections (Brain Overview, Storage, Activity, Top Sources). Tables + inline SVG sparklines for Activity (no chart library dependency). Drill-down button per team row routes to `/account/teams/brain/?team=<slug>&as_superadmin=1` (shows a banner "Viewing as superadmin — this access is logged.").
 
 **Success Criteria** (what must be TRUE):
+
   1. Un admin team peut ouvrir `https://grooveos.app/account/teams/{slug}/brain/`, voir les 50 derniers items entrés sur SA team (toutes entités confondues), filtrer par `truth_level=WORKING` et `entity_type=memory_item`, et la liste se rafraîchit toutes les 30 s sans recharger la page
   2. Le `truth_level` est visible et éditable inline pour CHAQUE row (memory, fact, task, contact, message, conversation, transcript Granola) ; un user non-admin voit le dropdown grisé sur les rows qu'il n'a pas créées
   3. Cliquer "Delete" sur une row set `deleted_at=now()` en DB ; la row disparaît de la vue par défaut mais réapparaît avec filtre "Show deleted" et un bouton "Restore" — restore réussit si `deleted_at > now() - 30 days`
@@ -266,6 +306,7 @@ parallel in wave 3.)
 
 **Plans**: 11 plans
 Plans:
+
 - [ ] 11-01-PLAN.md — Migration 0017 truth_level + soft-delete columns + ORM updates
 - [ ] 11-02-PLAN.md — Migration 0018 v_brain_events SQL view + composite indexes
 - [ ] 11-03-PLAN.md — Qdrant payload deleted_at_ts + mark_deleted/mark_restored helpers
@@ -283,10 +324,12 @@ Plans:
 **UI hint**: yes (app-site `/account/teams/brain/?team=<slug>` — flat path, slug via query param; `[slug]` in earlier notes was conceptual not literal — AND app-site `/account/admin/index.html` for the superadmin dashboard added 11-11)
 
 ### Phase 12: GitHub App Migration — Public-Deployment-Ready Auth
+
 **Goal**: Migrate xbrain authentication from OAuth App to GitHub App so the platform is ready for public deployment. GitHub Apps support multiple callback URLs natively (eliminating the per-frontend OAuth App proliferation), use short-lived installation tokens (eliminating long-lived `GITHUB_API_PAT` and unbounded user tokens), enable org-level installation (canonical "Install xbrain on our org" UX instead of per-user authorization with global org-read scope), and unlock higher rate limits per installation. Clean break — no dual-auth maintained; the single existing user (mrboups) re-authorizes once via the new GitHub App.
 **Depends on**: Phase 11 (Brain Monitor ships first per ordering decision 2026-05-17)
 **Entry gate**: Phase 11 SHIPPED. OAuth App `xbrain` (Client ID `Ov23liy7tZekl0uEztoj`) currently authorizes web sign-in only; Chrome extension flow is broken (single-callback constraint). Existing users: 1 (mrboups). `users.github_id` UNIQUE constraint already in place (Phase 10). `GITHUB_API_PAT` currently used for `/orgs/{org}/members/{username}` checks — must be replaced by installation token. No tests or production users depend on long-lived GitHub OAuth tokens (8h TTL acceptable with refresh token flow).
 **Requirements**: GHAPP-01 to GHAPP-08 (phase post-v1 — public-deployment readiness)
+
 - GHAPP-01: Create new GitHub App on `mrboups` account (or new dedicated GitHub org) with multi-callback URLs registered: `https://grooveos.app/account/teams/` (web) + `https://<ext-id>.chromiumapp.org/` (Chrome extension stable ID via manifest `key`). Permissions requested: `read:user`, `user:email`, `read:org` (or fine-grained equivalents). Generate private key (PEM), store securely server-side.
 - GHAPP-02: Backend JWT signing infrastructure — load private key from secret, mint JWT signed with RS256 for GitHub App authentication, exchange JWT for installation tokens per installation_id. Cache installation tokens (1h TTL, refresh-on-401).
 - GHAPP-03: New `installations` table (`installation_id INT PK`, `github_org_login TEXT`, `installed_at TIMESTAMPTZ`, `installed_by_github_id BIGINT`, `permissions JSONB`, `revoked_at TIMESTAMPTZ NULL`) + webhook handler `/v1/webhooks/github/installation` for `installation` and `installation_repositories` events. Sync source-of-truth from GitHub.
@@ -295,7 +338,9 @@ Plans:
 - GHAPP-06: Install flow UI — when a user signs in but their primary org has not installed the GitHub App, redirect to GitHub's install URL (`https://github.com/apps/{app_slug}/installations/new`) with `state` for return URL. After install webhook arrives, user can complete team join. Banner messaging in `app-site/account/teams/index.html` and `chrome-extension/popup.html`.
 - GHAPP-07: Update frontend client_id constants — `app-site/account/teams/teams.js:34` and `chrome-extension/background.js:63` to new GitHub App client_id. With GitHub App's multi-callback support, the same client_id serves both flows (no per-frontend dispatch in memory-api). Verify `chrome.runtime.id` stability via fixed `key` in `chrome-extension/manifest.json` (so the chromiumapp.org URL is deterministic).
 - GHAPP-08: Remove OAuth App `xbrain` (Client ID `Ov23liy7tZekl0uEztoj`) from active code path. Delete OAuth-App-specific dispatch logic in `apps/memory-api/app/routes/auth_github.py`. Document migration in `docs/auth.html`. (LibreChat-specific OAuth App `xbrain LibreChat` Client ID `Ov23li0XHV3NL8Git7Dk` remains untouched — separate concern.)
+
 **Success Criteria** (what must be TRUE):
+
   1. A user can sign in via "Sign in with GitHub" on `https://grooveos.app/account/teams/` AND in the Chrome extension popup — both flows use the same GitHub App client_id with multi-callback URLs registered natively (no `Ov23liy7tZekl0uEztoj` OAuth App code path active)
   2. An org admin can click "Install xbrain on org" in app-site or popup → redirected to GitHub install page → after install, the installation webhook populates `installations` table; team members from that org auto-grant team membership at next sign-in (preserves Phase 10 semantics)
   3. User-to-server token (8h TTL) expires gracefully: subsequent API calls trigger transparent refresh via `github_refresh_token`; user is not signed out; no manual re-authorization needed within 6 months (refresh token lifetime)
@@ -304,22 +349,27 @@ Plans:
   6. mrboups (the single existing user) re-authorizes via the new GitHub App once and sees the same teams (`Dejavudev`), same `github_id` row preserved, all brain data intact
   7. `GITHUB_API_PAT` removed from `.env.example`, `docker-compose.yml`, and any runtime config. No long-lived GitHub PAT in the system after migration completes
   8. `bash infrastructure/scripts/verify-phase12.sh` returns `PASS: N / N` — at minimum: (a) JWT signing with private key produces a valid GitHub-App-authenticated request, (b) installation token cache returns a valid token (refresh-on-401 verified by clock-mocked expiry), (c) user sign-in via new GitHub App mints `xbt_` token, (d) refresh token rotation succeeds, (e) install flow webhook handler populates `installations` row, (f) auto-grant works for installed-org member, (g) `GITHUB_API_PAT` env unset and org membership check still succeeds, (h) Chrome extension callback URL stable (matches manifest `key`-derived `chrome.runtime.id`)
+
 **Plans**: TBD (populated by `/gsd:plan-phase 12` — estimated 8-10 sub-plans covering JWT/installation tokens, refresh flow, install UI, multi-callback frontend updates, manifest `key` for stable extension ID, migration, verification)
 **UI hint**: yes (app-site install banner + chrome-extension popup install/status section + install confirmation page)
 
 ### Phase 13: Chat → Brain Ingestion + Retrieval Enrichment — close the differentiator
+
 **Goal**: Close the three unchecked core-differentiator requirements (MEM-04, CHAT-03, CHAT-07) by wiring every substantive chat message — across team chat, LibreChat, and Open WebUI — into the searchable brain (`memory_items` + Qdrant), gated by a Haiku relevance filter, and auto-enriching every chat turn with relevant `CANONICAL`/`VALIDATED` facts retrieved from team memory before the LLM call. After this phase, the contract "any chat content (human or agent, any frontend) lands in a shared team brain, scoped + truth-tagged, and is reused on the next conversation" actually holds end-to-end.
 **Depends on**: Phase 12 (GitHub App migration LIVE — auth + frontends stable)
 **Entry gate**: Phase 12 SHIPPED. `brain_ingest.py` already ships the team-chat ingest path (heuristic ≥15 chars, WORKING truth level). LibreChat path: `mongo_watcher.messages_watch_loop` already forwards LibreChat messages to `/v1/messages` (conversation log) but NOT to `memory_items` + Qdrant. Open WebUI path: `openwebui-pipeline/main.py` only handles `/ingest <url>` slash commands; no per-message auto-ingestion. LibreChat enrichment: `conv_enricher.py` injects a system message at the start of new conversations only — not per-turn. Open WebUI enrichment: none. VM disk < 80%. `ANTHROPIC_API_KEY` available for the Haiku relevance classifier. Memory provider already `MEMORY_BACKEND=native` with `OPENAI_API_KEY` for embeddings (live since 2026-05-23).
 **Requirements**: MEM-04, CHAT-03, CHAT-07 (the three v1 requirements left unchecked since Phase 1/2 — closing the xbrain differentiator)
 **Locked decisions** (confirmed before planning):
+
 - **D1**: Relevance filter = Claude 4.5 Haiku (`claude-haiku-4-5-20251001`), prompt-cache friendly. The heuristic ≥15 chars stays as fail-soft fallback when Haiku errors/timeouts.
 - **D2**: Filter is invoked async fire-and-forget post-send — never blocks the chat response path. Persisted via the same code path as today's `brain_ingest.ingest_team_message`.
 - **D3**: Default ingestion `truth_level = WORKING`. Human promotion to `VALIDATED`/`CANONICAL` via Brain Monitor (Phase 11) stays the source of truth for retrieval gating.
 - **D4**: All three active frontends in scope v1: team chat (refine — replace heuristic with Haiku gate), LibreChat (new ingest path via `mongo_watcher`), Open WebUI (new ingest path via `openwebui-pipeline`).
 - **D5**: Retrieval injection point = **per-turn pre-LLM hook**, not just boot-of-conversation. Implemented in librechat-bridge (extension of `conv_enricher` → `message_enricher`) and openwebui-pipeline (new enricher). Team chat already runs per-turn via the @claude bundle.
 - **D6**: Retrieval `top_k = 5`, filtered to `truth_level IN ('VALIDATED','CANONICAL')`. Configurable via env (`CHAT07_TOP_K`, `CHAT07_TRUTH_FILTER`) for future tuning.
+
 **Success Criteria** (what must be TRUE):
+
   1. Sending a substantive human message in **team chat** ingests it into `memory_items` (truth=WORKING) + Qdrant exactly once; assistant messages are NOT ingested (LLM output, not new facts); messages starting with `@claude`/`@c`/`@cl` are NOT ingested
   2. Sending a substantive user message in **LibreChat** triggers, in parallel to the existing conversation-log write, an upsert into `memory_items` + Qdrant via the same shared `brain_ingest` service with `source='librechat:<model>'`; idempotent on retry
   3. Sending a substantive user message in **Open WebUI** triggers an equivalent ingest with `source='openwebui:<model>'`; existing `/ingest <url>` slash-command path remains untouched
@@ -330,15 +380,45 @@ Plans:
   8. **Cross-frontend retrieval works**: a fact ingested via team chat (then promoted to VALIDATED in Brain Monitor) is retrievable in LibreChat and Open WebUI on the next turn — same `team_scope`
   9. `bash infrastructure/scripts/verify-phase13.sh` returns `PASS: N / N` — at minimum: (a) team-chat ingest + Qdrant point materialized; (b) LibreChat user-msg ingest + Qdrant point materialized; (c) Open WebUI user-msg ingest + Qdrant point materialized; (d) Haiku-low-score message does NOT land in `memory_items`; (e) Haiku error path falls back to heuristic and ingest proceeds; (f) chat turn injects retrieved CANONICAL facts into LibreChat system context (verified via mock LLM trace); (g) cross-frontend retrieval (ingest in team chat → retrieve in LibreChat); (h) chat send still succeeds when memory-api is unreachable (fail-soft)
  10. `REQUIREMENTS.md` ticks `MEM-04`, `CHAT-03`, `CHAT-07` to `[x]` and the traceability table marks them `Done in Phase 13`
-**Plans**: TBD (populated by `/gsd:plan-phase 13` — estimated 7-9 sub-plans: shared `brain_ingest` service refactor; Haiku relevance filter + budget cap; LibreChat ingest hook in `mongo_watcher`; LibreChat per-turn `message_enricher` (extends `conv_enricher`); Open WebUI ingest pipeline; Open WebUI enricher; cross-frontend integration test; `verify-phase13.sh` + docs)
+
+**Plans**: 8 plans
+Plans:
+**Wave 1**
+
+- [ ] 13-01-PLAN.md — relevance_filter (Haiku 4.5 + cache + budget cap) + POST /v1/brain/ingest endpoint
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 13-02-PLAN.md — team_chat ingest uses relevance_filter.classify (swap heuristic gate)
+- [ ] 13-03-PLAN.md — native_provider upsert race fix (INSERT … ON CONFLICT DO UPDATE)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 13-04-PLAN.md — LibreChat brain ingest hook in mongo_watcher.messages_watch_loop
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 13-05-PLAN.md — LibreChat per-turn enricher (message_enricher.enrich_turn) + conv_enricher VALIDATED upgrade
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 13-06-PLAN.md — Open WebUI ingest + enrichment in openwebui-pipeline.main.chat()
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 13-07-PLAN.md — verify-phase13.sh + cross-frontend integration test + .env.example
+- [ ] 13-08-PLAN.md — Tick MEM-04 / CHAT-03 / CHAT-07; ROADMAP + STATE; marketing docs
+
 **UI hint**: no (backend + bridges + observability only — Brain Monitor / @claude / LibreChat / Open WebUI surface the new flow without UI work)
 
 ### Phase 7: CRM + Granola + Task Intelligence
+
 **Goal**: Le brain devient actif. Une équipe peut (1) consulter un CRM populé automatiquement depuis tout ce qui passe par le brain (chats, agents, meetings Granola), (2) voir chaque réunion Granola ingérée comme source de mémoire de premier ordre (résumé + participants + actions + décisions), et (3) gérer un backlog de tâches auto-générées depuis les action items Granola et les outputs agents — chaque tâche assignée à un contact CRM déclenche une notification email.
 **Depends on**: Phase 6
 **Entry gate**: Phases 1-6 SHIPPED. VM disque < 80% (rebuild containers possible). Granola API key (Business/Enterprise) disponible pour au moins une team — sinon System 2 (granola-sync) reste enregistrable mais ne polle rien.
 **Requirements**: D1, D2, D3, D4, D5, D6 (decisions Phase 7 — ce phase est hors scope v1 requirements AUTH/MEM/etc.)
 **Success Criteria** (what must be TRUE):
+
   1. Un admin peut créer une team avec `plan='team'` et un user de cette team peut faire CRUD sur `/v1/crm/contacts` ; un user d'une team `starter` reçoit 403
   2. POST `/v1/admin/granola-integration` enregistre une API key Granola Fernet-chiffrée pour une team ; le container `xbrain-granola-sync` poll Granola et ingère chaque nouvelle note via `/v1/integrations/granola/ingest` (1 memory_item résumé + N contacts + M tasks créées)
   3. POST `/v1/memory/upsert` avec un content contenant des mentions de personnes déclenche en background l'extraction Claude → upsert dans `contacts` (fail-soft)
@@ -346,8 +426,10 @@ Plans:
   5. Une tâche assignée à un contact avec email déclenche un email via aiosmtplib (skip silencieux si `SMTP_HOST` vide)
   6. Le dashboard `/tasks.html` (Firebase) liste les tâches d'une team avec filtres status/projet et polling 30s ; bouton "Mark done" → PATCH 200
   7. `bash infrastructure/scripts/verify-phase7.sh` retourne `PASS: 8 / 8`
+
 **Plans**: 9 plans
 Plans:
+
 - [x] 07-01-PLAN.md — Migrations 0008 (teams.plan) + 0009 (contacts + granola_integrations) + 0010 (tasks, created_by NULLABLE)
 - [x] 07-02-PLAN.md — require_paid_tier + _user_id_from_principal dans deps.py + router CRM /v1/crm/contacts (CRUD + audit)
 - [x] 07-03-PLAN.md — Router /v1/tasks (CRUD + filtres + polling since)
@@ -378,7 +460,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 10. GitHub-Primary Auth + Org-Driven Team Membership | 6/6 | ✅ LIVE | 2026-05-14 (deployed + verify PASS) — OAuth client_id+callback URL bug fixed 2026-05-17 |
 | 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 11/11 | ✅ LIVE | 2026-05-17 (verify-phase11.sh PASS 5/5 + 11 SKIP fixture, alembic 0018 head on VM, brain-janitor running, UI live grooveos.app/account/teams/brain/ + /account/admin/) |
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 11/11 | ✅ LIVE | 2026-05-17 (alembic 0019 head, memory-api rebuilt, verify-phase12.sh PASS 13/13 + 5 SKIP fixture, Firebase teams.js with new client_id Iv23liVnZvIN0Lo6isof live) |
-| 13. Chat → Brain Ingestion + Retrieval Enrichment | 0/0 | 🟡 Planned | 2026-05-24 (decisions D1-D6 locked, ready for `/gsd:plan-phase 13`) |
+| 13. Chat → Brain Ingestion + Retrieval Enrichment | 0/8 | 🟡 Planned | 2026-05-24 (8 plans created, ready for `/gsd:execute-phase 13`) |
 
 ---
 

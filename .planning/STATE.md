@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: shipped
-stopped_at: "Phase 12 LIVE 2026-05-17 — GitHub App Migration fully shipped (11/11 plans, 9 waves). VM deploy: alembic 0019 head, memory-api rebuilt with PyJWT[crypto], 5 GITHUB_APP_* secrets live, OAuth App `xbrain` (Ov23liy7tZekl0uEztoj) dispatch removed, new GitHub App client_id Iv23liVnZvIN0Lo6isof live on Firebase + Chrome ext. verify-phase12.sh PASS 13/13 + 5 SKIP (fixture). Milestone v1.0 EXTENDED to 12 phases — 12/12 complete. mrboups re-auth at next sign-in. Standing order: auto-run full integration check now."
-last_updated: "2026-05-17T15:30:00.000Z"
-last_activity: "2026-05-17 -- Phase 12 SHIPPED end-to-end (11/11 plans, 9 waves, ~57 commits). 1 SERVER rate-limit interrupt mid-Wave 5 (12-06) cleanly recovered via finish-only re-dispatch + 1 Task 1 commit-on-wrong-branch incident (12-03) cleanly recovered via Option B (leave commit on main, agent finishes on worktree). VM deploy: alembic chain 0018->0019 auto-applied at container start, memory-api rebuilt with PyJWT[crypto]>=2.10,<3, all 5 GITHUB_APP_* secrets verified. verify-phase12.sh post-fix PASS 13/13 (nginx hides /openapi.json publicly — tests #10 + #14 now use docker exec internal fetch)."
+status: executing
+stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
+last_updated: "2026-05-27T09:52:46.234Z"
+last_activity: 2026-05-27 -- Phase 13 planning complete
 progress:
-  total_phases: 12
-  completed_phases: 12
-  total_plans: 101
-  completed_plans: 101
-  percent: 100
+  total_phases: 13
+  completed_phases: 11
+  total_plans: 109
+  completed_plans: 98
+  percent: 85
 ---
 
 # Project State
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 
 Phase: 10 (GitHub-Primary Auth + Org-Driven Team Membership) — **LIVE 2026-05-14** (web sign-in fix 2026-05-17, commit 8c3df36)
 Plan: 6 of 6 (all plans shipped + verify-phase10.sh PASS + Playwright smoke PASS); OAuth web sign-in end-to-end validated 2026-05-17
-Status: Phase 10 LIVE end-to-end. Phase 8 + Phase 9 reconfirmed LIVE on VM today (verify-phase8.sh PASS 7/7 + verify-phase9.sh PASS 6/6 with 2 acceptable SKIP). Next: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6).
-Last activity: 2026-05-17 -- Phase 10 OAuth client_id+callback URL bug fixed (commit 8c3df36). Real OAuth App ID `Ov23liy7tZekl0uEztoj` replaces placeholder `Ov23liVqXmHkS6JdYpcN` in app-site/teams.js + chrome-extension/background.js; callback URL on OAuth App `xbrain` updated from `chat.grooveos.app/oauth/github/callback` → `grooveos.app/account/teams/` via Playwright. End-to-end web sign-in validated via Playwright (JWT received, Dejavudev team listed). Phase 12 roadmapped (commit e5ef93b). mcp-brain unhealthy fix staged (nc missing → Python socket probe). Logging caps added to all 29 services via YAML anchor.
+Status: Ready to execute
+Last activity: 2026-05-27 -- Phase 13 planning complete
 
 Progress: [████████░░] 83% — 10 of 12 phases COMPLETE (Phase 11 PLANNED, Phase 12 ROADMAPPED)
 
