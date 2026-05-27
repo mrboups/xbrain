@@ -406,7 +406,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 13-07-PLAN.md — verify-phase13.sh + cross-frontend integration test + .env.example
+- [x] 13-07-PLAN.md — verify-phase13.sh + cross-frontend integration test + .env.example
 - [ ] 13-08-PLAN.md — Tick MEM-04 / CHAT-03 / CHAT-07; ROADMAP + STATE; marketing docs
 
 **UI hint**: no (backend + bridges + observability only — Brain Monitor / @claude / LibreChat / Open WebUI surface the new flow without UI work)
@@ -460,7 +460,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 10. GitHub-Primary Auth + Org-Driven Team Membership | 6/6 | ✅ LIVE | 2026-05-14 (deployed + verify PASS) — OAuth client_id+callback URL bug fixed 2026-05-17 |
 | 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 11/11 | ✅ LIVE | 2026-05-17 (verify-phase11.sh PASS 5/5 + 11 SKIP fixture, alembic 0018 head on VM, brain-janitor running, UI live grooveos.app/account/teams/brain/ + /account/admin/) |
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 11/11 | ✅ LIVE | 2026-05-17 (alembic 0019 head, memory-api rebuilt, verify-phase12.sh PASS 13/13 + 5 SKIP fixture, Firebase teams.js with new client_id Iv23liVnZvIN0Lo6isof live) |
-| 13. Chat → Brain Ingestion + Retrieval Enrichment | 6/8 | In Progress|  |
+| 13. Chat → Brain Ingestion + Retrieval Enrichment | 7/8 | In Progress|  |
 
 ---
 
