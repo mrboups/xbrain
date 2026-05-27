@@ -1,7 +1,4 @@
-# Services package — lazy imports keep startup fast; consumers import directly.
-# Listing submodules here for discoverability; no side-effects on import.
-from app.services import (  # noqa: F401
-    brain_ingest,
-    relevance_filter,
-    team_context_cache,
-)
+# Services package — submodules are imported directly by their consumers.
+# Do NOT import submodules here to avoid circular dependencies at startup.
+# (brain_ingest imports app.deps which imports app.auth which previously
+#  imported this __init__.py before it finished loading — classic cycle.)

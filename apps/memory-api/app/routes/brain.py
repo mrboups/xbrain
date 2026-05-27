@@ -56,6 +56,7 @@ Filter semantics:
   (Brain Monitor UI fetches new rows since the latest-seen timestamp).
 """
 
+import asyncio
 import base64
 import json
 import logging
@@ -85,7 +86,8 @@ from app.repos.brain import (
     soft_delete_entity,
     update_truth_level,
 )
-from app.schemas.brain import BrainEventListOut, BrainEventOut, TruthLevelPatchBody
+from app.schemas.brain import BrainEventListOut, BrainEventOut, BrainIngestRequest, TruthLevelPatchBody
+from app.services import brain_ingest as brain_ingest_svc
 
 logger = logging.getLogger(__name__)
 
@@ -568,3 +570,47 @@ async def restore_event(
     if new_row is None:
         raise HTTPException(404, "brain event vanished after restore")
     return BrainEventOut(**dict(new_row))
+
+
+# ── POST /v1/brain/ingest (Phase 13 plan 13-01) ──────────────────────
+#
+# Called by librechat-bridge and openwebui-pipeline to push user messages
+# into the team brain without a full user identity. Bridge JWT auth is
+# accepted via `get_current_principal` (kind=bridge). Returns 202
+# immediately; the actual upsert runs as asyncio.create_task (fire-and-
+# forget). Never blocks the caller's critical path.
+
+
+@router.post("/brain/ingest", status_code=202)
+async def ingest_message(
+    body: BrainIngestRequest,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    team_scope: str = Depends(get_team_scope),
+) -> dict[str, str]:
+    """Accept a chat message for brain ingest. Returns 202 immediately.
+
+    The upsert into memory_items + Qdrant runs as an asyncio.create_task —
+    the caller never blocks on the classification or storage operation.
+
+    Auth: bridge JWT (kind=bridge) OR user JWT (kind=user).
+    team_scope: enforced by X-Team-Scope header.
+    author_sub: extracted from principal for user kind; from body.metadata
+                or principal.sub for bridge kind.
+    """
+    if principal["kind"] == "user":
+        author_sub = principal["user"].source_user_id
+    else:
+        # Bridge JWT or user-acting bridge — no user object attached
+        author_sub = body.metadata.get("author_sub") or principal.get("sub")
+
+    asyncio.create_task(
+        brain_ingest_svc.ingest_external_message(
+            team_scope=team_scope,
+            content=body.content,
+            source=body.source,
+            author_sub=author_sub,
+            metadata=body.metadata,
+            project_scope=body.project_scope,
+        )
+    )
+    return {"status": "accepted"}
