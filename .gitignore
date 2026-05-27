@@ -96,3 +96,6 @@ tmp_*
 
 # Demo video — large marketing asset, deployed to Firebase Hosting, not tracked in git
 app-site/demo/*.mp4
+
+# Large marketing video sources — kept local only, deploy copies live in app-site/demo/ also gitignored
+marketing-site/*.mp4
