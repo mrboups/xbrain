@@ -328,7 +328,8 @@ def test_conv_enricher_uses_validated_min_level():
     """enrich_new_conversation call to get_system_prompt must pass min_level=VALIDATED and top_k."""
     from pathlib import Path
 
-    source = Path("apps/librechat-bridge/app/conv_enricher.py").read_text()
+    source = Path(__file__).parent.parent / "app" / "conv_enricher.py"
+    source = source.read_text()
     assert "min_level=settings.CHAT07_TRUTH_FILTER_MIN_LEVEL" in source, (
         "conv_enricher.py must pass min_level=settings.CHAT07_TRUTH_FILTER_MIN_LEVEL"
     )

@@ -21,8 +21,8 @@ class FakeMemClient:
         self.fact_count = fact_count
         self.calls: list[dict[str, Any]] = []
 
-    async def get_system_prompt(self, *, sub: str, team_scope: str, query: str) -> dict:
-        self.calls.append({"sub": sub, "team_scope": team_scope, "query": query})
+    async def get_system_prompt(self, *, sub: str, team_scope: str, query: str, **kwargs) -> dict:
+        self.calls.append({"sub": sub, "team_scope": team_scope, "query": query, **kwargs})
         return {"system_addendum": self.addendum, "fact_count": self.fact_count}
 
 

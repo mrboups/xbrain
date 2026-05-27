@@ -18,6 +18,7 @@ from typing import Any
 
 import structlog
 
+from app.config import settings
 from app.memory_api_client import MemoryApiClient
 
 log = structlog.get_logger()
@@ -55,7 +56,13 @@ async def enrich_new_conversation(
         return False
 
     try:
-        sys = await mem.get_system_prompt(sub=sub, team_scope=team_scope, query=title)
+        sys = await mem.get_system_prompt(
+            sub=sub,
+            team_scope=team_scope,
+            query=title,
+            top_k=settings.CHAT07_TOP_K,
+            min_level=settings.CHAT07_TRUTH_FILTER_MIN_LEVEL,
+        )
     except Exception as e:  # noqa: BLE001
         log.warning(
             "conv_enrich_memapi_failed",
