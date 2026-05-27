@@ -170,13 +170,15 @@ async def test_brain_ingest_retries_on_503_then_succeeds():
     assert result == {"status": "accepted"}
 
 
-# -- Test 5b: single attempt on 4xx --
+# -- Test 5b: also retries on 4xx (matches post_message contract) --
 
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_brain_ingest_single_attempt_on_422():
-    """brain_ingest should NOT retry on 4xx client errors."""
+async def test_brain_ingest_retries_on_422_matches_post_message_contract():
+    """brain_ingest retries on 4xx — httpx.HTTPStatusError is a subclass of
+    httpx.HTTPError, so the retry predicate matches. This mirrors the existing
+    post_message contract exactly (same decorator config)."""
     from app.memory_api_client import MemoryApiClient
 
     call_count = 0
@@ -200,10 +202,10 @@ async def test_brain_ingest_single_attempt_on_422():
     finally:
         await client.aclose()
 
-    # httpx.HTTPStatusError is NOT a subclass of httpx.HTTPError so retry
-    # predicate (retry_if_exception_type(httpx.HTTPError)) does not match.
-    # Verify only 1 attempt was made.
-    assert call_count == 1, f"Expected 1 attempt on 4xx, got {call_count}"
+    # httpx.HTTPStatusError IS a subclass of httpx.HTTPError — tenacity retries it
+    # 3 times (same as post_message). This matches the contract spec note:
+    # "verify behavior matches the existing post_message contract"
+    assert call_count == 3, f"Expected 3 attempts on 4xx (mirrors post_message), got {call_count}"
 
 
 # -- Test 6: HTTP error raised by client (not swallowed) --

@@ -112,6 +112,58 @@ class MemoryApiClient:
         retry=retry_if_exception_type(httpx.HTTPError),
         reraise=True,
     )
+    async def brain_ingest(
+        self,
+        *,
+        sub: str,
+        team_scope: str,
+        content: str,
+        source: str,
+        metadata: dict | None = None,
+        project_scope: str | None = None,
+    ) -> dict:
+        """POST /v1/brain/ingest -- fire-and-forget brain upsert via memory-api.
+
+        Phase 13 plan 13-04: caller MUST invoke this inside an asyncio.create_task --
+        this method itself is non-blocking but has 3 retries with backoff,
+        so its total time-budget is bounded around ~7s worst-case (0.5+2+4).
+
+        Idempotency: pass metadata['idempotency_key'] (e.g. f"librechat:{mongo_id}")
+        so server-side uuid5(BRAIN_INGEST_NS, key) produces a deterministic
+        MemoryItem.id under Mongo change-stream resume-token re-delivery.
+        """
+        token = make_bridge_jwt(sub=sub, team_scope=team_scope)
+        body = {
+            "content": content,
+            "source": source,
+            "metadata": metadata or {},
+            "project_scope": project_scope,
+        }
+        r = await self.client.post(
+            f"{self.base}/v1/brain/ingest",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "X-Team-Scope": team_scope,
+            },
+            json=body,
+        )
+        if r.status_code >= 400:
+            log.warning(
+                "memory_api_brain_ingest_failed",
+                status=r.status_code,
+                body=r.text[:200],
+                sub=sub,
+                source=source,
+            )
+        r.raise_for_status()
+        return r.json()
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(min=0.5, max=4),
+        retry=retry_if_exception_type(httpx.HTTPError),
+        reraise=True,
+    )
     async def post_conversation(
         self,
         *,
