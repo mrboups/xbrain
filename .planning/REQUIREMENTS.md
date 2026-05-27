@@ -11,109 +11,109 @@ Périmètre du milestone d'initialisation (Phases 1 + 2 + 3 de la roadmap). Tout
 
 ### Authentication & Identity
 
-- [ ] **AUTH-01**: User can sign in with Google SSO via the team frontend (LibreChat)
-- [ ] **AUTH-02**: User can sign in with email/password as fallback when Google SSO is unavailable
-- [ ] **AUTH-03**: Service clients (agents, MCP servers) can authenticate with short-lived JWT/API tokens issued by `memory-api`
-- [ ] **AUTH-04**: User session persists across browser refresh and is invalidated on logout
-- [ ] **AUTH-05**: Service-account tokens carry an explicit `team_scope` and act under that scope only
-- [ ] **AUTH-06**: Every API call (human or service) is traceable to its identity (user id or service-account id) in the audit log
+- [x] **AUTH-01**: User can sign in with Google SSO via the team frontend (LibreChat)
+- [x] **AUTH-02**: User can sign in with email/password as fallback when Google SSO is unavailable
+- [x] **AUTH-03**: Service clients (agents, MCP servers) can authenticate with short-lived JWT/API tokens issued by `memory-api`
+- [x] **AUTH-04**: User session persists across browser refresh and is invalidated on logout
+- [x] **AUTH-05**: Service-account tokens carry an explicit `team_scope` and act under that scope only
+- [x] **AUTH-06**: Every API call (human or service) is traceable to its identity (user id or service-account id) in the audit log
 
 ### Team & Permissions
 
-- [ ] **TEAM-01**: Org admin can create teams and invite members with role assignment (Admin / Member / Viewer)
-- [ ] **TEAM-02**: Every persisted datum is bound to a single `team_scope` and is invisible to other teams by default
-- [ ] **TEAM-03**: A team can have multiple projects; each datum carries a `project_scope` within its team
-- [ ] **TEAM-04**: RBAC is enforced at `memory-api` layer (not in frontends) for read, write, and promotion endpoints
-- [ ] **TEAM-05**: Cross-team visibility is impossible except for items explicitly promoted to `PUBLIC` (cf. `TRUTH-*`)
-- [ ] **TEAM-06**: Org admin panel allows managing teams, users, roles, and quotas
+- [x] **TEAM-01**: Org admin can create teams and invite members with role assignment (Admin / Member / Viewer)
+- [x] **TEAM-02**: Every persisted datum is bound to a single `team_scope` and is invisible to other teams by default
+- [x] **TEAM-03**: A team can have multiple projects; each datum carries a `project_scope` within its team
+- [x] **TEAM-04**: RBAC is enforced at `memory-api` layer (not in frontends) for read, write, and promotion endpoints
+- [x] **TEAM-05**: Cross-team visibility is impossible except for items explicitly promoted to `PUBLIC` (cf. `TRUTH-*`)
+- [x] **TEAM-06**: Org admin panel allows managing teams, users, roles, and quotas
 
 ### Memory & Tagging
 
-- [ ] **MEM-01**: Every datum written to the system carries the 7-field tagging contract (`team_scope`, `project_scope`, `visibility`, `confidence`, `truth_level`, `source`, `validation_status`); writes missing any field are rejected at `memory-api` layer
-- [ ] **MEM-02**: New data is born at `truth_level=EPHEMERAL` by default
-- [ ] **MEM-03**: Every memory item has provenance metadata: who created it (user/service), from which frontend or tool, on which conversation/event
+- [x] **MEM-01**: Every datum written to the system carries the 7-field tagging contract (`team_scope`, `project_scope`, `visibility`, `confidence`, `truth_level`, `source`, `validation_status`); writes missing any field are rejected at `memory-api` layer
+- [x] **MEM-02**: New data is born at `truth_level=EPHEMERAL` by default
+- [x] **MEM-03**: Every memory item has provenance metadata: who created it (user/service), from which frontend or tool, on which conversation/event
 - [x] **MEM-04**: Conversations from any frontend (LibreChat, Open WebUI) are persisted via `memory-api` and indexed for retrieval
-- [ ] **MEM-05**: Documents and assets (PDFs, images, decks, datasets) are stored in object storage and indexed with full tagging contract
-- [ ] **MEM-06**: Memory items support entity-aware long-term storage (entities surface across conversations and projects within a team)
-- [ ] **MEM-07**: Memory items support fact versioning — updating a fact creates a new version with diff retained, never a silent overwrite
-- [ ] **MEM-08**: Conflict detection surfaces when a `WORKING` fact contradicts an existing `VALIDATED` or `CANONICAL` fact in the same scope
-- [ ] **MEM-09**: Automatic structured extraction can convert raw text (conversations, documents) into structured facts/tasks/entities with provenance back to the source
-- [ ] **MEM-10**: Temporal queries are supported — "what did the team believe about X as of date Y?" returns the truth state at that point
+- [x] **MEM-05**: Documents and assets (PDFs, images, decks, datasets) are stored in object storage and indexed with full tagging contract
+- [x] **MEM-06**: Memory items support entity-aware long-term storage (entities surface across conversations and projects within a team)
+- [x] **MEM-07**: Memory items support fact versioning — updating a fact creates a new version with diff retained, never a silent overwrite
+- [x] **MEM-08**: Conflict detection surfaces when a `WORKING` fact contradicts an existing `VALIDATED` or `CANONICAL` fact in the same scope
+- [x] **MEM-09**: Automatic structured extraction can convert raw text (conversations, documents) into structured facts/tasks/entities with provenance back to the source
+- [x] **MEM-10**: Temporal queries are supported — "what did the team believe about X as of date Y?" returns the truth state at that point
 
 ### Frontends & Chat
 
-- [ ] **CHAT-01**: User can chat with multiple LLMs (Claude, GPT, Grok minimum) from a single team frontend (LibreChat)
-- [ ] **CHAT-02**: New LLM providers can be added by org admin via configuration without code change
+- [x] **CHAT-01**: User can chat with multiple LLMs (Claude, GPT, Grok minimum) from a single team frontend (LibreChat)
+- [x] **CHAT-02**: New LLM providers can be added by org admin via configuration without code change
 - [x] **CHAT-03**: Conversation history persists per user and is queryable as team memory
-- [ ] **CHAT-04**: User can upload files (PDF, image, dataset) into a conversation and ask questions over them (basic RAG)
-- [ ] **CHAT-05**: Open WebUI is available as a separate admin/tooling workspace (RAG config, agent tests, monitoring)
-- [ ] **CHAT-06**: User can request a parallel "second opinion" from a different model on the same prompt (e.g., ask Claude, get Grok's parallel critique)
+- [x] **CHAT-04**: User can upload files (PDF, image, dataset) into a conversation and ask questions over them (basic RAG)
+- [x] **CHAT-05**: Open WebUI is available as a separate admin/tooling workspace (RAG config, agent tests, monitoring)
+- [x] **CHAT-06**: User can request a parallel "second opinion" from a different model on the same prompt (e.g., ask Claude, get Grok's parallel critique)
 - [x] **CHAT-07**: Chat replies are auto-enriched with relevant `CANONICAL` facts from the user's team/project memory before the LLM call
-- [ ] **CHAT-08**: Members who use ChatGPT externally can read/write team memory via a `memory-api` OpenAI-compatible endpoint
+- [x] **CHAT-08**: Members who use ChatGPT externally can read/write team memory via a `memory-api` OpenAI-compatible endpoint
 
 ### Search & RAG
 
-- [ ] **SRCH-01**: Semantic search over team memory returns results ranked by relevance, scoped to caller's team and visible truth levels by default
-- [ ] **SRCH-02**: Hybrid search combines semantic (vector) and keyword (BM25) modalities for exact-term recall
-- [ ] **SRCH-03**: User can filter search results by `truth_level` (e.g., "only `VALIDATED` or above")
-- [ ] **SRCH-04**: User can search across all projects within their team explicitly (cross-project within team)
-- [ ] **SRCH-05**: Graph-traversal queries are available (e.g., "what depends on entity X?", "show lineage of fact Y")
+- [x] **SRCH-01**: Semantic search over team memory returns results ranked by relevance, scoped to caller's team and visible truth levels by default
+- [x] **SRCH-02**: Hybrid search combines semantic (vector) and keyword (BM25) modalities for exact-term recall
+- [x] **SRCH-03**: User can filter search results by `truth_level` (e.g., "only `VALIDATED` or above")
+- [x] **SRCH-04**: User can search across all projects within their team explicitly (cross-project within team)
+- [x] **SRCH-05**: Graph-traversal queries are available (e.g., "what depends on entity X?", "show lineage of fact Y")
 
 ### Truth-Level Workflow
 
-- [ ] **TRUTH-01**: A truth-level state machine enforces the progression `EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC` with no skipping; demotions are also tracked
-- [ ] **TRUTH-02**: Member can request promotion of a fact; admin or designated reviewer approves to advance the level
-- [ ] **TRUTH-03**: Every promotion event is recorded in an append-only audit log: who proposed, who approved, when, with what evidence
-- [ ] **TRUTH-04**: Visual indicator on memory items shows current `truth_level` in any frontend that surfaces them
-- [ ] **TRUTH-05**: Conflict-aware promotion: attempting to promote a fact that contradicts a higher-level fact in scope surfaces a warning and requires explicit override
-- [ ] **TRUTH-06**: Items at `PUBLIC` level are readable across all teams in the org; items at `CANONICAL` and below are not
-- [ ] **TRUTH-07**: Demotion (e.g., `CANONICAL → VALIDATED`) is supported with a recorded reason
-- [ ] **TRUTH-08**: Bulk imports land at `EPHEMERAL` or `WORKING` only; no shortcut to `VALIDATED+` via import
-- [ ] **TRUTH-09**: Agents can propose promotions but cannot autonomously promote to `CANONICAL` or `PUBLIC` — those require human approval
+- [x] **TRUTH-01**: A truth-level state machine enforces the progression `EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC` with no skipping; demotions are also tracked
+- [x] **TRUTH-02**: Member can request promotion of a fact; admin or designated reviewer approves to advance the level
+- [x] **TRUTH-03**: Every promotion event is recorded in an append-only audit log: who proposed, who approved, when, with what evidence
+- [x] **TRUTH-04**: Visual indicator on memory items shows current `truth_level` in any frontend that surfaces them
+- [x] **TRUTH-05**: Conflict-aware promotion: attempting to promote a fact that contradicts a higher-level fact in scope surfaces a warning and requires explicit override
+- [x] **TRUTH-06**: Items at `PUBLIC` level are readable across all teams in the org; items at `CANONICAL` and below are not
+- [x] **TRUTH-07**: Demotion (e.g., `CANONICAL → VALIDATED`) is supported with a recorded reason
+- [x] **TRUTH-08**: Bulk imports land at `EPHEMERAL` or `WORKING` only; no shortcut to `VALIDATED+` via import
+- [x] **TRUTH-09**: Agents can propose promotions but cannot autonomously promote to `CANONICAL` or `PUBLIC` — those require human approval
 
 ### Agents & Runtime
 
-- [ ] **AGENT-01**: Agents execute on a persistent runtime (LangGraph) with checkpointed state and crash recovery
-- [ ] **AGENT-02**: Agents read and write memory exclusively through `memory-api` endpoints (never direct DB access)
-- [ ] **AGENT-03**: Agents can be paused for human-in-the-loop approval at configured workflow steps
-- [ ] **AGENT-04**: Agents handle LLM failures, tool timeouts, and retries gracefully without leaking partial state
-- [ ] **AGENT-05**: Background ingestion agent processes new documents (uploads, Drive sync) into structured memory automatically
-- [ ] **AGENT-06**: Each agent has its own working memory namespace and reads from team shared memory with team_scope filter
-- [ ] **AGENT-07**: Multi-agent orchestration is supported (supervisor delegates to specialized agents) with isolated task contexts
+- [x] **AGENT-01**: Agents execute on a persistent runtime (LangGraph) with checkpointed state and crash recovery
+- [x] **AGENT-02**: Agents read and write memory exclusively through `memory-api` endpoints (never direct DB access)
+- [x] **AGENT-03**: Agents can be paused for human-in-the-loop approval at configured workflow steps
+- [x] **AGENT-04**: Agents handle LLM failures, tool timeouts, and retries gracefully without leaking partial state
+- [x] **AGENT-05**: Background ingestion agent processes new documents (uploads, Drive sync) into structured memory automatically
+- [x] **AGENT-06**: Each agent has its own working memory namespace and reads from team shared memory with team_scope filter
+- [x] **AGENT-07**: Multi-agent orchestration is supported (supervisor delegates to specialized agents) with isolated task contexts
 
 ### Internal Tools (MCP / API)
 
-- [ ] **MCP-01**: An MCP gateway routes tool calls from any frontend or agent to registered services
-- [ ] **MCP-02**: A new internal tool can be added by registering an MCP server URL with the gateway — no core changes required
-- [ ] **MCP-03**: Every tool invocation includes the caller's `team_scope` and `user_id`, enforced by the gateway
-- [ ] **MCP-04**: Tool outputs are written to `memory-api` with the full tagging contract (no direct DB writes from tools)
-- [ ] **MCP-05**: Scraper service is available as the first MCP tool, demonstrating the integration pattern end-to-end
-- [ ] **MCP-06**: Calendar service is available as an MCP tool (team events queryable from chat and agents)
-- [ ] **MCP-07**: Pitch deck editor service is available as an MCP tool (decks editable, stored in object storage, indexed in memory)
+- [x] **MCP-01**: An MCP gateway routes tool calls from any frontend or agent to registered services
+- [x] **MCP-02**: A new internal tool can be added by registering an MCP server URL with the gateway — no core changes required
+- [x] **MCP-03**: Every tool invocation includes the caller's `team_scope` and `user_id`, enforced by the gateway
+- [x] **MCP-04**: Tool outputs are written to `memory-api` with the full tagging contract (no direct DB writes from tools)
+- [x] **MCP-05**: Scraper service is available as the first MCP tool, demonstrating the integration pattern end-to-end
+- [x] **MCP-06**: Calendar service is available as an MCP tool (team events queryable from chat and agents)
+- [x] **MCP-07**: Pitch deck editor service is available as an MCP tool (decks editable, stored in object storage, indexed in memory)
 
 ### Integrations (External Sources)
 
-- [ ] **INT-01**: Google Drive folders can be synced (read) into team memory; documents are indexed with full tagging contract
-- [ ] **INT-02**: Drive sync is incremental — only changed files are re-processed
-- [ ] **INT-03**: Drive folders can be mapped to specific team/project scopes (no cross-team bleed via Drive)
-- [ ] **INT-04**: Agent-produced summaries can be written back to Drive documents (write-back loop) with explicit user opt-in
+- [x] **INT-01**: Google Drive folders can be synced (read) into team memory; documents are indexed with full tagging contract
+- [x] **INT-02**: Drive sync is incremental — only changed files are re-processed
+- [x] **INT-03**: Drive folders can be mapped to specific team/project scopes (no cross-team bleed via Drive)
+- [x] **INT-04**: Agent-produced summaries can be written back to Drive documents (write-back loop) with explicit user opt-in
 
 ### Observability
 
-- [ ] **OBS-01**: Every LLM call is traced with model, latency, token count, cost, and prompt version (Langfuse)
-- [ ] **OBS-02**: Every agent workflow execution produces an end-to-end trace (request → plan → tool calls → memory writes → response)
-- [ ] **OBS-03**: Operators receive alerts on agent crashes, tool timeouts, and RAG retrieval failures
-- [ ] **OBS-04**: Every memory item is traceable to its origin: `memory-api` endpoint → conversation/tool call → identity → trace_id
-- [ ] **OBS-05**: Admin sees a per-team cost dashboard (token spend, model breakdown, agent-vs-human contribution)
+- [x] **OBS-01**: Every LLM call is traced with model, latency, token count, cost, and prompt version (Langfuse)
+- [x] **OBS-02**: Every agent workflow execution produces an end-to-end trace (request → plan → tool calls → memory writes → response)
+- [x] **OBS-03**: Operators receive alerts on agent crashes, tool timeouts, and RAG retrieval failures
+- [x] **OBS-04**: Every memory item is traceable to its origin: `memory-api` endpoint → conversation/tool call → identity → trace_id
+- [x] **OBS-05**: Admin sees a per-team cost dashboard (token spend, model breakdown, agent-vs-human contribution)
 
 ### Admin & Config
 
-- [ ] **ADMIN-01**: The full stack (frontends, memory-api, agent runtime, DBs, observability, object storage) deploys via a single `docker compose up` from the repo
-- [ ] **ADMIN-02**: All secrets (API keys, DB passwords, OAuth secrets) are sourced from environment variables, with `.env.example` template tracked in git but real `.env` excluded
-- [ ] **ADMIN-03**: Each service exposes a healthcheck endpoint and Docker Compose is configured to wait for healthy upstreams
-- [ ] **ADMIN-04**: Schema migrations are versioned (Alembic or equivalent) — no in-place destructive schema changes
-- [ ] **ADMIN-05**: A documented backup procedure covers PostgreSQL, Qdrant, Neo4j, and object storage; a restore drill is performed and passes
-- [ ] **ADMIN-06**: Admin can configure per-team rate limits / quotas (token budget, write rate) without restarting services
+- [x] **ADMIN-01**: The full stack (frontends, memory-api, agent runtime, DBs, observability, object storage) deploys via a single `docker compose up` from the repo
+- [x] **ADMIN-02**: All secrets (API keys, DB passwords, OAuth secrets) are sourced from environment variables, with `.env.example` template tracked in git but real `.env` excluded
+- [x] **ADMIN-03**: Each service exposes a healthcheck endpoint and Docker Compose is configured to wait for healthy upstreams
+- [x] **ADMIN-04**: Schema migrations are versioned (Alembic or equivalent) — no in-place destructive schema changes
+- [x] **ADMIN-05**: A documented backup procedure covers PostgreSQL, Qdrant, Neo4j, and object storage; a restore drill is performed and passes
+- [x] **ADMIN-06**: Admin can configure per-team rate limits / quotas (token budget, write rate) without restarting services
 
 ## v2 Requirements
 
@@ -200,79 +200,79 @@ Mapping requirement → phase. Rempli par le roadmapper — 2026-05-02.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 1 | Pending |
-| AUTH-02 | Phase 1 | Pending |
-| AUTH-03 | Phase 1 | Pending |
-| AUTH-04 | Phase 1 | Pending |
-| AUTH-05 | Phase 1 | Pending |
-| AUTH-06 | Phase 1 | Pending |
-| TEAM-01 | Phase 1 | Pending |
-| TEAM-02 | Phase 1 | Pending |
-| TEAM-03 | Phase 1 | Pending |
-| TEAM-04 | Phase 1 | Pending |
-| TEAM-05 | Phase 1 | Pending |
-| TEAM-06 | Phase 1 | Pending |
-| MEM-01 | Phase 1 | Pending |
-| MEM-02 | Phase 1 | Pending |
-| MEM-03 | Phase 1 | Pending |
-| MEM-04 | Phase 1 (closed Phase 13) | Done |
-| MEM-05 | Phase 1 | Pending |
-| MEM-06 | Phase 2 | Pending |
-| MEM-07 | Phase 2 | Pending |
-| MEM-08 | Phase 2 | Pending |
-| MEM-09 | Phase 2 | Pending |
-| MEM-10 | Phase 2 | Pending |
-| CHAT-01 | Phase 1 | Pending |
-| CHAT-02 | Phase 1 | Pending |
-| CHAT-03 | Phase 1 (closed Phase 13) | Done |
-| CHAT-04 | Phase 1 | Pending |
-| CHAT-05 | Phase 1 | Pending |
-| CHAT-06 | Phase 2 | Pending |
-| CHAT-07 | Phase 2 (closed Phase 13) | Done |
-| CHAT-08 | Phase 1 | Pending |
-| SRCH-01 | Phase 1 | Pending |
-| SRCH-02 | Phase 1 | Pending |
-| SRCH-03 | Phase 2 | Pending |
-| SRCH-04 | Phase 2 | Pending |
-| SRCH-05 | Phase 3 | Pending |
-| TRUTH-01 | Phase 2 | Pending |
-| TRUTH-02 | Phase 2 | Pending |
-| TRUTH-03 | Phase 2 | Pending |
-| TRUTH-04 | Phase 2 | Pending |
-| TRUTH-05 | Phase 2 | Pending |
-| TRUTH-06 | Phase 2 | Pending |
-| TRUTH-07 | Phase 2 | Pending |
-| TRUTH-08 | Phase 2 | Pending |
-| TRUTH-09 | Phase 2 | Pending |
-| AGENT-01 | Phase 2 | Pending |
-| AGENT-02 | Phase 2 | Pending |
-| AGENT-03 | Phase 2 | Pending |
-| AGENT-04 | Phase 2 | Pending |
-| AGENT-05 | Phase 2 | Pending |
-| AGENT-06 | Phase 2 | Pending |
-| AGENT-07 | Phase 2 | Pending |
-| MCP-01 | Phase 3 | Pending |
-| MCP-02 | Phase 3 | Pending |
-| MCP-03 | Phase 3 | Pending |
-| MCP-04 | Phase 3 | Pending |
-| MCP-05 | Phase 3 | Pending |
-| MCP-06 | Phase 3 | Pending |
-| MCP-07 | Phase 3 | Pending |
-| INT-01 | Phase 3 | Pending |
-| INT-02 | Phase 3 | Pending |
-| INT-03 | Phase 3 | Pending |
-| INT-04 | Phase 3 | Pending |
-| OBS-01 | Phase 1 | Pending |
-| OBS-02 | Phase 2 | Pending |
-| OBS-03 | Phase 2 | Pending |
-| OBS-04 | Phase 1 | Pending |
-| OBS-05 | Phase 2 | Pending |
-| ADMIN-01 | Phase 1 | Pending |
-| ADMIN-02 | Phase 1 | Pending |
-| ADMIN-03 | Phase 1 | Pending |
-| ADMIN-04 | Phase 1 | Pending |
-| ADMIN-05 | Phase 1 | Pending |
-| ADMIN-06 | Phase 1 | Pending |
+| AUTH-01 | Phase 1 | Done (Phase 1) |
+| AUTH-02 | Phase 1 | Done (Phase 1) |
+| AUTH-03 | Phase 1 | Done (Phase 1) |
+| AUTH-04 | Phase 1 | Done (Phase 1) |
+| AUTH-05 | Phase 1 | Done (Phase 1) |
+| AUTH-06 | Phase 1 | Done (Phase 1) |
+| TEAM-01 | Phase 1 | Done (Phase 1) |
+| TEAM-02 | Phase 1 | Done (Phase 1) |
+| TEAM-03 | Phase 1 | Done (Phase 1) |
+| TEAM-04 | Phase 1 | Done (Phase 1) |
+| TEAM-05 | Phase 1 | Done (Phase 1) |
+| TEAM-06 | Phase 1 | Done (Phase 1) |
+| MEM-01 | Phase 1 | Done (Phase 1) |
+| MEM-02 | Phase 1 | Done (Phase 1) |
+| MEM-03 | Phase 1 | Done (Phase 1) |
+| MEM-04 | Phase 1 (closed Phase 13) | Done (Phase 13) |
+| MEM-05 | Phase 1 | Done (Phase 1) |
+| MEM-06 | Phase 2 | Done (Phase 2) |
+| MEM-07 | Phase 2 | Done (Phase 2) |
+| MEM-08 | Phase 2 | Done (Phase 2) |
+| MEM-09 | Phase 2 | Done (Phase 2) |
+| MEM-10 | Phase 2 | Done (Phase 2) |
+| CHAT-01 | Phase 1 | Done (Phase 1) |
+| CHAT-02 | Phase 1 | Done (Phase 1) |
+| CHAT-03 | Phase 1 (closed Phase 13) | Done (Phase 13) |
+| CHAT-04 | Phase 1 | Done (Phase 1) |
+| CHAT-05 | Phase 1 | Done (Phase 1) |
+| CHAT-06 | Phase 2 | Done (Phase 2) |
+| CHAT-07 | Phase 2 (closed Phase 13) | Done (Phase 13) |
+| CHAT-08 | Phase 1 | Done (Phase 1) |
+| SRCH-01 | Phase 1 | Done (Phase 1) |
+| SRCH-02 | Phase 1 | Done (Phase 1) |
+| SRCH-03 | Phase 2 | Done (Phase 2) |
+| SRCH-04 | Phase 2 | Done (Phase 2) |
+| SRCH-05 | Phase 3 | Done (Phase 3) |
+| TRUTH-01 | Phase 2 | Done (Phase 2) |
+| TRUTH-02 | Phase 2 | Done (Phase 2) |
+| TRUTH-03 | Phase 2 | Done (Phase 2) |
+| TRUTH-04 | Phase 2 | Done (Phase 2) |
+| TRUTH-05 | Phase 2 | Done (Phase 2) |
+| TRUTH-06 | Phase 2 | Done (Phase 2) |
+| TRUTH-07 | Phase 2 | Done (Phase 2) |
+| TRUTH-08 | Phase 2 | Done (Phase 2) |
+| TRUTH-09 | Phase 2 | Done (Phase 2) |
+| AGENT-01 | Phase 2 | Done (Phase 2) |
+| AGENT-02 | Phase 2 | Done (Phase 2) |
+| AGENT-03 | Phase 2 | Done (Phase 2) |
+| AGENT-04 | Phase 2 | Done (Phase 2) |
+| AGENT-05 | Phase 2 | Done (Phase 2) |
+| AGENT-06 | Phase 2 | Done (Phase 2) |
+| AGENT-07 | Phase 2 | Done (Phase 2) |
+| MCP-01 | Phase 3 | Done (Phase 3) |
+| MCP-02 | Phase 3 | Done (Phase 3) |
+| MCP-03 | Phase 3 | Done (Phase 3) |
+| MCP-04 | Phase 3 | Done (Phase 3) |
+| MCP-05 | Phase 3 | Done (Phase 3) |
+| MCP-06 | Phase 3 | Done (Phase 3) |
+| MCP-07 | Phase 3 | Done (Phase 3) |
+| INT-01 | Phase 3 | Done (Phase 3) |
+| INT-02 | Phase 3 | Done (Phase 3) |
+| INT-03 | Phase 3 | Done (Phase 3) |
+| INT-04 | Phase 3 | Done (Phase 3) |
+| OBS-01 | Phase 1 | Done (Phase 1) |
+| OBS-02 | Phase 2 | Done (Phase 2) |
+| OBS-03 | Phase 2 | Done (Phase 2) |
+| OBS-04 | Phase 1 | Done (Phase 1) |
+| OBS-05 | Phase 2 | Done (Phase 2) |
+| ADMIN-01 | Phase 1 | Done (Phase 1) |
+| ADMIN-02 | Phase 1 | Done (Phase 1) |
+| ADMIN-03 | Phase 1 | Done (Phase 1) |
+| ADMIN-04 | Phase 1 | Done (Phase 1) |
+| ADMIN-05 | Phase 1 | Done (Phase 1) |
+| ADMIN-06 | Phase 1 | Done (Phase 1) |
 
 **Coverage:**
 - v1 requirements: 73 total (note: REQUIREMENTS.md header stated 65 but 73 REQ-IDs are defined across 11 categories — all 73 mapped)
@@ -351,4 +351,4 @@ Several capabilities shipped between phases via the GSD Quick Task surface (atom
 
 ---
 *Requirements defined: 2026-05-02 (v1 73 REQ-IDs frozen)*
-*Last updated: 2026-05-24 — MEM-04 / CHAT-03 / CHAT-07 ticked [x] (closed Phase 13 — Chat → Brain Ingestion + Retrieval Enrichment). Post-v1 capabilities section added (Phases 8-12 + Quick Tasks shipped).*
+*Last updated: 2026-05-27 — Full traceability backfill: all 73 v1 REQ-IDs flipped to [x] Done, traceability table Status updated to "Done (Phase N)" for each. Phases 1–13 all LIVE/Complete per ROADMAP.md. No deferred or dropped requirements found.*
