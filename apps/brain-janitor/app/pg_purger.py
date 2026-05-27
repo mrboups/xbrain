@@ -75,7 +75,7 @@ async def purge_pg(
                 rows = await conn.fetch(
                     f"DELETE FROM {table} "
                     f"WHERE deleted_at IS NOT NULL "
-                    f"  AND deleted_at < now() - $1 "
+                    f"  AND deleted_at < now() - $1::interval "
                     f"RETURNING id",
                     interval,
                 )
