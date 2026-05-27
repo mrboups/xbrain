@@ -383,31 +383,14 @@ Plans:
 
 **Plans**: 8 plans
 Plans:
-**Wave 1**
-
 - [x] 13-01-PLAN.md — relevance_filter (Haiku 4.5 + cache + budget cap) + POST /v1/brain/ingest endpoint
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
 - [x] 13-02-PLAN.md — team_chat ingest uses relevance_filter.classify (swap heuristic gate)
 - [x] 13-03-PLAN.md — native_provider upsert race fix (INSERT … ON CONFLICT DO UPDATE)
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
 - [x] 13-04-PLAN.md — LibreChat brain ingest hook in mongo_watcher.messages_watch_loop
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
 - [x] 13-05-PLAN.md — LibreChat per-turn enricher (message_enricher.enrich_turn) + conv_enricher VALIDATED upgrade
-
-**Wave 5** *(blocked on Wave 4 completion)*
-
 - [x] 13-06-PLAN.md — Open WebUI ingest + enrichment in openwebui-pipeline.main.chat()
-
-**Wave 6** *(blocked on Wave 5 completion)*
-
 - [x] 13-07-PLAN.md — verify-phase13.sh + cross-frontend integration test + .env.example
-- [ ] 13-08-PLAN.md — Tick MEM-04 / CHAT-03 / CHAT-07; ROADMAP + STATE; marketing docs
+- [x] 13-08-PLAN.md — Tick MEM-04 / CHAT-03 / CHAT-07; ROADMAP + STATE; marketing docs
 
 **UI hint**: no (backend + bridges + observability only — Brain Monitor / @claude / LibreChat / Open WebUI surface the new flow without UI work)
 
@@ -460,7 +443,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 10. GitHub-Primary Auth + Org-Driven Team Membership | 6/6 | ✅ LIVE | 2026-05-14 (deployed + verify PASS) — OAuth client_id+callback URL bug fixed 2026-05-17 |
 | 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 11/11 | ✅ LIVE | 2026-05-17 (verify-phase11.sh PASS 5/5 + 11 SKIP fixture, alembic 0018 head on VM, brain-janitor running, UI live grooveos.app/account/teams/brain/ + /account/admin/) |
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 11/11 | ✅ LIVE | 2026-05-17 (alembic 0019 head, memory-api rebuilt, verify-phase12.sh PASS 13/13 + 5 SKIP fixture, Firebase teams.js with new client_id Iv23liVnZvIN0Lo6isof live) |
-| 13. Chat → Brain Ingestion + Retrieval Enrichment | 7/8 | In Progress|  |
+| 13. Chat → Brain Ingestion + Retrieval Enrichment | 8/8 | ✅ LIVE | 2026-05-24 (verify-phase13.sh PASS 0/8 + 8 SKIP locally, awaiting VM deploy; MEM-04 / CHAT-03 / CHAT-07 ticked) |
 
 ---
 
