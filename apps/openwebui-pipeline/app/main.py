@@ -5,6 +5,7 @@ to memory-api in best-effort mode (failure does not block response).
 """
 
 import asyncio
+import hashlib
 import logging
 import time
 import uuid
@@ -129,6 +130,60 @@ def _make_conversation_id(sub: str, messages: list[ChatMessage]) -> str:
     return str(uuid.uuid5(_CONV_NS, f"openwebui:{sub}:{seed}"))
 
 
+# ── Phase 13 plan 13-06 — brain ingest + per-turn enrichment helpers ──────────
+
+
+async def _brain_ingest_owui(
+    *,
+    mem: MemoryApiClient,
+    sub: str,
+    team_scope: str,
+    content: str,
+    source: str,
+    conversation_id: str,
+) -> None:
+    """Fire-and-forget brain ingest for an Open WebUI user message. Never raises."""
+    try:
+        idem_key = f"openwebui:{conversation_id}:{hashlib.sha256(content.encode('utf-8')).hexdigest()[:32]}"
+        await mem.brain_ingest(
+            sub=sub,
+            team_scope=team_scope,
+            content=content,
+            source=source,
+            metadata={
+                "origin": "openwebui",
+                "conversation_id": conversation_id,
+                "idempotency_key": idem_key,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("owui_brain_ingest.failed", err=str(exc), sub=sub, source=source)
+
+
+async def _fetch_enrichment_owui(
+    *,
+    mem: MemoryApiClient,
+    sub: str,
+    team_scope: str,
+    user_message: str,
+) -> str:
+    """Fetch VALIDATED+ facts addendum. Returns '' on any error or empty result."""
+    if not user_message:
+        return ""
+    try:
+        data = await mem.get_system_prompt(
+            sub=sub,
+            team_scope=team_scope,
+            query=user_message[:500],
+            top_k=settings.CHAT07_TOP_K,
+            min_level=settings.CHAT07_TRUTH_FILTER_MIN_LEVEL,
+        )
+        return data.get("system_addendum", "") or ""
+    except Exception as exc:  # noqa: BLE001
+        log.warning("owui_enrichment.failed", err=str(exc), sub=sub)
+        return ""
+
+
 @app.post("/v1/chat/completions")
 async def chat(
     body: ChatCompletionsBody,
@@ -190,6 +245,27 @@ async def chat(
                 "envoie un message normal pour parler à l'LLM."
             )
 
+    # Phase 13 plan 13-06 — brain ingest + per-turn enrichment
+    # (after slash-command intercept; before LLM dispatch).
+    enrichment_addendum = ""
+    if settings.BRAIN_INGEST_ENABLED and user_message:
+        # Fire-and-forget ingest of the user message
+        asyncio.create_task(
+            _brain_ingest_owui(
+                mem=mem,
+                sub=sub,
+                team_scope=team_scope,
+                content=user_message,
+                source=f"openwebui:{body.model}",
+                conversation_id=conversation_id,
+            )
+        )
+        # Await enrichment fetch — this DOES block the chat path briefly,
+        # but the addendum is required BEFORE the LLM call. Failures are swallowed.
+        enrichment_addendum = await _fetch_enrichment_owui(
+            mem=mem, sub=sub, team_scope=team_scope, user_message=user_message,
+        )
+
     log.info(
         "chat_request",
         model=body.model,
@@ -203,14 +279,16 @@ async def chat(
         if anthropic_client is None:
             raise HTTPException(500, "ANTHROPIC_API_KEY not configured")
         return await _handle_anthropic(
-            body, real_model, sub, team_scope, conversation_id, user_message
+            body, real_model, sub, team_scope, conversation_id, user_message,
+            system_prefix=enrichment_addendum,
         )
 
     if provider == "openai":
         if openai_client is None:
             raise HTTPException(500, "OPENAI_API_KEY not configured")
         return await _handle_openai(
-            body, real_model, sub, team_scope, conversation_id, user_message
+            body, real_model, sub, team_scope, conversation_id, user_message,
+            system_prefix=enrichment_addendum,
         )
 
     raise HTTPException(500, f"provider not implemented: {provider}")
@@ -223,11 +301,19 @@ async def _handle_anthropic(
     team_scope: str,
     conversation_id: str,
     user_message: str,
+    *,
+    system_prefix: str = "",
 ) -> Any:
     # Strip system messages out of `messages` and pass them as `system` parameter to Anthropic
     system_msgs = [m.content for m in body.messages if m.role == "system"]
     chat_msgs = [{"role": m.role, "content": m.content} for m in body.messages if m.role != "system"]
-    system_param = "\n".join(system_msgs) if system_msgs else None
+    # Phase 13 — prepend enrichment to existing system content (Pitfall 5: NOT in messages list)
+    parts = []
+    if system_prefix:
+        parts.append(system_prefix)
+    if system_msgs:
+        parts.append("\n".join(system_msgs))
+    system_param = "\n\n".join(parts) if parts else None
     max_tokens = body.max_tokens or 4096
 
     if body.stream:
@@ -313,8 +399,13 @@ async def _handle_openai(
     team_scope: str,
     conversation_id: str,
     user_message: str,
+    *,
+    system_prefix: str = "",
 ) -> Any:
-    msgs = [{"role": m.role, "content": m.content} for m in body.messages]
+    msgs: list[dict[str, str]] = []
+    if system_prefix:
+        msgs.append({"role": "system", "content": system_prefix})
+    msgs.extend({"role": m.role, "content": m.content} for m in body.messages)
     assert openai_client is not None
     if body.stream:
         async def gen():

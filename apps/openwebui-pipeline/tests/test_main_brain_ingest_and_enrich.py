@@ -287,6 +287,8 @@ async def test_slash_command_bypasses_enrichment_and_ingest(client):
 @pytest.mark.asyncio
 async def test_brain_ingest_fired_for_normal_message(client):
     """brain_ingest must be called with correct source + idempotency_key for normal messages."""
+    import asyncio as _asyncio
+
     user_content = "remind me of our deploy window"
     expected_sha = hashlib.sha256(user_content.encode("utf-8")).hexdigest()[:32]
 
@@ -316,22 +318,25 @@ async def test_brain_ingest_fired_for_normal_message(client):
             },
         )
 
-    assert r.status_code == 200, r.text
+        # Allow pending asyncio.create_task() coroutines to complete
+        await _asyncio.sleep(0)
 
-    # brain_ingest should have been called
-    mock_mem.brain_ingest.assert_called_once()
-    call_kwargs = mock_mem.brain_ingest.call_args.kwargs
+        assert r.status_code == 200, r.text
 
-    assert call_kwargs["source"] == "openwebui:claude-haiku-4-5"
-    assert call_kwargs["content"] == user_content
-    assert call_kwargs["team_scope"] == "team-a"
+        # brain_ingest should have been called (fired via create_task)
+        mock_mem.brain_ingest.assert_called_once()
+        call_kwargs = mock_mem.brain_ingest.call_args.kwargs
 
-    meta = call_kwargs.get("metadata", {})
-    assert meta.get("origin") == "openwebui"
-    assert "conversation_id" in meta
-    idem_key = meta.get("idempotency_key", "")
-    assert idem_key.startswith("openwebui:")
-    assert expected_sha in idem_key
+        assert call_kwargs["source"] == "openwebui:claude-haiku-4-5"
+        assert call_kwargs["content"] == user_content
+        assert call_kwargs["team_scope"] == "team-a"
+
+        meta = call_kwargs.get("metadata", {})
+        assert meta.get("origin") == "openwebui"
+        assert "conversation_id" in meta
+        idem_key = meta.get("idempotency_key", "")
+        assert idem_key.startswith("openwebui:")
+        assert expected_sha in idem_key
 
 
 # ── Test 7: BRAIN_INGEST_ENABLED=false disables both ingest AND enrichment ────
