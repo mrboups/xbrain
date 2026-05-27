@@ -140,6 +140,20 @@ None yet.
 - ~~VM disk~~ — Était à 99% le 2026-05-07 et de nouveau 100% pendant deploy Phase 10 (2026-05-14, clickhouse log 17GB). Résolu via truncate + agrandissement disque. Logging caps (max-size 100m, max-file 3) ajoutés à tous les 29 services 2026-05-17 pour prévenir récurrence.
 - ~~Phase 10 OAuth web sign-in broken~~ — placeholder client_id + callback URL mismatch on OAuth App "xbrain". Fixed 2026-05-17 (commit 8c3df36), validated end-to-end via Playwright.
 
+## Phase 13 deploy 2026-05-27
+
+**Deployed**: memory-api, librechat-bridge, openwebui-pipeline rebuilt with Phase 13 changes. All 3 containers healthy on VM 130.211.55.142.
+
+**Env vars wired**: 7 Phase 13 vars added to infrastructure/docker-compose.yml (commit 10d547b) and VM .env: RELEVANCE_HAIKU_ENABLED, RELEVANCE_HAIKU_MODEL=claude-haiku-4-5-20251001, RELEVANCE_HAIKU_TIMEOUT_S=3.0, RELEVANCE_DAILY_TOKEN_CAP_PER_TEAM=50000, BRAIN_INGEST_ENABLED, CHAT07_TOP_K=5, CHAT07_TRUTH_FILTER_MIN_LEVEL=VALIDATED.
+
+**verify-phase13.sh on VM** (TEST_TEAM_SCOPE=aibrussels): PASS 3 / SKIP 2 / FAIL 3.
+- PASS: (b) LibreChat live ingest — item_id minted, memory_items row + Qdrant point materialized end-to-end. (d) Haiku low-relevance skip. (e) Heuristic fallback ingests substantive messages.
+- SKIP: (c) OWUI pipeline only on docker network (unit-tested in 13-06). (f) no VALIDATED items yet (requires Brain Monitor promotion).
+- FAIL: (a)(g)(h) — test-helper auth/endpoint-shape bugs in test-phase13-cross-frontend.py, **not feature failures**. Helper sends bridge JWT to user-only endpoint and wrong body to Brain Monitor PATCH. Tightening task for the helper, not Phase 13 code.
+
+**Production proof**: memory-api logs show relevance_filter.classified events with cache_read_input_tokens=5201 (Anthropic prompt cache active — Haiku system prompt cached and reused), classify latency ~900ms, brain_ingest.external.ok events upserting to memory_items, brain_ingest.external.skipped_by_filter for short messages.
+
+
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
