@@ -307,6 +307,32 @@ Plans:
 **Plans**: TBD (populated by `/gsd:plan-phase 12` — estimated 8-10 sub-plans covering JWT/installation tokens, refresh flow, install UI, multi-callback frontend updates, manifest `key` for stable extension ID, migration, verification)
 **UI hint**: yes (app-site install banner + chrome-extension popup install/status section + install confirmation page)
 
+### Phase 13: Chat → Brain Ingestion + Retrieval Enrichment — close the differentiator
+**Goal**: Close the three unchecked core-differentiator requirements (MEM-04, CHAT-03, CHAT-07) by wiring every substantive chat message — across team chat, LibreChat, and Open WebUI — into the searchable brain (`memory_items` + Qdrant), gated by a Haiku relevance filter, and auto-enriching every chat turn with relevant `CANONICAL`/`VALIDATED` facts retrieved from team memory before the LLM call. After this phase, the contract "any chat content (human or agent, any frontend) lands in a shared team brain, scoped + truth-tagged, and is reused on the next conversation" actually holds end-to-end.
+**Depends on**: Phase 12 (GitHub App migration LIVE — auth + frontends stable)
+**Entry gate**: Phase 12 SHIPPED. `brain_ingest.py` already ships the team-chat ingest path (heuristic ≥15 chars, WORKING truth level). LibreChat path: `mongo_watcher.messages_watch_loop` already forwards LibreChat messages to `/v1/messages` (conversation log) but NOT to `memory_items` + Qdrant. Open WebUI path: `openwebui-pipeline/main.py` only handles `/ingest <url>` slash commands; no per-message auto-ingestion. LibreChat enrichment: `conv_enricher.py` injects a system message at the start of new conversations only — not per-turn. Open WebUI enrichment: none. VM disk < 80%. `ANTHROPIC_API_KEY` available for the Haiku relevance classifier. Memory provider already `MEMORY_BACKEND=native` with `OPENAI_API_KEY` for embeddings (live since 2026-05-23).
+**Requirements**: MEM-04, CHAT-03, CHAT-07 (the three v1 requirements left unchecked since Phase 1/2 — closing the xbrain differentiator)
+**Locked decisions** (confirmed before planning):
+- **D1**: Relevance filter = Claude 4.5 Haiku (`claude-haiku-4-5-20251001`), prompt-cache friendly. The heuristic ≥15 chars stays as fail-soft fallback when Haiku errors/timeouts.
+- **D2**: Filter is invoked async fire-and-forget post-send — never blocks the chat response path. Persisted via the same code path as today's `brain_ingest.ingest_team_message`.
+- **D3**: Default ingestion `truth_level = WORKING`. Human promotion to `VALIDATED`/`CANONICAL` via Brain Monitor (Phase 11) stays the source of truth for retrieval gating.
+- **D4**: All three active frontends in scope v1: team chat (refine — replace heuristic with Haiku gate), LibreChat (new ingest path via `mongo_watcher`), Open WebUI (new ingest path via `openwebui-pipeline`).
+- **D5**: Retrieval injection point = **per-turn pre-LLM hook**, not just boot-of-conversation. Implemented in librechat-bridge (extension of `conv_enricher` → `message_enricher`) and openwebui-pipeline (new enricher). Team chat already runs per-turn via the @claude bundle.
+- **D6**: Retrieval `top_k = 5`, filtered to `truth_level IN ('VALIDATED','CANONICAL')`. Configurable via env (`CHAT07_TOP_K`, `CHAT07_TRUTH_FILTER`) for future tuning.
+**Success Criteria** (what must be TRUE):
+  1. Sending a substantive human message in **team chat** ingests it into `memory_items` (truth=WORKING) + Qdrant exactly once; assistant messages are NOT ingested (LLM output, not new facts); messages starting with `@claude`/`@c`/`@cl` are NOT ingested
+  2. Sending a substantive user message in **LibreChat** triggers, in parallel to the existing conversation-log write, an upsert into `memory_items` + Qdrant via the same shared `brain_ingest` service with `source='librechat:<model>'`; idempotent on retry
+  3. Sending a substantive user message in **Open WebUI** triggers an equivalent ingest with `source='openwebui:<model>'`; existing `/ingest <url>` slash-command path remains untouched
+  4. The **Haiku relevance classifier** runs as a pre-upsert filter (fail-soft fallback to the ≥15-char heuristic when Haiku errors/timeouts): `relevance.score ≥ threshold` → upsert; below threshold → no-op + log; observable via Langfuse trace; daily per-team Haiku-token spend capped (configurable, default 50K input tokens/day/team)
+  5. Every chat turn — LibreChat, Open WebUI, team chat — fires a `memory_search` (top-K=5, truth filter `{VALIDATED, CANONICAL}`) and injects the returned facts into the system context **before** the LLM call. When no relevant facts surface, the call proceeds untouched (no empty "no facts" block)
+  6. `conv_enricher.enrich_new_conversation` is generalized to `message_enricher.enrich_turn` (LibreChat) with an equivalent hook in Open WebUI's pipeline. Existing conv-boot enrichment behavior is preserved as the first-turn case (idempotency: same conv + same turn does not re-inject)
+  7. Ingestion is fire-and-forget on all frontends — failure in the brain path NEVER fails the chat response; surfaced only via Langfuse error trace + structlog warning
+  8. **Cross-frontend retrieval works**: a fact ingested via team chat (then promoted to VALIDATED in Brain Monitor) is retrievable in LibreChat and Open WebUI on the next turn — same `team_scope`
+  9. `bash infrastructure/scripts/verify-phase13.sh` returns `PASS: N / N` — at minimum: (a) team-chat ingest + Qdrant point materialized; (b) LibreChat user-msg ingest + Qdrant point materialized; (c) Open WebUI user-msg ingest + Qdrant point materialized; (d) Haiku-low-score message does NOT land in `memory_items`; (e) Haiku error path falls back to heuristic and ingest proceeds; (f) chat turn injects retrieved CANONICAL facts into LibreChat system context (verified via mock LLM trace); (g) cross-frontend retrieval (ingest in team chat → retrieve in LibreChat); (h) chat send still succeeds when memory-api is unreachable (fail-soft)
+ 10. `REQUIREMENTS.md` ticks `MEM-04`, `CHAT-03`, `CHAT-07` to `[x]` and the traceability table marks them `Done in Phase 13`
+**Plans**: TBD (populated by `/gsd:plan-phase 13` — estimated 7-9 sub-plans: shared `brain_ingest` service refactor; Haiku relevance filter + budget cap; LibreChat ingest hook in `mongo_watcher`; LibreChat per-turn `message_enricher` (extends `conv_enricher`); Open WebUI ingest pipeline; Open WebUI enricher; cross-frontend integration test; `verify-phase13.sh` + docs)
+**UI hint**: no (backend + bridges + observability only — Brain Monitor / @claude / LibreChat / Open WebUI surface the new flow without UI work)
+
 ### Phase 7: CRM + Granola + Task Intelligence
 **Goal**: Le brain devient actif. Une équipe peut (1) consulter un CRM populé automatiquement depuis tout ce qui passe par le brain (chats, agents, meetings Granola), (2) voir chaque réunion Granola ingérée comme source de mémoire de premier ordre (résumé + participants + actions + décisions), et (3) gérer un backlog de tâches auto-générées depuis les action items Granola et les outputs agents — chaque tâche assignée à un contact CRM déclenche une notification email.
 **Depends on**: Phase 6
@@ -335,7 +361,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12
+Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -352,6 +378,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 10. GitHub-Primary Auth + Org-Driven Team Membership | 6/6 | ✅ LIVE | 2026-05-14 (deployed + verify PASS) — OAuth client_id+callback URL bug fixed 2026-05-17 |
 | 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 11/11 | ✅ LIVE | 2026-05-17 (verify-phase11.sh PASS 5/5 + 11 SKIP fixture, alembic 0018 head on VM, brain-janitor running, UI live grooveos.app/account/teams/brain/ + /account/admin/) |
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 11/11 | ✅ LIVE | 2026-05-17 (alembic 0019 head, memory-api rebuilt, verify-phase12.sh PASS 13/13 + 5 SKIP fixture, Firebase teams.js with new client_id Iv23liVnZvIN0Lo6isof live) |
+| 13. Chat → Brain Ingestion + Retrieval Enrichment | 0/0 | 🟡 Planned | 2026-05-24 (decisions D1-D6 locked, ready for `/gsd:plan-phase 13`) |
 
 ---
 
