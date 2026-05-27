@@ -20,5 +20,10 @@ class Settings(BaseSettings):
 
     LOG_LEVEL: str = "INFO"
 
+    # Phase 13 — Chat → Brain Ingestion + Retrieval Enrichment (MEM-04 / CHAT-03 / CHAT-07)
+    BRAIN_INGEST_ENABLED: bool = True
+    CHAT07_TOP_K: int = 5
+    CHAT07_TRUTH_FILTER_MIN_LEVEL: str = "VALIDATED"  # >= VALIDATED → includes VALIDATED+CANONICAL+PUBLIC
+
 
 settings = Settings()  # type: ignore[call-arg]

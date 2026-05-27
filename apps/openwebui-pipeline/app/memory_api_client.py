@@ -198,6 +198,92 @@ class MemoryApiClient:
         retry=retry_if_exception_type(httpx.HTTPError),
         reraise=True,
     )
+    async def brain_ingest(
+        self,
+        *,
+        sub: str,
+        team_scope: str,
+        content: str,
+        source: str,
+        metadata: dict | None = None,
+        project_scope: str | None = None,
+    ) -> dict:
+        """POST /v1/brain/ingest — fire-and-forget brain upsert (Phase 13 13-01 endpoint).
+
+        Caller MUST invoke inside an asyncio.create_task so the chat path is never blocked.
+        Idempotency: pass metadata['idempotency_key'] for deterministic uuid5 dedup.
+        """
+        token = make_pipeline_jwt(sub=sub, team_scope=team_scope)
+        body = {
+            "content": content,
+            "source": source,
+            "metadata": metadata or {},
+            "project_scope": project_scope,
+        }
+        r = await self.client.post(
+            f"{self.base}/v1/brain/ingest",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "X-Team-Scope": team_scope,
+            },
+            json=body,
+        )
+        if r.status_code >= 400:
+            log.warning(
+                "memory_api_brain_ingest_failed",
+                status=r.status_code,
+                body=r.text[:200],
+                sub=sub,
+                source=source,
+            )
+        r.raise_for_status()
+        return r.json()
+
+    @retry(
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(min=0.3, max=2),
+        retry=retry_if_exception_type(httpx.HTTPError),
+        reraise=True,
+    )
+    async def get_system_prompt(
+        self,
+        *,
+        sub: str,
+        team_scope: str,
+        query: str,
+        project_scope: str | None = None,
+        top_k: int | None = None,
+        min_level: str | None = None,
+    ) -> dict:
+        """GET /v1/system-prompt — fetch RAG addendum (VALIDATED+ truth_level per D6)."""
+        token = make_pipeline_jwt(sub=sub, team_scope=team_scope)
+        params: dict[str, str | int] = {"query": query[:500]}
+        if project_scope:
+            params["project_scope"] = project_scope
+        if top_k is not None:
+            params["top_k"] = top_k
+        if min_level is not None:
+            params["min_level"] = min_level
+        r = await self.client.get(
+            f"{self.base}/v1/system-prompt",
+            headers={"Authorization": f"Bearer {token}", "X-Team-Scope": team_scope},
+            params=params,
+        )
+        if r.status_code >= 400:
+            log.warning(
+                "memory_api_get_system_prompt_failed",
+                status=r.status_code,
+                body=r.text[:200],
+            )
+        r.raise_for_status()
+        return r.json()
+
+    @retry(
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(min=0.3, max=2),
+        retry=retry_if_exception_type(httpx.HTTPError),
+        reraise=True,
+    )
     async def post_conversation(
         self,
         *,
