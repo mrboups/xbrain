@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -16,20 +17,38 @@ async def get_or_create_user(
     display_name: str | None = None,
     github_id: int | None = None,
 ) -> User:
-    """UPSERT by source_user_id. Idempotent — safe to call on every authenticated request."""
-    result = await session.execute(select(User).where(User.source_user_id == source_user_id))
-    user = result.scalar_one_or_none()
-    if user is not None:
-        if email and user.email != email:
-            user.email = email
-        if display_name and user.display_name != display_name:
-            user.display_name = display_name
-        if github_id and user.github_id is None:
-            user.github_id = github_id
-        return user
-    user = User(source_user_id=source_user_id, email=email, display_name=display_name, github_id=github_id)
-    session.add(user)
+    """UPSERT by source_user_id. Idempotent + race-safe.
+
+    Two concurrent requests for the same `source_user_id` (e.g. two LibreChat
+    messages from an anonymous session) used to both SELECT no-row, then both
+    INSERT, and one would hit `UniqueViolationError`. We now issue an
+    `INSERT ... ON CONFLICT (source_user_id) DO NOTHING` first, then SELECT
+    the live row — guaranteed to return exactly one row either way.
+    """
+    stmt = (
+        pg_insert(User)
+        .values(
+            source_user_id=source_user_id,
+            email=email,
+            display_name=display_name,
+            github_id=github_id,
+        )
+        .on_conflict_do_nothing(index_elements=["source_user_id"])
+    )
+    await session.execute(stmt)
     await session.flush()
+
+    result = await session.execute(
+        select(User).where(User.source_user_id == source_user_id)
+    )
+    user = result.scalar_one()
+
+    if email and user.email != email:
+        user.email = email
+    if display_name and user.display_name != display_name:
+        user.display_name = display_name
+    if github_id and user.github_id is None:
+        user.github_id = github_id
     return user
 
 
