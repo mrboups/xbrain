@@ -244,7 +244,7 @@ services:
       # Phase 13 — brain ingest + per-turn enrichment for LibreChat
       BRAIN_INGEST_ENABLED: ${BRAIN_INGEST_ENABLED:-true}
       CHAT07_TOP_K: ${CHAT07_TOP_K:-5}
-      CHAT07_TRUTH_FILTER_MIN_LEVEL: ${CHAT07_TRUTH_FILTER_MIN_LEVEL:-VALIDATED}
+      CHAT07_TRUTH_FILTER_MIN_LEVEL: ${CHAT07_TRUTH_FILTER_MIN_LEVEL:-WORKING}
     networks: [xbrain_net]
     mem_limit: 128m
     depends_on:
@@ -282,7 +282,7 @@ services:
       # Phase 13 — brain ingest + per-turn enrichment for Open WebUI
       BRAIN_INGEST_ENABLED: ${BRAIN_INGEST_ENABLED:-true}
       CHAT07_TOP_K: ${CHAT07_TOP_K:-5}
-      CHAT07_TRUTH_FILTER_MIN_LEVEL: ${CHAT07_TRUTH_FILTER_MIN_LEVEL:-VALIDATED}
+      CHAT07_TRUTH_FILTER_MIN_LEVEL: ${CHAT07_TRUTH_FILTER_MIN_LEVEL:-WORKING}
     # Phase 13 — expose pipeline on host loopback so verify-phase13.sh test (c)
     # can curl it; not bound to the public iface, only 127.0.0.1.
     ports:
