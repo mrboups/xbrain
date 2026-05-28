@@ -549,6 +549,23 @@ async def classify(content: str, *, team_scope: str) -> bool:
         relevant = bool(parsed.get("relevant", False))
         score = float(parsed.get("score", 0.0))
 
+        # Phase 13.1 default-allow override: the SYSTEM_PROMPT's few-shot
+        # examples are dominated by engineering team facts (deploys, configs,
+        # decisions). External content — event names, product descriptions,
+        # customer info, market intel — falls out-of-distribution and
+        # gets scored too low (0.01–0.10) even when clearly factual.
+        # Trust Haiku only for high-confidence rejections; for substantive
+        # content (≥50 chars) below the LLM's threshold, default-allow.
+        # This matches the xbrain contract: "everything substantive lands
+        # in the brain". The Haiku noise filter is a safety net, not a
+        # strict gate.
+        substantive_floor = 50
+        if not relevant and len(content.strip()) >= substantive_floor:
+            relevant = True
+            override_reason = "substantive_default_allow"
+        else:
+            override_reason = None
+
         usage = getattr(msg, "usage", None)
         tokens_in = getattr(usage, "input_tokens", 350) if usage else 350
         cache_creation = getattr(usage, "cache_creation_input_tokens", 0) if usage else 0
@@ -560,7 +577,8 @@ async def classify(content: str, *, team_scope: str) -> bool:
             "relevance_filter.classified",
             team_scope=team_scope,
             relevant=relevant,
-            score=score,
+            haiku_score=score,
+            override=override_reason,
             tokens_in=tokens_in,
             cache_creation_input_tokens=cache_creation,
             cache_read_input_tokens=cache_read,
