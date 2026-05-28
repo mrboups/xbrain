@@ -444,10 +444,16 @@
     const actionDiv = el('div', {});
 
     let searchTimer = null;
+    let searchHadExactMatch = false;
+    const INSTALL_URL = 'https://github.com/apps/xbrain/installations/new';
 
     function updateAction(q) {
       actionDiv.innerHTML = '';
       if (!q) return;
+      // If the search just returned an exact slug/name match, suppress the
+      // "Create" CTA — the team already exists; the user should Join or
+      // Request access via the result button above, not create a duplicate.
+      if (searchHadExactMatch) return;
       const btn = el('button', {
         class: 'xb-btn xb-btn-primary', style: 'margin-top:8px',
       }, `Create "${q}" →`);
@@ -459,6 +465,7 @@
       clearTimeout(searchTimer);
       const q = nameInput.value.trim();
       errorDiv.style.display = 'none';
+      searchHadExactMatch = false;
       updateAction(q);
       resultDiv.innerHTML = '';
       if (q.length < 2) return;
@@ -469,14 +476,22 @@
           if (!r.ok) throw new Error();
           const results = await r.json();
           resultDiv.innerHTML = '';
+          const qLower = q.toLowerCase();
           results.forEach(t => {
+            const isExact = t.slug.toLowerCase() === qLower
+              || (t.display_name || '').toLowerCase() === qLower;
+            if (isExact) searchHadExactMatch = true;
             const btn = el('button', { class: 'xb-team-btn' },
               el('strong', {}, t.display_name),
-              document.createTextNode(` — ${t.visibility === 'open' ? '🔓 Open' : '🔒 Private'}`),
+              document.createTextNode(
+                ` — ${t.visibility === 'open' ? '🔓 Join' : '🔒 Request access'}`,
+              ),
             );
             btn.onclick = () => joinTeam(t, errorDiv, btn);
             resultDiv.appendChild(btn);
           });
+          // Hide the duplicate-Create CTA if an exact match was found
+          updateAction(q);
         } catch {
           resultDiv.innerHTML = '';
         }
@@ -484,6 +499,20 @@
     };
 
     setHtml(body, title, desc, githubSection, divider, nameInput, errorDiv, resultDiv, actionDiv);
+
+    // Helper: probe whether a team with the given slug already exists in xbrain,
+    // regardless of whether the current user is auto-verified as a member.
+    // Used to distinguish "Case C: team exists but install missing" from
+    // "Case D: no team yet, allow create".
+    async function findTeamBySlug(slug) {
+      try {
+        const r = await apiCall('GET', `/v1/teams/search?name=${encodeURIComponent(slug)}`, null, token);
+        if (!r.ok) return null;
+        const list = await r.json();
+        const lower = slug.toLowerCase();
+        return list.find(t => (t.slug || '').toLowerCase() === lower) || null;
+      } catch { return null; }
+    }
 
     // Fetch GitHub orgs (LibreChat endpoint — uses user's own token → includes private orgs)
     // + matched xbrain teams in parallel
@@ -495,7 +524,7 @@
       }).then(r => r.ok ? r.json() : []).catch(() => []),
       apiCall('GET', '/v1/teams/github-matches', null, token)
         .then(r => r.ok ? r.json() : []).catch(() => []),
-    ]).then(([orgs, matches]) => {
+    ]).then(async ([orgs, matches]) => {
       githubSection.innerHTML = '';
 
       if (!orgs || orgs.length === 0) {
@@ -514,25 +543,62 @@
       githubSection.appendChild(el('p', { class: 'xb-desc', style: 'margin-bottom:8px' },
         'Your GitHub organizations:'));
 
-      orgs.forEach(org => {
+      // Render each org. Use Promise.all so the per-org probe for "Case C"
+      // (team exists but membership not auto-verified) runs in parallel.
+      await Promise.all(orgs.map(async org => {
         const xbrainTeam = orgTeamMap[org.login];
         const btn = el('button', { class: 'xb-team-btn', style: 'margin-bottom:8px' });
+        githubSection.appendChild(btn);
 
         if (xbrainTeam) {
+          // Case A/B: confirmed member of the org + team exists → Join or Request
           btn.appendChild(el('strong', {}, xbrainTeam.display_name));
           btn.appendChild(document.createTextNode(
             xbrainTeam.visibility === 'open' ? ' — 🔓 Join' : ' — 🔒 Request access',
           ));
           btn.onclick = () => joinTeam(xbrainTeam, errorDiv, btn);
+          return;
+        }
+
+        // Probe whether a team exists for this org slug, even if the user is
+        // not auto-verified as a member yet. Distinguishes:
+        //   Case C — team exists, install missing → "Install xbrain"
+        //   Case D — no team yet                   → "Create team"
+        btn.appendChild(el('strong', {}, org.login));
+        const placeholder = document.createTextNode(' — checking...');
+        btn.appendChild(placeholder);
+        btn.disabled = true;
+
+        const existing = await findTeamBySlug(org.login);
+
+        btn.textContent = '';
+        btn.disabled = false;
+        btn.appendChild(el('strong', {}, org.login));
+
+        if (existing) {
+          // Case C — team exists but cannot auto-verify membership.
+          // The xbrain GitHub App likely isn't installed on this org yet;
+          // install grants the backend permission to confirm membership and
+          // auto-join the user. Closed teams may still require admin approval
+          // after install.
+          btn.appendChild(document.createTextNode(' — 🔧 Install xbrain to join →'));
+          btn.onclick = () => window.open(INSTALL_URL, '_blank');
+          // Secondary affordance: let the user request manual access without
+          // requiring the org admin to install the App right now.
+          const secondary = el('button', {
+            class: 'xb-team-btn-secondary',
+            style: 'margin-top:4px;font-size:11.5px;color:var(--muted);'
+              + 'background:none;border:0;cursor:pointer;text-align:left;padding:2px 8px;',
+          }, '↳ or request manual access');
+          secondary.onclick = () => joinTeam(existing, errorDiv, secondary);
+          githubSection.appendChild(secondary);
         } else {
-          btn.appendChild(el('strong', {}, org.login));
+          // Case D — no team yet for this org → create
           btn.appendChild(document.createTextNode(' — Create team →'));
           const orgName = org.login.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
           btn.onclick = () => createTeam(orgName, errorDiv, btn, org.login);
         }
-
-        githubSection.appendChild(btn);
-      });
+      }));
 
       divider.style.display = '';
     });
