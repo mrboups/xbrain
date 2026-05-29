@@ -76,6 +76,68 @@ endpoints:
       titleModel: "claude-sonnet-4-6"
       modelDisplayLabel: "Claude Pro/Max"
 
+# Model specs — make the xbrain MCP server active by DEFAULT in every new chat.
+# v0.8.5 has no per-conversation "pre-check this tool" flag, so we use modelSpecs:
+# each spec attaches `mcpServers: ["xbrain"]`, so selecting it auto-loads the
+# xbrain tools (memory_search/add, tasks, contacts, calendar, drive, deck).
+# `prioritize: true` + one `default: true` spec → a spec is always pre-selected
+# on a fresh conversation, so xbrain is on without any manual toggle.
+# `enforce: false` + `addedEndpoints` keep every raw endpoint/model selectable
+# too — nothing is removed, the specs are just the curated default path.
+# (Passive recall — per-turn CANONICAL/WORKING fact injection via
+# librechat-bridge message_enricher — already runs for ALL conversations
+# regardless of spec/tool selection; these specs add the ACTIVE tool path.)
+modelSpecs:
+  enforce: false
+  prioritize: true
+  addedEndpoints:
+    - "Anthropic"
+    - "OpenAI"
+    - "xAI"
+    - "Claude Reasoning"
+    - "Claude Pro Max"
+  list:
+    - name: "xbrain-sonnet"
+      label: "Claude Sonnet 4.6 · xbrain"
+      default: true
+      description: "Claude Sonnet with the team brain tools on by default."
+      mcpServers: ["xbrain"]
+      preset:
+        endpoint: "Anthropic"
+        model: "claude-sonnet-4-6"
+
+    - name: "xbrain-opus"
+      label: "Claude Opus 4.7 · xbrain"
+      description: "Claude Opus with the team brain tools on by default."
+      mcpServers: ["xbrain"]
+      preset:
+        endpoint: "Anthropic"
+        model: "claude-opus-4-7"
+
+    - name: "xbrain-pro-max"
+      label: "Claude Pro/Max · xbrain"
+      description: "Routes through your own Claude Pro/Max quota (Chrome extension) with the team brain tools on."
+      mcpServers: ["xbrain"]
+      preset:
+        endpoint: "Claude Pro Max"
+        model: "claude-opus-4-7"
+
+    - name: "xbrain-gpt4o"
+      label: "GPT-4o · xbrain"
+      description: "GPT-4o with the team brain tools on by default."
+      mcpServers: ["xbrain"]
+      preset:
+        endpoint: "OpenAI"
+        model: "gpt-4o"
+
+    - name: "xbrain-grok"
+      label: "Grok 3 · xbrain"
+      description: "Grok 3 with the team brain tools on by default."
+      mcpServers: ["xbrain"]
+      preset:
+        endpoint: "xAI"
+        model: "grok-3"
+
 # MCP settings — Phase 4 (plan 04-03)
 # allowedDomains is required to permit internal Docker network hosts.
 # LibreChat v0.8.5 has SSRF protection that blocks non-public domains by default.
