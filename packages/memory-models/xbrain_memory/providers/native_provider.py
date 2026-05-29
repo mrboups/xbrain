@@ -55,6 +55,37 @@ class NativeProvider(MemoryProvider):
             )
         return self._pool
 
+    async def _ensure_collection(self, vector_size: int) -> None:
+        """Create the Qdrant collection + payload indexes if missing. Idempotent.
+
+        Self-heal for the failure mode where the collection is dropped at
+        runtime (e.g. a database wipe deleted it) without restarting
+        memory-api — `app.qdrant_setup.ensure_collections()` only runs at
+        FastAPI lifespan startup, so without this guard every upsert after a
+        drop fails with `Collection 'messages' doesn't exist` (404) and the
+        PG row lands while the vector silently never does. Mirrors the schema
+        in app/qdrant_setup.py (KEYWORD indexes on team_scope + truth_level).
+        """
+        from qdrant_client.http.models import (
+            Distance,
+            PayloadSchemaType,
+            VectorParams,
+        )
+
+        existing = await self._qdrant.get_collections()
+        if self._collection in {c.name for c in existing.collections}:
+            return
+        await self._qdrant.create_collection(
+            collection_name=self._collection,
+            vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+        )
+        for field in ("team_scope", "truth_level"):
+            await self._qdrant.create_payload_index(
+                collection_name=self._collection,
+                field_name=field,
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+
     async def upsert(self, item: MemoryItem) -> str:
         from qdrant_client.http.models import PointStruct
 
@@ -135,14 +166,22 @@ class NativeProvider(MemoryProvider):
             "source": item.source,
             "deleted_at_ts": 0.0,
         }
-        await self._qdrant.upsert(
-            collection_name=self._collection,
-            points=[PointStruct(
-                id=item_id,
-                vector=embedding,
-                payload=payload,
-            )],
-        )
+        point = PointStruct(id=item_id, vector=embedding, payload=payload)
+        try:
+            await self._qdrant.upsert(
+                collection_name=self._collection, points=[point]
+            )
+        except Exception as exc:  # noqa: BLE001
+            # Self-heal a dropped/missing collection (404) — recreate then retry
+            # once. Any other error (or a second failure) propagates so the
+            # caller's fail-soft wrapper logs brain_ingest.external.failed.
+            if "doesn't exist" in str(exc) or "Not found" in str(exc) or "404" in str(exc):
+                await self._ensure_collection(len(embedding))
+                await self._qdrant.upsert(
+                    collection_name=self._collection, points=[point]
+                )
+            else:
+                raise
         return item_id
 
     async def get(self, item_id: str, *, team_scope: str) -> MemoryItem | None:
