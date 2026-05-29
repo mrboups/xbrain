@@ -238,13 +238,30 @@ class NativeProvider(MemoryProvider):
             FieldCondition(key="deleted_at_ts", range=Range(lte=0.0))
         )
         try:
-            results = await self._qdrant.search(
+            # qdrant-client >=1.12 removed `.search()` in favour of
+            # `.query_points()`. The old call raised AttributeError which the
+            # bare `except` below swallowed → search silently returned [] for
+            # EVERY query on 1.17, so retrieval enrichment never surfaced a
+            # single fact (the real cause of "the assistant answers generic").
+            # `query_points` takes `query=<vector>` (not `query_vector=`) and
+            # returns a response whose `.points` holds the ScoredPoint list.
+            response = await self._qdrant.query_points(
                 collection_name=self._collection,
-                query_vector=embedding,
+                query=embedding,
                 query_filter=Filter(must=must),
                 limit=limit * 2,  # over-fetch then filter truth_level in app
             )
-        except Exception:
+            results = response.points
+        except Exception as exc:  # noqa: BLE001
+            # Fail-soft: retrieval failure must never break the caller, but it
+            # MUST be visible — a silent [] here is what hid the bug above.
+            import structlog
+            structlog.get_logger(__name__).warning(
+                "native_provider.search_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                team_scope=team_scope,
+            )
             return []
 
         ids = [str(r.id) for r in results]
