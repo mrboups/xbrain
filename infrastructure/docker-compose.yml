@@ -312,10 +312,15 @@ services:
     mem_limit: 512m
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status().ok ? 0 : 1 } catch(e) { 1 }"]
-      interval: 10s
-      timeout: 5s
+      # timeout was 5s — mongosh cold-start + rs.status() exceeds it on the
+      # 512m-limited VM, flapping the container to "unhealthy" (which then blocks
+      # `compose up` of dependents like librechat-bridge via depends_on). Mongo
+      # itself is fine; the probe was just too tight. Wider timeout + less-frequent
+      # interval reduces probe load and stops the flap.
+      interval: 30s
+      timeout: 20s
       retries: 10
-      start_period: 30s
+      start_period: 40s
 
   librechat-meili:
     image: getmeili/meilisearch:v1.10
