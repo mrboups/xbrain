@@ -24,12 +24,39 @@ from app.contact_extractor import extract_contacts_from_message
 log = structlog.get_logger()
 
 
-async def resolve_team_scope(client: MemoryApiClient, user_sub: str) -> str:
-    """Phase 1 simplification: every user maps to BRIDGE_DEFAULT_TEAM_SCOPE.
+# Module-level TTL cache: sub -> (team_scope, expiry_epoch_seconds)
+_team_scope_cache: dict[str, tuple[str, float]] = {}
+_TEAM_SCOPE_TTL = 300.0  # 5 minutes
 
-    Phase 2 will resolve via memory-api /v1/me with a cache.
+
+async def resolve_team_scope(client: MemoryApiClient, user_sub: str) -> str:
+    """Resolve a LibreChat user sub to their real team slug via memory-api.
+
+    Resolution:
+      - Check in-memory TTL cache first (TTL = 5 minutes). Cache hit avoids a
+        round-trip per message and keeps the change-stream loop fast.
+      - On cache miss, call client.resolve_team_scope(sub=user_sub) which hits
+        GET /v1/internal/resolve-team-scope on memory-api.
+      - If the API returns a valid (non-empty) slug, cache it and return it.
+      - If the API returns None (user unknown / no team yet), fall back to
+        BRIDGE_DEFAULT_TEAM_SCOPE WITHOUT caching, so a later signup self-heals
+        on the next incoming message.
+      - Any exception falls back to BRIDGE_DEFAULT_TEAM_SCOPE — this function
+        must never raise so the Mongo change-stream loop is not interrupted.
     """
-    return settings.BRIDGE_DEFAULT_TEAM_SCOPE
+    try:
+        now = time.time()
+        cached = _team_scope_cache.get(user_sub)
+        if cached is not None and cached[1] > now:
+            return cached[0]
+        scope = await client.resolve_team_scope(sub=user_sub)
+        if isinstance(scope, str) and scope:
+            _team_scope_cache[user_sub] = (scope, now + _TEAM_SCOPE_TTL)
+            return scope
+        # Unknown / unresolved — fall back WITHOUT caching so a later signup self-heals.
+        return settings.BRIDGE_DEFAULT_TEAM_SCOPE
+    except Exception:
+        return settings.BRIDGE_DEFAULT_TEAM_SCOPE
 
 
 async def map_message(mongo_doc: dict, mongo_db) -> dict | None:

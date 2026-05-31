@@ -172,6 +172,37 @@ class MemoryApiClient:
         retry=retry_if_exception_type(httpx.HTTPError),
         reraise=True,
     )
+    async def resolve_team_scope(self, *, sub: str) -> str | None:
+        """Resolve a user's primary team slug via memory-api. None when unknown/unresolved.
+
+        Calls GET /v1/internal/resolve-team-scope — an internal endpoint that does NOT
+        require an X-Team-Scope header (team is unknown at call time; that is the point
+        of this call). Auth is a bridge JWT scoped to BRIDGE_DEFAULT_TEAM_SCOPE as a
+        placeholder (memory-api accepts any valid bridge JWT for this endpoint).
+
+        The @retry decorator retries on httpx.HTTPError (network errors, 5xx).
+        The internal try/except converts any final failure (including after all retries)
+        into a None return so the caller always receives str | None, never an exception.
+        """
+        token = make_bridge_jwt(sub=sub, team_scope=settings.BRIDGE_DEFAULT_TEAM_SCOPE)
+        try:
+            r = await self.client.get(
+                f"{self.base}/v1/internal/resolve-team-scope",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"sub": sub},
+            )
+            r.raise_for_status()
+        except httpx.HTTPError as exc:
+            log.warning("memory_api_resolve_team_scope_failed", err=str(exc), sub=sub)
+            return None
+        return r.json().get("team_scope")
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(min=0.5, max=4),
+        retry=retry_if_exception_type(httpx.HTTPError),
+        reraise=True,
+    )
     async def post_conversation(
         self,
         *,
