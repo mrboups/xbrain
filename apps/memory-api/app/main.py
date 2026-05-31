@@ -29,6 +29,7 @@ from app.routes import (
     granola_integration,
     graph,
     health,
+    internal,
     me,
     me_github,
     memory,
@@ -94,6 +95,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router, prefix="/v1", tags=["health"])
+app.include_router(internal.router, prefix="/v1", tags=["internal"])
 app.include_router(me.router, prefix="/v1", tags=["me"])
 app.include_router(me_github.router, prefix="/v1", tags=["me"])
 app.include_router(auth_github.router, prefix="/v1", tags=["auth"])
