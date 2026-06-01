@@ -1,0 +1,27 @@
+# SearXNG config for xbrain — internal-only meta-search backing LibreChat web search.
+#
+# Why this file exists:
+#  - LibreChat's webSearch (searchProvider: searxng) calls SearXNG's JSON API, which is
+#    NOT enabled by default — `search.formats` MUST include `json` (else LibreChat gets
+#    HTML / 403 and web search silently returns nothing).
+#  - `limiter: false`: this instance lives only on the internal xbrain_net Docker network
+#    (NOT exposed via nginx publicly), and LibreChat hammers it per query — the bot limiter
+#    would otherwise rate-limit/deny LibreChat.
+#  - secret_key is the documented placeholder; the searxng image entrypoint replaces it at
+#    runtime with $SEARXNG_SECRET (set in the VM .env), so no real secret is committed.
+use_default_settings: true
+
+server:
+  secret_key: "ultrasecretkey"   # overridden at runtime by $SEARXNG_SECRET (entrypoint)
+  limiter: false                 # internal-only; do not rate-limit LibreChat
+  image_proxy: false
+
+search:
+  safe_search: 1
+  # JSON is REQUIRED by LibreChat. Keep html too so the web UI still works for debugging.
+  formats:
+    - html
+    - json
+
+ui:
+  static_use_hash: true

@@ -1,5 +1,18 @@
-version: 1.2.4
+version: 1.2.6
 cache: true
+
+# Web search (Quick 260601-uom) — self-hosted SearXNG for keyword search + Firecrawl to
+# read full page content. Adds a "Web Search" toggle (globe) in the chat; when ON, the model
+# searches + reads the web like claude.ai. SearXNG runs internally on xbrain_net; its
+# settings.yml enables the JSON API LibreChat needs. Firecrawl key + SearXNG URL come from .env.
+webSearch:
+  searchProvider: "searxng"
+  searxngInstanceUrl: "${SEARXNG_INSTANCE_URL}"
+  scraperProvider: "firecrawl"
+  firecrawlApiKey: "${FIRECRAWL_API_KEY}"
+  rerankerType: "none"
+  scraperTimeout: 10000
+  safeSearch: 1
 
 interface:
   privacyPolicy:
@@ -103,6 +116,7 @@ modelSpecs:
       description: "Claude Sonnet with the team brain tools on by default."
       mcpServers: ["xbrain", "xbrain-memory"]
       preset:
+        promptPrefix: "When the user's message contains a URL, call the scraper tool to fetch and read that page before answering. For internal/team knowledge, prefer the memory_search tool."
         endpoint: "Anthropic"
         model: "claude-sonnet-4-6"
 
@@ -111,6 +125,7 @@ modelSpecs:
       description: "Claude Opus with the team brain tools on by default."
       mcpServers: ["xbrain", "xbrain-memory"]
       preset:
+        promptPrefix: "When the user's message contains a URL, call the scraper tool to fetch and read that page before answering. For internal/team knowledge, prefer the memory_search tool."
         endpoint: "Anthropic"
         model: "claude-opus-4-7"
 
@@ -119,6 +134,7 @@ modelSpecs:
       description: "Routes through your own Claude Pro/Max quota (Chrome extension) with the team brain tools on."
       mcpServers: ["xbrain", "xbrain-memory"]
       preset:
+        promptPrefix: "When the user's message contains a URL, call the scraper tool to fetch and read that page before answering. For internal/team knowledge, prefer the memory_search tool."
         endpoint: "Claude Pro Max"
         model: "claude-opus-4-7"
 
@@ -127,6 +143,7 @@ modelSpecs:
       description: "GPT-4o with the team brain tools on by default."
       mcpServers: ["xbrain", "xbrain-memory"]
       preset:
+        promptPrefix: "When the user's message contains a URL, call the scraper tool to fetch and read that page before answering. For internal/team knowledge, prefer the memory_search tool."
         endpoint: "OpenAI"
         model: "gpt-4o"
 
@@ -135,6 +152,7 @@ modelSpecs:
       description: "Grok 3 with the team brain tools on by default."
       mcpServers: ["xbrain", "xbrain-memory"]
       preset:
+        promptPrefix: "When the user's message contains a URL, call the scraper tool to fetch and read that page before answering. For internal/team knowledge, prefer the memory_search tool."
         endpoint: "xAI"
         model: "grok-3"
 
