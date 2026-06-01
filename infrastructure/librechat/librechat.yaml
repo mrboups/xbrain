@@ -1,18 +1,11 @@
 version: 1.2.6
 cache: true
 
-# Web search (Quick 260601-uom) — self-hosted SearXNG for keyword search + Firecrawl to
-# read full page content. Adds a "Web Search" toggle (globe) in the chat; when ON, the model
-# searches + reads the web like claude.ai. SearXNG runs internally on xbrain_net; its
-# settings.yml enables the JSON API LibreChat needs. Firecrawl key + SearXNG URL come from .env.
-webSearch:
-  searchProvider: "searxng"
-  searxngInstanceUrl: "${SEARXNG_INSTANCE_URL}"
-  scraperProvider: "firecrawl"
-  firecrawlApiKey: "${FIRECRAWL_API_KEY}"
-  rerankerType: "none"
-  scraperTimeout: 10000
-  safeSearch: 1
+# NOTE (Quick 260601-uom): webSearch block intentionally NOT enabled yet — two blockers:
+#  1. our LibreChat v0.8.5 schema rejects rerankerType "none" (only 'jina'|'cohere'), and
+#  2. no valid FIRECRAWL_API_KEY (scraperProvider) is available.
+# SearXNG (search) is deployed + working; re-add the webSearch block once a Firecrawl (or
+# Tavily) key exists and the reranker question is resolved (omit field or use jina/cohere).
 
 interface:
   privacyPolicy:
