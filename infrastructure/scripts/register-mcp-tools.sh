@@ -223,7 +223,7 @@ SCRAPER_RESP=$(${COMPOSE} exec -T mcp-gateway \
 import urllib.request, json, sys
 payload = json.dumps({
     'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
-    'params': {'name': 'scraper', 'arguments': {'url': 'https://example.com'}}
+    'params': {'name': 'scrape', 'arguments': {'url': 'https://example.com'}}
 }).encode()
 req = urllib.request.Request(
     '${MCP_GATEWAY_URL}/tools/scraper/call',
@@ -244,12 +244,18 @@ except Exception as e:
     sys.exit(1)
 " 2>/dev/null) || SCRAPER_RESP=""
 
-if [ -n "${SCRAPER_RESP}" ] && ! echo "${SCRAPER_RESP}" | grep -q "SCRAPER_CALL_ERROR"; then
+if [ -n "${SCRAPER_RESP}" ] \
+  && ! echo "${SCRAPER_RESP}" | grep -q "SCRAPER_CALL_ERROR" \
+  && ! echo "${SCRAPER_RESP}" | grep -q '"isError":true' \
+  && ! echo "${SCRAPER_RESP}" | grep -q "Unknown tool"; then
   CHAR_COUNT=${#SCRAPER_RESP}
-  echo "Scraper smoke test: OK (${CHAR_COUNT} chars received)"
+  echo "Scraper smoke test: PASS (${CHAR_COUNT} chars received)"
 else
-  echo "Scraper smoke test: SKIP (mcp-scraper may not be healthy yet — not a registration failure)"
+  echo "Scraper smoke test: SKIP (mcp-scraper may not be healthy yet, or returned an error — not a registration failure)"
   echo "  Re-run after: ${COMPOSE} up -d mcp-scraper"
+  if [ -n "${SCRAPER_RESP}" ]; then
+    echo "  Response snippet: ${SCRAPER_RESP:0:200}"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
