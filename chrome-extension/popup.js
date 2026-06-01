@@ -600,7 +600,7 @@ async function sendMessage() {
   sendBtn.disabled = true;
   try {
     const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    await fetchJson(
+    const sent = await fetchJson(
       `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/messages`,
       xbt_token,
       "POST",
@@ -608,6 +608,15 @@ async function sendMessage() {
     );
     input.value = "";
     autoResize(input);
+    // Optimistic render: show the message immediately from the POST response
+    // instead of waiting for the Centrifugo echo (which can lag or be missed
+    // while the popup is backgrounded). renderMessage() de-dupes by id, so the
+    // later "message" publication for the same id is a no-op.
+    if (sent && sent.id) {
+      renderMessage(sent, { prepend: false });
+      scrollToBottom();
+      $("chat-empty").hidden = true;
+    }
   } catch (e) {
     console.warn("[xbrain] send failed:", e);
     alert(`Send failed: ${e.message}`);
