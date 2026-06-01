@@ -199,6 +199,19 @@ async def call_tool(
         ) as (read, write, _):
             async with ClientSession(read, write) as session:
                 await session.initialize()
+                try:
+                    listed = await session.list_tools()
+                    available = [t.name for t in listed.tools]
+                    if mcp_tool_name not in available and len(available) == 1:
+                        log.info(
+                            "gateway.tool_name_resolved",
+                            requested=mcp_tool_name,
+                            actual=available[0],
+                            sidecar=tool_name,
+                        )
+                        mcp_tool_name = available[0]
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("gateway.list_tools_failed", sidecar=tool_name, error=str(exc))
                 result = await session.call_tool(mcp_tool_name, mcp_arguments)
     except Exception as exc:
         log.error("gateway.tool_call_error", tool=tool_name, sidecar=sidecar_url, error=str(exc))
