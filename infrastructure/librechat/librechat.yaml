@@ -170,19 +170,25 @@ mcpServers:
   # task_create/update, contacts_search, contact_add, agent_invoke,
   # team_context. Points straight at mcp-brain (not the gateway aggregate,
   # which hardcodes team_scope=default and would break team isolation).
-  # mcp-brain resolves the caller's team_scope from their xbt_ token via
-  # memory-api /v1/me — so each user reads/writes ONLY their own team brain.
-  # Each user sets their token once via LibreChat → MCP Settings (the same
-  # xbt_ token used by the Chrome extension, from grooveos.app/account/teams).
+  # mcp-brain resolves the caller's team_scope in two ways:
+  #   1. TOKEN PATH: Authorization: Bearer xbt_... (ChatGPT/Claude.ai, explicit token).
+  #   2. EMAIL PATH: X-LibreChat-User-Email + X-Internal-Secret — LibreChat-only,
+  #      gated by BRIDGE_SHARED_SECRET. Team resolved server-side; no token needed.
   xbrain-memory:
     type: streamable-http
     url: http://mcp-brain:8104/mcp
     headers:
       Authorization: "Bearer {{XBRAIN_TOKEN}}"
+      # LibreChat injects the authenticated user's email — used for server-side team
+      # resolution when no xbt_ token is set (email path, LibreChat internal only).
+      X-LibreChat-User-Email: "{{LIBRECHAT_USER_EMAIL}}"
+      # Shared secret gating the email path — prevents public callers from using it.
+      # Injected from LibreChat's environment (same BRIDGE_SHARED_SECRET as all services).
+      X-Internal-Secret: "${BRIDGE_SHARED_SECRET}"
     customUserVars:
       XBRAIN_TOKEN:
-        title: "xbrain API token"
-        description: "Your personal xbt_ token — copy it from <a href='https://grooveos.app/account/teams/' target='_blank'>grooveos.app/account/teams</a> (or the Chrome extension). Lets the assistant search and write your team's brain."
+        title: "xbrain API token (optional for LibreChat)"
+        description: "Optional for LibreChat users — your team is auto-resolved from your login email. Required for ChatGPT/Claude.ai: copy your xbt_ token from <a href='https://grooveos.app/account/teams/' target='_blank'>grooveos.app/account/teams</a> (or the Chrome extension)."
 
 # File handling (CHAT-04 partial — upload accepted; real RAG comes in Phase 2).
 fileConfig:

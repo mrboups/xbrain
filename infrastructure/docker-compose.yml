@@ -787,6 +787,10 @@ services:
       FASTMCP_HOST: "0.0.0.0"
       FASTMCP_PORT: "8104"
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Tokenless email path — LibreChat forwards user email + this secret so mcp-brain
+      # can resolve the team without requiring a per-user xbt_ token. Public callers
+      # (ChatGPT/Claude.ai) come through nginx without this secret → token path only.
+      BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
     expose:
       - "8104"
     networks: [xbrain_net]
