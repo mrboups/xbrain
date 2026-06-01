@@ -1,35 +1,86 @@
 """mcp-brain — remote MCP sidecar exposing team brain tools.
 
-Port 8104. Bearer token (xbt_...) in Authorization header.
-Team scope derived from token's registered team_scope via GET /v1/me.
+Port 8104. Two auth paths:
+  1. TOKEN PATH (public): Authorization: Bearer xbt_... — validated via GET /v1/me.
+  2. EMAIL PATH (LibreChat internal only): X-LibreChat-User-Email + X-Internal-Secret
+     matching BRIDGE_SHARED_SECRET. Team resolved server-side via memory-api internal
+     endpoint. Unreachable without the correct shared secret (fail-closed).
 """
 from __future__ import annotations
 
+import hmac
 import json
 import structlog
 from mcp.server.fastmcp import FastMCP, Context
 from app import memory_client
+from app.bridge_jwt import mint_bridge_jwt
 from app.config import settings
 
 log = structlog.get_logger(__name__)
 mcp = FastMCP("xbrain-brain", host=settings.FASTMCP_HOST, port=settings.FASTMCP_PORT)
 
 
-def _get_token(ctx: Context) -> str:
-    auth = (ctx.request_context.request.headers.get("authorization") or "")
-    if not auth.startswith("Bearer "):
-        raise ValueError("Missing Bearer token in Authorization header")
-    return auth.removeprefix("Bearer ")
-
-
 async def _resolve(ctx: Context) -> tuple[str, str]:
-    """Return (token, team_scope) from the request context."""
-    token = _get_token(ctx)
-    me = await memory_client.get_me(token)
-    team_scope = me.get("api_token_team_scope") or me.get("team_scope")
+    """Return (token_or_jwt, team_scope) from the request context.
+
+    TOKEN PATH (unchanged, public):
+      Authorization: Bearer xbt_... -> validated via GET /v1/me.
+
+    EMAIL PATH (new, LibreChat internal only):
+      No xbt_ token, but X-Internal-Secret matches BRIDGE_SHARED_SECRET and
+      X-LibreChat-User-Email is present. Team resolved server-side; returns a
+      bridge JWT so all tool bodies can forward it unchanged.
+
+    Raises ValueError on any auth failure (fail-closed).
+    """
+    headers = ctx.request_context.request.headers
+    authorization = headers.get("authorization") or ""
+    email = headers.get("x-librechat-user-email") or ""
+    x_internal_secret = headers.get("x-internal-secret") or ""
+
+    raw = authorization.removeprefix("Bearer ").strip() if authorization.startswith("Bearer ") else ""
+
+    # ── TOKEN PATH ────────────────────────────────────────────────────────────
+    if raw.startswith("xbt_"):
+        me = await memory_client.get_me(raw)
+        team_scope = me.get("api_token_team_scope") or me.get("team_scope")
+        if not team_scope:
+            raise ValueError(
+                "Token is not associated with a team. Create a token via POST /v1/me/api-token"
+            )
+        log.info("mcp_brain.resolve", mode="token", team=team_scope)
+        return raw, team_scope
+
+    # ── EMAIL PATH ────────────────────────────────────────────────────────────
+    # Gated: requires correct shared secret (constant-time compare) + non-empty email.
+    # Fails closed: empty secret, wrong secret, or missing email → auth error.
+    secret = settings.BRIDGE_SHARED_SECRET
+    ok = (
+        settings.INTERNAL_EMAIL_PATH_ENABLED
+        and bool(secret)
+        and bool(x_internal_secret)
+        and hmac.compare_digest(x_internal_secret, secret)
+        and bool(email)
+    )
+    if not ok:
+        raise ValueError(
+            "Authentication required: set your xbt_ token, or call from an authorized frontend."
+        )
+
+    sub = f"email:{email}"
+    # Mint a placeholder JWT (team_scope="default") just to authenticate the resolve call.
+    jwt0 = mint_bridge_jwt(secret=secret, team_scope="default", sub=sub)
+    team_scope = await memory_client.resolve_team_scope_internal(jwt0, sub)
     if not team_scope:
-        raise ValueError("Token is not associated with a team. Create a token via POST /v1/me/api-token")
-    return token, team_scope
+        # Retry with bare email in case source_user_id is stored without the prefix.
+        team_scope = await memory_client.resolve_team_scope_internal(jwt0, email)
+    if not team_scope:
+        raise ValueError("No team is associated with your account yet.")
+
+    # Mint a second JWT with the real resolved team_scope for all downstream tool calls.
+    jwt1 = mint_bridge_jwt(secret=secret, team_scope=team_scope, sub=sub)
+    log.info("mcp_brain.resolve", mode="email", team=team_scope)
+    return jwt1, team_scope
 
 
 @mcp.tool()

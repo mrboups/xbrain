@@ -7,4 +7,5 @@ dependencies = [
     "httpx>=0.28.0",
     "structlog>=25.0.0",
     "pydantic-settings>=2.0.0",
+    "authlib>=1.3.0",
 ]

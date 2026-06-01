@@ -27,6 +27,27 @@ async def get_me(token: str) -> dict:
         return r.json()
 
 
+async def resolve_team_scope_internal(bridge_jwt: str, sub: str) -> str | None:
+    """Resolve a user's primary team slug via memory-api internal endpoint.
+
+    Args:
+        bridge_jwt: A valid bridge-scope JWT minted by mint_bridge_jwt.
+        sub:        Subject identifier to look up (e.g. "email:user@example.com" or bare email).
+
+    Returns:
+        Team slug string if the user has a team, None if unknown or no team.
+        Raises httpx.HTTPStatusError on unexpected HTTP errors.
+    """
+    async with httpx.AsyncClient(timeout=10.0) as c:
+        r = await c.get(
+            f"{_BASE}/v1/internal/resolve-team-scope",
+            params={"sub": sub},
+            headers={"Authorization": f"Bearer {bridge_jwt}"},
+        )
+        r.raise_for_status()
+        return r.json().get("team_scope")
+
+
 async def memory_search(token: str, team_scope: str, query: str, limit: int = 10, project_scope: str | None = None) -> list[dict]:
     params = {"q": query, "limit": min(limit, 20)}
     if project_scope:
