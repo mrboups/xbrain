@@ -128,6 +128,9 @@ class Settings(BaseSettings):
     # docker-compose env QDRANT_COLLECTION can override per-environment.
     QDRANT_COLLECTION: str = "messages"
 
+    # Quick task 260601-3is — URL pre-fetch via mcp-gateway scraper
+    MCP_GATEWAY_URL: str = "http://mcp-gateway:8080"
+
     # Phase 13 — Chat → Brain Ingestion + Retrieval Enrichment
     RELEVANCE_HAIKU_ENABLED: bool = True
     RELEVANCE_DAILY_TOKEN_CAP_PER_TEAM: int = 50_000  # input tokens per team per day

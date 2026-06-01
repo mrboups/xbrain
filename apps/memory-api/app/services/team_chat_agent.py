@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 import uuid
 from pathlib import Path
@@ -153,6 +154,19 @@ async def _do_handle(
     system_prompt = _build_system_prompt(team_slug=team.slug)
     cached_memory_block = _format_memory_block(bundle["bundle"])
     chat_history_block = _format_chat_history(recent)
+
+    # Pre-fetch URLs mentioned in the triggering message and append to the
+    # (uncached) user turn so @claude can read linked pages. Fail-soft.
+    web_block = await _build_fetched_web_block(
+        triggering_message.content or "", team.slug
+    )
+    if web_block:
+        chat_history_block = chat_history_block + web_block
+        log.info(
+            "team_chat_agent.web_prefetch",
+            team_id=str(team_id),
+            urls=web_block.count("### "),
+        )
 
     # Decide routing.
     has_promax = await _user_has_live_bridge(triggering_user_sub)
@@ -373,6 +387,81 @@ def _sign_bridge_jwt_acting(acting_user_sub: str, ttl_s: int = 120) -> str:
     if isinstance(tok, bytes):
         tok = tok.decode()
     return tok
+
+
+# --- URL pre-fetch helpers (260601-3is) --------------------------------------
+
+_URL_RE = re.compile(r"https?://[^\s)>\]]+")
+_TRAILING_PUNCT = set(".,;:!?)]}\"'>")
+_MAX_FETCHED_CHARS = 6000
+_MAX_URLS = 3
+
+
+def _extract_urls(text: str) -> list[str]:
+    """Extract up to 3 unique http(s) URLs from text, stripping trailing punctuation."""
+    seen: set[str] = set()
+    result: list[str] = []
+    for raw in _URL_RE.findall(text):
+        url = raw.rstrip("".join(_TRAILING_PUNCT))
+        if url not in seen:
+            seen.add(url)
+            result.append(url)
+            if len(result) >= _MAX_URLS:
+                break
+    return result
+
+
+async def _fetch_url_via_scraper(url: str, team_scope: str) -> str | None:
+    """POST to mcp-gateway scraper and return the text, capped at 6000 chars.
+
+    Reuses _sign_bridge_jwt_acting for the bridge JWT (no team_scope claim in
+    bridge JWTs, so we also send X-Team-Scope header — gateway falls back to it).
+    Uses the real tool name "scrape" so it works even without Task 1 gateway fix.
+    Fail-soft: any error returns None.
+    """
+    try:
+        jwt_token = _sign_bridge_jwt_acting("team-chat-agent")
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            r = await client.post(
+                f"{settings.MCP_GATEWAY_URL}/tools/scraper/call",
+                headers={
+                    "Authorization": f"Bearer {jwt_token}",
+                    "X-Team-Scope": team_scope,
+                    "Content-Type": "application/json",
+                },
+                json={"name": "scrape", "arguments": {"url": url}},
+            )
+        data = r.json()
+        if isinstance(data, dict) and data.get("isError"):
+            return None
+        texts = [
+            c.get("text", "")
+            for c in (data.get("content") or [])
+            if isinstance(c, dict) and c.get("text")
+        ]
+        joined = "\n".join(texts)
+        if not joined:
+            return None
+        return joined[:_MAX_FETCHED_CHARS]
+    except Exception as exc:  # noqa: BLE001
+        log.warning("team_chat_agent.fetch_failed", url=url[:100], error=str(exc))
+        return None
+
+
+async def _build_fetched_web_block(text: str, team_scope: str) -> str:
+    """Extract URLs from text, fetch each via scraper, return formatted block.
+
+    Returns "" if no URLs found. Each URL gets its own section under
+    "## Fetched web content". Failed fetches render as "(could not fetch this URL)".
+    """
+    urls = _extract_urls(text)
+    if not urls:
+        return ""
+    sections: list[str] = ["\n\n## Fetched web content"]
+    for url in urls:
+        content = await _fetch_url_via_scraper(url, team_scope)
+        sections.append(f"\n### {url}\n{content or '(could not fetch this URL)'}\n")
+    return "".join(sections)
 
 
 # --- Streaming via Pro/Max bridge --------------------------------------------
