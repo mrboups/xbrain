@@ -1,11 +1,18 @@
 version: 1.2.6
 cache: true
 
-# NOTE (Quick 260601-uom): webSearch block intentionally NOT enabled yet — two blockers:
-#  1. our LibreChat v0.8.5 schema rejects rerankerType "none" (only 'jina'|'cohere'), and
-#  2. no valid FIRECRAWL_API_KEY (scraperProvider) is available.
-# SearXNG (search) is deployed + working; re-add the webSearch block once a Firecrawl (or
-# Tavily) key exists and the reranker question is resolved (omit field or use jina/cohere).
+# Web search (Quick 260601-uom) — self-hosted SearXNG (keyword search) + Firecrawl (reads full
+# page content). Adds a "Web Search" toggle (globe) in the chat; when ON the model searches +
+# reads the web like claude.ai. rerankerType is OMITTED on purpose: it is optional in v0.8.5's
+# schema (z.nativeEnum().optional()) and v0.8.5 has no "none" enum value, so omitting = no
+# reranker (fine — reranking is just a relevance re-sort). Keys come from the VM .env.
+webSearch:
+  searchProvider: "searxng"
+  searxngInstanceUrl: "${SEARXNG_INSTANCE_URL}"
+  scraperProvider: "firecrawl"
+  firecrawlApiKey: "${FIRECRAWL_API_KEY}"
+  scraperTimeout: 10000
+  safeSearch: 1
 
 interface:
   privacyPolicy:
