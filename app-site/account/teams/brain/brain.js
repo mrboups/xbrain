@@ -149,6 +149,26 @@
       return;
     }
 
+    // (260603) When the URL has no ?team=, TEAM_SLUG falls back to "default" — a team
+    // nobody is a member of, so every events fetch 403s. Resolve the signed-in user's
+    // first team and redirect to ?team=<slug> so TEAM_SLUG is correct on reload. The
+    // /v1/teams/my-teams endpoint is user-scoped (not team-gated), so it works even while
+    // the (wrong) "default" scope is in effect. Falls through on error / no teams.
+    if (!QS.get("team")) {
+      try {
+        const teams = await xbtFetch("/v1/teams/my-teams");
+        if (Array.isArray(teams) && teams.length) {
+          const slug = teams[0].slug || teams[0].team_slug;
+          if (slug) {
+            location.replace(location.pathname + "?team=" + encodeURIComponent(slug));
+            return;
+          }
+        }
+      } catch (_e) {
+        // Keep the existing default behavior + its error message.
+      }
+    }
+
     // Render header label.
     if (dom.hdrTeamSlug) {
       dom.hdrTeamSlug.textContent = "· " + TEAM_SLUG;
