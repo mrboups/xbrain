@@ -430,16 +430,22 @@ async function clearGoogleAuthToken() {
  * Envoyer un payload de mémoire à api.grooveos.app.
  * Le payload doit contenir les champs du contrat de tagging xbrain.
  */
-async function sendToBrain(idToken, payload) {
+async function sendToBrain(token, payload) {
+  // `token` is the user's xbt_ personal API token (GitHub sign-in). memory-api
+  // accepts it on /v1/memory/upsert and resolves team membership from X-Team-Scope.
+  const now = new Date().toISOString();
   const response = await fetch(MEMORY_API_URL, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${idToken}`,
+      "Authorization": `Bearer ${token}`,
       "X-Team-Scope": payload.team_scope,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       item: {
+        // /v1/memory/upsert requires a COMPLETE MemoryItem — id + timestamps
+        // have no server-side default, so omitting them returns 422.
+        id: crypto.randomUUID(),
         content: payload.content,
         team_scope: payload.team_scope,
         project_scope: payload.project_scope || null,
@@ -448,6 +454,8 @@ async function sendToBrain(idToken, payload) {
         truth_level: payload.truth_level || "EPHEMERAL",
         source: payload.source || "chrome:unknown",
         validation_status: payload.validation_status || "pending",
+        created_at: now,
+        updated_at: now,
       },
     }),
   });
@@ -519,12 +527,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "SEND_TO_BRAIN") {
-    const { idToken, payload } = message;
-    if (!idToken) {
-      sendResponse({ error: "No ID token provided" });
+    const { token, payload } = message;
+    if (!token) {
+      sendResponse({ error: "Not signed in (no xbt_ token)" });
       return true;
     }
-    sendToBrain(idToken, payload)
+    sendToBrain(token, payload)
       .then((result) => sendResponse({ ok: true, result }))
       .catch((err) => sendResponse({ error: err.message }));
     return true; // async
@@ -1208,18 +1216,12 @@ chrome.contextMenus &&
         return;
       }
 
-      // Need a Google ID token for /v1/memory/upsert (kind=user requirement).
-      // Use silent path so the right-click never opens a Google consent popup
-      // unexpectedly. If silent fails (not connected), fall back to opening
-      // the panel so the user can sign in — selection is stashed so it isn't
-      // lost.
-      let idToken = null;
-      try {
-        idToken = await getGoogleIdToken({ silent: true });
-      } catch {
-        idToken = null;
-      }
-      if (!idToken) {
+      // Auth with the user's xbt_ personal token (GitHub OR Google sign-in — the
+      // xbt_ token is minted after either and is the universal credential). If not
+      // connected, stash the selection and open the panel so the user can connect —
+      // the clip isn't lost.
+      const { xbt_token: clipToken } = await chrome.storage.local.get(["xbt_token"]);
+      if (!clipToken) {
         await chrome.storage.session.set({
           pending_selection: {
             selectedText: payload.content,
@@ -1237,7 +1239,7 @@ chrome.contextMenus &&
       const settings = await loadSettings(chrome.storage.sync);
 
       try {
-        await sendToBrain(idToken, {
+        await sendToBrain(clipToken, {
           content: payload.content,
           team_scope: teamScope,
           project_scope: settings.clipDefaultProject || null,

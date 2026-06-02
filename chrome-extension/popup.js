@@ -790,13 +790,10 @@ async function submitClip() {
       return;
     }
 
-    // Build memory upsert payload.
-    const tokenResp = await chrome.runtime.sendMessage({
-      type: "GET_ID_TOKEN",
-      silent: true,
-    });
-    const idToken = tokenResp && tokenResp.idToken;
-    if (!idToken) {
+    // Auth with the xbt_ personal token (works for GitHub OR Google sign-in —
+    // same universal credential the chat uses), not the legacy Google-only flow.
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    if (!xbt_token) {
       setClipStatus("Sign-in required", "error");
       sendBtn.disabled = false;
       return;
@@ -804,7 +801,7 @@ async function submitClip() {
 
     await chrome.runtime.sendMessage({
       type: "SEND_TO_BRAIN",
-      idToken,
+      token: xbt_token,
       payload: {
         content,
         team_scope: team.slug,
