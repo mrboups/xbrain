@@ -190,6 +190,21 @@ async def call_tool(
         or {}
     )
 
+    # Unwrap the aggregate's `kwargs` envelope (260603-1vr). The MCP aggregate registers
+    # proxy tools whose function signature is `async def _proxy(**kwargs)`. Newer FastMCP
+    # exposes such tools with a single generic `kwargs` object parameter, so the calling
+    # model (LibreChat) is forced to send {"kwargs": {<real args>}}. Forwarding that verbatim
+    # makes the sidecar tool (e.g. scrape(url)) fail with "url field required". Strip exactly
+    # one `kwargs` level so the sidecar receives its real parameters. Direct callers
+    # (agent-runtime) never wrap in `kwargs`, and no sidecar tool has a sole `kwargs` param,
+    # so this is safe.
+    if (
+        isinstance(mcp_arguments, dict)
+        and list(mcp_arguments.keys()) == ["kwargs"]
+        and isinstance(mcp_arguments["kwargs"], dict)
+    ):
+        mcp_arguments = mcp_arguments["kwargs"]
+
     sidecar_url = tool["sidecar_url"].rstrip("/") + "/mcp"
 
     try:
