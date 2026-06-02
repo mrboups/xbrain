@@ -3,6 +3,9 @@
 Auth: forwards the caller's Bearer token unchanged.
 Team scope: provided at MCP session init via GET /v1/me.
 """
+import uuid
+from datetime import datetime, timezone
+
 import httpx
 import structlog
 from app.config import settings
@@ -59,19 +62,26 @@ async def memory_search(token: str, team_scope: str, query: str, limit: int = 10
 
 
 async def memory_add(token: str, team_scope: str, content: str, project_scope: str | None = None, truth_level: str = "WORKING") -> dict:
-    payload = {
-        "item": {
-            "team_scope": team_scope,
-            "content": content,
-            "source": "mcp-brain",
-            "truth_level": truth_level,
-            "confidence": 0.8,
-            "visibility": "team",
-            "validation_status": "pending",
-        }
+    # /v1/memory/upsert expects a COMPLETE MemoryItem (260603-29h): `id`,
+    # `created_at` and `updated_at` are required fields with no server-side
+    # default, so the client must supply them (otherwise 422). Use a fresh
+    # uuid4 (explicit saves are not deduped) + now() timestamps.
+    now = datetime.now(timezone.utc).isoformat()
+    item = {
+        "id": str(uuid.uuid4()),
+        "team_scope": team_scope,
+        "content": content,
+        "source": "mcp-brain",
+        "truth_level": truth_level,
+        "confidence": 0.8,
+        "visibility": "team",
+        "validation_status": "pending",
+        "created_at": now,
+        "updated_at": now,
     }
     if project_scope:
-        payload["item"]["project_scope"] = project_scope
+        item["project_scope"] = project_scope
+    payload = {"item": item}
     async with httpx.AsyncClient(timeout=15.0) as c:
         r = await c.post(f"{_BASE}/v1/memory/upsert", json=payload, headers=_headers(token, team_scope))
         r.raise_for_status()
