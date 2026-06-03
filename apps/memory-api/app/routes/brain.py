@@ -86,6 +86,7 @@ from app.repos.brain import (
     soft_delete_entity,
     update_truth_level,
 )
+from app.routes.media_helpers import mint_media_token
 from app.schemas.brain import BrainEventListOut, BrainEventOut, BrainIngestRequest, TruthLevelPatchBody
 from app.services import brain_ingest as brain_ingest_svc
 
@@ -147,6 +148,32 @@ def _decode_cursor(token: str) -> tuple[datetime, str, UUID]:
 
 
 # ── GET /v1/brain/events ─────────────────────────────────────────────
+
+# BL-003 slice 2 — strip the raw MinIO key from media before serialisation.
+# The raw ``key`` (e.g. ``media/default/abc.jpg``) is an internal detail;
+# callers only receive the safe subset + a tokenized URL that the serve
+# endpoint validates.  The URL is relative (``/v1/…``) so the frontend
+# prepends MEMORY_API_BASE.
+
+
+def _enrich_event(ev: BrainEventOut) -> BrainEventOut:
+    """Replace raw media dict with a safe subset + signed token URL.
+
+    If ``ev.media`` is not set (non-memory_item rows or items without a
+    media blob) the event is returned unchanged.
+    """
+    if ev.media and isinstance(ev.media, dict):
+        m = ev.media
+        ev.media = {
+            "mime": m.get("mime"),
+            "size": m.get("size"),
+            "filename": m.get("filename"),
+            "url": (
+                f"/v1/media/{ev.entity_id}/img"
+                f"?t={mint_media_token(str(ev.entity_id), ev.team_scope)}"
+            ),
+        }
+    return ev
 
 
 @router.get("/brain/events", response_model=BrainEventListOut)
@@ -219,7 +246,7 @@ async def list_brain_events(
         limit=limit,
     )
     return BrainEventListOut(
-        items=[BrainEventOut(**dict(r)) for r in items],
+        items=[_enrich_event(BrainEventOut(**dict(r))) for r in items],
         next_cursor=next_cursor,
     )
 

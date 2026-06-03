@@ -45,6 +45,10 @@ class BrainEventOut(BaseModel):
     deleted_by: UUID | None
     preview: str | None
     source: str | None
+    # BL-003 slice 2: present only for memory_item rows that carry a media blob.
+    # The raw MinIO key is NEVER forwarded — brain.py replaces it with a signed
+    # token URL before serialisation.
+    media: dict | None = None
 
 
 class BrainEventListOut(BaseModel):

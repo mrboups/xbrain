@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 
 from xbrain_memory import MemoryItem, MemoryProvider
@@ -30,7 +30,7 @@ from app.deps import (
     get_memory_provider,
     get_team_scope,
 )
-from app.routes.media_helpers import _MAX_UPLOAD_BYTES, derive_key_and_mime
+from app.routes.media_helpers import _MAX_UPLOAD_BYTES, derive_key_and_mime, verify_media_token
 
 log = structlog.get_logger(__name__)
 
@@ -192,4 +192,64 @@ async def serve_media_raw(
         content=body,
         media_type=mime,
         headers={"Content-Disposition": disposition},
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /media/{item_id}/img  (BL-003 slice 2)
+# ---------------------------------------------------------------------------
+#
+# Token-gated image/document serve endpoint designed for bare ``<img src>``
+# and ``<a href>`` usage — no Bearer header is possible from those contexts.
+# The signed token ``t`` is minted by brain.py's ``_enrich_event`` helper
+# and is short-lived (1 hour by default).  It embeds the item_id + team_scope
+# so this endpoint can authorise without an additional database lookup.
+#
+# The existing Bearer-authed ``GET /media/{item_id}/raw`` is left unchanged —
+# it is still used by programmatic callers (e.g. extension fetch).
+
+
+@router.get("/media/{item_id}/img")
+async def serve_media_img(
+    item_id: str,
+    t: str = Query(..., description="Signed media token minted by /v1/brain/events"),
+    provider: MemoryProvider = Depends(get_memory_provider),
+) -> Response:
+    """Stream a media object to a browser ``<img>`` or ``<a>`` element.
+
+    Auth: short-lived signed token in query param ``t`` (no Bearer header —
+    browsers cannot send one from an img src).  The token is validated via
+    HS256 + claim checks before any storage access.
+    """
+    # Token validation — raises 403 on any failure.
+    team_scope = verify_media_token(t, item_id)
+
+    item = await provider.get(item_id, team_scope=team_scope)
+    if item is None or not (item.metadata or {}).get("media"):
+        raise HTTPException(404, "media item not found")
+
+    media = item.metadata["media"]
+    client = get_minio_client()
+    if client is None:
+        raise HTTPException(503, "media storage not configured")
+
+    try:
+        obj = client.get_object(Bucket=settings.MINIO_BUCKET, Key=media["key"])
+        body: bytes = obj["Body"].read()
+    except Exception as exc:
+        log.error("media.img_get_failed", key=media.get("key"), error=str(exc))
+        raise HTTPException(404, "object not found") from exc
+
+    mime: str = media.get("mime") or "application/octet-stream"
+    filename: str = media.get("filename") or item_id
+
+    return Response(
+        content=body,
+        media_type=mime,
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            # Short private cache: the token is already short-lived (1h); caching
+            # 5 min avoids hammering memory-api for every thumbnail re-render.
+            "Cache-Control": "private, max-age=300",
+        },
     )
