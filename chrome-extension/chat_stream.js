@@ -9,7 +9,7 @@
  *     message_id. Returns the running text at any time. Caller flushes
  *     when `agent_stream_end` arrives.
  *   - mention regex (mirror of memory-api/app/services/mention_detector.py)
- *     so the composer can do client-side hints ("Will trigger Claude").
+ *     so the composer can do client-side hints ("Will trigger Groove").
  *   - formatRelative(iso) — "12s ago" / "5m ago" / "Mar 5" strings for
  *     message timestamps in bubble headers.
  *   - hostnameFromUrl, hashSourceId — small helpers reused by the clip
@@ -19,7 +19,7 @@
 // ---------- Mention regex ----------
 // Server-authoritative — this is the SAME pattern as memory-api.
 // Used only for UX hints; the server makes the final decision.
-const MENTION_RE = /(?:^|(?<=[^\w@]))@(claude|cl|c)(?=$|[\s.,!?;:()[\]{}'"])/i;
+const MENTION_RE = /(?:^|(?<=[^\w@]))@(groove|gr|g)(?=$|[\s.,!?;:()[\]{}'"])/i;
 
 export function detectMentionClient(text) {
   if (!text) return null;

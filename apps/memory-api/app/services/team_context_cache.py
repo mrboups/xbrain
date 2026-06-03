@@ -57,6 +57,16 @@ def _now() -> float:
     return time.monotonic()
 
 
+# Per-item char cap — generous so long VALIDATED/CANONICAL items (e.g. a full
+# deck/document summary) reach the agent instead of being cut after a few
+# hundred chars. The TOTAL bundle is bounded separately (_MAX_BUNDLE_CHARS) so a
+# team with many long items can never blow the model input budget.
+_PER_ITEM_CHARS = 5000
+# Total bundle cap (~15k tokens). Items are newest-first, so the most recent /
+# relevant items are kept; older ones are dropped once the budget is reached.
+_MAX_BUNDLE_CHARS = 60000
+
+
 def _format_item(content: str, truth_level: str, source: str) -> str:
     """Format one memory item line. Deterministic — no timestamps in body.
 
@@ -64,10 +74,9 @@ def _format_item(content: str, truth_level: str, source: str) -> str:
     For Phase 2 we can include a coarse bucket (e.g. "this week") if it
     improves answers.
     """
-    # Truncate to 800 chars per item to bound the total payload.
     snippet = content.strip()
-    if len(snippet) > 800:
-        snippet = snippet[:800].rstrip() + "…"
+    if len(snippet) > _PER_ITEM_CHARS:
+        snippet = snippet[:_PER_ITEM_CHARS].rstrip() + "…"
     return f"- [{truth_level}] ({source}) {snippet}"
 
 
@@ -118,10 +127,14 @@ async def get_team_memory_bundle(
     if not rows:
         bundle = "(no team memory items yet)"
     else:
-        lines = [
-            _format_item(r["content"], r["truth_level"], r["source"] or "unknown")
-            for r in rows
-        ]
+        lines: list[str] = []
+        total = 0
+        for r in rows:
+            line = _format_item(r["content"], r["truth_level"], r["source"] or "unknown")
+            if lines and total + len(line) > _MAX_BUNDLE_CHARS:
+                break  # total budget reached — keep the newest items only
+            lines.append(line)
+            total += len(line) + 1
         bundle = "\n".join(lines)
 
     _cache[key] = _CacheEntry(
