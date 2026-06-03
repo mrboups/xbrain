@@ -156,6 +156,76 @@ async def github_read_file(
         return f"ERROR: Failed to read '{path}' from '{repo}': {exc}"
 
 
+@mcp.tool()
+async def github_sync_repo(
+    repo: str,
+    team_scope: str = "default",
+    project_scope: str = "",
+) -> str:
+    """Index all text files from a GitHub repository into the team brain.
+
+    Walks the repository tree and upserts every indexable text/code file as a
+    searchable memory item scoped to *team_scope*. The operation runs in the
+    background on memory-api — this call returns as soon as the sync is
+    accepted (202). The brain becomes searchable shortly after.
+
+    Hard caps (enforced server-side): MAX_FILES=200, MAX_CHUNKS_TOTAL=2000.
+    Files larger than 100 KB or with binary/non-text extensions are skipped.
+
+    The GitHub App must be installed on the repository's owner with at least
+    'contents:read' permission.
+
+    Args:
+        repo:          Repository in "owner/name" format (e.g. "myorg/myrepo").
+        team_scope:    Team slug the indexed content will be scoped to
+                       (default: "default"). Use your actual team slug so recall
+                       is properly scoped.
+        project_scope: Optional project slug for fine-grained filtering.
+                       Defaults to the repo name when left empty.
+
+    Returns:
+        Human-readable confirmation that the sync has started, or a plain-text
+        error message so the LLM can act on it.
+
+    Example:
+        github_sync_repo("myorg/myrepo", team_scope="engineering")
+        github_sync_repo("myorg/myrepo", team_scope="engineering", project_scope="backend")
+    """
+    url = f"{settings.MEMORY_API_URL}/v1/internal/github/sync"
+    payload: dict = {"repo": repo, "team_scope": team_scope, "ref": "HEAD"}
+    if project_scope:
+        payload["project_scope"] = project_scope
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            r = await client.post(url, json=payload, headers=_auth_headers())
+        if r.status_code == 202:
+            data = r.json()
+            return (
+                f"Sync started for {data.get('repo', repo)} "
+                f"(ref: {data.get('ref', 'HEAD')}, team: {team_scope}). "
+                "Ask me about it in a moment — the files will be searchable via memory_search."
+            )
+        if r.status_code == 403:
+            detail = _extract_detail(r)
+            return (
+                f"ERROR 403 — GitHub App lacks 'contents:read' on '{repo}'. "
+                "The org admin must grant it in GitHub App settings → "
+                "Permissions & events → Repository permissions → Contents → Read-only. "
+                f"Detail: {detail}"
+            )
+        if r.status_code == 404:
+            detail = _extract_detail(r)
+            return f"ERROR 404 — {detail}"
+        if r.status_code == 400:
+            return f"ERROR 400 — {_extract_detail(r)}"
+        return f"ERROR {r.status_code} — {_extract_detail(r)}"
+    except RuntimeError as exc:
+        return f"ERROR: {exc}"
+    except Exception as exc:
+        log.error("mcp_github.sync_repo.error", repo=repo, err=str(exc))
+        return f"ERROR: Failed to start sync for '{repo}': {exc}"
+
+
 def _extract_detail(response: httpx.Response) -> str:
     """Extract a human-readable detail string from an error response."""
     try:
