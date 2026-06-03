@@ -139,6 +139,8 @@ services:
       GITHUB_APP_CLIENT_SECRET: ${GITHUB_APP_CLIENT_SECRET:-}
       GITHUB_APP_PRIVATE_KEY_B64: ${GITHUB_APP_PRIVATE_KEY_B64:-}
       GITHUB_APP_WEBHOOK_SECRET: ${GITHUB_APP_WEBHOOK_SECRET:-}
+      # github-read stopgap: user OAuth token used when the App isn't installed
+      GITHUB_FALLBACK_TOKEN: ${GITHUB_FALLBACK_TOKEN:-}
       # Waitlist email proxy (grooveos.app landing page)
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       WAITLIST_TO: ${WAITLIST_TO:-team@grooveos.app}
