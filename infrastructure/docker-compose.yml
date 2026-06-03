@@ -412,6 +412,8 @@ services:
       LIBRECHAT_DEFAULT_TEAM_SCOPE: ${LIBRECHAT_DEFAULT_TEAM_SCOPE:-default}
       # Phase 8: bridge JWT for onboarding modal token endpoint
       BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
+      # BL-003 slice 5: media proxy needs the internal memory-api URL to call /raw + resolve-team-scope
+      MEMORY_API_URL: ${MEMORY_API_URL:-http://memory-api:8000}
       # Allow frequent OAuth logins (default 7/5min is too tight for multi-provider testing)
       LOGIN_MAX: ${LOGIN_MAX:-50}
       LOGIN_WINDOW: ${LOGIN_WINDOW:-1}
