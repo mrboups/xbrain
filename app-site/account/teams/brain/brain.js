@@ -635,10 +635,14 @@
       "<td class=\"col-type\">" + escapeHtml(item.entity_type || "—") + "</td>",
     );
 
-    // Preview (truncated 200 chars).
-    cells.push(
-      "<td class=\"col-preview\">" + escapeHtml(makePreview(item)) + "</td>",
-    );
+    // Preview (truncated 200 chars) — or media thumbnail/chip for media items.
+    if (item.media) {
+      cells.push("<td class=\"col-preview\">" + mediaCellHtml(item) + "</td>");
+    } else {
+      cells.push(
+        "<td class=\"col-preview\">" + escapeHtml(makePreview(item)) + "</td>",
+      );
+    }
 
     // Truth level dropdown.
     let select = "<select class=\"truth-level\"";
@@ -688,6 +692,40 @@
     const s = String(raw).replace(/\s+/g, " ").trim();
     if (s.length <= PREVIEW_MAX_CHARS) return s || "—";
     return s.slice(0, PREVIEW_MAX_CHARS - 1) + "…";
+  }
+
+  /**
+   * mediaCellHtml — render an image thumbnail or document chip for media items.
+   *
+   * Returns raw HTML (NOT escaped) — called only when item.media is set (server-
+   * provided, token-signed URL).  Filename is always escapeHtml'd before use in
+   * text nodes / attributes.
+   *
+   * Security: item.media.url comes from the server (already a signed /v1/... path),
+   * never from user input.  Only filename text is escaped.
+   */
+  function mediaCellHtml(item) {
+    const media = item.media;
+    if (!media || !media.url) return escapeHtml(makePreview(item));
+    const href = MEMORY_API_BASE + media.url;
+    const safeFilename = escapeHtml(media.filename || "file");
+    const mime = media.mime || "";
+    if (mime.startsWith("image/")) {
+      return (
+        "<a href=\"" + href + "\" target=\"_blank\" rel=\"noopener\">"
+        + "<img class=\"xb-media-thumb\""
+        + " src=\"" + href + "\""
+        + " alt=\"" + safeFilename + "\""
+        + " loading=\"lazy\" />"
+        + "</a>"
+      );
+    }
+    // Non-image: clickable file chip with a document icon.
+    return (
+      "<a class=\"xb-media-chip\" href=\"" + href + "\" target=\"_blank\" rel=\"noopener\">"
+      + "📄 " + safeFilename
+      + "</a>"
+    );
   }
 
   function shortenUUID(s) {
