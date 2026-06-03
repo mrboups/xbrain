@@ -240,9 +240,15 @@ module.exports = function mountXbrainRoutes(app) {
 
     try {
       // Step 1 — resolve the user's team scope.
-      // Use email as the sub so memory-api can look up by email when
-      // source_user_id uses a different format (e.g. GitHub-primary subs).
-      const sub = user.email;
+      // Derive the sub EXACTLY as the librechat-bridge does in
+      // mongo_watcher.py:86 (`googleId || email || str(user_id)`) so this proxy
+      // always resolves the SAME team_scope the recall used. Using only email
+      // diverges for Google-signed-in users (bridge keys on googleId) and would
+      // 404 a media URL the assistant just rendered.
+      const sub =
+        user.googleId ||
+        user.email ||
+        (user._id ? String(user._id) : String(user.id));
       const teamScope = await resolveTeamScope(sub);
       if (!teamScope) {
         console.warn(`[xbrain] media proxy: no team_scope resolved for ${sub}`);
