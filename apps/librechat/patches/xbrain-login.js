@@ -34,15 +34,21 @@
       s.textContent = CSS;
       document.head.appendChild(s);
     }
-    // Text-based elements CSS cannot target: the "OR" divider + the sign-up prompt.
-    var all = document.querySelectorAll('a, p, span, div');
+    // Text-based work CSS cannot do. Also handles the login heading text
+    // client-side so it is CDN-cache-proof (the hashed locale bundle that holds
+    // "Welcome back" is cached by Cloudflare by URL; editing it in the image is
+    // not enough until the edge cache expires — so we override the DOM here).
+    var all = document.querySelectorAll('h1, h2, h3, a, p, span, div');
     for (var i = 0; i < all.length; i++) {
       var el = all[i];
+      var leaf = el.children.length === 0;
       var txt = (el.textContent || '').trim();
-      if (el.children.length === 0 && txt === 'OR') {
-        // The "OR" sits inside a flex divider row — hide that row.
-        var row = el.parentElement && el.parentElement.parentElement;
-        (row || el).style.display = 'none';
+      if (leaf && txt === 'Welcome back') {
+        el.textContent = 'Login Groove OS';
+      } else if (leaf && txt === 'OR') {
+        // Hide the whole "—— OR ——" divider: the OR text's immediate parent IS
+        // the flex row that also holds the two border lines.
+        (el.parentElement || el).style.display = 'none';
       } else if (/^Don't have an account\?/i.test(txt) && el.querySelector('a')) {
         el.style.display = 'none';
       }
