@@ -842,6 +842,35 @@ services:
       retries: 5
       start_period: 20s
 
+  # === mcp-github (github-read phase 1) — MCP sidecar for GitHub repo read ===
+  # Thin proxy: mints bridge JWT, calls memory-api /v1/internal/github/{list,read}.
+  # The GitHub App private key stays in memory-api; this container holds no secrets.
+  # Requires the GitHub App to have contents:read granted (see feature doc).
+  mcp-github:
+    build:
+      context: ../apps/mcp-github
+      dockerfile: Dockerfile
+    image: xbrain/mcp-github:phase1
+    container_name: xbrain-mcp-github
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      MEMORY_API_URL: http://memory-api:8000
+      BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
+      FASTMCP_HOST: "0.0.0.0"
+      FASTMCP_PORT: "8107"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks: [xbrain_net]
+    mem_limit: 128m
+    depends_on:
+      memory-api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket,sys; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1', 8107)); s.close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
   # === session-bridge (Phase 9) — Pro/Max routing via Chrome extension ===
   # Bridges LibreChat HTTP /v1/chat/completions to a per-user WebSocket from
   # the xbrain Chrome extension. Validates xbt_ tokens via memory-api, signs a

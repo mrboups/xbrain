@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# register-mcp-tools.sh — Register the 3 Phase 3 MCP sidecars in mcp-gateway.
+# register-mcp-tools.sh — Register MCP sidecars in mcp-gateway (5 tools total).
 #
 # Usage (from project root on the VM):
 #   bash infrastructure/scripts/register-mcp-tools.sh
@@ -151,7 +151,7 @@ except Exception as e:
 #   mcp-drive-read → port 8101 (FastMCP streamable-http)
 #   mcp-calendar   → port 8102 (FastMCP streamable-http)
 # ---------------------------------------------------------------------------
-echo "--- Registering Phase 3+4 MCP tools ---"
+echo "--- Registering Phase 3+4+github-read MCP tools ---"
 
 register_tool \
   "scraper" \
@@ -172,6 +172,11 @@ register_tool \
   "deck" \
   "http://mcp-deck:8103" \
   "Generate PowerPoint presentations (.pptx) via python-pptx — MCP-07"
+
+register_tool \
+  "github" \
+  "http://mcp-github:8107" \
+  "Browse and read GitHub repo files the org has sanctioned (github_list_files, github_read_file)."
 
 # ---------------------------------------------------------------------------
 # Verification: GET /tools and confirm the 3 tools are present
@@ -262,15 +267,15 @@ fi
 # Final summary
 # ---------------------------------------------------------------------------
 echo ""
-TOTAL_TOOLS=4
+TOTAL_TOOLS=5
 TOTAL_RUN=$((PASS_COUNT + FAIL_COUNT))
 
 if [ "${FAIL_COUNT}" -eq 0 ]; then
   echo "=== Registration SUCCESS === ${PASS_COUNT}/${TOTAL_TOOLS} tools registered"
 elif [ "${PASS_COUNT}" -ge 4 ] 2>/dev/null; then
   pass "[verify] tools-count" "${PASS_COUNT} tool(s) registered"
-elif [ "${PASS_COUNT}" -ge 3 ] 2>/dev/null; then
-  echo "=== Registration PARTIAL === ${PASS_COUNT} succeeded, ${FAIL_COUNT} failed — deck not registered yet? Run after mcp-deck is up"
+elif [ "${PASS_COUNT}" -ge 4 ] 2>/dev/null; then
+  echo "=== Registration PARTIAL === ${PASS_COUNT} succeeded, ${FAIL_COUNT} failed — github tool not registered yet? Run after mcp-github is up"
 else
   echo "=== Registration PARTIAL === ${PASS_COUNT} succeeded, ${FAIL_COUNT} failed (${TOTAL_RUN}/${TOTAL_TOOLS} run)"
 fi
