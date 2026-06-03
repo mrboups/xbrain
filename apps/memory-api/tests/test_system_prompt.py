@@ -18,6 +18,8 @@ from xbrain_memory.providers.native_stub import NativeStubProvider
 from app.services.rag_enrichment import (
     DEFAULT_TOP_K,
     MAX_FACT_CHARS,
+    _format_addendum,
+    _human_size,
     build_system_addendum,
     count_facts,
 )
@@ -153,3 +155,128 @@ async def test_system_prompt_project_scope_filter():
 
     assert "proj-x" in addendum
     assert "proj-y" not in addendum
+
+
+# ---------------------------------------------------------------------------
+# BL-003 slice 5: media markdown in addendum
+# ---------------------------------------------------------------------------
+
+
+def _media_item(
+    *,
+    team: str,
+    content: str,
+    item_id: str | None = None,
+    mime: str = "image/png",
+    filename: str = "photo.png",
+    size: int = 1024,
+    level: TruthLevel = TruthLevel.CANONICAL,
+    confidence: float = 0.9,
+) -> MemoryItem:
+    now = datetime.now(timezone.utc)
+    return MemoryItem(
+        id=item_id or str(uuid.uuid4()),
+        team_scope=team,
+        project_scope=None,
+        content=content,
+        metadata={
+            "media": {
+                "mime": mime,
+                "filename": filename,
+                "size": size,
+                "key": f"media/{team}/{item_id or 'x'}.png",
+            }
+        },
+        embedding=None,
+        visibility=Visibility.TEAM,
+        truth_level=level,
+        confidence=confidence,
+        source="test",
+        validation_status=ValidationStatus.VALIDATED,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def test_format_addendum_image_hit_emits_markdown_image():
+    """An image media hit must produce a ![...](...) line with the stable proxy URL."""
+    from xbrain_memory import SearchHit
+
+    item_id = "aaaabbbb-0000-0000-0000-000000000001"
+    item = _media_item(
+        team="t",
+        content="team photo",
+        item_id=item_id,
+        mime="image/png",
+        filename="team.png",
+    )
+    hits = [SearchHit(item=item, score=0.95)]
+    addendum = _format_addendum(hits, TruthLevel.CANONICAL)
+
+    assert f"![team.png](/api/xbrain/media/{item_id})" in addendum
+    assert "team photo" in addendum
+    # Instruction must appear because there is at least one media item.
+    assert "include its markdown" in addendum
+
+
+def test_format_addendum_document_hit_emits_markdown_link():
+    """A non-image media hit must produce a [name (size)](url) link."""
+    from xbrain_memory import SearchHit
+
+    item_id = "aaaabbbb-0000-0000-0000-000000000002"
+    item = _media_item(
+        team="t",
+        content="Q1 report",
+        item_id=item_id,
+        mime="application/pdf",
+        filename="report.pdf",
+        size=204800,  # 200 KB
+    )
+    hits = [SearchHit(item=item, score=0.88)]
+    addendum = _format_addendum(hits, TruthLevel.CANONICAL)
+
+    assert f"[report.pdf (200.0 KB)](/api/xbrain/media/{item_id})" in addendum
+    assert "Q1 report" in addendum
+    assert "include its markdown" in addendum
+
+
+def test_format_addendum_mixed_media_and_plain_hits():
+    """Mix of media + plain hits: media gets markdown, plain keeps existing format."""
+    from xbrain_memory import SearchHit
+
+    item_id = "aaaabbbb-0000-0000-0000-000000000003"
+    media_item = _media_item(
+        team="t", content="screenshot", item_id=item_id, mime="image/jpeg"
+    )
+    plain_item = _item(team="t", content="plain canonical fact")
+
+    hits = [
+        SearchHit(item=media_item, score=0.9),
+        SearchHit(item=plain_item, score=0.8),
+    ]
+    addendum = _format_addendum(hits, TruthLevel.CANONICAL)
+
+    assert f"![" in addendum
+    assert "plain canonical fact" in addendum
+    # Instruction appears exactly once (one media item in the set)
+    assert addendum.count("include its markdown") == 1
+
+
+def test_format_addendum_no_media_no_instruction():
+    """When no hits have media, the instruction line must NOT appear."""
+    from xbrain_memory import SearchHit
+
+    item = _item(team="t", content="plain fact about deployment")
+    hits = [SearchHit(item=item, score=0.7)]
+    addendum = _format_addendum(hits, TruthLevel.CANONICAL)
+
+    assert "include its markdown" not in addendum
+    assert "plain fact about deployment" in addendum
+
+
+def test_human_size_helper():
+    assert _human_size(500) == "500 B"
+    assert _human_size(1024) == "1.0 KB"
+    assert _human_size(1536) == "1.5 KB"
+    assert _human_size(1024 * 1024) == "1.0 MB"
+    assert _human_size(2 * 1024 * 1024) == "2.0 MB"
