@@ -165,6 +165,8 @@ mcpSettings:
     - "http://mcp-gateway:8081"
     # Phase 13.x — mcp-brain (active memory tools, per-user xbt_ token auth).
     - "http://mcp-brain:8104"
+    # github-read — mcp-github (direct, resolves caller team for github_sync_repo).
+    - "http://mcp-github:8107"
 
 # MCP servers — Phase 4 (plan 04-03)
 # Connects LibreChat to the xbrain MCP aggregate gateway which exposes
