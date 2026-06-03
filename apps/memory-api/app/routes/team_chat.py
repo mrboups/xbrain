@@ -34,6 +34,7 @@ from app.deps import get_current_principal, get_session
 from app.models.team import Team
 from app.repos import team_messages as tm_repo
 from app.repos import teams as teams_repo
+from app.routes.media_helpers import mint_media_token
 from app.services import (
     brain_ingest,
     centrifugo_client,
@@ -76,7 +77,27 @@ async def _resolve_team_and_check_membership(
     return team
 
 
-def _serialize_message(m) -> dict[str, Any]:
+def _serialize_message(m, team_slug: str = "") -> dict[str, Any]:
+    """Serialize a TeamMessage row to a dict suitable for API responses.
+
+    When team_slug is provided and the message metadata contains a media item,
+    a fresh signed URL is minted so the client can render the attachment with a
+    bare <img src> (no Bearer header required).
+    """
+    raw_metadata: dict[str, Any] = dict(m.metadata_) if m.metadata_ else {}
+
+    # Enrich media metadata with a freshly-minted signed URL (BL-003 slice 4).
+    # The client uses this URL directly for <img src> or <a href> without Bearer.
+    if team_slug and "media" in raw_metadata:
+        media = raw_metadata["media"]
+        item_id = media.get("item_id") if isinstance(media, dict) else None
+        if item_id:
+            token = mint_media_token(str(item_id), team_slug)
+            enriched_media = dict(media)
+            enriched_media["url"] = f"/v1/media/{item_id}/img?t={token}"
+            raw_metadata = dict(raw_metadata)
+            raw_metadata["media"] = enriched_media
+
     return {
         "id": str(m.id),
         "team_id": str(m.team_id),
@@ -86,7 +107,7 @@ def _serialize_message(m) -> dict[str, Any]:
         "content": m.content,
         "created_at": m.created_at.isoformat(),
         "routed_via": m.routed_via,
-        "metadata": m.metadata_ or {},
+        "metadata": raw_metadata,
         "parent_message_id": str(m.parent_message_id) if m.parent_message_id else None,
         "edited_at": m.edited_at.isoformat() if m.edited_at else None,
     }
@@ -139,12 +160,12 @@ async def list_team_messages(
     with `before=<oldest.created_at>` for each scroll-up page.
     """
     user = _require_user_principal(principal)
-    await _resolve_team_and_check_membership(session, user.id, team_id)
+    team = await _resolve_team_and_check_membership(session, user.id, team_id)
     messages = await tm_repo.list_messages(
         session, team_id=team_id, before_created_at=before, limit=limit
     )
     return {
-        "messages": [_serialize_message(m) for m in messages],
+        "messages": [_serialize_message(m, team.slug) for m in messages],
         "next_before": messages[-1].created_at.isoformat() if messages else None,
     }
 
@@ -156,6 +177,7 @@ class PostMessageBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     content: str = Field(..., min_length=1, max_length=16000)
     parent_message_id: UUID | None = None  # Phase 2 threads — accepted now, ignored by readers
+    media: dict[str, Any] | None = None  # BL-003: when set, carries {item_id, mime, size, filename} for an uploaded media item
 
 
 @router.post("/teams/{team_id}/messages", status_code=201)
@@ -187,9 +209,10 @@ async def post_team_message(
         author_user_id=user.id,
         content=body.content,
         parent_message_id=body.parent_message_id,
+        metadata={"media": body.media} if body.media else None,
     )
     await session.commit()
-    payload = _serialize_message(msg)
+    payload = _serialize_message(msg, team.slug)
 
     # Core differentiator (MEM-04 / CHAT-03): every substantive human chat
     # message lands in the searchable brain. Fire-and-forget — upserts a
@@ -276,7 +299,7 @@ async def get_agent_context_bundle(
         "memory_block": bundle["bundle"],
         "memory_item_count": bundle["item_count"],
         "memory_cached": bundle["cached"],
-        "last_messages": [_serialize_message(m) for m in recent],
+        "last_messages": [_serialize_message(m, team.slug) for m in recent],
         "team": {
             "id": str(team.id),
             "slug": team.slug,

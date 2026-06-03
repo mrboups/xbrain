@@ -654,3 +654,82 @@
   border-color: var(--xb-border-2);
 }
 .xb-btn-secondary:hover { background: var(--xb-surface-2); color: var(--xb-text); }
+
+/* ========================================================================
+ * Header text button — "add to memory" (BL-003 Slice 3)
+ * ====================================================================== */
+
+.xb-icon-btn.xb-text-btn {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  color: var(--xb-text-mute);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.xb-icon-btn.xb-text-btn:hover {
+  background: var(--xb-surface-2);
+  color: var(--xb-text);
+  border-color: var(--xb-border-2);
+}
+
+/* ========================================================================
+ * Inline media attachments in chat bubbles (BL-003 Slice 4)
+ * ====================================================================== */
+
+/* Image thumbnail — clicking opens full image in a new tab. */
+.xb-msg-thumb {
+  display: block;
+  max-width: 180px;
+  max-height: 120px;
+  border-radius: 6px;
+  object-fit: cover;
+  cursor: pointer;
+  border: 1px solid var(--xb-border-2);
+  transition: opacity 0.15s;
+  margin-top: 4px;
+}
+.xb-msg-thumb:hover { opacity: 0.85; }
+
+/* Document chip — shown for PDFs, Office files, text files, etc. */
+.xb-msg-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 5px 10px;
+  background: var(--xb-surface);
+  border: 1px solid var(--xb-border-2);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--xb-text);
+  text-decoration: none;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.xb-msg-file-chip:hover {
+  background: var(--xb-surface-2);
+  color: var(--xb-text);
+}
+
+/* Small caption text rendered below the attachment when content is non-empty. */
+.xb-msg-caption {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--xb-text-mute);
+  line-height: 1.4;
+}
+
+/* Inline error shown in composer area during file upload (BL-003 Slice 3). */
+.xb-upload-error {
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--xb-error);
+  background: var(--xb-error-bg);
+  border-top: 1px solid rgba(239, 68, 68, 0.3);
+  text-align: center;
+}

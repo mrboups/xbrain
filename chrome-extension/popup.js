@@ -124,6 +124,12 @@ function wireHeader() {
   $("btn-open-librechat").addEventListener("click", () => {
     chrome.tabs.create({ url: "https://chat.grooveos.app/" });
   });
+  // "add to memory" header button — opens the clip overlay (same as the
+  // old 📎 composer button). The composer 📎 is now the file attach trigger.
+  const btnAddToMemory = $("btn-add-to-memory");
+  if (btnAddToMemory) {
+    btnAddToMemory.addEventListener("click", openClipOverlay);
+  }
 }
 
 function renderTeamSelector() {
@@ -529,10 +535,82 @@ function buildBubbleNode(msg) {
   // Body (no bubble — flat text per LibreChat)
   const body = document.createElement("div");
   body.className = "xb-msg-bubble";
-  body.textContent = msg.content || "";
+
+  // BL-003 Slice 4 — render media inline when the message carries a media
+  // attachment. The URL is a server-minted signed path (/v1/media/{id}/img?t=...)
+  // so no Bearer header is needed for the <img src>.
+  if (msg.metadata && msg.metadata.media && msg.metadata.media.item_id) {
+    renderMediaInto(body, msg.metadata.media);
+    // Also show the caption/filename as small text below the attachment.
+    if (msg.content) {
+      const caption = document.createElement("div");
+      caption.className = "xb-msg-caption";
+      caption.textContent = msg.content;
+      body.appendChild(caption);
+    }
+  } else {
+    body.textContent = msg.content || "";
+  }
+
   wrapper.appendChild(body);
 
   return wrapper;
+}
+
+/**
+ * Render a media attachment (image or document chip) into an existing element.
+ * All DOM construction uses createElement/textContent — no innerHTML with
+ * interpolated user data — to stay XSS-safe.
+ *
+ * @param {HTMLElement} el   - Target container element (the bubble body div).
+ * @param {object}      media - {item_id, mime, size, filename, url?}
+ */
+function renderMediaInto(el, media) {
+  // Build the absolute URL from the server-minted relative path.
+  const src = media.url ? `${MEMORY_API_BASE}${media.url}` : null;
+
+  if (media.mime && media.mime.startsWith("image/") && src) {
+    // Image: render a thumbnail that opens the full image in a new tab.
+    const img = document.createElement("img");
+    img.className = "xb-msg-thumb";
+    img.alt = media.filename || "image";
+    img.src = src;
+    img.addEventListener("click", () => {
+      window.open(src, "_blank", "noopener");
+    });
+    el.appendChild(img);
+  } else {
+    // Document: render a file chip with filename + size.
+    const chip = document.createElement("a");
+    chip.className = "xb-msg-file-chip";
+    chip.href = src || "#";
+    chip.target = "_blank";
+    chip.rel = "noopener";
+
+    const icon = document.createTextNode("📄 "); // 📄
+    chip.appendChild(icon);
+
+    const nameNode = document.createTextNode(media.filename || "file");
+    chip.appendChild(nameNode);
+
+    if (media.size) {
+      const sizeNode = document.createTextNode(` (${formatBytes(media.size)})`);
+      chip.appendChild(sizeNode);
+    }
+    el.appendChild(chip);
+  }
+}
+
+/**
+ * Format a byte count into a compact human-readable string (KB / MB).
+ * @param {number} n - byte count
+ * @returns {string}
+ */
+function formatBytes(n) {
+  if (n == null || n < 0) return "?";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function scrollToBottom({ force = false } = {}) {
@@ -568,7 +646,14 @@ function wireComposer() {
     sendMessage();
   });
   $("btn-send").addEventListener("click", sendMessage);
-  $("btn-clip").addEventListener("click", openClipOverlay);
+  // 📎 now triggers file attach; clip overlay moved to header "add to memory".
+  $("btn-clip").addEventListener("click", openFilePicker);
+  $("file-picker").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    // Reset immediately so re-selecting the same file triggers change again.
+    e.target.value = "";
+    if (file) await uploadFile(file);
+  });
 
   // Scroll-up history paging.
   $("chat-scroll").addEventListener("scroll", () => {
@@ -623,6 +708,113 @@ async function sendMessage() {
   } finally {
     sendBtn.disabled = false;
     input.focus();
+  }
+}
+
+// ---------- File attach (BL-003 Slice 3) ----------
+
+function openFilePicker() {
+  $("file-picker").click();
+}
+
+/**
+ * Upload a file to /v1/media/upload and post a media message into team chat.
+ * Uses raw fetch (not fetchJson) because multipart requires the browser to set
+ * the Content-Type boundary automatically — never set it manually.
+ */
+async function uploadFile(file) {
+  const MAX_BYTES = 25 * 1024 * 1024; // 25 MB — must match backend constant
+  if (file.size > MAX_BYTES) {
+    console.warn("[xbrain] file too large:", file.size);
+    // Surface inline error in the composer area without an alert.
+    const statusEl = document.querySelector(".xb-composer");
+    if (statusEl) {
+      const err = document.createElement("div");
+      err.className = "xb-upload-error";
+      err.textContent = `File too large (max 25 MB): ${file.name}`;
+      statusEl.prepend(err);
+      setTimeout(() => err.remove(), 4000);
+    }
+    return;
+  }
+
+  const team = state.teams.find((t) => t.id === state.activeTeamId);
+  if (!team) {
+    console.warn("[xbrain] uploadFile: no active team");
+    return;
+  }
+
+  const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+  if (!xbt_token) {
+    console.warn("[xbrain] uploadFile: no xbt_token");
+    return;
+  }
+
+  const clipBtn = $("btn-clip");
+  if (clipBtn) clipBtn.disabled = true;
+
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("source_surface", "extension");
+    fd.append("truth_level", "WORKING");
+
+    const resp = await fetch(`${MEMORY_API_BASE}/v1/media/upload`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${xbt_token}`,
+        "X-Team-Scope": team.slug,
+        // NOTE: Do NOT set Content-Type — let the browser set it with the
+        //       multipart boundary automatically.
+      },
+      body: fd,
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`HTTP ${resp.status}: ${text.slice(0, 200)}`);
+    }
+
+    const item = await resp.json();
+    await postMediaMessage(item, file.name);
+  } catch (e) {
+    console.warn("[xbrain] uploadFile failed:", e);
+  } finally {
+    if (clipBtn) clipBtn.disabled = false;
+  }
+}
+
+/**
+ * Post a team chat message that carries structured media metadata.
+ * Follows the same optimistic-render + dedup pattern as sendMessage().
+ */
+async function postMediaMessage(item, filename) {
+  if (!state.activeTeamId) return;
+  const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+  try {
+    const sent = await fetchJson(
+      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/messages`,
+      xbt_token,
+      "POST",
+      {
+        content: filename,
+        media: {
+          item_id: item.item_id,
+          mime: item.mime,
+          size: item.size,
+          filename,
+        },
+      },
+    );
+    // Optimistic render: show immediately from the POST response;
+    // the Centrifugo echo for the same id will be de-duped by renderMessage().
+    if (sent && sent.id) {
+      renderMessage(sent, { prepend: false });
+      scrollToBottom();
+      $("chat-empty").hidden = true;
+    }
+  } catch (e) {
+    console.warn("[xbrain] postMediaMessage failed:", e);
   }
 }
 

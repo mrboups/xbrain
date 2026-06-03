@@ -106,6 +106,7 @@
         </span>
       </div>
       <div class="xb-header-right">
+        <button type="button" id="btn-add-to-memory" class="xb-icon-btn xb-text-btn" title="Add current page to team memory">add to memory</button>
         <button type="button" id="btn-settings" class="xb-icon-btn" title="Settings">⚙️</button>
         <button type="button" id="btn-open-librechat" class="xb-icon-btn" title="Open LibreChat in new tab">💬</button>
       </div>
@@ -151,9 +152,10 @@
     <!-- Footer — clip + composer pill (LibreChat-style rounded container) -->
     <footer class="xb-composer">
       <div class="xb-composer-pill">
-        <button type="button" id="btn-clip" class="xb-clip-btn" title="Send current page or selection to xbrain" aria-label="Clip page">
+        <button type="button" id="btn-clip" class="xb-clip-btn" title="Attach file" aria-label="Attach file">
           <span aria-hidden="true">📎</span>
         </button>
+        <input type="file" id="file-picker" accept="image/*,application/pdf,.txt,.md,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx" hidden />
         <textarea
           id="composer-input"
           rows="2"
