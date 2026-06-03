@@ -84,6 +84,25 @@ there + keeping the sidecar a dumb proxy avoids duplicating the App machinery an
 - `librechat.yaml` — the `xbrain` MCP server (aggregate :8081) auto-discovers the new tool at startup.
 - agent-runtime — auto-discovers via gateway (cache TTL 300s).
 
+## Phase 2 — github-sync (SHIPPED + LIVE 2026-06-03)
+Index a repo's files into the team brain so recall / `memory_search` answers repo questions. Lean MVP:
+on-demand, **no new container, no migration, no compose change**.
+- `apps/memory-api/app/services/github_sync.py` — `sync_repo()` BFS-walks the repo (reusing Phase-1
+  `list_repo_files`/`read_repo_file`), filters a text/code/doc extension allowlist, line-window chunks
+  (120 lines), and `provider.upsert`s each chunk as a `MemoryItem`. Idempotent: `id = uuid5(GITHUB_SYNC_NS,
+  f"{repo}:{path}:{sha}:{chunk_idx}")` → re-sync updates in place (no dupes). Caps: `MAX_FILES=200`,
+  `MAX_CHUNKS_TOTAL=2000`, skip >100 KB. Tagging: `source="github:{repo}"`, `project_scope=repo` (default),
+  `truth_level=WORKING`, `confidence=0.6` → surfaces in recall **only when semantically relevant** (not a
+  permanent dump). Per-file errors isolated (skip + continue).
+- `app/routes/internal_github.py` — `POST /v1/internal/github/sync` (validates synchronously then runs the
+  walk as a background `asyncio.create_task` with its OWN `async_session_factory()` session → returns 202).
+- `apps/mcp-github/app/main.py` — 3rd MCP tool `github_sync_repo(repo, team_scope="default", project_scope="")`.
+- 21 unit tests pass. **Verified live**: `github_sync_repo octocat/Hello-World → gh-selftest` indexed
+  1 file/1 chunk; `provider.search` over that scope returned the README; throwaway scope cleaned up.
+- Deploy: rebuild `memory-api` + `mcp-github` only.
+- Follow-ups (not built): periodic auto-sync (drive-sync-style poller + `github_repo_mappings` table),
+  incremental sync via last-synced SHA, the Git Trees API for fewer calls, truth_level/scoping tuning.
+
 ## Tool surface (LLM-facing)
 - `github_list_files(repo: "owner/repo", path="", ref="HEAD")` → JSON `[{name,path,type,size,sha}]`.
 - `github_read_file(repo: "owner/repo", path, ref="HEAD")` → file text (≤100 KB).
