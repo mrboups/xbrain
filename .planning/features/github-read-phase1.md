@@ -1,5 +1,13 @@
 # GitHub content access — Phase 1: read/query org repos in the brain
 
+> ✅ **SHIPPED + DEPLOYED 2026-06-03.** memory-api Contents service + `/v1/internal/github/{list,read}`,
+> `mcp-github` sidecar (:8107), gateway tool `github` registered, gateway restarted. 12 unit tests pass.
+> End-to-end plumbing verified live via the gateway (real LLM path): a call reaches GitHub through the
+> App JWT and returns a clean actionable message. **DORMANT until the operator step below is done**
+> (install the xbrain App on the target owner + grant `contents:read`). The tool resolves the
+> installation **per repo-owner** (org, then user fallback) — it does NOT use the (stale) `GITHUB_ORG`.
+
+
 **Goal (Phase 1):** any team member or agent (LibreChat, agent-runtime) can **read & query the
 content of GitHub repos the org has sanctioned**, without having direct repo access themselves —
 the "team's collective GitHub access" surfaced through xbrain. Consent model: **(b) GitHub App
