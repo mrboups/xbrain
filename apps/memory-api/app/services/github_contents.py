@@ -25,6 +25,7 @@ import httpx
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.services.github_app_jwt import mint_app_jwt
 from app.services.github_installation import (
     get_installation_token,
@@ -97,20 +98,31 @@ async def _resolve_installation_token(
             headers={"Authorization": f"Bearer {app_jwt}", **_GH_HEADERS},
         )
 
-    if r.status_code == 404:
-        raise GithubAppNotInstalled(
-            f"GitHub App is not installed on '{owner}'. "
-            "Ask an org/account admin to install the xbrain GitHub App."
+    if r.status_code != 404:
+        r.raise_for_status()
+        installation_id = int(r.json()["id"])
+        token = await get_installation_token(installation_id)
+        log.debug(
+            "github_contents.resolve_token.user_installation",
+            owner=owner,
+            installation_id=installation_id,
         )
-    r.raise_for_status()
-    installation_id = int(r.json()["id"])
-    token = await get_installation_token(installation_id)
-    log.debug(
-        "github_contents.resolve_token.user_installation",
-        owner=owner,
-        installation_id=installation_id,
+        return token
+
+    # --- Path 3: stopgap fallback token --------------------------------------
+    # When the GitHub App is not installed on this owner, fall back to a
+    # configured user OAuth token (gho_, scope `repo`). Reads at THAT user's
+    # access level (server-wide shared) — the proper multi-team model is the App
+    # installation (contents:read). See settings.GITHUB_FALLBACK_TOKEN.
+    if settings.GITHUB_FALLBACK_TOKEN:
+        log.info("github_contents.resolve_token.fallback", owner=owner)
+        return settings.GITHUB_FALLBACK_TOKEN
+
+    raise GithubAppNotInstalled(
+        f"GitHub App is not installed on '{owner}' and no fallback token is "
+        "configured. Install the xbrain GitHub App on the owner, or set "
+        "GITHUB_FALLBACK_TOKEN."
     )
-    return token
 
 
 # ---------------------------------------------------------------------------

@@ -66,6 +66,12 @@ class Settings(BaseSettings):
                                                     # documented in Plan 12-11 verify script.
     GITHUB_APP_WEBHOOK_SECRET: str = ""             # HMAC-SHA256 secret for
                                                     # /v1/webhooks/github/installation
+    # Stopgap read credential for the github-read tool when the GitHub App is
+    # NOT installed on a repo owner. A user OAuth token (gho_, scope `repo`) used
+    # as a server-wide fallback Bearer for the Contents API. Reads at THAT user's
+    # access level (shared) — the proper multi-team model is the App installation
+    # (contents:read). Empty = no fallback (App-only). See github_contents.py.
+    GITHUB_FALLBACK_TOKEN: str = ""
 
     # Phase 7 — CRM + Granola + Tasks
     ANTHROPIC_API_KEY: str = ""
