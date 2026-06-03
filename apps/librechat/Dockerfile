@@ -51,12 +51,12 @@ RUN printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg
 # Patch 8: Groove OS login rebrand — hide email/password login form, OR divider,
 # sign-up prompt and logo on the auth pages (keeps social / GitHub login).
 COPY patches/xbrain-login.js /app/client/dist/xbrain-login.js
-RUN sed -i 's|</head>|<script defer src="/xbrain-login.js?v=2"></script></head>|' \
+RUN sed -i 's|</head>|<script defer src="/xbrain-login.js?v=3"></script></head>|' \
     /app/client/dist/index.html
 
 # Verify all patches applied
 RUN grep -q "xbrain-routes" /app/api/server/index.js && \
     grep -q "onboarding.js?v=9" /app/client/dist/index.html && \
-    grep -q "xbrain-login.js?v=2" /app/client/dist/index.html && \
+    grep -q "xbrain-login.js?v=3" /app/client/dist/index.html && \
     grep -rq "Login Groove OS" /app/client/dist/assets/ && \
     echo "All patches verified OK"
