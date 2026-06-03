@@ -173,10 +173,10 @@ register_tool \
   "http://mcp-deck:8103" \
   "Generate PowerPoint presentations (.pptx) via python-pptx — MCP-07"
 
-register_tool \
-  "github" \
-  "http://mcp-github:8107" \
-  "Browse and read GitHub repo files the org has sanctioned (github_list_files, github_read_file)."
+# NOTE: github tools are NOT registered in the aggregate. mcp-github is connected
+# DIRECTLY by LibreChat (xbrain-github server in librechat.yaml) so it receives
+# the user email + resolves the caller's team (github_sync_repo must land in the
+# right brain). The aggregate hardcodes team_scope=default, which would break sync.
 
 # ---------------------------------------------------------------------------
 # Verification: GET /tools and confirm the 3 tools are present
@@ -267,7 +267,7 @@ fi
 # Final summary
 # ---------------------------------------------------------------------------
 echo ""
-TOTAL_TOOLS=5
+TOTAL_TOOLS=4
 TOTAL_RUN=$((PASS_COUNT + FAIL_COUNT))
 
 if [ "${FAIL_COUNT}" -eq 0 ]; then

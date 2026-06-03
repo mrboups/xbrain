@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     FASTMCP_HOST: str = "0.0.0.0"
     FASTMCP_PORT: int = 8107
     LOG_LEVEL: str = "INFO"
+    # EMAIL PATH (LibreChat-internal): resolve the caller's team from
+    # X-LibreChat-User-Email + X-Internal-Secret (== BRIDGE_SHARED_SECRET).
+    INTERNAL_EMAIL_PATH_ENABLED: bool = True
 
 
 settings = Settings()

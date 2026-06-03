@@ -208,6 +208,18 @@ mcpServers:
         title: "xbrain API token (optional for LibreChat)"
         description: "Optional for LibreChat users — your team is auto-resolved from your login email. Required for ChatGPT/Claude.ai: copy your xbt_ token from <a href='https://grooveos.app/account/teams/' target='_blank'>grooveos.app/account/teams</a> (or the Chrome extension)."
 
+  # GitHub repo tools — github_list_files, github_read_file, github_sync_repo.
+  # Points straight at mcp-github (NOT the gateway aggregate) so it receives the
+  # user email + internal secret and resolves the caller's team server-side —
+  # github_sync_repo must land in the right brain, not team_scope=default.
+  # Email path only (LibreChat-internal, gated by BRIDGE_SHARED_SECRET).
+  xbrain-github:
+    type: streamable-http
+    url: http://mcp-github:8107/mcp
+    headers:
+      X-LibreChat-User-Email: "{{LIBRECHAT_USER_EMAIL}}"
+      X-Internal-Secret: "${BRIDGE_SHARED_SECRET}"
+
 # File handling (CHAT-04 partial — upload accepted; real RAG comes in Phase 2).
 fileConfig:
   endpoints:
