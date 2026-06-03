@@ -165,6 +165,14 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
       MINIO_DECKS_BUCKET: ${MINIO_DECKS_BUCKET:-xbrain-decks}
+      # BL-003 slice 1 — reconcile get_minio_client() vars with the MinIO creds above.
+      # get_minio_client() reads MINIO_URL/ACCESS_KEY/SECRET_KEY; the deck path and MinIO
+      # container use MINIO_ENDPOINT/ROOT_USER/ROOT_PASSWORD. Map them here so a single
+      # MinIO instance serves both the decks path and the new media endpoints.
+      MINIO_URL: ${MINIO_URL:-http://${MINIO_ENDPOINT:-langfuse-minio:9000}}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-minio}}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD}}
+      MINIO_BUCKET: ${MINIO_MEDIA_BUCKET:-xbrain-media}
     networks: [xbrain_net]
     # 384m was the Phase 1 (e2-medium 4GB) budget. The signin path (PyJWT
     # RS256 + GitHub token exchange + profile fetch + DB writes) pushed RSS

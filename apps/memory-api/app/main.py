@@ -32,6 +32,7 @@ from app.routes import (
     internal,
     me,
     me_github,
+    media,
     memory,
     messages,
     promotions,
@@ -103,6 +104,7 @@ app.include_router(teams.router, prefix="/v1", tags=["teams"])
 app.include_router(conversations.router, prefix="/v1", tags=["conversations"])
 app.include_router(messages.router, prefix="/v1", tags=["messages"])
 app.include_router(audit.router, prefix="/v1", tags=["audit"])
+app.include_router(media.router, prefix="/v1", tags=["media"])
 app.include_router(memory.router, prefix="/v1", tags=["memory"])
 app.include_router(promotions.router, prefix="/v1", tags=["promotions"])
 app.include_router(graph.router, prefix="/v1", tags=["graph"])

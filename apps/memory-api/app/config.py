@@ -122,7 +122,7 @@ class Settings(BaseSettings):
     MINIO_URL: str = ""
     MINIO_ACCESS_KEY: str = ""
     MINIO_SECRET_KEY: str = ""
-    MINIO_BUCKET: str = "xbrain"
+    MINIO_BUCKET: str = "xbrain-media"
     # Qdrant collection name used by /v1/admin/brain/storage. Defaults to
     # "messages" (the name xbrain actually uses in qdrant_setup.py:11). The
     # docker-compose env QDRANT_COLLECTION can override per-environment.
