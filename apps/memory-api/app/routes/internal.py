@@ -61,8 +61,8 @@ async def resolve_team_scope(
 
         # Derive an email to ALSO look up by. A phantom row may match `sub`
         # exactly but carry no team; the real team-bearing row is keyed by the
-        # real email (e.g. sub="nicoboups@gmail.com" → phantom no-team row, while
-        # the real row has source_user_id="email:nicoboups@gmail.com").
+        # real email (e.g. sub="user@example.com" → phantom no-team row, while
+        # the real row has source_user_id="email:user@example.com").
         email: str | None = None
         if sub.startswith("email:"):
             email = sub[len("email:"):]
