@@ -32,8 +32,8 @@ MinIO is internal-only (not exposed via nginx), so a presigned URL would point a
 - (later) `GET /v1/media/{item_id}/raw?t=<signed>` → token-authed variant for `<img src>`.
 
 ## Slices
-1. **Foundation (this slice, 260603-3et):** config reconciliation + `POST /upload` + `GET /raw` (Bearer) + media memory_item + tests.
-2. **Brain Monitor render:** images as thumbnails (signed-token `<img>`), docs as clickable file chips. Decide serving option A/B here.
+1. ✅ **Foundation (SHIPPED, 260603-3et):** config reconciliation + `POST /upload` + `GET /raw` (Bearer) + media memory_item + tests. Verified live (PNG upload→201, /raw→200 image/png).
+2. ✅ **Brain Monitor render (SHIPPED, 260603-40g):** images as thumbnails, docs as clickable file chips. **Serving decision: Option B** — memory-api proxy + short-lived HS256 signed token in the query (no public MinIO). New `GET /v1/media/{id}/img?t=<token>` (no Bearer, token-gated); `_enrich_event` strips the raw MinIO key and emits `{mime,size,filename,url}`. Frontend `mediaCellHtml()` deployed to Firebase. Verified live through nginx: valid token→200 image/png, tampered→403, missing→422. v_brain_events gained a `media` column (alembic 0021). **Deploy note:** migration 0020 had to be shipped alongside 0021 — surgical deploys must include every new migration in the chain or alembic crash-loops on a missing down_revision.
 3. **Extension upload + UI reorg:** 📎 spot → "send a photo/document" (direct upload to /v1/media/upload); move the clipper launch to the menu bar (next to the team dropdown) as a text button "add to memory".
 4. **Extension @claude render:** render media items inline in the team chat.
 5. **LibreChat render (hardest):** get LibreChat to display brain media inline — needs investigation (LibreChat already renders its own image uploads; bridging brain media into its message render is the open problem).
