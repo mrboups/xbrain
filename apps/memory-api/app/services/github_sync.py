@@ -295,10 +295,13 @@ async def sync_repo(
                     capped = True
                     break
 
+                # team_scope MUST be part of the idempotency key — otherwise the
+                # same repo synced into two teams collides on one row (last write
+                # flips team_scope), breaking team isolation.
                 item_id = str(
                     uuid.uuid5(
                         GITHUB_SYNC_NS,
-                        f"{repo}:{epath}:{esha}:{chunk_idx}",
+                        f"{team_scope}:{repo}:{epath}:{esha}:{chunk_idx}",
                     )
                 )
 
