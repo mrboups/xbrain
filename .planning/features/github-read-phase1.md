@@ -1,11 +1,18 @@
 # GitHub content access — Phase 1: read/query org repos in the brain
 
-> ✅ **SHIPPED + DEPLOYED 2026-06-03.** memory-api Contents service + `/v1/internal/github/{list,read}`,
-> `mcp-github` sidecar (:8107), gateway tool `github` registered, gateway restarted. 12 unit tests pass.
-> End-to-end plumbing verified live via the gateway (real LLM path): a call reaches GitHub through the
-> App JWT and returns a clean actionable message. **DORMANT until the operator step below is done**
-> (install the xbrain App on the target owner + grant `contents:read`). The tool resolves the
-> installation **per repo-owner** (org, then user fallback) — it does NOT use the (stale) `GITHUB_ORG`.
+> ✅ **SHIPPED + DEPLOYED + LIVE 2026-06-03.** memory-api Contents service + `/v1/internal/github/{list,read}`,
+> `mcp-github` sidecar (:8107), gateway tool `github` registered. 12 unit tests pass. **Verified live
+> reading real content** via the gateway (real LLM path): `github_list_files`/`github_read_file` on
+> `mrboups/xbrain` return the actual tree + file text.
+>
+> **Auth resolution order** (`_resolve_installation_token`): (1) org App installation → (2) user App
+> installation → (3) **`GITHUB_FALLBACK_TOKEN`** (a user `gho_` OAuth token, scope `repo`) when the App
+> isn't installed. The fallback (mrboups' LibreChat token, pulled from LibreChat Mongo into
+> `infrastructure/.env`) is what makes it work TODAY with **zero GitHub-admin action**. ⚠️ Fallback reads
+> at that one user's access level (server-wide shared) — the proper multi-team model is the App
+> installation (`contents:read`). The tool resolves per repo-owner — does NOT use the (stale) `GITHUB_ORG`.
+> **Deploy gotcha:** `docker compose` runs from `infrastructure/` → it reads **`infrastructure/.env`**, NOT
+> the repo-root `/home/user/xbrain/.env` (the two have diverged). Env vars must go in `infrastructure/.env`.
 
 
 **Goal (Phase 1):** any team member or agent (LibreChat, agent-runtime) can **read & query the
