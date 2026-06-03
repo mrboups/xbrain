@@ -25,13 +25,14 @@ _MEDIA_INSTRUCTION = (
 
 def _human_size(n: int) -> str:
     """Return a compact human-readable byte size string (e.g. '1.2 MB', '340 KB')."""
+    size = float(n)
     for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024 or unit == "GB":
+        if size < 1024 or unit == "GB":
             if unit == "B":
-                return f"{n} B"
-            return f"{n / 1024:.1f} {unit}"
-        n //= 1024
-    return f"{n} GB"  # unreachable but satisfies type checker
+                return f"{int(size)} B"
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} GB"  # unreachable but satisfies type checker
 
 
 def _format_addendum(hits: list[SearchHit], min_level: TruthLevel) -> str:
