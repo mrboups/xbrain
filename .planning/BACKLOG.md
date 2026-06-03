@@ -65,7 +65,7 @@ sooner; it's ~1 popup.html + popup.js edit + extension reload.
 
 ## BL-003 — Media + documents: store, display in chat, upload from the extension
 
-**Captured:** 2026-06-03 (user request)
+**Captured:** 2026-06-03 (user request) · ✅ **SHIPPED 2026-06-03** — all 5 slices live (see `.planning/features/BL-003-media-design.md`). Storage (MinIO) + upload/serve endpoints + Brain Monitor render + extension upload/UI-reorg/render + LibreChat recall render. Browser-level LibreChat end-to-end is the user's final check.
 
 **Problem today:** images/files sent to the brain are only stored as **text references** (e.g. a
 `file:///C:/.../poster.jpg` local path) — nothing is actually stored or displayable. LibreChat /
