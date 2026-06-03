@@ -7,26 +7,51 @@ Exposes:
   GET /internal/github/read?repo=owner/name&path=path/to/file&ref=HEAD
     Read the text content of a single file from a GitHub repo.
 
+  POST /internal/github/sync
+    Index all text files from a repo into the team brain (on-demand, background).
+    Body: {repo, team_scope, project_scope?, ref?}
+    Returns 202 immediately; sync runs in the background.
+
 Auth: Depends(get_current_principal) — accepts kind='bridge' (same as internal.py).
 NOT team-scoped: access is org-sanctioned via the GitHub App installation, not per-team.
 """
 
+import asyncio
 from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import get_current_principal, get_session
+from app.db.session import async_session_factory
+from app.deps import get_current_principal, get_memory_provider, get_session
 from app.services.github_contents import (
     GithubAppNotInstalled,
     GithubPermissionDenied,
     list_repo_files,
     read_repo_file,
 )
+from app.services.github_sync import sync_repo
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Request model for POST /internal/github/sync
+# ---------------------------------------------------------------------------
+
+
+class GithubSyncRequest(BaseModel):
+    repo: str = Field(..., description="Repository in 'owner/name' format")
+    team_scope: str = Field(..., min_length=1, max_length=64, description="Team slug")
+    project_scope: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Project slug (defaults to repo name when absent)",
+    )
+    ref: str = Field(default="HEAD", description="Git ref (branch, tag, SHA)")
 
 
 @router.get("/internal/github/list")
@@ -87,3 +112,70 @@ async def github_read(
             status_code=403,
             detail=str(exc),
         ) from exc
+
+
+@router.post("/internal/github/sync", status_code=202)
+async def github_sync(
+    body: GithubSyncRequest,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Index all text files from a GitHub repo into the team brain.
+
+    Performs synchronous validation (repo format, GitHub App installation check,
+    permission check) before accepting the request. The actual walk-and-upsert
+    runs in a background asyncio task so large repos do not time out the HTTP call.
+
+    Body:
+        repo         (required) — "owner/name"
+        team_scope   (required) — team slug
+        project_scope (optional) — project slug; defaults to repo name
+        ref          (optional, default "HEAD") — git ref
+
+    Returns 202 {"status": "started", "repo": "...", "ref": "..."}
+    immediately after launching the background task.
+
+    Auth: any authenticated principal (including kind='bridge').
+    """
+    # --- Synchronous validation: repo format + GitHub App reachability ---
+    # list_repo_files raises ValueError (bad format), GithubAppNotInstalled (404),
+    # GithubPermissionDenied (403) — map these before kicking off the background task.
+    try:
+        await list_repo_files(session, body.repo, path="", ref=body.ref)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except GithubAppNotInstalled as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except GithubPermissionDenied as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    # --- Launch background task with its OWN session (do not reuse request session) ---
+    repo = body.repo
+    team_scope = body.team_scope
+    project_scope = body.project_scope
+    ref = body.ref
+
+    async def _run_sync() -> None:
+        try:
+            async with async_session_factory() as bg_session:
+                provider = get_memory_provider()
+                result = await sync_repo(
+                    bg_session,
+                    provider,
+                    repo=repo,
+                    team_scope=team_scope,
+                    project_scope=project_scope,
+                    ref=ref,
+                )
+                log.info("github_sync.background.done", **result)
+        except Exception as exc:
+            log.warning(
+                "github_sync.background.error",
+                repo=repo,
+                team_scope=team_scope,
+                error=str(exc),
+            )
+
+    asyncio.create_task(_run_sync())
+
+    return {"status": "started", "repo": repo, "ref": ref}
