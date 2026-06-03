@@ -1,26 +1,31 @@
 /**
- * xbrain-login.js — GrooveOS login-page rebrand.
+ * xbrain-login.js - GrooveOS login-page rebrand.
  *
  * On the auth pages only (/login, /register, /), it:
  *   - sets the heading to "GrooveOS" and adds a "Join Team or Sign Up" subtitle,
  *   - hides the email/password login form (keeps social / GitHub + Google),
- *   - removes the "—— OR ——" divider,
+ *   - removes the "OR" divider,
  *   - hides the "Don't have an account? Sign up" prompt,
  *   - hides the LibreChat logo image.
  *
- * Done client-side so it is CDN-cache-proof (the hashed locale bundle that holds
- * "Welcome back" is cached by Cloudflare; overriding the DOM here wins).
- * SPA-safe: re-applies on every DOM mutation and cleans up off the auth pages.
+ * Client-side so it is CDN-cache-proof. SPA-safe via MutationObserver.
  */
 (function () {
   var STYLE_ID = 'xbrain-login-style';
   var SUB_ID = 'xbrain-login-subtitle';
   var TITLE = 'GrooveOS';
   var SUBTITLE = 'Join Team or Sign Up';
-  var SUBTITLE_COLOR = '#10b981'; // GrooveOS green — readable on the dark bg
+  var SUBTITLE_COLOR = '#10b981';
   var CSS =
     'form:has(input[name="email"]){display:none!important}' +
     'img[src*="logo.svg"]{display:none!important}';
+
+  // Keep letters only. The "OR" divider is padded with non-breaking spaces /
+  // decorative dashes that String.trim() does not remove, so a plain === 'OR'
+  // check fails. Stripping everything but A-Z is ASCII-safe and bulletproof.
+  function lettersOnly(s) {
+    return (s || '').replace(/[^A-Za-z]/g, '');
+  }
 
   function onAuthPage() {
     var p = location.pathname;
@@ -46,14 +51,15 @@
       document.head.appendChild(s);
     }
 
-    var all = document.querySelectorAll('h1, h2, h3, a, p, span, div, section');
+    var all = document.querySelectorAll('*');
     for (var i = 0; i < all.length; i++) {
       var el = all[i];
-      var txt = (el.textContent || '').trim();
+      if (el.id === SUB_ID || el.id === STYLE_ID) continue;
+      var raw = (el.textContent || '').trim();
       var leaf = el.children.length === 0;
 
-      if (leaf && (txt === 'Welcome back' || txt === 'Login Groove OS' || txt === 'Groove OS')) {
-        // Rename the heading + add a subtitle right after it (once).
+      // Heading + subtitle
+      if (leaf && (raw === 'Welcome back' || raw === 'Login Groove OS' || raw === 'Groove OS')) {
         if (el.textContent !== TITLE) el.textContent = TITLE;
         if (!document.getElementById(SUB_ID)) {
           var sub = document.createElement('div');
@@ -64,14 +70,26 @@
             SUBTITLE_COLOR + ';';
           el.insertAdjacentElement('afterend', sub);
         }
-      } else if (txt === 'OR') {
-        // The "—— OR ——" divider: the OUTERMOST element whose full text is
-        // exactly "OR" (its other children are the decorative lines, which carry
-        // no text) is the divider row. No leaf requirement — works whether "OR"
-        // is a span, a bare text node, or the lines are pseudo-elements.
-        var parentTxt = el.parentElement ? (el.parentElement.textContent || '').trim() : '';
-        if (parentTxt !== 'OR') el.style.display = 'none';
-      } else if (/^Don't have an account\?/i.test(txt) && el.querySelector('a')) {
+        continue;
+      }
+
+      // "OR" divider: an element whose visible text reduces to exactly "OR".
+      // Guard on a short raw length so a long string never matches. Climb to the
+      // outermost "OR-only" element (the divider row, decorative lines included).
+      if (raw.length <= 8 && lettersOnly(raw).toUpperCase() === 'OR') {
+        var n = el;
+        while (
+          n.parentElement &&
+          lettersOnly(n.parentElement.textContent).toUpperCase() === 'OR'
+        ) {
+          n = n.parentElement;
+        }
+        n.style.display = 'none';
+        continue;
+      }
+
+      // "Don't have an account? Sign up"
+      if (/^Don't have an account\?/i.test(raw) && el.querySelector && el.querySelector('a')) {
         el.style.display = 'none';
       }
     }
@@ -83,6 +101,7 @@
       new MutationObserver(apply).observe(document.documentElement, {
         childList: true,
         subtree: true,
+        characterData: true,
       });
     } catch (e) {}
   }
