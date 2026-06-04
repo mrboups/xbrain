@@ -390,28 +390,46 @@ async def signin_github(
         github_org_logins=profile["org_logins"],
     )
 
-    # Step 6 — Check install status for the primary org (drives the
-    # install_required UX in 12-07/12-08/12-09 frontends).
-    primary_org = settings.GITHUB_ORG
+    # Step 6 — Check install status (drives the install_required banner UX).
+    # PER-ORG (not a single global GITHUB_ORG): multi-team means each team can map
+    # to a different GitHub org, so we surface an install prompt for ANY of the
+    # user's orgs that has an xbrain team but where the App isn't installed. The
+    # legacy global GITHUB_ORG is kept as one extra candidate for back-compat.
     install_required = False
     install_url: str | None = None
     org_login: str | None = None
-    if primary_org and primary_org in profile["org_logins"]:
+
+    user_orgs = set(profile["org_logins"])
+    from app.repos import teams as teams_repo  # noqa: PLC0415
+
+    teams_with_org = await teams_repo.get_teams_with_github_org(session)
+    candidate_orgs: list[str] = [
+        t.github_org for t in teams_with_org if t.github_org in user_orgs
+    ]
+    if settings.GITHUB_ORG and settings.GITHUB_ORG in user_orgs:
+        candidate_orgs.append(settings.GITHUB_ORG)
+    # Dedup, preserve order.
+    _seen: set[str] = set()
+    candidate_orgs = [o for o in candidate_orgs if not (o in _seen or _seen.add(o))]
+
+    if candidate_orgs:
         from app.auth import (
             OrgMembershipResult,
             check_github_org_membership,
         )
-        membership = await check_github_org_membership(
-            session, token_body["access_token"], primary_org
-        )
-        if membership["result"] == OrgMembershipResult.INSTALL_REQUIRED:
-            install_required = True
-            slug = settings.GITHUB_APP_SLUG or "xbrain"
-            install_url = (
-                f"https://github.com/apps/{slug}/installations/new"
-                f"?state={body.state}"
+        for org in candidate_orgs:
+            membership = await check_github_org_membership(
+                session, token_body["access_token"], org
             )
-            org_login = primary_org  # REVISION 2 (M-1) — for banner UX
+            if membership["result"] == OrgMembershipResult.INSTALL_REQUIRED:
+                install_required = True
+                slug = settings.GITHUB_APP_SLUG or "xbrain-auth"
+                install_url = (
+                    f"https://github.com/apps/{slug}/installations/new"
+                    f"?state={body.state}"
+                )
+                org_login = org  # REVISION 2 (M-1) — for banner UX
+                break
 
     # Step 7 — Mint xbt session token (Phase 10 preserved).
     xbt = await _mint_xbt_for_user(session, user.id)
