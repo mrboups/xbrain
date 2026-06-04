@@ -507,7 +507,13 @@
       }, 400);
     };
 
-    setHtml(body, title, desc, githubSection, divider, nameInput, descInput, orgSelect, errorDiv, resultDiv, actionDiv);
+    // descInput is placed at the TOP (right after the subtitle) so the project
+    // description is captured for EVERY create path — including the one-click
+    // GitHub-org buttons below, which would otherwise bypass a field placed
+    // lower in the form.
+    const descLabel = el('p', { class: 'xb-desc', style: 'margin-bottom:6px;margin-top:4px' },
+      'Team / project description (optional — helps the AI contextualize your team):');
+    setHtml(body, title, desc, descLabel, descInput, githubSection, divider, nameInput, orgSelect, errorDiv, resultDiv, actionDiv);
 
     // Helper: probe whether a team with the given slug already exists in xbrain,
     // regardless of whether the current user is auto-verified as a member.
