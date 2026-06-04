@@ -134,7 +134,11 @@ async def _exchange_code_for_token(code: str, redirect_uri: str) -> dict[str, An
 
 
 async def _fetch_github_profile(token: str) -> dict[str, Any]:
-    """Fetch /user + /user/emails + /user/orgs (single client).
+    """Fetch /user + /user/emails + /user/orgs + /user/installations (single client).
+
+    org_logins merges public memberships (/user/orgs) with orgs where the App is
+    installed and the user has access (/user/installations) — the latter is what
+    makes private org memberships visible for auto-grant.
 
     Returns:
       {github_id, login, display_name, email (primary verified), org_logins: [..]}.
@@ -154,7 +158,10 @@ async def _fetch_github_profile(token: str) -> dict[str, Any]:
                 None,
             )
 
-        # /user/orgs — paginate until <100 returned.
+        # /user/orgs — paginate until <100 returned. NOTE: with a GitHub App
+        # user-to-server token this only returns PUBLICIZED org memberships, so
+        # a member whose org membership is private (the GitHub default) won't
+        # appear here even when the App is installed on the org.
         org_logins: list[str] = []
         page = 1
         while True:
@@ -169,6 +176,35 @@ async def _fetch_github_profile(token: str) -> dict[str, Any]:
             if len(page_orgs) < 100:
                 break
             page += 1
+
+        # /user/installations — orgs where the App is installed AND this user
+        # has access (i.e. is an org member). This is the RELIABLE signal for
+        # auto-grant: unlike /user/orgs it surfaces PRIVATE org memberships, so
+        # once the App is installed on the org every member is matched even if
+        # their membership isn't publicized. Returns {total_count, installations}.
+        inst_page = 1
+        while True:
+            i_r = await client.get(
+                "https://api.github.com/user/installations"
+                f"?per_page=100&page={inst_page}",
+                headers=auth,
+            )
+            if i_r.status_code != 200:
+                break
+            data = i_r.json()
+            insts = data.get("installations", []) if isinstance(data, dict) else []
+            for inst in insts:
+                acct = inst.get("account") or {}
+                # Only Organization accounts are team github_orgs; skip the
+                # user's own personal-account installation.
+                if acct.get("login") and acct.get("type") == "Organization":
+                    org_logins.append(acct["login"])
+            if len(insts) < 100:
+                break
+            inst_page += 1
+
+        # De-dup while preserving order (/user/orgs + /user/installations overlap).
+        org_logins = list(dict.fromkeys(org_logins))
 
     return {
         "github_id": u["id"],
