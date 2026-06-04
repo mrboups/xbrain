@@ -34,7 +34,7 @@ RUN node /tmp/patch-server.js
 
 # Patch 4 + 5: Onboarding modal
 COPY patches/onboarding.js /app/client/dist/onboarding.js
-RUN sed -i 's|</head>|<script defer src="/onboarding.js?v=12"></script></head>|' \
+RUN sed -i 's|</head>|<script defer src="/onboarding.js?v=13"></script></head>|' \
     /app/client/dist/index.html
 
 # Patch 6: Rebrand login heading "Welcome back" -> "Login Groove OS".
@@ -56,7 +56,7 @@ RUN sed -i 's|</head>|<script defer src="/xbrain-login.js?v=5"></script></head>|
 
 # Verify all patches applied
 RUN grep -q "xbrain-routes" /app/api/server/index.js && \
-    grep -q "onboarding.js?v=12" /app/client/dist/index.html && \
+    grep -q "onboarding.js?v=13" /app/client/dist/index.html && \
     grep -q "xbrain-login.js?v=5" /app/client/dist/index.html && \
     grep -rq "Login Groove OS" /app/client/dist/assets/ && \
     echo "All patches verified OK"

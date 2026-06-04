@@ -162,6 +162,10 @@
 
   let token = null;
   let selectedTeam = null;
+  // login -> numeric GitHub org id, populated when /api/xbrain/github-orgs
+  // loads. Used to deep-link the App install straight to the org
+  // (?target_id=<id>) instead of GitHub's generic account picker.
+  const orgIdByLogin = {};
 
   // ── DOM helpers ──────────────────────────────────────────────────────────
 
@@ -246,8 +250,13 @@
       + 'and lets the team read its repos.');
     const installBtn = el('button', { class: 'xb-btn xb-btn-primary' },
       `Install xbrain on ${githubOrg} →`);
-    installBtn.onclick = () =>
-      window.open('https://github.com/apps/xbrain-auth/installations/new', '_blank');
+    // Deep-link straight to installing on THIS org when we know its numeric id
+    // (?target_id=...), else fall back to the generic account picker.
+    const orgId = orgIdByLogin[githubOrg];
+    const installUrl = orgId != null
+      ? `https://github.com/apps/xbrain-auth/installations/new/permissions?target_id=${orgId}`
+      : 'https://github.com/apps/xbrain-auth/installations/new';
+    installBtn.onclick = () => window.open(installUrl, '_blank');
     const doneBtn = el('button', { class: 'xb-btn xb-btn-secondary' }, 'Done — continue →');
     doneBtn.onclick = renderWelcome;
     const note = el('p', { class: 'xb-desc', style: 'font-size:11.5px;margin-top:6px' },
@@ -578,6 +587,7 @@
       if (orgs && orgs.length > 0) {
         orgs.forEach(org => {
           orgSelect.appendChild(el('option', { value: org.login }, org.login));
+          if (org.id != null) orgIdByLogin[org.login] = org.id;
         });
       }
 

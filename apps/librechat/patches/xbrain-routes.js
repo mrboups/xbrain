@@ -119,7 +119,7 @@ module.exports = function mountXbrainRoutes(app) {
       });
       if (!r.ok) return res.json([]);
       const orgs = await r.json();
-      res.json(Array.isArray(orgs) ? orgs.map(o => ({ login: o.login, description: o.description || null })) : []);
+      res.json(Array.isArray(orgs) ? orgs.map(o => ({ login: o.login, id: o.id, description: o.description || null })) : []);
     } catch (err) {
       console.warn('[xbrain] github-orgs error:', err?.message);
       res.json([]);
