@@ -506,16 +506,22 @@ async def _stream_via_promax(
     their claude.ai WebSocket. Yields (chunk_text, usage_dict) tuples.
     """
     bridge_jwt = _sign_bridge_jwt_acting(triggering_user_sub)
-    user_message = chat_history_block  # last message in chat_history IS the @claude mention
+    user_message = chat_history_block  # last message in chat_history IS the @groove mention
+    # The Pro/Max path streams through claude.ai (via the extension), which
+    # expects a plain-string system message — it does NOT honor Anthropic
+    # `cache_control` blocks. Flatten the cached system blocks to text so the
+    # extension doesn't coerce a block array to "[object Object]".
+    system_text = "\n\n".join(
+        b["text"]
+        for b in _build_system_blocks(system_prompt, cached_memory_block)
+        if b.get("text")
+    )
     body = {
         "model": MODEL_SONNET,
         "stream": True,
         "max_tokens": MAX_OUTPUT_TOKENS,
         "messages": [
-            {
-                "role": "system",
-                "content": _build_system_blocks(system_prompt, cached_memory_block),
-            },
+            {"role": "system", "content": system_text},
             {"role": "user", "content": user_message},
         ],
     }

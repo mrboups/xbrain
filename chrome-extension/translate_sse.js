@@ -121,13 +121,31 @@ export function translateClaudeAiSSE(evt, id, model, created) {
  * @param convUuid      conversation UUID — only used for URL building, not body
  * @param parentMsgUuid parent message UUID or null (defaults to nil UUID — A10)
  */
+// Content can be a plain string OR an array of content blocks
+// ({type:"text", text:"..."} — the Anthropic prompt-cache shape memory-api
+// uses for the system message). Coercing an array with `"" + content` yields
+// "[object Object]", so flatten block arrays to their joined text.
+function flattenContent(content) {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part) =>
+        typeof part === "string" ? part : (part && part.text) || ""
+      )
+      .filter(Boolean)
+      .join("\n\n");
+  }
+  return "";
+}
+
 export function openaiToClaudeAi(openaiBody, convUuid, parentMsgUuid) {
   const messages = (openaiBody && openaiBody.messages) || [];
   const turns = messages.map((m) => {
-    if (m.role === "system") return "[System]\n" + (m.content || "");
-    if (m.role === "user") return "[Human]\n" + (m.content || "");
-    if (m.role === "assistant") return "[Assistant]\n" + (m.content || "");
-    return m.content || "";
+    const text = flattenContent(m.content);
+    if (m.role === "system") return "[System]\n" + text;
+    if (m.role === "user") return "[Human]\n" + text;
+    if (m.role === "assistant") return "[Assistant]\n" + text;
+    return text;
   });
 
   const prompt = turns.join("\n\n");
