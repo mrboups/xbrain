@@ -434,7 +434,10 @@
     btn.disabled = true;
     errorDiv.style.display = 'none';
     try {
-      const body = { slug, display_name: name, visibility: 'closed' };
+      // TEMP stopgap (2026-06-04): create teams OPEN so a 2nd org member can
+      // Join without admin approval, until the LibreChat->memory-api GitHub
+      // token bridge lands (task #145). Revert to 'closed' once auto-join works.
+      const body = { slug, display_name: name, visibility: 'open' };
       if (githubOrg) body.github_org = githubOrg;
       if (description) body.description = description;
       const r = await apiCall('POST', '/v1/teams/self', body, token);
@@ -627,6 +630,14 @@
         btn.appendChild(el('strong', {}, org.login));
 
         if (existing) {
+          if (existing.visibility === 'open') {
+            // TEMP stopgap (2026-06-04): open team → direct Join, no install /
+            // backend membership check needed. Remove when task #145 (the
+            // LibreChat->memory-api token bridge) lands.
+            btn.appendChild(document.createTextNode(' — 🔓 Join'));
+            btn.onclick = () => joinTeam(existing, errorDiv, btn);
+            return;
+          }
           // Case C — team exists but cannot auto-verify membership.
           // The xbrain GitHub App likely isn't installed on this org yet;
           // install grants the backend permission to confirm membership and
