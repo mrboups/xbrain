@@ -231,6 +231,31 @@
     setHtml(body, title, desc, startBtn, granolaBtn);
   }
 
+  // After creating a team linked to a GitHub org, that org must have the xbrain
+  // App installed so the backend (GitHub App token) can see the org in members'
+  // /user/orgs and auto-join them on sign-in. The creator (org admin / App owner)
+  // installs it here — once per org. Without this step the org never gets the
+  // App, so teammates hit the install dead-end and can never auto-join.
+  function renderInstallStep(githubOrg) {
+    const body = getBody();
+    const title = el('h2', {}, `"${selectedTeam?.display_name || 'Team'}" created ✓`);
+    const desc = el('p', { class: 'xb-desc' },
+      'One quick step: install xbrain on the ',
+      el('strong', {}, githubOrg),
+      ' GitHub org. This lets teammates in this org auto-join when they sign in, '
+      + 'and lets the team read its repos.');
+    const installBtn = el('button', { class: 'xb-btn xb-btn-primary' },
+      `Install xbrain on ${githubOrg} →`);
+    installBtn.onclick = () =>
+      window.open('https://github.com/apps/xbrain-auth/installations/new', '_blank');
+    const doneBtn = el('button', { class: 'xb-btn xb-btn-secondary' }, 'Done — continue →');
+    doneBtn.onclick = renderWelcome;
+    const note = el('p', { class: 'xb-desc', style: 'font-size:11.5px;margin-top:6px' },
+      'Install on GitHub, then come back and click "Done". You only need to do this '
+      + 'once per org — after that, teammates in the org join automatically.');
+    setHtml(body, title, desc, installBtn, doneBtn, note);
+  }
+
   // Phase 8 plan 08-07 — D1 RESEARCH.md: per-user Granola key submission.
   async function renderGranolaStep() {
     const body = getBody();
@@ -418,7 +443,11 @@
         throw new Error(err.detail || 'create failed');
       }
       selectedTeam = await r.json();
-      renderWelcome();
+      // If the team is linked to a GitHub org, route to the install step so the
+      // creator installs the App on that org (enables teammate auto-join). No
+      // org → straight to welcome.
+      if (githubOrg) renderInstallStep(githubOrg);
+      else renderWelcome();
     } catch (e) {
       errorDiv.textContent = e.message || 'Something went wrong. Please try again.';
       errorDiv.style.display = 'block';
