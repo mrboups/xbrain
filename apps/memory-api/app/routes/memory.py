@@ -84,7 +84,7 @@ async def _extract_crm_contacts(content: str, team_scope: str, source: str) -> N
             return
 
         msg = await client.messages.create(
-            model="claude-3-5-haiku-20241022",
+            model="claude-haiku-4-5-20251001",
             max_tokens=1024,
             system=[
                 {
@@ -183,7 +183,7 @@ async def _maybe_create_task_from_action(item: MemoryItem, team_scope: str) -> N
                 return
 
             msg = await client.messages.create(
-                model="claude-3-5-haiku-20241022",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=512,
                 system=[
                     {

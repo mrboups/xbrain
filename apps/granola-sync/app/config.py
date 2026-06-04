@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     GRANOLA_POLL_INTERVAL_SECONDS: int = 300  # 5 minutes
     GRANOLA_API_BASE: str = "https://api.granola.ai"
     ANTHROPIC_API_KEY: str = ""
-    ANTHROPIC_MODEL: str = "claude-3-5-haiku-20241022"
+    ANTHROPIC_MODEL: str = "claude-haiku-4-5-20251001"
     FERNET_KEY: str = ""
     LOG_LEVEL: str = "INFO"
 
