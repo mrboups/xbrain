@@ -1,7 +1,7 @@
 """Mention detector — pure regex matching for @groove triggers.
 
-`@groove`, `@gr`, and `@g` (case-insensitive, word-boundary anchored) all
-trigger the Groove team agent (Claude Sonnet 4.6 under the hood).
+`@grooveos`, `@groove`, `@gr`, and `@g` (case-insensitive, word-boundary
+anchored) all trigger the Groove team agent (Claude Sonnet 4.6 under the hood).
 
 Returns a normalized {"agent_name": str, "trigger": str} dict or None.
 
@@ -18,7 +18,7 @@ from typing import TypedDict
 # IMPORTANT: order matters — `groove` must come before `gr`/`g` so the regex
 # captures the longest alias for proper rendering in logs.
 _MENTION_RE = re.compile(
-    r"(?:^|(?<=[^\w@]))@(groove|gr|g)(?=$|[\s.,!?;:()\[\]{}'\"])",
+    r"(?:^|(?<=[^\w@]))@(grooveos|groove|gr|g)(?=$|[\s.,!?;:()\[\]{}'\"])",
     re.IGNORECASE,
 )
 

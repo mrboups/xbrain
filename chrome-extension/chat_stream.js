@@ -19,7 +19,7 @@
 // ---------- Mention regex ----------
 // Server-authoritative — this is the SAME pattern as memory-api.
 // Used only for UX hints; the server makes the final decision.
-const MENTION_RE = /(?:^|(?<=[^\w@]))@(groove|gr|g)(?=$|[\s.,!?;:()[\]{}'"])/i;
+const MENTION_RE = /(?:^|(?<=[^\w@]))@(grooveos|groove|gr|g)(?=$|[\s.,!?;:()[\]{}'"])/i;
 
 export function detectMentionClient(text) {
   if (!text) return null;

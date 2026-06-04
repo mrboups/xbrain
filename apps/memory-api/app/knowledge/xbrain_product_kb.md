@@ -138,7 +138,7 @@ searchable content.
 
 ## Mentioning @groove in team chat
 
-Mention **`@groove`** (or shortcuts **`@gr`** / **`@g`**) anywhere in a message
+Mention **`@grooveos`** / **`@groove`** (or shortcuts **`@gr`** / **`@g`**) anywhere in a message
 and the Groove agent (Claude Sonnet 4.6 under the hood) replies in the channel,
 streaming token-by-token. Word-boundary anchored, so `alice@groove.com` or
 `@google` won't trigger it. (`@claude` / `@c` no longer trigger — the alias was
