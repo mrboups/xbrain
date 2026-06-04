@@ -193,16 +193,13 @@
     <p class="demo-sub">2-minute walkthrough — humans and agents working on the same brain, in real time.</p>
 
     <div class="demo-frame">
-      <video id="demo-video" class="demo-video" preload="metadata" playsinline controls>
-        <source src="Architecting_the_Hybrid_Org.mp4" type="video/mp4" />
-        Your browser can&rsquo;t play embedded video.
-        <a href="Architecting_the_Hybrid_Org.mp4">Download the walkthrough &rarr;</a>
-      </video>
-      <button class="demo-overlay" id="demo-overlay" aria-label="Play demo video">
-        <span class="demo-play">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>
-        </span>
-      </button>
+      <iframe
+        class="demo-video"
+        src="https://www.loom.com/embed/2cfd00ceaed241c2b5e76193291c735a"
+        title="GrooveOS demo"
+        frameborder="0"
+        webkitallowfullscreen mozallowfullscreen allowfullscreen
+      ></iframe>
     </div>
 
     <div class="demo-foot">
@@ -246,17 +243,6 @@
       const saved = localStorage.getItem('xb-theme');
       if (saved === 'light' || saved === 'dark') setTheme(saved);
     } catch(e) {}
-
-    /* ── play overlay ── */
-    const video   = document.getElementById('demo-video');
-    const overlay = document.getElementById('demo-overlay');
-    overlay.addEventListener('click', () => {
-      overlay.classList.add('hidden');
-      const p = video.play();
-      if (p && p.catch) p.catch(() => overlay.classList.remove('hidden'));
-    });
-    video.addEventListener('play',  () => overlay.classList.add('hidden'));
-    video.addEventListener('ended', () => overlay.classList.remove('hidden'));
   </script>
 </body>
 </html>
