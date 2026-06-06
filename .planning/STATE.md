@@ -125,6 +125,8 @@ Recent decisions affecting current work:
 ### Pending Todos
 
 - ~~Make the GitHub App `xbrain-auth` public~~ — **Already public** (confirmed 2026-06-07 on the App's Advanced page: only a disabled "Make private" button is shown, reason "already installed on other accounts"; GitHub offers "Make private" only when an App is already public). Non-owner members can load the GitHub authorize page → sign in / connect. The remaining 2nd-member auto-join gap is the separate LibreChat→memory-api token bridge.
+- **Team-wall the GitHub repo-read tools (Task #147)** — the github read path is team-NEUTRAL today: any authenticated GrooveOS user (any team) can read any repo the App installation can access (`/v1/internal/github/{list,read,sync}` is "NOT team-scoped"). Harmless now (1 team = aibrussels, 3 users) but MUST gate by team membership before onboarding a 2nd team. Kept open to all per user request 2026-06-07.
+- **Narrow GitHub App repo scope (Task #148)** — 2026-06-07 granted `Contents: Read-only` with `repository_selection=all` on both installs (aibrussels org 14 repos, mrboups personal 60 repos), left OPEN per user request. LATER: switch the mrboups personal install to "Only select repositories" (e.g. just mrboups/xbrain) so the 60 personal private repos aren't readable by every GrooveOS user; aibrussels org stays "All".
 
 ### Blockers/Concerns
 
