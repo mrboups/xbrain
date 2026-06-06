@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="GrooveOS MCP Tools let your AI scrape URLs, read Drive files, check your calendar, and generate presentations — all from chat, no setup required." />
-  <title>MCP Tools — GrooveOS Docs</title>
+  <meta name="description" content="Connect your GrooveOS team brain to the official Claude.ai app as a Custom Connector. Search and write team memory, tasks, and contacts directly from Claude — secured with OAuth 2.1 and bound to a single team." />
+  <title>Claude Connector — GrooveOS Docs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
@@ -50,7 +50,11 @@
     .breadcrumb{font-size:11.5px;color:var(--muted);margin-bottom:20px}.breadcrumb a{color:var(--muted)}.breadcrumb a:hover{color:var(--accent);text-decoration:none}.breadcrumb__separator{margin:0 6px}.breadcrumb__current{color:var(--text)}
     .docs-meta{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:32px;font-size:11.5px;color:var(--muted);padding-bottom:16px;border-bottom:1px solid var(--border)}
     .docs-meta__badge{padding:2px 8px;border:1px solid var(--border);font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--accent);border-color:var(--accent)}
-    .docs-meta__badge--paid{background:rgba(248,81,73,.12);color:var(--paid-col);border-color:var(--paid-col)}
+    .docs-meta__badge--paid{background:var(--paid-bg);color:var(--paid-col);border-color:var(--paid-col)}
+    .step{counter-increment:step;position:relative;padding-left:42px;margin:0 0 18px}
+    .step::before{content:counter(step);position:absolute;left:0;top:-2px;width:28px;height:28px;border:1px solid var(--accent);color:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+    .steps{counter-reset:step;margin:16px 0}
+    .step h3{margin-top:0}
     .xb-footer{border-top:1px solid var(--border);padding:32px 24px 20px;margin-top:64px}.xb-footer__inner{max-width:1100px;margin:0 auto}
     .xb-footer__grid{display:grid;grid-template-columns:repeat(4,1fr);gap:32px;margin-bottom:24px}
     @media(max-width:640px){.xb-footer__grid{grid-template-columns:repeat(2,1fr)}}
@@ -89,7 +93,7 @@
       <div class="sidebar__group-label">Daily use</div>
       <a href="chat.html" class="sidebar__link">Team Chat</a>
       <a href="chrome-ext.html" class="sidebar__link">Chrome Extension</a>
-      <a href="mcp-tools.html" class="sidebar__link active">MCP Tools</a>
+      <a href="mcp-tools.html" class="sidebar__link">MCP Tools</a>
     </div>
     <div class="sidebar__section">
       <div class="sidebar__group-label">Memory &amp; data</div>
@@ -101,7 +105,7 @@
       <div class="sidebar__group-label">Integrations</div>
       <a href="drive-sync.html" class="sidebar__link">Drive Sync</a>
       <a href="meetings.html" class="sidebar__link">Meetings (Granola)</a>
-      <a href="claude-connector.html" class="sidebar__link">Claude Connector</a>
+      <a href="claude-connector.html" class="sidebar__link active">Claude Connector</a>
     </div>
     <div class="sidebar__section">
       <div class="sidebar__group-label">Productivity</div>
@@ -120,175 +124,197 @@
     <nav class="breadcrumb" aria-label="Breadcrumb">
       <a href="index.html">Docs</a>
       <span class="breadcrumb__separator">/</span>
-      <span class="breadcrumb__current">MCP Tools</span>
+      <span class="breadcrumb__current">Claude Connector</span>
     </nav>
 
-    <h1>MCP Tools</h1>
+    <h1>Claude Connector</h1>
 
     <div class="docs-meta">
       <span class="docs-meta__badge docs-meta__badge--paid">Team Plan</span>
-      <span>7 min read</span>
-      <span>Updated May 2026</span>
+      <span>6 min read</span>
+      <span>Updated June 2026</span>
     </div>
 
-    <div class="callout callout--warning" data-label="// plan">
-      <p class="callout__title">Team and Enterprise plans only</p>
-      <p>MCP Tools are available on the Team and Enterprise plans. Free plan users can read about them here but cannot activate them.</p>
-    </div>
-
-    <h2>What are MCP tools?</h2>
-
     <p>
-      MCP (Model Context Protocol) tools are AI-callable functions that extend what your
-      AI can do in chat. Ask Claude to scrape a URL, read a Drive file, check your calendar,
-      or generate a presentation — the right tool activates automatically based on what you ask.
+      Connect your team brain to the <strong>official Claude.ai app</strong> as a
+      Custom Connector. Once connected, Claude can search and write your team's memory,
+      tasks, and contacts directly inside any chat — no copy-pasting context, no separate
+      tool. The connection is secured with OAuth 2.1 and bound to a single team.
     </p>
 
-    <p>
-      GrooveOS includes 4 built-in MCP tools. Every tool call is team-scoped and logged in
-      your audit trail, so you always have a record of what your AI did and when.
-    </p>
-
-    <h2>How tools work in chat</h2>
-
-    <p>
-      You don't activate tools manually. Just ask naturally — GrooveOS figures out which tool
-      to use and calls it automatically. Examples:
-    </p>
-
-    <ul>
-      <li>"Summarize the content at https://openai.com/research" &rarr; <strong>scraper activates</strong></li>
-      <li>"What's in our Q2 roadmap on Drive?" &rarr; <strong>Drive reader activates</strong></li>
-      <li>"What meetings do we have this week?" &rarr; <strong>Calendar activates</strong></li>
-      <li>"Create a 5-slide pitch deck for our fundraising round" &rarr; <strong>Deck generator activates</strong></li>
-    </ul>
-
-    <h2>Tool 1: Web Scraper</h2>
-
-    <table class="docs-table">
-      <tbody>
-        <tr>
-          <td style="font-weight:600;width:140px;color:var(--text)">What it does</td>
-          <td>Fetches and extracts text from any public URL</td>
-        </tr>
-        <tr>
-          <td style="font-weight:600;color:var(--text)">In chat</td>
-          <td>"Summarize [URL]", "What does [URL] say about X?"</td>
-        </tr>
-        <tr>
-          <td style="font-weight:600;color:var(--text)">Output</td>
-          <td>Text content, saved to team memory with source URL as provenance tag</td>
-        </tr>
-        <tr>
-          <td style="font-weight:600;color:var(--text)">Limits</td>
-          <td>Max 5,000 characters per scrape; respects <code>robots.txt</code></td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h2>Tool 2: Google Drive Reader</h2>
-
-    <table class="docs-table">
-      <tbody>
-        <tr>
-          <td style="font-weight:600;width:140px;color:var(--text)">What it does</td>
-          <td>Reads (and optionally writes) files in your mapped Drive folders</td>
-        </tr>
-        <tr>
-          <td style="font-weight:600;color:var(--text)">In chat</td>
-          <td>"Read the fundraising brief from Drive", "Update the roadmap doc"</td>
-        </tr>
-        <tr>
-          <td style="font-weight:600;color:var(--text)">Auth</td>
-          <td>Uses your team's Drive OAuth (set up in <a href="drive-sync.html">Drive Sync settings</a>)</td>
-        </tr>
-        <tr>
-          <td style="font-weight:600;color:var(--text)">Write access</td>
-          <td>Requires explicit confirmation in chat before any write operation executes</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="callout callout--warning" data-label="// warning">
-      <p class="callout__title">Drive write operations</p>
+    <div class="callout callout--info" data-label="// works with">
       <p>
-        Drive write operations (creating, editing, or deleting files) are logged in your
-        audit trail and require the user to type <strong>confirm</strong> in chat before
-        execution. The AI will never write to Drive silently.
+        This is a standard <strong>remote MCP connector</strong>, so the same endpoint
+        works with any MCP client that supports OAuth — Claude.ai (web &amp; desktop),
+        Claude Code, and others. This guide uses the Claude.ai app as the example.
       </p>
     </div>
 
-    <h2>Tool 3: Google Calendar</h2>
-
-    <table class="docs-table">
-      <tbody>
-        <tr>
-          <td style="font-weight:600;width:140px;color:var(--text)">What it does</td>
-          <td>Reads your team's calendar events</td>
-        </tr>
-        <tr>
-          <td style="font-weight:600;color:var(--text)">In chat</td>
-          <td>"What meetings do we have this week?", "When is Alice's next sync?"</td>
-        </tr>
-        <tr>
-          <td style="font-weight:600;color:var(--text)">Access</td>
-          <td>Read-only — never creates, modifies, or deletes calendar events</td>
-        </tr>
-        <tr>
-          <td style="font-weight:600;color:var(--text)">Auth</td>
-          <td>Reuses your team's Google Drive connection — no separate setup needed if Drive Sync is connected</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <h2>Tool 4: Deck Generator</h2>
-
-    <table class="docs-table">
-      <tbody>
-        <tr>
-          <td style="font-weight:600;width:140px;color:var(--text)">What it does</td>
-          <td>Generates PowerPoint (.pptx) presentations from a natural-language brief</td>
-        </tr>
-        <tr>
-          <td style="font-weight:600;color:var(--text)">In chat</td>
-          <td>"Create a 5-slide deck for our pitch", "Generate a status update presentation"</td>
-        </tr>
-        <tr>
-          <td style="font-weight:600;color:var(--text)">Output</td>
-          <td>.pptx file available for download, also saved to team memory</td>
-        </tr>
-        <tr>
-          <td style="font-weight:600;color:var(--text)">Templates</td>
-          <td>Professional, minimal, data-focused</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <p>Example conversation:</p>
-
-    <pre class="code-block"><code>You: Create a 3-slide pitch deck: Problem (teams lose AI context),
-     Solution (GrooveOS shared memory), Traction (5 teams, 10k memories)
-
-GrooveOS: Created "pitch-deck-2026-05-07.pptx" (3 slides)
-           [Download] — also saved to your team memory</code></pre>
-
-    <h2>Audit Trail</h2>
-
-    <p>Every tool call is logged automatically. The audit trail records:</p>
-
-    <ul>
-      <li>Who triggered it (user ID and display name)</li>
-      <li>Which tool was called</li>
-      <li>Timestamp (UTC)</li>
-      <li>Input parameters (sanitized — no file contents, only metadata)</li>
-      <li>Whether write access was used (Drive tool only)</li>
-    </ul>
+    <h2>What you get</h2>
 
     <p>
-      Admins can view the full audit trail from <strong>Settings &rarr; Audit Log</strong>
-      in Open WebUI. The log is retained for 90 days on the Team plan and indefinitely on
-      Enterprise.
+      The connector exposes your team brain's full toolset to Claude. Ask naturally and
+      Claude calls the right tool:
     </p>
+
+    <ul>
+      <li>"What did we decide about the Q2 budget?" &rarr; <strong>memory_search</strong></li>
+      <li>"Remember that the launch date is Oct 21" &rarr; <strong>memory_add</strong></li>
+      <li>"What's on my team's task list?" &rarr; <strong>tasks_list</strong></li>
+      <li>"Add a task to send the deck to Alice" &rarr; <strong>task_create</strong></li>
+      <li>"Who is our contact at Acme?" &rarr; <strong>contacts_search</strong></li>
+    </ul>
+
+    <h2>Before you start</h2>
+
+    <ul>
+      <li>A <strong>Claude.ai paid plan</strong> (Pro, Team, or Enterprise) — custom connectors are a paid Claude feature on Anthropic's side.</li>
+      <li>You must be a <strong>member of at least one GrooveOS team</strong>. If you can sign in at <a href="https://grooveos.app/account/teams/" target="_blank" rel="noopener">grooveos.app/account/teams</a>, you're set. See <a href="auth.html">Authentication</a>.</li>
+      <li>The connector URL: <code>https://mcp.grooveos.app/mcp</code></li>
+    </ul>
+
+    <div class="callout callout--info" data-label="// one connection = one team">
+      <p class="callout__title">Each connection is bound to a single team</p>
+      <p>
+        You pick your team once, during sign-in. The access token Claude receives is
+        locked to that one team's brain — it can never read or write another team's data.
+        If you belong to several teams and want to use more than one in Claude, add a
+        separate connector connection for each.
+      </p>
+    </div>
+
+    <h2>Connect in 4 steps</h2>
+
+    <div class="steps">
+      <div class="step">
+        <h3>Open the connector settings</h3>
+        <p>
+          In Claude.ai, go to <strong>Settings &rarr; Connectors</strong> (on newer
+          builds this lives under <strong>Customize &rarr; Connectors</strong>), then
+          click <strong>Add connector &rarr; Add custom connector</strong>.
+        </p>
+      </div>
+      <div class="step">
+        <h3>Enter the brain URL</h3>
+        <p>
+          Give it a name (e.g. <em>GrooveOS Brain</em>) and paste the server URL:
+        </p>
+        <pre class="code-block"><code>https://mcp.grooveos.app/mcp</code></pre>
+        <p>Leave the optional OAuth fields blank — registration is automatic. Click <strong>Add</strong>.</p>
+      </div>
+      <div class="step">
+        <h3>Authorize with GitHub &amp; pick your team</h3>
+        <p>
+          Click <strong>Connect</strong>. Claude opens a secure GrooveOS sign-in page.
+          Sign in with GitHub (the same identity you use for GrooveOS), then choose the
+          <strong>one team</strong> this connection should use, and approve.
+        </p>
+      </div>
+      <div class="step">
+        <h3>Done</h3>
+        <p>
+          Claude shows <em>"Connected"</em> and the brain tools appear. By default each
+          tool is set to <strong>Needs approval</strong> — Claude asks before running it.
+          You can switch read tools like <code>memory_search</code> and
+          <code>team_context</code> to <strong>Always allow</strong> for a smoother flow.
+        </p>
+      </div>
+    </div>
+
+    <h2>The tools</h2>
+
+    <table class="docs-table">
+      <thead>
+        <tr><th>Tool</th><th>What it does</th><th>Access</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>memory_search</code></td><td>Semantic search across your team's memory</td><td>Read</td></tr>
+        <tr><td><code>memory_add</code></td><td>Save a new fact to the team brain</td><td>Write</td></tr>
+        <tr><td><code>team_context</code></td><td>Pull the team's high-confidence context</td><td>Read</td></tr>
+        <tr><td><code>tasks_list</code></td><td>List the team's tasks</td><td>Read</td></tr>
+        <tr><td><code>task_create</code></td><td>Create a task</td><td>Write</td></tr>
+        <tr><td><code>task_update</code></td><td>Update an existing task</td><td>Write</td></tr>
+        <tr><td><code>contacts_search</code></td><td>Search the team CRM</td><td>Read</td></tr>
+        <tr><td><code>contact_add</code></td><td>Add a contact</td><td>Write</td></tr>
+        <tr><td><code>agent_invoke</code></td><td>Run a team agent</td><td>Write</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Write safeguards</h2>
+
+    <p>Everything Claude writes through the connector is tagged and constrained:</p>
+
+    <ul>
+      <li><strong>Provenance:</strong> writes are stamped <code>source=claude.ai-connector</code> so you always know a fact came from a Claude connector session.</li>
+      <li><strong>Truth level capped at <code>WORKING</code>:</strong> a connector can never write a fact straight to <code>VALIDATED</code>, <code>CANONICAL</code>, or <code>PUBLIC</code>. Promotion still goes through the normal human review in <a href="brain-monitor.html">Brain Monitor</a>.</li>
+      <li><strong>Team isolation:</strong> every read and write is scoped to the single team bound at sign-in.</li>
+    </ul>
+
+    <h2>How sign-in works</h2>
+
+    <p>
+      The connector uses the standard <strong>MCP authorization flow (OAuth 2.1)</strong>:
+      Claude discovers the server, registers itself automatically, and runs an
+      authorization-code flow with PKCE. You authenticate with GitHub and pick a team;
+      Claude receives a short-lived access token scoped to that team. There is no static
+      token to paste and no password ever reaches Claude.
+    </p>
+
+    <div class="callout callout--tip" data-label="// security">
+      <p>
+        The token Claude holds is bound to your chosen team <em>and</em> to this specific
+        connector endpoint (audience-bound). You can revoke it any time by clicking
+        <strong>Disconnect</strong> on the connector in Claude.ai.
+      </p>
+    </div>
+
+    <h2>Troubleshooting</h2>
+
+    <h3>"Authorization page could not be loaded"</h3>
+    <p>
+      On a self-hosted GrooveOS, this means your GitHub App isn't reachable for your
+      account yet. The App must be <strong>public</strong> for members who aren't the App
+      owner, and its callback list must include
+      <code>https://api.grooveos.app/oauth/github-callback</code>. See the self-hosting
+      note below.
+    </p>
+
+    <h3>Claude reconnects in a loop after authorizing</h3>
+    <p>
+      A small number of Claude builds have hit a known upstream issue with streamable
+      HTTP after OAuth. If you see it, disconnect and reconnect; if it persists, contact
+      <a href="mailto:team@grooveos.app">team@grooveos.app</a>.
+    </p>
+
+    <h3>Wrong team connected</h3>
+    <p>
+      The team is chosen at sign-in and locked to the token. To switch, click
+      <strong>Disconnect</strong> and reconnect, choosing the other team — or add a second
+      connection for it.
+    </p>
+
+    <div class="callout callout--warning" data-label="// self-hosting">
+      <p class="callout__title">Running your own GrooveOS / xbrain?</p>
+      <p>
+        The connector is served by two open-source services:
+        <code>memory-api</code> is the OAuth 2.1 <strong>Authorization Server</strong>
+        (<code>/.well-known/oauth-authorization-server</code> + <code>/oauth/*</code> on
+        your API host), and <code>mcp-brain</code> is the <strong>Protected Resource</strong>
+        (<code>/.well-known/oauth-protected-resource</code> + the <code>/mcp</code>
+        endpoint). For end-user sign-in to work, register
+        <code>https://&lt;your-api-host&gt;/oauth/github-callback</code> as a callback URL
+        on your GitHub App and make the App public. Full details in the
+        <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener">open-source repo</a>.
+      </p>
+    </div>
+
+    <h2>What's next</h2>
+
+    <ul>
+      <li><a href="mcp-tools.html">MCP Tools</a> — the built-in tools available inside GrooveOS chat.</li>
+      <li><a href="memory.html">Memory &amp; Knowledge</a> — how truth levels and promotion work.</li>
+      <li><a href="brain-monitor.html">Brain Monitor</a> — review and promote what your connectors write.</li>
+    </ul>
 
   </main>
 </div>

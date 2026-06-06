@@ -58,7 +58,10 @@ a reply can be restricted to the team's `CANONICAL` records.
   and write the same memory through `memory-api`; storage is never bound to a single
   frontend.
 - **MCP-native** — an MCP gateway exposes the brain (memory search/add, tasks,
-  contacts, calendar, drive, decks) to any MCP-capable client.
+  contacts, calendar, drive, decks) to any MCP-capable client. The same brain is
+  also reachable as an OAuth 2.1 **remote connector** (`mcp-brain`), so the official
+  Claude.ai app and other OAuth-capable MCP clients connect directly — each connection
+  bound to a single team.
 - **Temporal knowledge graph** — Neo4j + Graphiti track how entities and facts evolve.
 - **Self-hostable, 100% OSS** — no managed-cloud-only services in the critical path.
   Runs on a single VM via Docker Compose.
@@ -122,7 +125,9 @@ Production. Twelve phases shipped: core memory + tagging contract, intelligent m
 agents (HITL), graph + extraction + integrations, MCP consolidation, team platform
 (GitOps + Chrome extension), marketing site + docs, CRM/Granola/tasks, universal
 extraction pipeline, session bridge, GitHub-primary auth, brain monitor + soft-delete,
-and GitHub App migration.
+and GitHub App migration. The team brain is also connectable to the **official
+Claude.ai app** as an OAuth 2.1 Custom Connector — see the
+[Claude Connector guide](https://grooveos.app/docs/claude-connector.html).
 
 ## Links
 
