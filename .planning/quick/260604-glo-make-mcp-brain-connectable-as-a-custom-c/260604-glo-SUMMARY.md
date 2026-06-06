@@ -77,7 +77,7 @@ completed: 2026-06-06
 
 **memory-api becomes a hand-rolled OAuth 2.1 Authorization Server (AS metadata + DCR + authorize/PKCE + token + introspection) reusing GitHub sign-in for single-team consent, and mcp-brain becomes a spec-compliant Protected Resource (protected-resource metadata + 401/WWW-Authenticate + oat_ introspection with RFC 8707 audience check + connector write guardrails) — wired but NOT yet deployed.**
 
-> SCOPE: Tasks 1-5 (build + atomic commits) executed for real. **Task 6 (deploy + Claude.ai connect smoke test) was NOT executed — it is a `checkpoint:human-action` runbook and remains PENDING for the orchestrator/user.**
+> SCOPE: Tasks 1-5 (build + atomic commits) executed for real. **Task 6 server-side DEPLOYED 2026-06-06** (live on the VM, public OAuth surface verified — see "Task 6" below). Only the user-side finish remains: register the GitHub App callback URL, optionally make the App public, and add the connector in Claude.ai.
 
 ## Performance
 
@@ -183,8 +183,8 @@ See frontmatter `key-decisions`. The architecturally load-bearing ones:
 
 ## Deferred Items
 
-**`/v1/tasks` source enum does not yet list `claude.ai-connector`.**
-- The memory-api `TaskCreateBody.source` field has `pattern=^(granola|agent|chat|manual)$` with `extra="forbid"`. mcp-brain's connector `task_create` now SENDS `source="claude.ai-connector"` per the plan's hard requirement, but the memory-api route would reject that value until its enum is widened (or the connector tag mapped to `agent`). This is a memory-api integration step, NOT an mcp-brain bug — `memory_add` (free-form source) and `contact_add` (free-form source) tag the connector source cleanly. Tracked here for the deploy/integration pass.
+**`/v1/tasks` source enum — CLOSED (migration 0023, commit `412d1a8`).**
+- The memory-api `TaskCreateBody.source` field was `pattern=^(granola|agent|chat|manual)$` with `extra="forbid"`, and the `tasks.source` column was `VARCHAR(16)` with a matching CHECK — so the 20-char connector tag was rejected on two counts. Migration `0023_tasks_source_connector` widens the column to `VARCHAR(32)` and extends the CHECK + Pydantic pattern to include `claude.ai-connector`. All three connector write tools (`memory_add`, `task_create`, `contact_add`) now tag provenance with no hedge. Applied live (alembic head = `0023`).
 - Separately, the current `task_create`/`contact_add` client bodies were already missing required route fields (`source`; tasks also rejects `assignee_email` under `extra="forbid"`) BEFORE this plan — a pre-existing condition left untouched per the scope boundary. Logged for awareness.
 
 ## Known Stubs
@@ -199,8 +199,25 @@ None beyond the plan's `<threat_model>`. New surface (OAuth endpoints, protected
 ## User Setup Required
 None for the build. The **deploy + Claude.ai connect** is Task 6 (see below) and requires the operator.
 
-## Task 6 (PENDING — NOT executed)
-`Task 6: Deploy + Claude.ai end-to-end connect smoke test` is a `checkpoint:human-action` runbook and was deliberately NOT run. Nothing was deployed: no SSH to the VM, no `docker compose`, no nginx reload, no alembic against any DB. The orchestrator/user will run the documented runbook (surgical deploy -> alembic to 0022 -> rebuild memory-api + mcp-brain -> nginx reload -> metadata/CORS/401 curl checks -> MCP Inspector dry-run -> official Claude.ai connect -> isolation check). Deploy-time note already baked into the runbook: confirm exactly one `Access-Control-Allow-Origin: https://claude.ai` header on the api.grooveos.app well-known/oauth responses (blocker-1 regression check).
+## Task 6 (DEPLOYED 2026-06-06 — server side complete)
+
+Deployed to the VM via surgical `git archive HEAD` of the 5 changed paths -> tar extract -> rebuild memory-api + mcp-brain -> boot-time `alembic upgrade head` -> nginx reload. alembic head = `0023`; all 33 containers healthy.
+
+**Incident (resolved): migration 0023 crash-loop.** First boot, `0023`'s `ALTER TABLE tasks ALTER COLUMN source TYPE` failed — the `v_brain_events` view (Brain Monitor, Phase 11) depends on `tasks.source` (`cannot alter type of a column used by a view or rule`), and memory-api's boot command runs `alembic upgrade head`, so the container crash-looped (whole batch rolled back, head stayed `0021`). Fixed by rewriting `0023` to capture the live `pg_get_viewdef`, drop the view, widen the column, then recreate the view verbatim (robust across envs); rebuilt + restarted. Repo (commit `412d1a8`) matches deployed. Downtime was limited to memory-api/mcp-brain during the loop; no other service affected, no data touched.
+
+**Live verification (public path, as Claude.ai will hit it):**
+- `GET https://api.grooveos.app/.well-known/oauth-authorization-server` -> 200, S256 + `none` + all 5 `/oauth/` endpoints.
+- CORS: `Origin: https://claude.ai` -> exactly **one** `Access-Control-Allow-Origin: https://claude.ai` (blocker-1 clean).
+- `GET https://mcp.grooveos.app/.well-known/oauth-protected-resource` -> `resource=https://mcp.grooveos.app/mcp` (no trailing slash), `authorization_servers=[https://api.grooveos.app]`.
+- Unauthenticated `GET https://mcp.grooveos.app/mcp` -> 401 + `WWW-Authenticate: Bearer resource_metadata="https://mcp.grooveos.app/.well-known/oauth-protected-resource"`.
+- DCR `POST /oauth/register` -> `client_id` (public client, `auth_method: none`).
+- `GET /oauth/authorize` (registered redirect_uri) -> 302 to GitHub authorize, redirect_uri=`https://api.grooveos.app/oauth/github-callback`, signed `state` JWT (`stage: pre_github`). Unregistered redirect_uri -> 400, no redirect (open-redirect defense).
+
+**Remaining USER-only steps (cannot be done server-side):**
+1. **REQUIRED — GitHub App `xbrain` callback URL.** The consent flow sends users to GitHub with `redirect_uri=https://api.grooveos.app/oauth/github-callback`. GitHub requires the host+port to match a registered callback URL. Add `https://api.grooveos.app/oauth/github-callback` to the GitHub App's Callback URLs (it allows multiple; existing sign-in callback stays). Without this, the GitHub login step fails with a redirect_uri mismatch.
+2. **For team members other than the App owner — make the GitHub App public** (Settings -> Advanced). A private App can only be authorized by its owner; this is the same blocker already tracked for 2nd-member sign-in/install. The owner's own first connect works while private.
+3. **Connect in Claude.ai:** Settings -> Connectors -> Add custom connector -> URL `https://mcp.grooveos.app/mcp` -> complete the browser OAuth (GitHub authorize -> pick ONE team -> Authorize). Then confirm tools list + a `memory_search`, and that a `memory_add` lands as `source='claude.ai-connector'`, `truth_level<=WORKING`, in the bound team only (Brain Monitor).
+4. **If Claude.ai GET-loops after auth** (known upstream bug #291, streamable-HTTP+OAuth): we add an `/sse` fallback. Optionally pre-check with `npx @modelcontextprotocol/inspector` against `https://mcp.grooveos.app/mcp`.
 
 ## Next Phase Readiness
 - Build is complete and green on both services; ready for the operator-run deploy (Task 6).
