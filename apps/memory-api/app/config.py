@@ -137,6 +137,13 @@ class Settings(BaseSettings):
     # Quick task 260601-3is — URL pre-fetch via mcp-gateway scraper
     MCP_GATEWAY_URL: str = "http://mcp-gateway:8080"
 
+    # Quick task 260604-glo — OAuth 2.1 Authorization Server (Custom Connector).
+    # OAUTH_ISSUER_URL is the public base for AS metadata + /oauth/* endpoints.
+    # OAUTH_RESOURCE_URL is the protected-resource (mcp-brain) audience the
+    # issued tokens are bound to; normalized (no trailing slash) on every store.
+    OAUTH_ISSUER_URL: str = "https://api.grooveos.app"
+    OAUTH_RESOURCE_URL: str = "https://mcp.grooveos.app/mcp"
+
     # Phase 13 — Chat → Brain Ingestion + Retrieval Enrichment
     RELEVANCE_HAIKU_ENABLED: bool = True
     RELEVANCE_DAILY_TOKEN_CAP_PER_TEAM: int = 50_000  # input tokens per team per day

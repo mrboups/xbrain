@@ -71,17 +71,170 @@ def test_normalize_resource_strips_trailing_slash():
 
 
 # ===========================================================================
-# DB-backed store round-trips (integration). Auto-skips without Docker.
+# Shared helpers + constants.
 # ===========================================================================
 
 _VERIFIER = "verifier_with_plenty_of_entropy_aaaaaaaaaaaaaa"
 _RESOURCE = "https://mcp.grooveos.app/mcp"
 _REDIRECT = "https://claude.ai/api/mcp/auth_callback"
+_CLIENT = "oac_client1"
 
 
 def _s256_challenge(verifier: str) -> str:
     digest = hashlib.sha256(verifier.encode("ascii")).digest()
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
+def _test_client():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    return TestClient(app)
+
+
+# ===========================================================================
+# Task 2 — AS metadata. Run unconditionally (no DB).
+# ===========================================================================
+
+def test_as_metadata_advertises_s256_none_and_endpoints():
+    client = _test_client()
+    r = client.get("/.well-known/oauth-authorization-server")
+    assert r.status_code == 200
+    meta = r.json()
+    assert meta["issuer"].startswith("https://")
+    # PKCE S256 is mandatory.
+    assert meta["code_challenge_methods_supported"] == ["S256"]
+    # Public-client auth method "none" must be advertised.
+    assert "none" in meta["token_endpoint_auth_methods_supported"]
+    assert meta["response_types_supported"] == ["code"]
+    assert set(meta["grant_types_supported"]) >= {"authorization_code", "refresh_token"}
+    # All five /oauth/ endpoints present.
+    for key in (
+        "authorization_endpoint",
+        "token_endpoint",
+        "registration_endpoint",
+        "introspection_endpoint",
+        "revocation_endpoint",
+    ):
+        assert "/oauth/" in meta[key], f"{key} missing /oauth/ path"
+    assert set(meta["scopes_supported"]) >= {"brain:read", "brain:write"}
+
+
+# ===========================================================================
+# Task 2 — DCR (/oauth/register). Run unconditionally with the store mocked.
+# ===========================================================================
+
+def test_register_returns_client_id(monkeypatch):
+    import app.routes.oauth_register as reg_mod
+
+    async def _fake_register_client(session, **kwargs):
+        return {
+            "client_id": "oac_fake123",
+            "client_name": kwargs.get("client_name"),
+            "redirect_uris": kwargs["redirect_uris"],
+            "grant_types": kwargs.get("grant_types")
+            or ["authorization_code", "refresh_token"],
+            "token_endpoint_auth_method": "none",
+        }
+
+    monkeypatch.setattr(reg_mod.oauth_store, "register_client", _fake_register_client)
+    client = _test_client()
+    r = client.post(
+        "/oauth/register",
+        json={
+            "client_name": "Claude.ai",
+            "redirect_uris": [_REDIRECT],
+            "grant_types": ["authorization_code", "refresh_token"],
+            "response_types": ["code"],
+        },
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["client_id"] == "oac_fake123"
+    assert body["redirect_uris"] == [_REDIRECT]
+
+
+# ===========================================================================
+# Task 2 — introspection X-Internal-Secret gate. Run unconditionally.
+# ===========================================================================
+
+def test_introspect_requires_internal_secret(monkeypatch):
+    """Missing / wrong X-Internal-Secret → 401, no claims, store never called."""
+    import app.routes.oauth_introspect as intro_mod
+
+    called = {"n": 0}
+
+    async def _should_not_run(session, raw):
+        called["n"] += 1
+        return {"active": True, "team_scope": "secret-team"}
+
+    monkeypatch.setattr(intro_mod.oauth_store, "introspect_token", _should_not_run)
+    monkeypatch.setattr(intro_mod.settings, "BRIDGE_SHARED_SECRET", "the-internal-secret")
+    client = _test_client()
+
+    # Missing header.
+    r = client.post("/oauth/introspect", json={"token": "oat_whatever"})
+    assert r.status_code in (401, 403)
+    assert "secret-team" not in r.text
+
+    # Wrong header.
+    r = client.post(
+        "/oauth/introspect",
+        json={"token": "oat_whatever"},
+        headers={"X-Internal-Secret": "wrong"},
+    )
+    assert r.status_code in (401, 403)
+    assert "secret-team" not in r.text
+
+    # introspect_token must never have been called on the uncredentialed paths.
+    assert called["n"] == 0
+
+
+def test_introspect_with_correct_secret_returns_rfc7662(monkeypatch):
+    import app.routes.oauth_introspect as intro_mod
+
+    async def _fake_introspect(session, raw):
+        if raw == "oat_live":
+            return {
+                "active": True,
+                "sub": "github:alice",
+                "team_scope": "team-a",
+                "aud": _RESOURCE,
+                "scope": "brain:read brain:write",
+                "source": "claude.ai-connector",
+            }
+        return {"active": False}
+
+    monkeypatch.setattr(intro_mod.oauth_store, "introspect_token", _fake_introspect)
+    monkeypatch.setattr(intro_mod.settings, "BRIDGE_SHARED_SECRET", "the-internal-secret")
+    client = _test_client()
+
+    # Bogus token → active:false.
+    r = client.post(
+        "/oauth/introspect",
+        json={"token": "oat_bogus"},
+        headers={"X-Internal-Secret": "the-internal-secret"},
+    )
+    assert r.status_code == 200
+    assert r.json()["active"] is False
+
+    # Live token → active:true with team_scope.
+    r = client.post(
+        "/oauth/introspect",
+        json={"token": "oat_live"},
+        headers={"X-Internal-Secret": "the-internal-secret"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["active"] is True
+    assert body["team_scope"] == "team-a"
+    assert body["aud"] == _RESOURCE
+
+
+# ===========================================================================
+# DB-backed store round-trips (integration). Auto-skips without Docker.
+# ===========================================================================
 
 
 @pytest.mark.integration

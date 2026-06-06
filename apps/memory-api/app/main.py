@@ -36,6 +36,9 @@ from app.routes import (
     media,
     memory,
     messages,
+    oauth_introspect,
+    oauth_metadata,
+    oauth_register,
     promotions,
     system_prompt,
     tasks,
@@ -130,3 +133,13 @@ app.include_router(
     prefix="/v1/webhooks/github",
     tags=["webhooks-github"],
 )
+
+# === OAuth 2.1 Authorization Server (quick-260604-glo) ===
+# Mounted with NO prefix so the public paths are exactly
+# /.well-known/oauth-authorization-server and /oauth/{register,introspect,...}.
+# Claude.ai's Custom Connector discovers + drives these from browser context;
+# CORS for those origins is owned by the CORSMiddleware above (claude.ai is in
+# allow_origin_regex), NOT by nginx.
+app.include_router(oauth_metadata.router, tags=["oauth"])
+app.include_router(oauth_register.router, tags=["oauth"])
+app.include_router(oauth_introspect.router, tags=["oauth"])
