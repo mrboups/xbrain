@@ -27,7 +27,7 @@ class TaskCreateBody(BaseModel):
     priority: str = Field(default="normal", pattern=r"^(low|normal|high|urgent)$")
     due_date: date | None = None
     assigned_to: UUID | None = None
-    source: str = Field(..., pattern=r"^(granola|agent|chat|manual)$")
+    source: str = Field(..., pattern=r"^(granola|agent|chat|manual|claude\.ai-connector)$")
     source_ref: UUID | None = None
     project_scope: str | None = Field(None, max_length=64)
 

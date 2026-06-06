@@ -125,11 +125,9 @@ async def task_create(token: str, team_scope: str, title: str, description: str 
         payload["description"] = description
     if assignee_email:
         payload["assignee_email"] = assignee_email
-    # Connector writes (quick-260604-glo): tag the origin. The /v1/tasks route's
-    # `source` enum is ^(granola|agent|chat|manual)$ today and does not yet list
-    # 'claude.ai-connector' — the tag is sent so it is applied at whatever layer
-    # accepts it; widening the route enum (or mapping to 'agent') is a memory-api
-    # integration step tracked in the SUMMARY's deferred items.
+    # Connector writes (quick-260604-glo): tag the origin. The /v1/tasks route
+    # accepts 'claude.ai-connector' as of migration 0023 (column widened to
+    # VARCHAR(32) + CHECK extended), so the connector provenance tag lands.
     if is_connector or source:
         payload["source"] = source or CONNECTOR_SOURCE
     async with httpx.AsyncClient(timeout=10.0) as c:
