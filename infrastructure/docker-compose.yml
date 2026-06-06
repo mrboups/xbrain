@@ -175,6 +175,11 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-minio}}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD}}
       MINIO_BUCKET: ${MINIO_MEDIA_BUCKET:-xbrain-media}
+      # Quick task 260604-glo — OAuth 2.1 AS (Claude.ai Custom Connector).
+      # OAUTH_ISSUER_URL = public base for AS metadata + /oauth/* endpoints.
+      # OAUTH_RESOURCE_URL = mcp-brain audience the issued tokens are bound to.
+      OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:-https://api.grooveos.app}
+      OAUTH_RESOURCE_URL: ${OAUTH_RESOURCE_URL:-https://mcp.grooveos.app/mcp}
     networks: [xbrain_net]
     # 384m was the Phase 1 (e2-medium 4GB) budget. The signin path (PyJWT
     # RS256 + GitHub token exchange + profile fetch + DB writes) pushed RSS
@@ -828,6 +833,13 @@ services:
       # can resolve the team without requiring a per-user xbt_ token. Public callers
       # (ChatGPT/Claude.ai) come through nginx without this secret → token path only.
       BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
+      # Quick task 260604-glo — Claude.ai Custom Connector (Protected Resource).
+      # mcp-brain validates oat_ tokens by introspecting against memory-api,
+      # presenting BRIDGE_SHARED_SECRET as X-Internal-Secret. OAUTH_ISSUER_URL +
+      # OAUTH_RESOURCE_URL back the protected-resource metadata + audience check.
+      MEMORY_API_OAUTH_INTROSPECT_URL: ${MEMORY_API_OAUTH_INTROSPECT_URL:-http://memory-api:8000/oauth/introspect}
+      OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:-https://api.grooveos.app}
+      OAUTH_RESOURCE_URL: ${OAUTH_RESOURCE_URL:-https://mcp.grooveos.app/mcp}
     expose:
       - "8104"
     networks: [xbrain_net]
