@@ -99,10 +99,11 @@ async def test_token_path_returns_token_and_team_scope():
     ):
         from app.main import _resolve
 
-        token, team_scope = await _resolve(ctx)
+        token, team_scope, is_connector = await _resolve(ctx)
 
     assert token == _XBT_TOKEN
     assert team_scope == _TEAM
+    assert is_connector is False
     mock_get_me.assert_awaited_once_with(_XBT_TOKEN)
 
 
@@ -118,10 +119,11 @@ async def test_token_path_uses_team_scope_fallback_key():
     ):
         from app.main import _resolve
 
-        token, team_scope = await _resolve(ctx)
+        token, team_scope, is_connector = await _resolve(ctx)
 
     assert token == _XBT_TOKEN
     assert team_scope == _TEAM
+    assert is_connector is False
 
 
 async def test_token_path_raises_when_no_team():
@@ -153,10 +155,11 @@ async def test_email_path_allow_returns_bridge_jwt_and_team():
     ):
         from app.main import _resolve
 
-        result_jwt, team_scope = await _resolve(ctx)
+        result_jwt, team_scope, is_connector = await _resolve(ctx)
 
     # The returned "token" must be a bridge JWT (3 dot-separated segments).
     assert team_scope == _TEAM
+    assert is_connector is False
     parts = result_jwt.split(".")
     assert len(parts) == 3, f"Expected JWT with 3 segments, got: {result_jwt!r}"
     # Resolver must have been called at least once.
@@ -281,7 +284,8 @@ async def test_email_path_retry_with_bare_email_succeeds():
     ):
         from app.main import _resolve
 
-        result_jwt, team_scope = await _resolve(ctx)
+        result_jwt, team_scope, is_connector = await _resolve(ctx)
 
     assert team_scope == _TEAM
+    assert is_connector is False
     assert call_count == 2

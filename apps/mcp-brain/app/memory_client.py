@@ -22,6 +22,22 @@ def _headers(token: str, team_scope: str) -> dict:
     }
 
 
+# Connector write guardrails (quick-260604-glo): Claude.ai-originated writes are
+# capped at WORKING truth and tagged with a fixed source. EPHEMERAL/WORKING pass
+# through unchanged; any higher level is downgraded to WORKING.
+CONNECTOR_SOURCE = "claude.ai-connector"
+_CONNECTOR_MAX_TRUTH = {"EPHEMERAL", "WORKING"}
+
+
+def clamp_truth_level(truth_level: str) -> str:
+    """Cap a connector write's truth_level at WORKING.
+
+    VALIDATED / CANONICAL / PUBLIC (and any unrecognized value) are downgraded
+    to WORKING. EPHEMERAL and WORKING pass through unchanged.
+    """
+    return truth_level if truth_level in _CONNECTOR_MAX_TRUTH else "WORKING"
+
+
 async def get_me(token: str) -> dict:
     """Resolve token to user + api_token_team_scope."""
     async with httpx.AsyncClient(timeout=10.0) as c:
@@ -61,17 +77,22 @@ async def memory_search(token: str, team_scope: str, query: str, limit: int = 10
         return r.json()
 
 
-async def memory_add(token: str, team_scope: str, content: str, project_scope: str | None = None, truth_level: str = "WORKING") -> dict:
+async def memory_add(token: str, team_scope: str, content: str, project_scope: str | None = None, truth_level: str = "WORKING", is_connector: bool = False, source: str | None = None) -> dict:
     # /v1/memory/upsert expects a COMPLETE MemoryItem (260603-29h): `id`,
     # `created_at` and `updated_at` are required fields with no server-side
     # default, so the client must supply them (otherwise 422). Use a fresh
     # uuid4 (explicit saves are not deduped) + now() timestamps.
     now = datetime.now(timezone.utc).isoformat()
+    # Connector writes (quick-260604-glo): force source + cap truth at WORKING.
+    item_source = source or ("mcp-brain" if not is_connector else CONNECTOR_SOURCE)
+    if is_connector:
+        item_source = CONNECTOR_SOURCE
+        truth_level = clamp_truth_level(truth_level)
     item = {
         "id": str(uuid.uuid4()),
         "team_scope": team_scope,
         "content": content,
-        "source": "mcp-brain",
+        "source": item_source,
         "truth_level": truth_level,
         "confidence": 0.8,
         "visibility": "team",
@@ -98,12 +119,19 @@ async def tasks_list(token: str, team_scope: str, status: str | None = None, lim
         return r.json()
 
 
-async def task_create(token: str, team_scope: str, title: str, description: str | None = None, assignee_email: str | None = None) -> dict:
+async def task_create(token: str, team_scope: str, title: str, description: str | None = None, assignee_email: str | None = None, is_connector: bool = False, source: str | None = None) -> dict:
     payload = {"title": title}
     if description:
         payload["description"] = description
     if assignee_email:
         payload["assignee_email"] = assignee_email
+    # Connector writes (quick-260604-glo): tag the origin. The /v1/tasks route's
+    # `source` enum is ^(granola|agent|chat|manual)$ today and does not yet list
+    # 'claude.ai-connector' — the tag is sent so it is applied at whatever layer
+    # accepts it; widening the route enum (or mapping to 'agent') is a memory-api
+    # integration step tracked in the SUMMARY's deferred items.
+    if is_connector or source:
+        payload["source"] = source or CONNECTOR_SOURCE
     async with httpx.AsyncClient(timeout=10.0) as c:
         r = await c.post(f"{_BASE}/v1/tasks", json=payload, headers=_headers(token, team_scope))
         r.raise_for_status()
@@ -129,8 +157,12 @@ async def contacts_search(token: str, team_scope: str, query: str | None = None,
         return r.json()
 
 
-async def contact_add(token: str, team_scope: str, name: str | None = None, email: str | None = None, company: str | None = None, role: str | None = None) -> dict:
+async def contact_add(token: str, team_scope: str, name: str | None = None, email: str | None = None, company: str | None = None, role: str | None = None, is_connector: bool = False, source: str | None = None) -> dict:
     payload = {"team_scope": team_scope, "contact_type": "direct", "truth_level": "EPHEMERAL", "confidence": 0.7}
+    # Connector writes (quick-260604-glo): the /v1/crm/contacts `source` field is
+    # a free-form string, so the connector tag lands directly.
+    if is_connector or source:
+        payload["source"] = source or CONNECTOR_SOURCE
     if name:
         payload["full_name"] = name
     if email:

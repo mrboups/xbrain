@@ -14,5 +14,14 @@ class Settings(BaseSettings):
     # Kill-switch: set to false to disable the email path entirely without clearing the secret.
     INTERNAL_EMAIL_PATH_ENABLED: bool = True
 
+    # Quick task 260604-glo — Claude.ai Custom Connector (Protected Resource).
+    # oat_ access tokens are validated by introspecting against memory-api at
+    # MEMORY_API_OAUTH_INTROSPECT_URL (X-Internal-Secret = BRIDGE_SHARED_SECRET).
+    # OAUTH_ISSUER_URL + OAUTH_RESOURCE_URL back the protected-resource metadata
+    # and the audience (resource) check on introspected tokens.
+    OAUTH_ISSUER_URL: str = "https://api.grooveos.app"
+    OAUTH_RESOURCE_URL: str = "https://mcp.grooveos.app/mcp"
+    MEMORY_API_OAUTH_INTROSPECT_URL: str = "http://memory-api:8000/oauth/introspect"
+
 
 settings = Settings()
