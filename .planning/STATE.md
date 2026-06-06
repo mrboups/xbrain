@@ -124,7 +124,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- **Make the GitHub App `xbrain-auth` public** (Settings → Advanced → Make public) so team members OTHER than the App owner can sign in / connect the Claude.ai connector. Owner connect works while private. Same private-App blocker as 2nd-member sign-in.
+- ~~Make the GitHub App `xbrain-auth` public~~ — **Already public** (confirmed 2026-06-07 on the App's Advanced page: only a disabled "Make private" button is shown, reason "already installed on other accounts"; GitHub offers "Make private" only when an App is already public). Non-owner members can load the GitHub authorize page → sign in / connect. The remaining 2nd-member auto-join gap is the separate LibreChat→memory-api token bridge.
 
 ### Blockers/Concerns
 
