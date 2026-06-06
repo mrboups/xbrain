@@ -233,6 +233,211 @@ def test_introspect_with_correct_secret_returns_rfc7662(monkeypatch):
 
 
 # ===========================================================================
+# Task 3 — PKCE S256 verification helper. Run unconditionally.
+# ===========================================================================
+
+def test_pkce_verify_helper_matches_and_rejects():
+    from app.routes.oauth_token import verify_pkce_s256
+
+    verifier = "this_is_a_high_entropy_code_verifier_value_123456"
+    challenge = _s256_challenge(verifier)
+    assert verify_pkce_s256(verifier, challenge) is True
+    # Wrong verifier → reject.
+    assert verify_pkce_s256("a_different_verifier_entirely_000", challenge) is False
+    # Empty inputs → reject (never accidentally pass).
+    assert verify_pkce_s256("", challenge) is False
+    assert verify_pkce_s256(verifier, "") is False
+
+
+# ===========================================================================
+# Task 3 — token endpoint behavioral logic with an in-memory store.
+# These run UNCONDITIONALLY (store mocked) so PKCE / replay / redirect /
+# resource assertions never silently skip without a test DB.
+# ===========================================================================
+
+class _InMemoryStore:
+    """Minimal in-memory stand-in for app.auth.oauth_store used by route tests.
+
+    Models a single live authorization code so the token endpoint's PKCE /
+    redirect_uri / resource / one-time-use checks can be exercised without PG.
+    """
+
+    def __init__(self, *, code_row):
+        self._code_row = dict(code_row)
+        self._consumed = False
+        self.minted = []
+
+    async def consume_auth_code(self, session, code):
+        if code != self._code_row["code"]:
+            return None
+        if self._consumed:
+            return None  # replay → None
+        self._consumed = True
+        return dict(self._code_row)
+
+    async def mint_and_store_access_token(self, session, **kwargs):
+        self.minted.append(kwargs)
+        return {
+            "access_token": "oat_minted",
+            "refresh_token": "ort_minted",
+            "expires_in": 3600,
+            "scope": kwargs["scope"],
+        }
+
+
+def _seed_token_route(monkeypatch, *, code_row):
+    import app.routes.oauth_token as tok_mod
+
+    store = _InMemoryStore(code_row=code_row)
+    monkeypatch.setattr(tok_mod, "oauth_store", store)
+    return store
+
+
+def _base_code_row():
+    return {
+        "code": "oac_code_good",
+        "client_id": _CLIENT,
+        "user_id": "00000000-0000-0000-0000-000000000001",
+        "team_scope": "team-a",
+        "resource": _RESOURCE,
+        "code_challenge": _s256_challenge(_VERIFIER),
+        "redirect_uri": _REDIRECT,
+        "scope": "brain:read brain:write",
+    }
+
+
+def _token_post(client, **overrides):
+    form = {
+        "grant_type": "authorization_code",
+        "code": "oac_code_good",
+        "redirect_uri": _REDIRECT,
+        "client_id": _CLIENT,
+        "code_verifier": _VERIFIER,
+        "resource": _RESOURCE,
+    }
+    form.update(overrides)
+    return client.post("/oauth/token", data=form)
+
+
+def test_token_happy_path_issues_oat_and_ort(monkeypatch):
+    store = _seed_token_route(monkeypatch, code_row=_base_code_row())
+    client = _test_client()
+    r = _token_post(client)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["access_token"].startswith("oat_")
+    assert body["refresh_token"].startswith("ort_")
+    assert body["token_type"] == "Bearer"
+    # Bound to the single chosen team_scope + connector source.
+    assert store.minted and store.minted[0]["team_scope"] == "team-a"
+    assert store.minted[0]["source"] == "claude.ai-connector"
+
+
+def test_token_wrong_verifier_is_invalid_grant_no_token(monkeypatch):
+    store = _seed_token_route(monkeypatch, code_row=_base_code_row())
+    client = _test_client()
+    r = _token_post(client, code_verifier="totally_wrong_verifier_zzzzzzzzzzzzz")
+    assert r.status_code == 400
+    assert r.json()["error"] == "invalid_grant"
+    assert store.minted == []  # no token issued
+
+
+def test_token_replayed_code_is_invalid_grant_no_token(monkeypatch):
+    store = _seed_token_route(monkeypatch, code_row=_base_code_row())
+    client = _test_client()
+    first = _token_post(client)
+    assert first.status_code == 200
+    # Second exchange of the SAME code → invalid_grant.
+    second = _token_post(client)
+    assert second.status_code == 400
+    assert second.json()["error"] == "invalid_grant"
+    assert len(store.minted) == 1  # only the first issued a token
+
+
+def test_token_mismatched_redirect_uri_is_400_no_token(monkeypatch):
+    store = _seed_token_route(monkeypatch, code_row=_base_code_row())
+    client = _test_client()
+    r = _token_post(client, redirect_uri="https://evil.example/callback")
+    assert r.status_code == 400
+    assert store.minted == []
+
+
+def test_token_resource_mismatch_is_invalid_target_no_token(monkeypatch):
+    store = _seed_token_route(monkeypatch, code_row=_base_code_row())
+    client = _test_client()
+    r = _token_post(client, resource="https://mcp.grooveos.app/other")
+    assert r.status_code == 400
+    assert r.json()["error"] == "invalid_target"
+    assert store.minted == []
+
+
+# ===========================================================================
+# Task 3 — authorize redirect_uri validation. Run unconditionally (store mocked).
+# ===========================================================================
+
+def test_authorize_rejects_unregistered_redirect_uri_without_redirecting(monkeypatch):
+    import app.routes.oauth_authorize as auth_mod
+
+    async def _not_registered(session, *, client_id, redirect_uri):
+        return False
+
+    monkeypatch.setattr(
+        auth_mod.oauth_store, "is_redirect_uri_registered", _not_registered
+    )
+    client = _test_client()
+    r = client.get(
+        "/oauth/authorize",
+        params={
+            "response_type": "code",
+            "client_id": _CLIENT,
+            "redirect_uri": "https://evil.example/callback",
+            "code_challenge": _s256_challenge(_VERIFIER),
+            "code_challenge_method": "S256",
+            "state": "xyz",
+            "resource": _RESOURCE,
+            "scope": "brain:read",
+        },
+        follow_redirects=False,
+    )
+    # 400 error page — MUST NOT 302-redirect to the unregistered URI.
+    assert r.status_code == 400
+    assert "location" not in {k.lower() for k in r.headers}
+
+
+def test_authorize_redirects_into_github_for_registered_uri(monkeypatch):
+    import app.routes.oauth_authorize as auth_mod
+
+    async def _registered(session, *, client_id, redirect_uri):
+        return True
+
+    monkeypatch.setattr(
+        auth_mod.oauth_store, "is_redirect_uri_registered", _registered
+    )
+    monkeypatch.setattr(auth_mod.settings, "GITHUB_APP_CLIENT_ID", "Iv23test")
+    client = _test_client()
+    r = client.get(
+        "/oauth/authorize",
+        params={
+            "response_type": "code",
+            "client_id": _CLIENT,
+            "redirect_uri": _REDIRECT,
+            "code_challenge": _s256_challenge(_VERIFIER),
+            "code_challenge_method": "S256",
+            "state": "xyz",
+            "resource": _RESOURCE,
+            "scope": "brain:read",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 302
+    loc = r.headers["location"]
+    assert loc.startswith("https://github.com/login/oauth/authorize")
+    # GitHub leg uses memory-api's OWN callback, never Claude.ai's redirect.
+    assert "oauth%2Fgithub-callback" in loc or "/oauth/github-callback" in loc
+    assert "claude.ai%2Fapi%2Fmcp" not in loc
+
+
+# ===========================================================================
 # DB-backed store round-trips (integration). Auto-skips without Docker.
 # ===========================================================================
 

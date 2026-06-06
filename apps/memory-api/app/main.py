@@ -36,9 +36,11 @@ from app.routes import (
     media,
     memory,
     messages,
+    oauth_authorize,
     oauth_introspect,
     oauth_metadata,
     oauth_register,
+    oauth_token,
     promotions,
     system_prompt,
     tasks,
@@ -143,3 +145,5 @@ app.include_router(
 app.include_router(oauth_metadata.router, tags=["oauth"])
 app.include_router(oauth_register.router, tags=["oauth"])
 app.include_router(oauth_introspect.router, tags=["oauth"])
+app.include_router(oauth_authorize.router, tags=["oauth"])
+app.include_router(oauth_token.router, tags=["oauth"])
