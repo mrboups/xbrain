@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>See it in action — GrooveOS</title>
-  <meta name="description" content="2-minute walkthrough — humans and agents working on the same brain, in real time." />
+  <title>GrooveOS — humans + agents, one brain</title>
+  <meta name="description" content="Watch the presentation, then see GrooveOS live — humans and agents working on the same brain, in real time." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
@@ -143,6 +143,23 @@
     .demo-foot { margin-top: 32px; }
     .demo-foot a { font-size: 14px; color: var(--accent); }
 
+    /* terminal frame around each video (matches the landing hero) */
+    .vid-term {
+      border: 1px solid var(--border); border-radius: 6px;
+      background: var(--bg-2); overflow: hidden; text-align: left;
+    }
+    .vid-term .term-bar {
+      display: flex; align-items: center; gap: 7px;
+      padding: 10px 16px; border-bottom: 1px solid var(--border);
+    }
+    .vid-term .term-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+    .vid-term .term-label { font-size: 11px; color: var(--muted); margin-left: auto; letter-spacing: .06em; }
+    .vid-term .demo-frame { border: 0; border-radius: 0; }
+
+    /* second section heading + divider between the two videos */
+    .demo-h2 { font-size: clamp(24px, 4.5vw, 40px); margin-bottom: 14px; }
+    .demo-divider { height: 1px; background: var(--border); max-width: 620px; margin: 60px auto 52px; }
+
     /* ================================================================
        FOOTER  (matches the landing page)
     ================================================================ */
@@ -188,18 +205,56 @@
 
   <!-- DEMO -->
   <main class="demo-wrap">
+
+    <!-- ── PRESENTATION ───────────────────────────────────────── -->
+    <div class="demo-eyebrow"><b>//</b> grooveos · cognitive OS for hybrid teams</div>
+    <h1 class="demo-h1">Humans + agents. One brain.<br/><span class="hl">Same team.</span></h1>
+    <p class="demo-sub">
+      Engineers, marketers, ops — <strong>and the agents working alongside them</strong> —
+      read from and write to the same cognitive core. Decisions stay in sync.
+      Context never gets re-explained. Truth flows in every direction.
+    </p>
+
+    <div class="vid-term">
+      <div class="term-bar">
+        <span class="term-dot" style="background:#FF5F57;"></span>
+        <span class="term-dot" style="background:#FEBC2E;"></span>
+        <span class="term-dot" style="background:#28C840;"></span>
+        <span class="term-label">grooveos</span>
+      </div>
+      <div class="demo-frame">
+        <video id="pres-video" class="demo-video" preload="metadata" playsinline controls>
+          <source src="https://storage.googleapis.com/grooveos-assets/demo/Architecting_the_Hybrid_Org.mp4" type="video/mp4" />
+        </video>
+        <button class="demo-overlay" id="pres-overlay" aria-label="Play presentation video">
+          <span class="demo-play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="demo-divider"></div>
+
+    <!-- ── SEE IT LIVE ────────────────────────────────────────── -->
     <div class="demo-eyebrow"><b>//</b> demo · the hybrid org, in motion</div>
-    <h1 class="demo-h1">See it <span class="hl">in action</span>.</h1>
+    <h2 class="demo-h1 demo-h2">See it <span class="hl">live</span>.</h2>
     <p class="demo-sub">2-minute walkthrough — humans and agents working on the same brain, in real time.</p>
 
-    <div class="demo-frame">
-      <iframe
-        class="demo-video"
-        src="https://www.loom.com/embed/2cfd00ceaed241c2b5e76193291c735a"
-        title="GrooveOS demo"
-        frameborder="0"
-        webkitallowfullscreen mozallowfullscreen allowfullscreen
-      ></iframe>
+    <div class="vid-term">
+      <div class="term-bar">
+        <span class="term-dot" style="background:#FF5F57;"></span>
+        <span class="term-dot" style="background:#FEBC2E;"></span>
+        <span class="term-dot" style="background:#28C840;"></span>
+        <span class="term-label">grooveos · demo</span>
+      </div>
+      <div class="demo-frame">
+        <iframe
+          class="demo-video"
+          src="https://www.loom.com/embed/2cfd00ceaed241c2b5e76193291c735a"
+          title="GrooveOS demo"
+          frameborder="0"
+          webkitallowfullscreen mozallowfullscreen allowfullscreen
+        ></iframe>
+      </div>
     </div>
 
     <div class="demo-foot">
@@ -243,6 +298,21 @@
       const saved = localStorage.getItem('xb-theme');
       if (saved === 'light' || saved === 'dark') setTheme(saved);
     } catch(e) {}
+
+    /* ── presentation video: tap-to-play overlay ── */
+    (function(){
+      var v = document.getElementById('pres-video');
+      var o = document.getElementById('pres-overlay');
+      if (v && o) {
+        o.addEventListener('click', function(){
+          o.classList.add('hidden');
+          var p = v.play();
+          if (p && p.catch) p.catch(function(){ o.classList.remove('hidden'); });
+        });
+        v.addEventListener('play',  function(){ o.classList.add('hidden'); });
+        v.addEventListener('ended', function(){ o.classList.remove('hidden'); });
+      }
+    })();
   </script>
 </body>
 </html>
