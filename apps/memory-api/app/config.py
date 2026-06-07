@@ -150,6 +150,12 @@ class Settings(BaseSettings):
     RELEVANCE_HAIKU_MODEL: str = "claude-haiku-4-5-20251001"
     RELEVANCE_HAIKU_TIMEOUT_S: float = 3.0
 
+    # GitHub repo-catalog auto-indexer (quick 260607-267)
+    # Safe defaults — no .env change required.
+    GITHUB_CATALOG_ENABLED: bool = True
+    GITHUB_CATALOG_CONCURRENCY: int = 5   # max parallel upserts per backfill batch
+    GITHUB_CATALOG_README_CHARS: int = 8000  # README input cap before Haiku call
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}
