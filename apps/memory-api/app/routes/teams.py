@@ -1,5 +1,6 @@
 """/v1/teams — admin-managed team CRUD + membership."""
 
+import asyncio
 from typing import Any
 from uuid import UUID
 
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.audit import write_audit
 from app.auth import is_admin
 from app.config import settings
+from app.db.session import async_session_factory
 from app.deps import get_current_principal, get_session
 from app.models.team import Team  # forward-typing for _require_team_admin
 from app.repos import teams as teams_repo
@@ -179,6 +181,17 @@ async def create_team(
         payload={"slug": team.slug, "display_name": team.display_name},
     )
     await session.commit()
+
+    # Trigger 1 — GitHub repo catalog backfill on team creation.
+    # Guarded by github_org: plain POST /v1/teams (TeamCreateBody) does NOT accept
+    # github_org, so this is a no-op for most admin creates.  Org-linked team paths
+    # (self_create_team + any future create that sets github_org) are covered here.
+    if getattr(team, "github_org", None) and settings.GITHUB_CATALOG_ENABLED:
+        from app.services.github_catalog import index_team_catalog  # noqa: PLC0415
+        asyncio.create_task(
+            index_team_catalog(team.slug, team.github_org, session_factory=async_session_factory)
+        )
+
     return TeamOut(id=str(team.id), slug=team.slug, display_name=team.display_name)
 
 
@@ -507,6 +520,16 @@ async def self_create_team(
         payload={"slug": team.slug, "visibility": team.visibility},
     )
     await session.commit()
+
+    # Trigger 1 — GitHub repo catalog backfill on org-linked team creation.
+    # Only fires when github_org is set on the new team (body.github_org passed).
+    # For teams without github_org, sign-in (trigger 2) is the primary backfill path.
+    if getattr(team, "github_org", None) and settings.GITHUB_CATALOG_ENABLED:
+        from app.services.github_catalog import index_team_catalog  # noqa: PLC0415
+        asyncio.create_task(
+            index_team_catalog(team.slug, team.github_org, session_factory=async_session_factory)
+        )
+
     return TeamSearchOut(
         id=str(team.id),
         slug=team.slug,

@@ -484,6 +484,19 @@ async def signin_github(
             session_factory=async_session_factory,
         )
 
+    # Step 9b — Fire-and-forget GitHub repo catalog backfill (trigger 2).
+    # Indexes every org where the App is installed into the team's brain.
+    # Bounded: Semaphore cap + Haiku daily token cap + fail-soft per repo.
+    # NEVER awaited — sign-in returns immediately (Step 10 unchanged).
+    if settings.GITHUB_CATALOG_ENABLED and profile.get("org_logins"):
+        from app.services.github_catalog import index_orgs_catalog  # noqa: PLC0415
+        background_tasks.add_task(
+            index_orgs_catalog,
+            org_logins=profile["org_logins"],
+            user_id=user.id,
+            session_factory=async_session_factory,
+        )
+
     log.info(
         "auth.github.signin.ok",
         user_id=str(user.id),
