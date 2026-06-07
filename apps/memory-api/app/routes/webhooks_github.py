@@ -29,6 +29,7 @@ Security:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -39,6 +40,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.db.session import async_session_factory
 from app.deps import get_session
 from app.repos.installations import (
     revoke_installation,
@@ -141,6 +143,162 @@ async def _handle_installation_repositories_event(
     )
 
 
+async def _handle_repository_event(payload: dict[str, Any]) -> None:
+    """Dispatch a ``repository`` webhook event to incremental catalog upsert/soft-delete.
+
+    Supported actions:
+      - created, edited, publicized  -> upsert_catalog_item (content/visibility changed)
+      - privatized, deleted, archived -> soft_delete_catalog_item
+      - renamed  -> soft_delete old full_name THEN upsert new (in that order per
+                    RESEARCH §Pitfall 4, to avoid stale ghost entries)
+      - others   -> log and ignore
+
+    The GitHub App must be subscribed to the Repository event (operator step in
+    Task 7 runbook) for this handler to receive events.  Triggers (1) team-create
+    and (2) sign-in work WITHOUT this subscription; the webhook is the incremental
+    optimisation that keeps the catalog fresh between sign-ins.
+
+    Team scope resolution:
+      - Organization installs: find the team whose github_org matches the repo owner.
+      - User installs (e.g. mrboups, github_account_type='User'): the webhook payload
+        carries only installation_id, not a user identity.  We resolve teams via
+        team_members whose github_username matches the installation's github_org_login
+        (which for User installs is the account login, e.g. 'mrboups').  If no team
+        membership matches, we log and return — sign-in (trigger 2) remains the
+        primary backfill path for personal repos.
+
+    All catalog work runs in asyncio.create_task with a FRESH async_session_factory()
+    session — NEVER the request session (it closes when the route returns).
+    """
+    action = payload.get("action")
+    repo = payload.get("repository") or {}
+    install = payload.get("installation") or {}
+    installation_id = install.get("id")
+    account_type = (install.get("account") or {}).get("type")  # 'Organization' or 'User'
+    owner_login = (repo.get("owner") or {}).get("login", "")
+    full_name: str = repo.get("full_name", "")
+
+    if action not in {"created", "deleted", "renamed", "privatized", "publicized", "edited", "archived"}:
+        log.info("github_webhook.repository.unhandled_action", action=action, full_name=full_name)
+        return
+
+    async def _resolve_team_scopes(session: AsyncSession) -> list[str]:
+        """Resolve the team scope(s) for this installation + repo owner."""
+        # Lazy import to avoid circular import at module level.
+        from app.repos import teams as teams_repo  # noqa: PLC0415
+
+        if account_type == "Organization":
+            # Find teams whose github_org matches the repo owner.
+            org_teams = await teams_repo.get_teams_with_github_org(session)
+            return [t.slug for t in org_teams if t.github_org == owner_login]
+        else:
+            # User install (e.g. mrboups personal account).
+            # The payload carries no user identity — resolve via team_members
+            # whose github_username matches the installation account login
+            # (owner_login == the personal account name, e.g. 'mrboups').
+            # This covers the case where the user is a member of a team that
+            # has been set up for their personal account.
+            import sqlalchemy as sa  # noqa: PLC0415
+            from app.models.team import TeamMember  # noqa: PLC0415
+            from app.models.user import User  # noqa: PLC0415
+
+            result = await session.execute(
+                sa.select(TeamMember.team_id)
+                .join(User, User.id == TeamMember.user_id)
+                .where(
+                    User.github_username == owner_login,
+                    User.merged_into_user_id.is_(None),
+                )
+            )
+            team_ids = [row[0] for row in result.all()]
+            if not team_ids:
+                return []
+            # Resolve team slugs.
+            from app.models.team import Team  # noqa: PLC0415
+            teams_result = await session.execute(
+                sa.select(Team.slug).where(Team.id.in_(team_ids))
+            )
+            return [row[0] for row in teams_result.all()]
+
+    async def _run_catalog_update() -> None:
+        from app.deps import get_memory_provider  # noqa: PLC0415
+        from app.services.github_catalog import (  # noqa: PLC0415
+            soft_delete_catalog_item,
+            upsert_catalog_item,
+        )
+
+        try:
+            async with async_session_factory() as session:
+                team_scopes = await _resolve_team_scopes(session)
+
+            if not team_scopes:
+                log.info(
+                    "github_webhook.repository.no_team_scope",
+                    action=action,
+                    full_name=full_name,
+                    owner=owner_login,
+                    account_type=account_type,
+                )
+                return
+
+            provider = get_memory_provider()
+
+            for team_scope in team_scopes:
+                try:
+                    if action in ("created", "edited", "publicized"):
+                        async with async_session_factory() as bg_session:
+                            await upsert_catalog_item(
+                                bg_session,
+                                provider,
+                                repo,
+                                team_scope,
+                                installation_id=installation_id,
+                            )
+                    elif action in ("privatized", "deleted", "archived"):
+                        async with async_session_factory() as bg_session:
+                            await soft_delete_catalog_item(bg_session, provider, team_scope, full_name)
+                    elif action == "renamed":
+                        # Soft-delete the OLD entry FIRST (using old base name),
+                        # then upsert the new one — order matters to avoid ghost entries.
+                        old_name = (
+                            (payload.get("changes") or {})
+                            .get("repository", {})
+                            .get("name", {})
+                            .get("from", "")
+                        )
+                        if old_name and owner_login:
+                            old_full_name = f"{owner_login}/{old_name}"
+                            async with async_session_factory() as bg_session:
+                                await soft_delete_catalog_item(
+                                    bg_session, provider, team_scope, old_full_name
+                                )
+                        async with async_session_factory() as bg_session:
+                            await upsert_catalog_item(
+                                bg_session,
+                                provider,
+                                repo,
+                                team_scope,
+                                installation_id=installation_id,
+                            )
+                except Exception as exc:  # noqa: BLE001
+                    log.warning(
+                        "github_webhook.repository.team_update_error",
+                        action=action,
+                        full_name=full_name,
+                        team_scope=team_scope,
+                        error=str(exc),
+                    )
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "github_webhook.repository.update_failed",
+                action=action,
+                full_name=full_name,
+                error=str(exc),
+            )
+
+    asyncio.create_task(_run_catalog_update())
+
+
 @router.post("/installation", status_code=200)
 async def github_installation_webhook(
     request: Request,
@@ -178,6 +336,8 @@ async def github_installation_webhook(
         await _handle_installation_event(session, payload)
     elif event == "installation_repositories" and isinstance(payload, dict):
         await _handle_installation_repositories_event(payload)
+    elif event == "repository" and isinstance(payload, dict):
+        await _handle_repository_event(payload)
     elif event == "ping":
         # GitHub sends a ping immediately when the webhook is configured.
         # Payload contains `zen` + `hook_id`. Nothing to persist.
