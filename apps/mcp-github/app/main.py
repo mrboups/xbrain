@@ -264,5 +264,47 @@ async def github_sync_repo(
         return f"ERROR: Failed to start sync for '{repo}': {exc}"
 
 
+@mcp.tool()
+async def github_list_repos(ctx: Context = None) -> str:
+    """List the GitHub repositories indexed in YOUR team's catalog.
+
+    Returns the exact catalog (one entry per repo the team's GitHub App
+    installation can reach) with each repo's name, a short summary, primary
+    language, topics, and visibility. Use this to answer "which repos do we
+    have" or to find the repo that handles a given area before reading files.
+
+    The catalog is built automatically on sign-in and team creation. It is
+    also refreshed incrementally when repos are created, renamed, deleted, or
+    made private/public via the GitHub repository webhook.
+
+    Returns:
+        JSON array of repo objects (id, content, project_scope, full_name,
+        html_url, primary_language, topics, visibility, readme_summarized,
+        updated_at). Returns a plain-text error on failure so the LLM can act.
+    """
+    try:
+        bearer, team_scope = await _resolve_team(ctx)
+    except ValueError as exc:
+        return f"ERROR: {exc}"
+
+    url = f"{settings.MEMORY_API_URL}/v1/internal/github/catalog"
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(
+                url,
+                headers={
+                    "Authorization": f"Bearer {bearer}",
+                    "X-Team-Scope": team_scope,
+                },
+            )
+        if r.status_code == 200:
+            data = r.json()
+            return json.dumps(data.get("repos", []), ensure_ascii=False)
+        return f"ERROR {r.status_code} — {_extract_detail(r)}"
+    except Exception as exc:
+        log.error("mcp_github.list_repos.error", err=str(exc))
+        return f"ERROR: Failed to list repos: {exc}"
+
+
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")
