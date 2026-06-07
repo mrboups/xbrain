@@ -281,3 +281,26 @@ async def get_installation_token_for_org(
             )
             return await get_installation_token(inst_id, force_refresh=True)
         raise
+
+
+async def find_user_installation(login: str) -> int | None:
+    """Resolve the installation_id for a USER account (personal repos).
+
+    ``find_installation_for_org`` only handles organizations
+    (``GET /orgs/{org}/installation`` 404s for a personal account). This is the
+    user-account sibling: ``GET /users/{login}/installation`` with an App JWT.
+
+    Returns the installation_id, or None when the App is not installed on that
+    user (404). Does NOT touch the installations table (User installs are not
+    org-keyed) — callers use the id only to enumerate repos.
+    """
+    app_jwt = mint_app_jwt()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.get(
+            f"https://api.github.com/users/{login}/installation",
+            headers={"Authorization": f"Bearer {app_jwt}", **_GH_HEADERS},
+        )
+    if r.status_code == 404:
+        return None
+    r.raise_for_status()
+    return int(r.json()["id"])

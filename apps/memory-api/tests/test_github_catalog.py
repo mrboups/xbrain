@@ -320,3 +320,47 @@ def test_catalog_endpoint_route_registered():
     assert "/internal/github/catalog" in route_src, (
         "catalog route not registered in internal_github.py"
     )
+
+
+@pytest.mark.asyncio
+async def test_find_user_installation_found_and_missing():
+    """find_user_installation returns the id on 200 and None on 404 (Task #149)."""
+    from app.services import github_installation as gi
+
+    def _client(resp):
+        c = MagicMock()
+        c.get = AsyncMock(return_value=resp)
+        c.__aenter__ = AsyncMock(return_value=c)
+        c.__aexit__ = AsyncMock(return_value=False)
+        return c
+
+    resp200 = MagicMock(status_code=200)
+    resp200.json = MagicMock(return_value={"id": 137865560})
+    resp200.raise_for_status = MagicMock()
+    with patch.object(gi.httpx, "AsyncClient", return_value=_client(resp200)), \
+            patch.object(gi, "mint_app_jwt", return_value="app.jwt.token"):
+        assert await gi.find_user_installation("mrboups") == 137865560
+
+    resp404 = MagicMock(status_code=404)
+    with patch.object(gi.httpx, "AsyncClient", return_value=_client(resp404)), \
+            patch.object(gi, "mint_app_jwt", return_value="app.jwt.token"):
+        assert await gi.find_user_installation("nobody-xyz") is None
+
+
+def test_index_orgs_catalog_accepts_user_login():
+    """index_orgs_catalog exposes user_login (personal-repo path) — Task #149."""
+    import inspect
+
+    from app.services.github_catalog import index_orgs_catalog
+
+    params = inspect.signature(index_orgs_catalog).parameters
+    assert "user_login" in params, "index_orgs_catalog must accept user_login"
+    cat_src = pathlib.Path(
+        "app/services/github_catalog.py"
+    ).read_text(encoding="utf-8")
+    assert "find_user_installation" in cat_src, (
+        "index_team_catalog must fall back to the user-account install"
+    )
+    assert "list_teams_for_user" in cat_src, (
+        "index_orgs_catalog must index the user's personal repos into their teams"
+    )

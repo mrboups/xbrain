@@ -502,13 +502,29 @@ async def index_team_catalog(
         return {"team_scope": team_scope, "indexed": 0, "skipped": 0}
 
     from app.deps import get_memory_provider  # noqa: PLC0415
-    from app.services.github_installation import find_installation_for_org  # noqa: PLC0415
+    from app.services.github_installation import (  # noqa: PLC0415
+        find_installation_for_org,
+        find_user_installation,
+    )
 
     indexed = 0
     skipped = 0
 
     async with session_factory() as session:
         installation_id = await find_installation_for_org(session, github_org)
+
+    # Fallback: ``github_org`` may be a USER account (personal repos), which
+    # find_installation_for_org (orgs-only, /orgs/{org}/installation) can't
+    # resolve. Try the user-account install endpoint.
+    if installation_id is None:
+        try:
+            installation_id = await find_user_installation(github_org)
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "github_catalog.index_team_catalog.user_install_lookup_failed",
+                github_org=github_org,
+                error=str(exc),
+            )
 
     if installation_id is None:
         log.info(
@@ -569,12 +585,19 @@ async def index_orgs_catalog(
     org_logins: list[str],
     user_id: Any,
     session_factory: Any,
+    user_login: str | None = None,
 ) -> None:
-    """Sign-in backfill entrypoint — index all orgs for which the App is installed.
+    """Sign-in backfill entrypoint — index all orgs (and the user's personal repos).
 
     For each org in *org_logins*, resolves the team(s) that have ``github_org``
     matching that org (via ``teams_repo.get_teams_with_github_org``), and calls
     ``index_team_catalog`` for each matched team.
+
+    When *user_login* is given (the signing-in user's GitHub login), ALSO indexes
+    that user's PERSONAL-account repos into every team the user belongs to —
+    index_team_catalog falls back to the user-account install for a non-org login.
+    This is what makes a member's personal repos appear in their team catalog
+    (org installs alone don't cover them).
 
     Skips orgs with no matching installation. Owns its sessions (never raises
     to the caller — this is a fire-and-forget background task).
@@ -624,3 +647,35 @@ async def index_orgs_catalog(
                     team_scope=team_scope,
                     error=str(exc),
                 )
+
+    # Personal-account repos (User install): index the signing-in user's own
+    # repos into every team the user belongs to. index_team_catalog falls back
+    # to the user-account install (/users/{login}/installation) for a non-org
+    # login. org_logins deliberately excludes the personal account, so this is
+    # the only path that covers a member's personal repos on sign-in.
+    if user_login:
+        try:
+            from app.repos.teams import list_teams_for_user  # noqa: PLC0415
+
+            async with session_factory() as session:
+                user_teams = await list_teams_for_user(session, user_id=user_id)
+            for team in user_teams:
+                try:
+                    await index_team_catalog(
+                        team.slug,
+                        user_login,
+                        session_factory=session_factory,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    log.warning(
+                        "github_catalog.index_orgs_catalog.personal_team_failed",
+                        user_login=user_login,
+                        team_scope=team.slug,
+                        error=str(exc),
+                    )
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "github_catalog.index_orgs_catalog.personal_failed",
+                user_login=user_login,
+                error=str(exc),
+            )
