@@ -12,15 +12,26 @@ Exposes:
     Body: {repo, team_scope, project_scope?, ref?}
     Returns 202 immediately; sync runs in the background.
 
+  GET /internal/github/catalog?team_scope=<slug>
+    (or header X-Team-Scope: <slug>)
+    Return the exact catalog of repos indexed for a team (brain-only, direct
+    memory_items SELECT, no Qdrant). Used by mcp-github github_list_repos.
+    # memory_items.source is free-form VARCHAR(128), no CHECK (migration 0002);
+    # idx_memory_source_team_unique dropped (migration 0020) so many catalog
+    # items with the same source per team are allowed.
+
 Auth: Depends(get_current_principal) — accepts kind='bridge' (same as internal.py).
-NOT team-scoped: access is org-sanctioned via the GitHub App installation, not per-team.
+NOT team-scoped for list/read/sync: access is org-sanctioned via the GitHub App
+installation, not per-team.  /catalog IS team-scoped (requires X-Team-Scope or
+query param team_scope).
 """
 
 import asyncio
+import json
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -179,3 +190,77 @@ async def github_sync(
     asyncio.create_task(_run_sync())
 
     return {"status": "started", "repo": repo, "ref": ref}
+
+
+@router.get("/internal/github/catalog")
+async def github_catalog(
+    request: Request,
+    team_scope: str | None = Query(default=None, description="Team slug"),
+    principal: dict[str, Any] = Depends(get_current_principal),
+) -> dict[str, Any]:
+    """Return the exact catalog of GitHub repos indexed for a team.
+
+    Performs a direct ``memory_items`` SELECT filtered by
+    ``source = 'github:repo-catalog' AND team_scope = $1 AND deleted_at IS NULL``
+    — no Qdrant, no new table.  Results are ordered by ``updated_at DESC``.
+
+    Team scope resolution order:
+      1. Header ``X-Team-Scope``  (preferred — what mcp-github sends).
+      2. Query param ``team_scope``.
+    Returns 400 if neither is provided.
+
+    Auth: any authenticated principal including kind='bridge'.
+    """
+    # Resolve team scope from header (preferred) or query param.
+    resolved_team = request.headers.get("X-Team-Scope") or team_scope
+    if not resolved_team:
+        raise HTTPException(status_code=400, detail="team_scope is required (header X-Team-Scope or query param)")
+
+    provider = get_memory_provider()
+    pool = await provider._ensure_pool()
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, content, metadata, project_scope, created_at, updated_at
+            FROM memory_items
+            WHERE source = 'github:repo-catalog'
+              AND team_scope = $1
+              AND deleted_at IS NULL
+            ORDER BY updated_at DESC
+            """,
+            resolved_team,
+        )
+
+    catalog_repos = []
+    for r in rows:
+        # asyncpg may return metadata as a string (JSONB) or already a dict.
+        raw_meta = r["metadata"]
+        if isinstance(raw_meta, str):
+            try:
+                meta = json.loads(raw_meta)
+            except (json.JSONDecodeError, TypeError):
+                meta = {}
+        else:
+            meta = raw_meta or {}
+
+        catalog_repos.append(
+            {
+                "id": str(r["id"]),
+                "content": r["content"],
+                "project_scope": r["project_scope"],
+                "full_name": meta.get("full_name"),
+                "html_url": meta.get("html_url"),
+                "primary_language": meta.get("primary_language"),
+                "topics": meta.get("topics"),
+                "visibility": meta.get("visibility"),
+                "readme_summarized": meta.get("readme_summarized"),
+                "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
+            }
+        )
+
+    return {
+        "team_scope": resolved_team,
+        "count": len(catalog_repos),
+        "repos": catalog_repos,
+    }
