@@ -31,6 +31,8 @@ const CONV_CREATE_URL = (orgId) =>
   `https://claude.ai/api/organizations/${encodeURIComponent(orgId)}/chat_conversations`;
 const COMPLETION_URL = (orgId, convUuid) =>
   `https://claude.ai/api/organizations/${encodeURIComponent(orgId)}/chat_conversations/${encodeURIComponent(convUuid)}/completion`;
+const DELETE_URL = (orgId, convUuid) =>
+  `https://claude.ai/api/organizations/${encodeURIComponent(orgId)}/chat_conversations/${encodeURIComponent(convUuid)}`;
 
 // --- Static lint hint — observed-needed host_permissions for plan 09-03's manifest ---
 // host_permissions:
@@ -103,6 +105,29 @@ export async function createConversation(orgId) {
 }
 
 /**
+ * DELETE /api/organizations/{orgId}/chat_conversations/{convUuid} — removes the
+ * disposable conversation created for one bridged message. Best-effort: callers
+ * MUST wrap in try/catch. Throws on network error or non-2xx.
+ *
+ * Endpoint is BEST-GUESS-PENDING-CAPTURE (09-CAPTURE.md A11): the standard REST
+ * pairing of the create endpoint, expected 204 No Content.
+ */
+export async function deleteConversation(orgId, convUuid) {
+  const r = await fetch(DELETE_URL(orgId, convUuid), {
+    method: "DELETE",
+    credentials: "include",
+    headers: {
+      Origin: "https://claude.ai",
+      Referer: `https://claude.ai/chat/${convUuid}`,
+      "anthropic-client-platform": "web_claude_ai",
+    },
+  });
+  if (!r.ok) {
+    throw new Error(`conv delete failed: ${r.status}`);
+  }
+}
+
+/**
  * Drive a full streaming claude.ai completion in response to a bridge
  * chat_request envelope.
  *
@@ -128,9 +153,12 @@ export async function handleClaude(msg, sendFrame) {
     return;
   }
 
+  let orgId = null;
+  let convUuid = null;
+
   try {
-    const orgId = await getOrgId();
-    const convUuid = await createConversation(orgId);
+    orgId = await getOrgId();
+    convUuid = await createConversation(orgId);
     const payload = openaiToClaudeAi(openai_body, convUuid, null);
 
     const r = await fetch(COMPLETION_URL(orgId, convUuid), {
@@ -229,6 +257,33 @@ export async function handleClaude(msg, sendFrame) {
       type: "error",
       detail: { message: String(e && e.message ? e.message : e) },
     });
+  } finally {
+    // --- Best-effort cleanup: delete the disposable claude.ai conversation ---
+    // WHY this is safe: the bridge is STATELESS on claude.ai's side. Every
+    // chat_request re-sends the FULL history flattened into `prompt` and always
+    // sends parent_message_uuid = nil (see openaiToClaudeAi in translate_sse.js).
+    // claude.ai's server-side conversation is never read back for context — it is
+    // a throwaway container. Nothing references convUuid after the `end` frame, so
+    // deleting it here cannot affect the user's response or any later turn.
+    //
+    // The user's chunks + end/error frame were ALREADY sent above, before this
+    // finally — cleanup never delays or blocks the response. The empty catch makes
+    // deletion best-effort: a failed DELETE never surfaces to the user or the
+    // bridge (no error frame from cleanup). The `await` keeps the MV3 service
+    // worker alive until the DELETE resolves.
+    //
+    // DEFERRED (separate future track, NOT this task): "native threading" — send
+    // only the new user turn and chain parent_message_uuid to the last assistant
+    // message so claude.ai holds context server-side. That removes the O(n^2)
+    // full-history re-send but is INCOMPATIBLE with delete-per-message. See
+    // .planning/quick/260711-45b-extension-session-bridge-auto-delete-cla/260711-45b-deferred-items.md
+    if (orgId && convUuid) {
+      try {
+        await deleteConversation(orgId, convUuid);
+      } catch {
+        // best-effort — a failed cleanup must never surface to the user/bridge.
+      }
+    }
   }
 }
 
@@ -246,6 +301,7 @@ if (typeof globalThis !== "undefined") {
     CLAUDE_AI_API_VERSION,
     getOrgId,
     createConversation,
+    deleteConversation,
     handleClaude,
   };
 }
