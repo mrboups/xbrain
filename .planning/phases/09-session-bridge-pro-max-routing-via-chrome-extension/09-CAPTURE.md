@@ -165,8 +165,9 @@ PENDING   = live capture not yet performed; current implementation assumes "expe
 | A8 | `GET /api/organizations` returns an array with `uuid` field (sometimes `id`) | CONFIRMED | Live capture 2026-05-12: response `[{ id: 1508779, uuid: "9338272c-03d5-…", name: "Play Asbl", capabilities: ["claude_max","chat"], rate_limit_tier: "default_claude_max_5x", … }]`. `getOrgId()` `[0].uuid` works. |
 | A9 | TLS fingerprint not currently checked beyond Cloudflare baseline | N/A — operational risk | Cannot verify from a single Chrome session ; risk accepted, Pattern 5 monitoring covers detection |
 | A10 | `parent_message_uuid` accepts the nil UUID `00000000-0000-4000-8000-000000000000` for first message in a conversation | CONFIRMED | Live capture 2026-05-12: POST body `{parent_message_uuid: "00000000-0000-4000-8000-000000000000", …}` → 200 with `message_start.parent_uuid: "019e1c4f-9a85-7173-a5eb-c973bda9e52b"` (server assigned a real UUID, the nil placeholder was accepted) |
+| A11 | Conversation delete endpoint is `DELETE https://claude.ai/api/organizations/{org_id}/chat_conversations/{conv_uuid}` (no `/completion`), returns 204 | **PENDING** — best-guess REST pairing of the create endpoint; not yet captured. Fired best-effort in `handleClaude` finally; a wrong path only means the throwaway conversation isn't cleaned up (no user-facing failure). | Quick task 260711-45b: DELETE issued from `deleteConversation()` in `claude_ai_client.js`, response ignored on failure. Awaiting live DevTools capture (see UAT step below). |
 
-10 rows total. After 2026-05-12 live capture: 6 CONFIRMED, 1 DIVERGED (A1, patched), 1 PARTIALLY DIVERGED (A3, translator handles), 1 PENDING UAT (A7, extension-level), 1 N/A (A4/A5/A9 = operational, off-band).
+11 rows total. After 2026-05-12 live capture: 6 CONFIRMED, 1 DIVERGED (A1, patched), 1 PARTIALLY DIVERGED (A3, translator handles), 1 PENDING UAT (A7, extension-level), 1 N/A (A4/A5/A9 = operational, off-band), 1 PENDING (A11, added 2026-07-11 by quick task 260711-45b — not yet captured).
 
 ---
 
@@ -230,6 +231,16 @@ These are the LOCKED values plan 09-02 codes against. Bump `CLAUDE_AI_API_VERSIO
 | List organizations | `GET` | `https://claude.ai/api/organizations` |
 | Create conversation | `POST` | `https://claude.ai/api/organizations/{org_id}/chat_conversations` |
 | Stream completion | `POST` | `https://claude.ai/api/organizations/{org_id}/chat_conversations/{conv_uuid}/completion` (was `api.claude.ai`, patched 2026-05-12 — A1 DIVERGED) |
+| Delete conversation | `DELETE` | `https://claude.ai/api/organizations/{org_id}/chat_conversations/{conv_uuid}` (no `/completion` suffix — BEST-GUESS PENDING CAPTURE, A11) |
+
+#### DELETE endpoint — BEST-GUESS-PENDING-CAPTURE (A11)
+
+Standard REST pairing of the create endpoint (`DELETE` on the conversation
+resource, no `/completion`). Expected response: **204 No Content**. Headers: same
+set as the completion POST **minus** `Accept` and `Content-Type` (no body):
+`Origin`, `Referer: https://claude.ai/chat/{conv_uuid}`, `anthropic-client-platform: web_claude_ai`
+(cookies via `credentials: 'include'`). Used best-effort in `handleClaude()`'s
+`finally` — a failed DELETE never surfaces to the user. NOT yet DevTools-captured.
 
 ### Final header set sent from `handleClaude()` completion POST
 
@@ -287,3 +298,10 @@ Format: `YYYY-MM-DD-capture[-vN]`. Baked into `chrome-extension/translate_sse.js
 7. Visit `chrome://settings/cookies/detail?site=claude.ai` → screenshot, check SameSite attribute on the main session cookie.
 8. For each row of the Assumption verification table flag CONFIRMED or DIVERGED, fill `## Divergence Patches` for any DIVERGED, then run `node chrome-extension/tests/run_tests.mjs` to make sure the translator still passes.
 9. If anything material changed, bump `CLAUDE_AI_API_VERSION` and commit.
+10. **Capture the DELETE (A11):** on `https://claude.ai` with DevTools → Network
+    (Preserve log, Fetch/XHR filter):
+    1. Delete one conversation by hand (chat list → ⋯ → Delete).
+    2. Select the `DELETE .../chat_conversations/{uuid}` request.
+    3. Confirm method = DELETE, path = `/api/organizations/{org}/chat_conversations/{uuid}` (no `/completion`), and status (expected 204).
+    4. If it diverges (different path, extra segment, or a POST-to-archive instead of DELETE), add a row to `## Divergence Patches` and patch `DELETE_URL` / `deleteConversation` in `claude_ai_client.js`.
+    5. Bump `CLAUDE_AI_API_VERSION` in `translate_sse.js` ONLY if the contract diverged, then re-run `node chrome-extension/tests/run_tests.mjs`.
