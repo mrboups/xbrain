@@ -54,6 +54,15 @@ runtime/infra), `aibrussels` 105 occ, `"default"` team_scope ~49 genuine.
 - This `14-CONTEXT.md` and `14-RESEARCH.md` (same reason — they document the cleanup).
 - Test fixtures + illustrative few-shot examples (e.g. Haiku examples in `relevance_filter.py`,
   `apps/spike-mem0/test_data.json`) → neutral placeholder, not deletion.
+- **D-01e — The HOSTED-PRODUCT marketing/docs surfaces KEEP `grooveos.app` (user-approved
+  2026-07-12, "option 1"):** `app-site/docs/**`, `marketing-site/docs/**`, `app-site/v0-v12/**`,
+  and README positioning lines. Rationale: these are the live-deployed pages of the **commercial
+  hosted service**, whose domain legitimately *is* grooveos.app — they are not OSS code that an
+  operator self-hosts. Scrubbing them to `example.com` would break the live Firebase deploy and
+  is semantically wrong. The OSS **code + config + technical docs** carry no brand; the **hosted
+  product's own marketing/docs** keep theirs. This is an APPROVED SCOPE BOUND, not a gap — it
+  does not violate PORT-01 (which is about source/config portability). If the marketing surface
+  is ever extracted from the OSS repo, revisit in Phase 16.
 
 ### D-01b — Factual corrections from research (supersede earlier CONTEXT claims)
 - `apps/memory-api/app/routes/me.py:206` (`Field(default="default")`) is a **FALSE POSITIVE** —
