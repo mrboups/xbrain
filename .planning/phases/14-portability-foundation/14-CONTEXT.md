@@ -36,13 +36,46 @@ fresh operator can fill without reading source code. (PORT-01, PORT-02)
 <decisions>
 ## Implementation Decisions
 
-### D-01 — Full cleanup scope (runtime AND docs) [Q1]
+### D-01 — Full cleanup scope (runtime AND docs AND .planning history) [Q1]
 De-hardcode `grooveos.app`, `aibrussels`, and the `"default"` team_scope across the WHOLE
-repo — runtime source **and** docs/planning/KB — NOT runtime-only. (User overrode the
-runtime-only recommendation: "je ferai quand même le nettoyage total.") Runtime correctness
-is the blocking part; docs/KB/planning scrub is required but non-blocking for boot.
-Exception: the Haiku few-shot examples in `relevance_filter.py` may keep neutral example
-domains (`example.com`) — they are illustrative, not configuration.
+repo — runtime source **and** docs/KB/marketing **and** the `.planning/` history — NOT
+runtime-only. (User confirmed 2026-07-11/12: "je ferai quand même le nettoyage total… on
+nettoie l'historique aussi.") Replace occurrences with neutral placeholders (e.g.
+`example.com`, a `your-team`-style token). Runtime correctness is the blocking part;
+docs/KB/planning scrub is required but non-blocking for boot, and is **mechanical** — the bulk
+is a scriptable find/replace; a **Sonnet executor** handles the judgment cases. Real magnitude
+(measured 2026-07-11, see 14-RESEARCH.md): `grooveos.app` ~1009 occ / 203 files (only ~123 in
+runtime/infra), `aibrussels` 105 occ, `"default"` team_scope ~49 genuine.
+
+**Keep-as-is exceptions (do NOT scrub these):**
+- The design doc `.planning/features/open-core-edition-design.md` "Locked Decisions — 2026-07-11"
+  table — it *names* grooveos.app/aibrussels as the record of what is being removed; rewriting it
+  makes the decision record meaningless. (Aligns with ROADMAP SC#1 "outside … the design doc".)
+- This `14-CONTEXT.md` and `14-RESEARCH.md` (same reason — they document the cleanup).
+- Test fixtures + illustrative few-shot examples (e.g. Haiku examples in `relevance_filter.py`,
+  `apps/spike-mem0/test_data.json`) → neutral placeholder, not deletion.
+
+### D-01b — Factual corrections from research (supersede earlier CONTEXT claims)
+- `apps/memory-api/app/routes/me.py:206` (`Field(default="default")`) is a **FALSE POSITIVE** —
+  it is a personal-API-token `name` default, NOT a team_scope fallback. Do not "fix" it.
+- Two runtime hardcodes NOT in the original canonical_refs, both in scope for Phase 14:
+  `apps/memory-api/app/knowledge/xbrain_product_kb.md` (injected verbatim into the live @groove
+  agent system prompt — a **functional** domain leak → rewrite domain-neutral) and
+  `apps/librechat/patches/onboarding.js` (hardcoded API base URL).
+- **Fail-fast landmine (D-03):** `apps/mcp-brain/app/main.py` computes
+  `_PROTECTED_RESOURCE_METADATA_URL` from `OAUTH_RESOURCE_URL` at **module-import time** — the
+  empty-URL fail-fast MUST be a Pydantic `field_validator` on the `Settings` class, not a
+  per-request check (too late).
+
+### D-01c — Frontend static JS deferred to Phase 16 [research Open Q1]
+`chrome-extension/**` and `app-site/account/**` also hardcode `grooveos.app` in static client
+bundles with no config mechanism today. These are **deferred to Phase 16** (where the new
+web-chat UI is built and the extension is opt-in). Phase 14 = backend + infra + config only.
+
+### D-01d — nginx templating IN scope [research Open Q2]
+`infrastructure/nginx/conf.d/*.conf` (7 files, 18 `server_name` hardcodes) must become
+env-driven via the official nginx image's `envsubst` template mechanism — otherwise "point at
+your own domain via config alone" (PORT-01) is violated (operator would still edit source).
 
 ### D-02 — Public-URL config defaults → neutral, not brand [Q1]
 For public URL settings that are already env-driven (`MEMORY_API_EXTERNAL_URL`,
