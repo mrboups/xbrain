@@ -441,7 +441,17 @@ Plans:
   3. An operator can fill a single slim, documented OSS `.env.example` and get a working install pointed at their own domain and default team, without opening any source file to find a hidden hardcoded reference.
   4. Setting the domain/team config vars to a different value (e.g. a fictitious `acme.example` domain / `acme` team) produces correctly-branded URLs, OAuth callback URLs, webhook URLs, and default team creation — no residual xbrain-specific string leaks through anywhere in the request/response path.
 
-**Plans**: TBD (populated by `/gsd:plan-phase 14`)
+**Plans**: 6 plans
+Plans:
+
+- [ ] 14-01-PLAN.md — memory-api + mcp-brain runtime config neutralization + OAuth fail-fast validator + notifications/waitlist env fallbacks
+- [ ] 14-02-PLAN.md — Functional domain leaks: xbrain_product_kb.md neutral rewrite + relevance_filter few-shots + onboarding.js build-configurable base
+- [ ] 14-03-PLAN.md — Infra: docker-compose fallback neutralization + nginx envsubst templates + librechat.yaml ${VAR} + centrifugo origins env
+- [ ] 14-04-PLAN.md — Slim, documented OSS .env.example (PORT-02) + delete vestigial infrastructure/.env.example + per-service templates
+- [ ] 14-05-PLAN.md — Mechanical docs + .planning history scrub (autonomous, Sonnet-friendly) with logged pragmatic bound
+- [ ] 14-06-PLAN.md — Regression safety: parameterize verify-phase{5,7,8,9,10,12,13}.sh + brain-index.sh + new verify-phase14.sh (PORT-01/PORT-02 gate)
+
+**Wave order**: 1 (14-01 + 14-02 + 14-05 parallel — disjoint file trees) → 2 (14-03 — infra, needs 14-01's new config var contract) → 3 (14-04 — .env.example documents 14-01 + 14-03 vars) → 4 (14-06 — verify everything: source clean + fail-fast + fresh acme.example boot)
 **UI hint**: no (backend/config refactor — no new user-facing surface)
 
 ### Phase 15: Edition Mechanics
@@ -516,7 +526,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 11/11 | ✅ LIVE | 2026-05-17 (verify-phase11.sh PASS 5/5 + 11 SKIP fixture, alembic 0018 head on VM, brain-janitor running, UI live grooveos.app/account/teams/brain/ + /account/admin/) |
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 11/11 | ✅ LIVE | 2026-05-17 (alembic 0019 head, memory-api rebuilt, verify-phase12.sh PASS 13/13 + 5 SKIP fixture, Firebase teams.js with new client_id Iv23liVnZvIN0Lo6isof live) |
 | 13. Chat → Brain Ingestion + Retrieval Enrichment | 8/8 | Complete   | 2026-05-27 |
-| 14. Portability Foundation | 0/TBD | Not started | - |
+| 14. Portability Foundation | 0/6 | Planned | - |
 | 15. Edition Mechanics | 0/TBD | Not started | - |
 | 16. OSS Light Packaging | 0/TBD | Not started | - |
 | 17. CI Lockstep | 0/TBD | Not started | - |
