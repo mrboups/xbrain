@@ -27,6 +27,24 @@ Capacités livrées et opérationnelles en production (https://grooveos.app + 30
 - **Superadmin dashboard cross-team** (Phase 11) — UI `/account/admin/` 4 sections (Brain Overview / Storage / Activity / Top Sources) avec drill-down par team, audit log sur chaque accès cross-team (`action='superadmin_brain_access'`), gated par `ADMIN_USER_SUBS` env
 - **GitHub App authentication** (Phase 12) — migration OAuth App → GitHub App "xbrain" (Client ID `Iv23liVnZvIN0Lo6isof`) avec multi-callback URLs natif (web + Chrome extension), JWT RS256 signing, installation tokens cachés (1h TTL), refresh token flow user-to-server (8h ghu_ + 6mo ghr_), table `installations` populée par webhook `installation` events, `GITHUB_API_PAT` retiré du runtime — ready for public deployment
 
+## Current Milestone: v2.0 — Open-Core Edition
+
+**Goal:** Rendre xbrain maintenable en 2+ éditions depuis UN seul codebase (OSS self-host / SaaS hébergé / self-host payant "pro"), pour qu'un update se propage à toutes les éditions automatiquement — jamais de fork.
+
+**Target features:**
+- **OSS light self-host** — une team installe chat + brain complet (analyse de doc, ingest, retrieval, truth-levels, connecteur ChatGPT-web via `mcp-brain`, clip) sur ~10 containers.
+- **Édition par config, pas par branche** — Docker Compose `profiles:` (untagged = cœur OSS, `integrations`/`pro`/`saas`/`ops`) + flag `EDITION` (oss|saas|pro) qui gate le montage des routers dans memory-api, le cœur brain/chat/retrieval/truth-level TOUJOURS actif.
+- **Tier self-host payant "pro"** — clé de licence Ed25519 vérifiée offline débloque le profil `pro` (graphe Neo4j/Graphiti, observabilité Langfuse).
+- **Fondation de portabilité** — dé-câbler ~28 `grooveos.app` / 15 `aibrussels` / 15 `default` team_scope vers la config ; `.env.example` OSS mince et remplissable.
+- **UI web chat autonome** — extraire le chat du popup de l'extension Chrome vers une web app hébergée (mutualisée avec la future PWA).
+- **CI lockstep** — une pipeline par commit build 1×, teste le sous-ensemble OSS ET le profil full, publie la release OSS ET déploie le SaaS.
+
+**Design source :** `.planning/features/open-core-edition-design.md`.
+
+**Revisite délibérément des frontières v1 "Out of Scope" :** "SaaS multi-tenant pour clients externes" et "pas de frontend custom à maintenir" — v2.0 introduit volontairement le split open-core et une UI web chat autonome. Les morceaux SaaS-only (multi-tenant, pont Pro/Max) restent derrière le profil/flag `saas`.
+
+**Hors scope v2.0 (tracks séparés) :** feature Email (envoi + lecture/recherche/ingest Gmail — absente aujourd'hui) et le fallback Grok clé-API + cap trial par message (trial SaaS).
+
 ## Requirements
 
 ### Validated

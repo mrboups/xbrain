@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: executing
-stopped_at: "Phase 13 LIVE 2026-05-24 — Chat → Brain Ingestion + Retrieval Enrichment shipped 8/8 plans. MEM-04 / CHAT-03 / CHAT-07 (the three unchecked v1 differentiator requirements) ticked [x]. New: Haiku 4.5 relevance filter + budget cap (memory-api); race-free INSERT … ON CONFLICT upsert in native_provider; LibreChat brain ingest hook + per-turn enricher; Open WebUI ingest + enrichment; verify-phase13.sh PASS 0/8 + 8 SKIP locally, awaiting VM deploy. Standing order: auto-run full integration check now."
-last_updated: "2026-07-11T00:00:00Z"
-last_activity: 2026-07-11 -- Quick task 260711-45b: extension session-bridge auto-deletes each claude.ai conversation after its completion stream (history cleanup)
+milestone: v2.0
+milestone_name: Open-Core Edition
+status: planning
+last_updated: "2026-07-11T12:56:52.066Z"
+last_activity: 2026-07-11
 progress:
-  total_phases: 13
-  completed_phases: 13
-  total_plans: 109
-  completed_plans: 109
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,13 +24,10 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 
 ## Current Position
 
-Phase: 13 (Chat → Brain Ingestion + Retrieval Enrichment — close the differentiator) — LIVE
-Plan: 8 of 8
-Status: Phase 13 LIVE — all 13 phases complete
-Last activity: 2026-06-06 — Quick task 260604-glo: built the OAuth 2.1 layer to make mcp-brain an official Claude.ai Custom Connector. memory-api = hand-rolled AS (alembic 0022 + 5 native /oauth/ routes un-prefixed, S256/PKCE/DCR/RFC7662, GitHub-login consent binds ONE team); mcp-brain = Protected Resource (oat_ introspection + RFC 8707 audience check, /.well-known/oauth-protected-resource at root, 401+WWW-Authenticate middleware, connector writes capped at source=claude.ai-connector + truth≤WORKING + single team). nginx + compose wired (app owns CORS, claude.ai in regex). Confirmed against installed mcp 1.27.2; live-smoke-tested the well-known route + unauth 401. Tasks 1-5 built+committed (05ca986→72e0f16) + tasks.source fix (migration 0023, commit 412d1a8); memory-api 16 pass/2 skip, mcp-brain 21 pass. **DEPLOYED + CONNECTED LIVE 2026-06-06**: alembic head 0023, full OAuth surface verified on the public path (AS metadata S256/none, single ACAO for claude.ai, protected-resource 401+WWW-Authenticate, DCR, authorize→GitHub, open-redirect 400); connector added in Claude.ai bound to team aibrussels (9 tools, oat_ token source=claude.ai-connector). GitHub App callback `api.grooveos.app/oauth/github-callback` added via Playwright. Pending: make the GitHub App public for non-owner members.** Earlier 2026-06-01 — Quick task 260601-uom: LibreChat web search. Scraper auto-fetch nudge (model calls our scraper on any URL) + SearXNG container = DONE + live. The LibreChat webSearch block was BACKED OUT after it crash-looped LibreChat (v0.8.5 rejects rerankerType "none" + no valid Firecrawl key — the one in config 401s). LibreChat recovered (RestartCount=0). Needs a valid Firecrawl/Tavily key to finish web search. Earlier 2026-06-01 — Quick task 260601-gcf: extension chat own-message not displaying until reopen. Backend realtime verified healthy (subscribe + publish OK); root cause was frontend — sendMessage never rendered the sent message, relying on the flaky-in-popup Centrifugo echo. Fix: optimistic render from the POST response (de-dup by id). User must reload the unpacked extension. No deploy. Earlier 2026-06-01 — Quick task 260601-3is: fixed the scraper "can't fetch" + added @claude URL browsing. Root cause: every MCP sidecar's real tool name ≠ its gateway registry id (scraper→scrape, etc.), so the aggregate's calls returned "Unknown tool" (old smoke test false-passed). Gateway now resolves single-tool sidecar names; extension @claude pre-fetches message URLs via the scraper into the uncached prompt. Live-verified. Deployed: rebuilt mcp-gateway + memory-api. Prior 260601-1ay (tokenless mcp-brain) below.
-Earlier 2026-06-01 — Quick task 260601-1ay: tokenless mcp-brain team resolution. Discovered LibreChat passive recall is structurally broken (enricher injects orphan Mongo messages, sender=undefined, never in the parentMessageId tree → never reach the model — team_scope fix alone was not enough). Pivoted to the ACTIVE memory_search tool: mcp-brain now resolves the team server-side from the LibreChat-forwarded email, gated by X-Internal-Secret==BRIDGE_SHARED_SECRET (public token path unchanged), via /v1/internal/resolve-team-scope + a minted bridge JWT. Zero per-user token. Live-verified end-to-end on VM (bridge JWT accepted by memory-api, memory_search returns the AI Brussels fact). Deployed: rebuilt mcp-brain + restarted librechat. Prior 260531-x8i (per-user team_scope in librechat-bridge) still in place. User to confirm in-browser.
-
-Progress: [██████████] 100% — 13 of 13 phases COMPLETE
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-07-11 — Milestone v2.0 started
 
 ## Performance Metrics
 
@@ -151,12 +147,12 @@ Recent decisions affecting current work:
 **Env vars wired**: 7 Phase 13 vars added to infrastructure/docker-compose.yml (commit 10d547b) and VM .env: RELEVANCE_HAIKU_ENABLED, RELEVANCE_HAIKU_MODEL=claude-haiku-4-5-20251001, RELEVANCE_HAIKU_TIMEOUT_S=3.0, RELEVANCE_DAILY_TOKEN_CAP_PER_TEAM=50000, BRAIN_INGEST_ENABLED, CHAT07_TOP_K=5, CHAT07_TRUTH_FILTER_MIN_LEVEL=VALIDATED.
 
 **verify-phase13.sh on VM** (TEST_TEAM_SCOPE=aibrussels): PASS 3 / SKIP 2 / FAIL 3.
+
 - PASS: (b) LibreChat live ingest — item_id minted, memory_items row + Qdrant point materialized end-to-end. (d) Haiku low-relevance skip. (e) Heuristic fallback ingests substantive messages.
 - SKIP: (c) OWUI pipeline only on docker network (unit-tested in 13-06). (f) no VALIDATED items yet (requires Brain Monitor promotion).
 - FAIL: (a)(g)(h) — test-helper auth/endpoint-shape bugs in test-phase13-cross-frontend.py, **not feature failures**. Helper sends bridge JWT to user-only endpoint and wrong body to Brain Monitor PATCH. Tightening task for the helper, not Phase 13 code.
 
 **Production proof**: memory-api logs show relevance_filter.classified events with cache_read_input_tokens=5201 (Anthropic prompt cache active — Haiku system prompt cached and reused), classify latency ~900ms, brain_ingest.external.ok events upserting to memory_items, brain_ingest.external.skipped_by_filter for short messages.
-
 
 ## Deferred Items
 
