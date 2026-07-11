@@ -24,6 +24,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 8: Granola Per-User + Universal Extraction Pipeline + Platform Agents** - Clé API Granola per-user (saisie manuelle onboarding, Fernet chiffré), pipeline extraction universel (LibreChat + Chrome ext + Granola → CRM + tasks), registry agent_definitions éditable par les admins avec agent meeting-recap seedé — **DONE 2026-05-09** (PASS: 7/7 verify-phase8.sh)
 - [x] **Phase 9: Session Bridge — Pro/Max Routing via Chrome Extension** - Les users xbrain consomment leur propre quota Claude Pro/Max au lieu de la clé API team. Nouveau microservice `session-bridge` (port 8105, OpenAI-compat ↔ WebSocket router), extension xbrain étendue (WebSocket persistant + fetch credentialed claude.ai), nouveau endpoint LibreChat "Claude (mon abonnement)", vhost nginx bridge.grooveos.app, table `user_external_sessions`. **Scope: Claude only — ChatGPT Plus déféré Phase 10.** — **LIVE 2026-05-12** (6/6 plans shipped, verify-phase9.sh PASS 6/6 with 2 acceptable SKIP on VM 2026-05-17)
 
+- [ ] **Phase 14: Portability Foundation** - De-hardcode `grooveos.app` / `aibrussels` / `default` team_scope into config; slim fillable OSS `.env.example`
+- [ ] **Phase 15: Edition Mechanics** - Compose `profiles:` + `EDITION` flag + router gating + Ed25519 license/entitlements so one codebase serves oss/saas/pro
+- [ ] **Phase 16: OSS Light Packaging** - Light compose + install docs + clean-install test on a fresh VM + standalone hosted web chat UI
+- [ ] **Phase 17: CI Lockstep** - One pipeline builds/tests both profiles, publishes the OSS release and deploys SaaS from the same commit
+
 ## Phase Details
 
 ### Phase 1: Socle Infra + Frontends + memory-api
@@ -423,10 +428,77 @@ Plans:
 - [x] 07-08-PLAN.md — Boucle polling granola_poller.py + service granola-sync dans docker-compose.yml (split de 07-05)
 - [x] 07-09-PLAN.md — D5 Trigger 3 : librechat-bridge task_intent_detector.py + hook mongo_watcher (chat → contains_action → task auto via 07-06)
 
+### Phase 14: Portability Foundation
+
+**Goal**: The entire stack is config-driven, not hardcoded — every `grooveos.app` domain reference, `aibrussels` team identifier, and `default` team_scope fallback is replaced by an environment-sourced value, so an operator can point a fresh install at their own domain and team without touching source code. This is the prerequisite for every other v2.0 phase: edition selection by config (Phase 15), OSS packaging (Phase 16), and CI lockstep (Phase 17) all assume the codebase no longer bakes in xbrain's own production identity.
+**Depends on**: Phase 13 (v1.0 complete) — first phase of milestone v2.0, no phase-internal dependency
+**Entry gate**: Milestone v1.0 SHIPPED (13/13 phases). Current state measured 2026-07-11: 28x `grooveos.app`, 15x `aibrussels`, 15x hardcoded `default` team_scope across the codebase; `.env.example` at 115 vars (~90% already externalized).
+**Requirements**: PORT-01, PORT-02
+**Success Criteria** (what must be TRUE):
+
+  1. A repo-wide search for `grooveos.app`, `aibrussels`, and hardcoded `team_scope="default"` / `'default'` string literals returns zero matches outside test fixtures and the design doc — every prior occurrence now reads from config/env at runtime.
+  2. Setting the new domain/team config vars to the current production values (`grooveos.app` / `aibrussels`) reproduces production behavior bit-for-bit — existing verify-phaseN.sh scripts for Phases 1-13 still PASS after the refactor (regression safety).
+  3. An operator can fill a single slim, documented OSS `.env.example` and get a working install pointed at their own domain and default team, without opening any source file to find a hidden hardcoded reference.
+  4. Setting the domain/team config vars to a different value (e.g. a fictitious `acme.example` domain / `acme` team) produces correctly-branded URLs, OAuth callback URLs, webhook URLs, and default team creation — no residual xbrain-specific string leaks through anywhere in the request/response path.
+
+**Plans**: TBD (populated by `/gsd:plan-phase 14`)
+**UI hint**: no (backend/config refactor — no new user-facing surface)
+
+### Phase 15: Edition Mechanics
+
+**Goal**: One codebase serves every edition (OSS self-host / SaaS hosted / paid self-host "pro") purely through deployment-time selection — Docker Compose `profiles:` pick which services run, an `EDITION` flag picks which memory-api routes/behaviors are active, and a signed Ed25519 license unlocks the paid `pro` tier offline. The core (brain, chat, retrieval, truth-levels, ChatGPT-web connector) is always mounted regardless of edition — a fix there ships to every edition automatically.
+**Depends on**: Phase 14 (portability foundation must land first — profiles/flags read config values, not hardcoded ones)
+**Entry gate**: Phase 14 SHIPPED — de-hardcoding complete, slim OSS `.env.example` exists.
+**Requirements**: EDIT-01, EDIT-02, EDIT-03
+**Success Criteria** (what must be TRUE):
+
+  1. An operator can bring up the OSS-light service set (~10 untagged services: memory-api, postgres, qdrant, centrifugo, nginx, minio, mcp-brain, mcp-gateway, mcp-scraper, brain-janitor) with `COMPOSE_PROFILES` unset, and separately opt into `integrations` (calendar/drive/deck/github/granola/searxng/agent-runtime), `pro` (neo4j/graphiti/langfuse), and `saas` (session-bridge/librechat/openwebui) profiles independently — verified service lists match the design blueprint's profile table exactly.
+  2. The identical `memory-api` Docker image, booted with `EDITION=oss`, exposes the always-on core routers (brain, chat, teams, memory, promotions/truth-levels, media, health, me, auth, ChatGPT-web connector) and does not expose SaaS/pro-only routers (waitlist, multi-tenant admin, external_sessions/bridge routing, billing) — no separate image build per edition.
+  3. Setting `EDITION=saas` or `EDITION=pro` on that same unmodified image mounts the additional routers at boot with no rebuild and no code change — only an env var flip.
+  4. A paying customer installs a valid Ed25519-signed license (`{customer, edition:"pro", entitlements, expires}`) and `pro`-gated features (graph, observability) unlock via `require_entitlement()` checks passing, verified offline (no phone-home call).
+  5. A missing, invalid, or corrupted license produces `edition=oss` behavior — pro features return locked/absent (not a crash, not a 500) — and an expired license degrades cleanly per the documented downgrade policy.
+
+**Plans**: TBD (populated by `/gsd:plan-phase 15`)
+**UI hint**: no (infra/backend gating — no new user-facing surface; existing frontends unaffected)
+
+### Phase 16: OSS Light Packaging
+
+**Goal**: A team with no prior knowledge of the xbrain source code can stand up the OSS-light edition (chat + full brain — doc analysis, ingest, retrieval, truth-levels, ChatGPT-web connector, clip) on a fresh VM from the install docs alone, and users can chat with their team brain from a standalone hosted web app without installing a browser extension.
+**Depends on**: Phase 14 (portability), Phase 15 (edition mechanics — profiles + EDITION flag must exist for the light compose to reference)
+**Entry gate**: Phase 14 + Phase 15 SHIPPED. OSS-light service set defined and boot-tested individually in Phase 15.
+**Requirements**: PKG-01, PKG-02
+**Success Criteria** (what must be TRUE):
+
+  1. Following only the published install docs (no source reading, no tribal knowledge), an operator provisions a fresh VM and reaches a running OSS-light stack — a clean-install test passes end-to-end.
+  2. The OSS-light compose profile (`COMPOSE_PROFILES` unset) boots ~10 services with all healthchecks green, matching the Phase 15 profile table.
+  3. A user on the fresh install can chat, upload/analyze a document, have it ingested and retrieved with truth-levels visible, connect via the ChatGPT-web connector, and clip a web page into memory — all without any `integrations`, `pro`, or `saas` profile enabled.
+  4. A user opens a standalone hosted web app (not the Chrome extension popup) and chats with their team brain with equivalent core functionality to the extension's chat surface — the chat UI is extracted from the extension into a shared, browser-extension-independent frontend.
+  5. Clip-to-memory (a headline OSS feature) is reachable from the standalone web app, not only from the browser extension.
+
+**Plans**: TBD (populated by `/gsd:plan-phase 16`)
+**UI hint**: yes (standalone web chat app is new user-facing surface — install docs + web app UI)
+
+### Phase 17: CI Lockstep
+
+**Goal**: One CI pipeline per commit builds images once, tests both the OSS subset and the full profile, then — from that same commit — publishes the OSS release and deploys the SaaS full profile. Editions can never drift apart because they are built, tested, and shipped together by construction; self-host installs upgrade via forward-only, edition-agnostic migrations.
+**Depends on**: Phase 15 (edition mechanics — profiles/flags must exist for CI to test "both profiles"), Phase 16 (OSS packaging — install docs + light compose must exist for CI to publish an OSS release)
+**Entry gate**: Phase 15 + Phase 16 SHIPPED. OSS release artifact shape (tagged images + light compose + install docs) already exists (produced manually in Phase 16); CI now automates producing and publishing it.
+**Requirements**: REL-01, REL-02, REL-03
+**Success Criteria** (what must be TRUE):
+
+  1. A single CI run, triggered by one commit to `main`, builds images exactly once and runs the test suite against both the OSS subset and the full profile before any publish or deploy step executes.
+  2. That same commit's CI run produces the published OSS release (tagged images + light compose + install docs) AND deploys the SaaS full profile to production — one commit SHA, both editions shipped, never a manual second push.
+  3. If either the OSS-subset tests or the full-profile tests fail, neither the OSS release nor the SaaS deploy proceeds — lockstep is enforced by the pipeline, not by developer discipline.
+  4. An operator running a self-hosted install applies a released migration and upgrades cleanly with a single command — the migration path is forward-only (no down-migrations required) and edition-agnostic (the same migration applies whether the install runs oss, saas, or pro).
+  5. Migrations are validated in CI against both profiles before release — a migration that would break one edition never reaches release.
+
+**Plans**: TBD (populated by `/gsd:plan-phase 17`)
+**UI hint**: no (CI/release infrastructure — no user-facing surface)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13
+Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14 → 15 → 16 → 17
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -444,6 +516,10 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 11/11 | ✅ LIVE | 2026-05-17 (verify-phase11.sh PASS 5/5 + 11 SKIP fixture, alembic 0018 head on VM, brain-janitor running, UI live grooveos.app/account/teams/brain/ + /account/admin/) |
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 11/11 | ✅ LIVE | 2026-05-17 (alembic 0019 head, memory-api rebuilt, verify-phase12.sh PASS 13/13 + 5 SKIP fixture, Firebase teams.js with new client_id Iv23liVnZvIN0Lo6isof live) |
 | 13. Chat → Brain Ingestion + Retrieval Enrichment | 8/8 | Complete   | 2026-05-27 |
+| 14. Portability Foundation | 0/TBD | Not started | - |
+| 15. Edition Mechanics | 0/TBD | Not started | - |
+| 16. OSS Light Packaging | 0/TBD | Not started | - |
+| 17. CI Lockstep | 0/TBD | Not started | - |
 
 ---
 
@@ -472,3 +548,27 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 *Roadmap created: 2026-05-02*
 *Granularity: coarse (3 phases)*
 *VM strategy: e2-medium (P1) → e2-standard-2 (P2 entry gate) → e2-standard-4 or split Langfuse VM (P3 entry gate)*
+
+
+---
+
+## Coverage Map v2.0 (10 requirements -> 4 phases)
+
+| Category | Phase 14 | Phase 15 | Phase 16 | Phase 17 |
+|----------|----------|----------|----------|----------|
+| PORT (2) | PORT-01, PORT-02 | -- | -- | -- |
+| EDIT (3) | -- | EDIT-01, EDIT-02, EDIT-03 | -- | -- |
+| PKG (2) | -- | -- | PKG-01, PKG-02 | -- |
+| REL (3) | -- | -- | -- | REL-01, REL-02, REL-03 |
+| **Total** | **2** | **3** | **2** | **3** |
+
+**Coverage: 10/10 v2.0 requirements mapped. No orphans.**
+
+**Out of scope for v2.0 (separate tracks, not folded into any phase):** Email feature (send + Gmail read/search/ingest); Grok API-key fallback + per-message trial cap (SaaS trial).
+
+**Phase dependency chain:** 14 -> 15 -> 16 -> 17, with Phase 16 depending on both 14 and 15, and Phase 17 depending on both 15 and 16 (per `.planning/features/open-core-edition-design.md` execution sequence A->B->C->D).
+
+---
+*Roadmap for milestone v2.0 created: 2026-07-11*
+*Granularity: coarse (4 phases -- matches the design blueprint's fixed A->B->C->D sequence, no extra phases invented)*
+*Design source: `.planning/features/open-core-edition-design.md`*

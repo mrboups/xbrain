@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Open-Core Edition
-status: planning
-last_updated: "2026-07-11T12:56:52.066Z"
+status: roadmapped
+last_updated: "2026-07-11T13:30:00.000Z"
 last_activity: 2026-07-11
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 13 — Chat → Brain Ingestion + Retrieval Enrichment — close the differentiator
+**Current focus:** Phase 14 — Portability Foundation (milestone v2.0 "Open-Core Edition", first of 4 phases: 14 Portability -> 15 Edition Mechanics -> 16 OSS Light Packaging -> 17 CI Lockstep)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-07-11 — Milestone v2.0 started
+Phase: Phase 14 — Portability Foundation (not started)
+Plan: — (awaiting `/gsd:plan-phase 14`)
+Status: Roadmap created — 10/10 v2.0 requirements mapped across 4 phases (14-17), 100% coverage validated
+Last activity: 2026-07-11 — ROADMAP.md + REQUIREMENTS.md traceability written for milestone v2.0
 
 ## Performance Metrics
 

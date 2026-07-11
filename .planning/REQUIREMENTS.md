@@ -33,6 +33,34 @@ Active scope. One codebase, multiple editions (OSS self-host / SaaS hosted / pai
 
 **Out of scope for v2.0 (separate tracks):** Email feature (send + Gmail read/search/ingest — absent today); Grok API-key fallback + per-message trial cap (SaaS trial).
 
+
+## v2.0 Traceability
+
+Mapping requirement -> phase for milestone v2.0 "Open-Core Edition". Filled by the roadmapper — 2026-07-11.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| PORT-01 | Phase 14 | Pending |
+| PORT-02 | Phase 14 | Pending |
+| EDIT-01 | Phase 15 | Pending |
+| EDIT-02 | Phase 15 | Pending |
+| EDIT-03 | Phase 15 | Pending |
+| PKG-01 | Phase 16 | Pending |
+| PKG-02 | Phase 16 | Pending |
+| REL-01 | Phase 17 | Pending |
+| REL-02 | Phase 17 | Pending |
+| REL-03 | Phase 17 | Pending |
+
+**Coverage:**
+- v2.0 requirements: 10 total (PORT x2, EDIT x3, PKG x2, REL x3)
+- Mapped to phases: 10/10
+- Phase 14 (Portability Foundation): 2 requirements
+- Phase 15 (Edition Mechanics): 3 requirements
+- Phase 16 (OSS Light Packaging): 2 requirements
+- Phase 17 (CI Lockstep): 3 requirements
+- Unmapped: 0
+- Out of scope for v2.0 (separate tracks, not phase-mapped): Email feature; Grok API-key fallback + per-message trial cap
+
 ---
 
 ## v1 Requirements
