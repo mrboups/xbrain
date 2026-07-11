@@ -2,7 +2,7 @@
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhGafHmIBShng7DkEsN5qQcTNhIaPNFlDTFBAgSO14eEV8/ObPMeDjoHiVh4+aobgIetWs4xES6dcqX56B3v+b1z/7r2HEo6ZFeLrspJsaIm0Iam2JVPUmyv6g3nS0VwkWFbvjjGL0ytx+695pEm/UJ7oBjF3r3LDHdaRG38l9ldebMKxGuPC9NVFG/y4q3zoZ2NTB1IcSnyd53mmg4cLGsUVtoGVXajc16Moikp3Yk2mItf/SzAjULOMpXKFR4lRsKGAbQmEpACSChuCG34LCD7no1MIG4KlWUd+s8kH6F3ehP+Lqs7+fZ3nBnJnCDSBshGb57rXxtKTvCfSWWXxDQIDAQAB",
   "manifest_version": 3,
   "name": "xbrain Web Clipper",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "xbrain team chat — realtime team conversations with Claude in the loop. Includes 📎 web clipper.",
   "permissions": ["identity", "activeTab", "storage", "alarms", "sidePanel", "clipboardWrite", "contextMenus", "notifications"],
   "background": {
