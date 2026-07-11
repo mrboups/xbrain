@@ -5,6 +5,36 @@
 
 **Note de lecture :** les requirements parlent de **capacités**, pas de frameworks. Les choix techniques (mem0, LibreChat, Qdrant, Neo4j, etc.) sont dans `PROJECT.md` et `research/STACK.md` et peuvent évoluer sans changer les REQ-IDs.
 
+## Milestone v2.0 Requirements — Open-Core Edition
+
+Active scope. One codebase, multiple editions (OSS self-host / SaaS hosted / paid self-host "pro"); a single update flows to all editions — never a fork. Design source: `.planning/features/open-core-edition-design.md`.
+
+### Portability (config-driven, not hardcoded)
+
+- [ ] **PORT-01**: An operator can point the entire stack at their own domain and keys via config alone — no `grooveos.app`, `aibrussels`, or hardcoded `default` team_scope remains in source
+- [ ] **PORT-02**: An operator can configure a fresh install from a slim, documented OSS `.env.example` without reading source code
+
+### Edition Mechanics
+
+- [ ] **EDIT-01**: An operator selects which services run via `COMPOSE_PROFILES` — untagged services are the OSS-light core; `integrations` / `pro` / `saas` / `ops` are opt-in
+- [ ] **EDIT-02**: The same memory-api image serves every edition — an `EDITION` flag (oss|saas|pro) gates SaaS/pro-only routers while brain, chat, retrieval, truth-levels and the ChatGPT-web connector stay always mounted
+- [ ] **EDIT-03**: A paying customer unlocks the `pro` profile by installing a signed Ed25519 license verified offline; a missing or invalid license falls back to OSS behavior
+
+### OSS Packaging
+
+- [ ] **PKG-01**: A team can stand up the OSS-light edition (chat + full brain: doc analysis, ingest, retrieval, truth-levels, ChatGPT connector, clip) on a fresh VM from the install docs alone
+- [ ] **PKG-02**: A user can chat and query their team brain from a standalone hosted web app, without installing a browser extension
+
+### Release / CI Lockstep
+
+- [ ] **REL-01**: A single CI run per commit builds images once and tests both the OSS subset and the full profile before any release
+- [ ] **REL-02**: One commit produces both the published OSS release (tagged images + light compose + install docs) and the deployed SaaS full profile
+- [ ] **REL-03**: An operator upgrades a running self-host install through a forward-only, edition-agnostic migration path
+
+**Out of scope for v2.0 (separate tracks):** Email feature (send + Gmail read/search/ingest — absent today); Grok API-key fallback + per-message trial cap (SaaS trial).
+
+---
+
 ## v1 Requirements
 
 Périmètre du milestone d'initialisation (Phases 1 + 2 + 3 de la roadmap). Tout ce qui doit exister pour que xbrain soit une plateforme utilisable et différenciante de bout en bout.
