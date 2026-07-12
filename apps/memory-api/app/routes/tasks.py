@@ -1,4 +1,4 @@
-"""/v1/tasks — task tracking CRUD (paid tier only — D4, D6)."""
+"""/v1/tasks — task tracking CRUD (D4, D6). Core in every edition."""
 
 import asyncio
 from datetime import date, datetime

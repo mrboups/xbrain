@@ -200,6 +200,31 @@ class Settings(BaseSettings):
             )
         return v
 
+    # === Phase 15 (EDIT-02) — deployment edition ===
+    # Decides which routers main.py mounts. ONE image serves both (D-15-05): an env flip at boot,
+    # never a rebuild, never a branch.
+    #   oss  (default) — the core: brain, chat, teams, memory, promotions/truth-levels, media,
+    #                    graph, health, me, auth, and the ChatGPT/Claude.ai web connector.
+    #   saas           — all of the above PLUS the hosted-control-plane routers
+    #                    (waitlist, external_sessions).
+    # There is NO `pro` edition: the paid self-host tier and its Ed25519 license were dropped by
+    # locked decision Q6 (requirement EDIT-03 is cancelled). No product feature is paywalled.
+    # An unknown value MUST fail fast rather than silently fall back to `oss` — a typo'd
+    # EDITION=Saas on a hosted deploy would otherwise 404 the whole control plane in production.
+    EDITION: str = "oss"
+
+    @field_validator("EDITION")
+    @classmethod
+    def _validate_edition(cls, v: str) -> str:
+        allowed = {"oss", "saas"}
+        if v not in allowed:
+            raise ValueError(
+                f"EDITION must be one of {sorted(allowed)}, got {v!r} — "
+                f"set it in .env (EDITION=oss for self-host, EDITION=saas for the hosted control "
+                f"plane). There is no `pro` edition; the paid self-host tier was dropped."
+            )
+        return v
+
     # Phase 13 — Chat → Brain Ingestion + Retrieval Enrichment
     RELEVANCE_HAIKU_ENABLED: bool = True
     RELEVANCE_DAILY_TOKEN_CAP_PER_TEAM: int = 50_000  # input tokens per team per day
