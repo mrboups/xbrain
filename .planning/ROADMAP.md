@@ -24,7 +24,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 8: Granola Per-User + Universal Extraction Pipeline + Platform Agents** - Clé API Granola per-user (saisie manuelle onboarding, Fernet chiffré), pipeline extraction universel (LibreChat + Chrome ext + Granola → CRM + tasks), registry agent_definitions éditable par les admins avec agent meeting-recap seedé — **DONE 2026-05-09** (PASS: 7/7 verify-phase8.sh)
 - [x] **Phase 9: Session Bridge — Pro/Max Routing via Chrome Extension** - Les users xbrain consomment leur propre quota Claude Pro/Max au lieu de la clé API team. Nouveau microservice `session-bridge` (port 8105, OpenAI-compat ↔ WebSocket router), extension xbrain étendue (WebSocket persistant + fetch credentialed claude.ai), nouveau endpoint LibreChat "Claude (mon abonnement)", vhost nginx bridge.grooveos.app, table `user_external_sessions`. **Scope: Claude only — ChatGPT Plus déféré Phase 10.** — **LIVE 2026-05-12** (6/6 plans shipped, verify-phase9.sh PASS 6/6 with 2 acceptable SKIP on VM 2026-05-17)
 
-- [ ] **Phase 14: Portability Foundation** - De-hardcode `grooveos.app` / `aibrussels` / `default` team_scope into config; slim fillable OSS `.env.example`
+- [x] **Phase 14: Portability Foundation** - De-hardcode `grooveos.app` / `aibrussels` / `default` team_scope into config; slim fillable OSS `.env.example` (completed 2026-07-12)
 - [ ] **Phase 15: Edition Mechanics** - Compose `profiles:` + `EDITION` flag + router gating + Ed25519 license/entitlements so one codebase serves oss/saas/pro
 - [ ] **Phase 16: OSS Light Packaging** - Light compose + install docs + clean-install test on a fresh VM + standalone hosted web chat UI
 - [ ] **Phase 17: CI Lockstep** - One pipeline builds/tests both profiles, publishes the OSS release and deploys SaaS from the same commit
@@ -467,7 +467,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 — the acceptance gate)*
 
-- [ ] 14-06-PLAN.md — Regression safety: parameterize the verify/infra scripts + `preflight-env.sh` crashloop guard + `verify-phase14.sh` (PORT-01/PORT-02 gate) + the DEFERRED live-regression checkpoint
+- [x] 14-06-PLAN.md — Regression safety: parameterize the verify/infra scripts + `preflight-env.sh` crashloop guard + `verify-phase14.sh` (PORT-01/PORT-02 gate) + the DEFERRED live-regression checkpoint
 
 **Wave order**: 1 (14-01 + 14-02 + 14-03a ∥) → 2 (14-03b + 14-05 ∥) → 3 (14-04) → 4 (14-06)
 
@@ -570,7 +570,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 11/11 | ✅ LIVE | 2026-05-17 (verify-phase11.sh PASS 5/5 + 11 SKIP fixture, alembic 0018 head on VM, brain-janitor running, UI live grooveos.app/account/teams/brain/ + /account/admin/) |
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 11/11 | ✅ LIVE | 2026-05-17 (alembic 0019 head, memory-api rebuilt, verify-phase12.sh PASS 13/13 + 5 SKIP fixture, Firebase teams.js with new client_id Iv23liVnZvIN0Lo6isof live) |
 | 13. Chat → Brain Ingestion + Retrieval Enrichment | 8/8 | Complete   | 2026-05-27 |
-| 14. Portability Foundation | 7/8 | In Progress|  |
+| 14. Portability Foundation | 8/8 | Complete   | 2026-07-12 |
 | 15. Edition Mechanics | 0/TBD | Not started | - |
 | 16. OSS Light Packaging | 0/TBD | Not started | - |
 | 17. CI Lockstep | 0/TBD | Not started | - |
