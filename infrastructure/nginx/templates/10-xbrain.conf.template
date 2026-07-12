@@ -27,10 +27,10 @@ set_real_ip_from 104.24.0.0/14;
 set_real_ip_from 172.64.0.0/13;
 set_real_ip_from 131.0.72.0/22;
 
-# === LibreChat at chat.grooveos.app ===
+# === LibreChat (chat subdomain) ===
 server {
   listen 80;
-  server_name chat.grooveos.app;
+  server_name chat.${XBRAIN_BASE_DOMAIN};
 
   # Healthcheck nginx (utilisé par docker)
   location /nginx-health { return 200 "ok\n"; access_log off; }
@@ -129,10 +129,10 @@ server {
   }
 }
 
-# === Open WebUI at adm.grooveos.app ===
+# === Open WebUI (adm subdomain) ===
 server {
   listen 80;
-  server_name adm.grooveos.app;
+  server_name adm.${XBRAIN_BASE_DOMAIN};
 
   client_max_body_size 50m;
 
@@ -152,10 +152,10 @@ server {
   }
 }
 
-# === Langfuse (observability) at lang.grooveos.app ===
+# === Langfuse (observability, lang subdomain) ===
 server {
   listen 80;
-  server_name lang.grooveos.app;
+  server_name lang.${XBRAIN_BASE_DOMAIN};
 
   client_max_body_size 50m;
 
@@ -179,5 +179,5 @@ server {
 server {
   listen 80 default_server;
   server_name _;
-  return 302 https://chat.grooveos.app$request_uri;
+  return 302 https://chat.$XBRAIN_BASE_DOMAIN$request_uri;
 }

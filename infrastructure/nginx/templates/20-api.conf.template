@@ -1,10 +1,10 @@
-# === memory-api + drive-sync webhooks at api.grooveos.app ===
+# === memory-api + drive-sync webhooks (api subdomain) ===
 # Public API endpoint:
 #   /v1/drive-webhook  -> drive-sync:8200/webhook  (Google Drive push notifications)
 #   /v1/*              -> memory-api:8001           (all other memory-api routes)
 server {
   listen 80;
-  server_name api.grooveos.app;
+  server_name api.${XBRAIN_BASE_DOMAIN};
 
   client_max_body_size 10m;
 

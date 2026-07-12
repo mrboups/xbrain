@@ -1,7 +1,7 @@
-# === mcp-brain remote MCP server at mcp.grooveos.app ===
+# === mcp-brain remote MCP server (mcp subdomain) ===
 server {
   listen 80;
-  server_name mcp.grooveos.app;
+  server_name mcp.${XBRAIN_BASE_DOMAIN};
   client_max_body_size 2m;
 
   # quick-260604-glo: GET /.well-known/oauth-protected-resource is served by
