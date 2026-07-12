@@ -1,11 +1,6 @@
 {
   "client": {
-    "allowed_origins": [
-      "chrome-extension://*",
-      "https://chat.grooveos.app",
-      "https://app.grooveos.app",
-      "https://xbrain-495115.web.app"
-    ],
+    "allowed_origins": [],
     "token": {
       "hmac_secret_key": ""
     },

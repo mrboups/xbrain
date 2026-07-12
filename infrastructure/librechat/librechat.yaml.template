@@ -25,7 +25,7 @@ interface:
 registration:
   socialLogins: ["google", "github"]
   allowedDomains:
-    - "grooveos.app"
+    - "${LIBRECHAT_ALLOWED_DOMAINS}"
     - "gmail.com"
     # Note: no domain filter for GitHub — org membership is enforced in memory-api (plan 05-02)
 
@@ -81,7 +81,7 @@ endpoints:
     # request never reaches baseURL. Keep the slash only in modelDisplayLabel.
     - name: "Claude Pro Max"
       apiKey: "user_provided"
-      baseURL: "https://bridge.grooveos.app/v1"
+      baseURL: "${BRIDGE_BASE_URL}"
       models:
         default: ["claude-opus-4-7", "claude-sonnet-4-6"]
         fetch: false
@@ -208,7 +208,7 @@ mcpServers:
     customUserVars:
       XBRAIN_TOKEN:
         title: "xbrain API token (optional for LibreChat)"
-        description: "Optional for LibreChat users — your team is auto-resolved from your login email. Required for ChatGPT/Claude.ai: copy your xbt_ token from <a href='https://grooveos.app/account/teams/' target='_blank'>grooveos.app/account/teams</a> (or the Chrome extension)."
+        description: "Optional for LibreChat users — your team is auto-resolved from your login email. Required for ChatGPT/Claude.ai: copy your xbt_ token from <a href='${APP_TEAMS_URL}' target='_blank'>your team settings</a> (or the Chrome extension)."
 
   # GitHub repo tools — github_list_files, github_read_file, github_sync_repo.
   # Points straight at mcp-github (NOT the gateway aggregate) so it receives the

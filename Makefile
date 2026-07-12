@@ -62,7 +62,13 @@ sync:  ## Rsync code vers la VM (sans deploy)
 	$(RSYNC) ./ $(VM_USER)@$(VM_HOST):/home/$(VM_USER)/xbrain/
 
 .PHONY: deploy
-deploy: sync  ## Sync + (re)build + up sur la VM
+deploy: env-check sync  ## Sync + (re)build + up sur la VM
+	@# Phase 14 remote guard — env-check only reads the LOCAL .env; the VM .env is
+	@# the one that actually boots the containers, and project memory
+	@# (project_xbrain_vm_env_gotchas) confirms VM .env vars go missing. Check the
+	@# SAME 5 now-mandatory vars remotely before syncing a config that would
+	@# crashloop memory-api/mcp-brain, break ingress, block CORS, or kill @mentions.
+	$(SSH) 'cd /home/$(VM_USER)/xbrain && for v in OAUTH_ISSUER_URL OAUTH_RESOURCE_URL CORS_ALLOWED_ORIGIN_REGEX XBRAIN_BASE_DOMAIN AGENT_MENTION_ALIASES; do grep -qE "^$$v=.+" .env || { echo "ABORT: VM .env is missing $$v"; exit 1; }; done' || (echo "ABORT: the VM .env is missing a now-mandatory var — deploying would crashloop memory-api/mcp-brain, or silently break the ingress / CORS / @mentions. See 14-06-SUMMARY.md DEPLOY-PREREQ."; exit 1)
 	$(SSH) 'cd /home/$(VM_USER)/xbrain && docker compose -f infrastructure/docker-compose.yml --env-file .env up -d --build'
 
 .PHONY: vm-logs
@@ -94,6 +100,6 @@ restore-test:  ## Test restore sur env clean (cf. plan 01-06, success criterion 
 # === Utilities ===
 .PHONY: env-check
 env-check:  ## Vérifie que toutes les vars critiques sont dans .env
-	@bash -c 'source .env 2>/dev/null && for v in POSTGRES_PASSWORD GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET BRIDGE_SHARED_SECRET MEILI_MASTER_KEY OPENWEBUI_SECRET_KEY; do \
-		if [ -z "$${!v}" ]; then echo "MISSING: $$v"; exit 1; fi; \
+	@bash -c 'source .env 2>/dev/null && for v in POSTGRES_PASSWORD GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET BRIDGE_SHARED_SECRET MEILI_MASTER_KEY OPENWEBUI_SECRET_KEY OAUTH_ISSUER_URL OAUTH_RESOURCE_URL CORS_ALLOWED_ORIGIN_REGEX XBRAIN_BASE_DOMAIN AGENT_MENTION_ALIASES; do \
+		if [ -z "$${!v}" ]; then echo "MISSING: $$v — see .planning/phases/14-portability-foundation/14-06-SUMMARY.md (DEPLOY-PREREQ)"; exit 1; fi; \
 	done && echo "All required env vars present."'
