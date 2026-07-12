@@ -463,7 +463,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 14-04-PLAN.md — Slim, documented OSS `.env.example` (PORT-02) + delete the vestigial infrastructure/.env.example
+- [x] 14-04-PLAN.md — Slim, documented OSS `.env.example` (PORT-02) + delete the vestigial infrastructure/.env.example
 
 **Wave 4** *(blocked on Wave 3 — the acceptance gate)*
 
@@ -570,7 +570,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 11/11 | ✅ LIVE | 2026-05-17 (verify-phase11.sh PASS 5/5 + 11 SKIP fixture, alembic 0018 head on VM, brain-janitor running, UI live grooveos.app/account/teams/brain/ + /account/admin/) |
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 11/11 | ✅ LIVE | 2026-05-17 (alembic 0019 head, memory-api rebuilt, verify-phase12.sh PASS 13/13 + 5 SKIP fixture, Firebase teams.js with new client_id Iv23liVnZvIN0Lo6isof live) |
 | 13. Chat → Brain Ingestion + Retrieval Enrichment | 8/8 | Complete   | 2026-05-27 |
-| 14. Portability Foundation | 5/7 | In Progress|  |
+| 14. Portability Foundation | 7/8 | In Progress|  |
 | 15. Edition Mechanics | 0/TBD | Not started | - |
 | 16. OSS Light Packaging | 0/TBD | Not started | - |
 | 17. CI Lockstep | 0/TBD | Not started | - |
