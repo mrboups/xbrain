@@ -12,16 +12,35 @@
 # container start, makes ALL THREE of librechat.yaml's brand strings resolve
 # uniformly regardless of which mechanism LibreChat itself uses per-field.
 #
-# Only the 3 vars below are substituted — every other ${VAR} in the file
+# Only the vars below are substituted — every other ${VAR} in the file
 # (apiKey, MCP headers, etc.) is left untouched for LibreChat's own native
 # per-field substitution to resolve from the same process.env at runtime.
 set -e
+
+# Phase 14 (14-07) — AGENT_MENTION_PRIMARY derivation.
+#
+# Why derived, not configured separately: the promptPrefix system prompts need
+# to NAME a mention alias that actually resolves server-side. The server-side
+# detector (memory-api's mention_detector.py, see 14-01) reads the FULL alias
+# SET from AGENT_MENTION_ALIASES and treats it as unordered — any listed alias
+# resolves. A second "display alias" env var would be a second source of truth
+# that could silently drift from the real list (e.g. an operator updates the
+# alias list but forgets the display var, and the prompt names an alias that no
+# longer resolves). Instead AGENT_MENTION_PRIMARY is always DERIVED as the first
+# comma-separated entry of AGENT_MENTION_ALIASES — by construction it is always
+# a member of the working alias set. Ordering the list is therefore a free,
+# purely-cosmetic lever: AGENT_MENTION_ALIASES=chad,agent makes the prompt show
+# "@chad" while both "@chad" and "@agent" still resolve.
+AGENT_MENTION_PRIMARY=$(printf '%s' "${AGENT_MENTION_ALIASES:-agent}" \
+  | cut -d, -f1 | tr -d '[:space:]@')
+[ -z "$AGENT_MENTION_PRIMARY" ] && AGENT_MENTION_PRIMARY=agent
+export AGENT_MENTION_PRIMARY
 
 TEMPLATE=/app/librechat.yaml.template
 RENDERED=/app/librechat.yaml
 
 if [ -f "$TEMPLATE" ]; then
-  envsubst '$LIBRECHAT_ALLOWED_DOMAINS $BRIDGE_BASE_URL $APP_TEAMS_URL' \
+  envsubst '$LIBRECHAT_ALLOWED_DOMAINS $BRIDGE_BASE_URL $APP_TEAMS_URL $AGENT_MENTION_PRIMARY' \
     < "$TEMPLATE" > "$RENDERED"
 fi
 
