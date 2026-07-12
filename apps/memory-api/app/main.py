@@ -93,9 +93,9 @@ async def lifespan(app: FastAPI):
 # ::test_every_router_module_is_classified FAILS until it is classified. That test is the whole
 # point: "a router that is forgotten defaults to mounted", so forgetting one must be loud.
 #
-# The default is CORE. No product feature is paywalled (locked decision Q6 — the paid tier and its
-# Ed25519 license were dropped, requirement EDIT-03 is cancelled). The ONLY routers withheld from an
-# OSS install are the ones that are meaningless without the HOSTED CONTROL PLANE.
+# The default is CORE. No product feature is paywalled (locked decision Q6 — the paid self-host
+# tier and its Ed25519 license were dropped, requirement EDIT-03 is cancelled). The ONLY routers
+# withheld from an OSS install are the ones that are meaningless without the HOSTED CONTROL PLANE.
 CORE_ROUTERS: list[tuple[APIRouter, str, list[str]]] = [
     (health.router, "/v1", ["health"]),
     (internal.router, "/v1", ["internal"]),
