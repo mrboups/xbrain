@@ -65,3 +65,21 @@ RUN grep -q "xbrain-routes" /app/api/server/index.js && \
     grep -q "xbrain-login.js?v=5" /app/client/dist/index.html && \
     grep -rq "Login Groove OS" /app/client/dist/assets/ && \
     echo "All patches verified OK"
+
+# Patch 9 (Plan 14-03b): entrypoint-envsubst fallback for librechat.yaml's 3
+# ${VAR} brand strings. LibreChat's native ${VAR} substitution only fires at
+# specific field-consumption sites (apiKey, custom endpoint baseURL, MCP
+# url/env/headers) — NOT registration.allowedDomains or customUserVars.description
+# (proven by inspecting the shipped v0.8.5 source; see 14-03b-SUMMARY.md).
+# librechat.yaml.template is bind-mounted read-only by docker-compose; this
+# entrypoint renders it to /app/librechat.yaml (writable, image-local) before
+# handing off to the original entrypoint.
+# Base image runs as non-root `node` (verified via `docker inspect .Config.User`);
+# apk + writing to /usr/local/bin require root, so switch briefly then restore
+# `node` for runtime — the base image's own least-privilege default.
+USER root
+RUN apk add --no-cache gettext
+COPY patches/render-config-entrypoint.sh /usr/local/bin/render-config-entrypoint.sh
+RUN chmod +x /usr/local/bin/render-config-entrypoint.sh
+USER node
+ENTRYPOINT ["/usr/local/bin/render-config-entrypoint.sh"]

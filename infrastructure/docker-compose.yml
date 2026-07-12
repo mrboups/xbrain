@@ -438,13 +438,15 @@ services:
       # Allow frequent OAuth logins (default 7/5min is too tight for multi-provider testing)
       LOGIN_MAX: ${LOGIN_MAX:-50}
       LOGIN_WINDOW: ${LOGIN_WINDOW:-1}
-      # Phase 14: librechat.yaml resolves these 3 vars via ${VAR} at container startup.
+      # Phase 14: the render-config-entrypoint (apps/librechat/Dockerfile) envsubst's
+      # these 3 vars into librechat.yaml.template at container start (LibreChat's own
+      # ${VAR} mechanism does not cover registration.allowedDomains / customUserVars).
       LIBRECHAT_ALLOWED_DOMAINS: ${LIBRECHAT_ALLOWED_DOMAINS:-localhost}
       BRIDGE_BASE_URL: ${BRIDGE_BASE_URL:-http://session-bridge:8105/v1}
       APP_TEAMS_URL: ${APP_TEAMS_URL:-http://localhost:8000/account/teams/}
     volumes:
       - librechat_uploads:/app/client/public/uploads
-      - ./librechat/librechat.yaml:/app/librechat.yaml:ro
+      - ./librechat/librechat.yaml.template:/app/librechat.yaml.template:ro
     networks: [xbrain_net]
     mem_limit: 384m
     depends_on:
