@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "description": "Access your team's persistent memory, tasks, and CRM contacts on xbrain. Get your personal API token at POST /v1/me/api-token using your Google or GitHub account."
   },
-  "servers": [{"url": "https://api.grooveos.app"}],
+  "servers": [{"url": "https://api.example.com"}],
   "security": [{"bearerAuth": []}],
   "components": {
     "securitySchemes": {

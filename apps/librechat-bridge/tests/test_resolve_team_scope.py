@@ -49,10 +49,10 @@ async def test_returns_slug_when_client_resolves():
     _clear_cache()
     from app.mongo_watcher import resolve_team_scope
 
-    client = _make_client_mock(return_value="aibrussels")
+    client = _make_client_mock(return_value="your-team")
     result = await resolve_team_scope(client, "email:alice@test.local")
 
-    assert result == "aibrussels"
+    assert result == "your-team"
     client.resolve_team_scope.assert_called_once_with(sub="email:alice@test.local")
 
 

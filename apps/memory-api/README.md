@@ -58,4 +58,4 @@ Storage is migration `0022_oauth_as_tables` (`oauth_clients`, `oauth_authorizati
 `/.well-known/oauth-protected-resource` and the `/mcp` endpoint. Connector-originated writes
 are forced to `source=claude.ai-connector`, capped at `truth_level=WORKING`, and scoped to the
 bound team. Env: `OAUTH_ISSUER_URL`, `OAUTH_RESOURCE_URL`. End-user guide:
-<https://grooveos.app/docs/claude-connector.html>.
+<https://example.com/docs/claude-connector.html>.

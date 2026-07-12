@@ -279,7 +279,7 @@ async def test_auto_grant_blocked_login_returns_xbt_but_zero_teams_joined(
         "/v1/auth/github/signin",
         json={
             "code": "test_code",
-            "redirect_uri": "https://grooveos.app/account/teams/",
+            "redirect_uri": "https://example.com/account/teams/",
             "state": "csrf_test_state",
         },
     )
@@ -368,7 +368,7 @@ async def test_auto_grant_unblocked_login_joins_org_matched_team(
         "/v1/auth/github/signin",
         json={
             "code": "test_code",
-            "redirect_uri": "https://grooveos.app/account/teams/",
+            "redirect_uri": "https://example.com/account/teams/",
             "state": "csrf_test_state",
         },
     )
