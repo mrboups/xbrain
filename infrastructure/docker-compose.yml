@@ -122,7 +122,9 @@ services:
       # Phase 3 plan 03-10: Drive OAuth config
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       OAUTH_CREDENTIALS_ENCRYPTION_KEY: ${OAUTH_CREDENTIALS_ENCRYPTION_KEY:-}
-      MEMORY_API_EXTERNAL_URL: ${MEMORY_API_EXTERNAL_URL:-https://chat.grooveos.app}
+      MEMORY_API_EXTERNAL_URL: ${MEMORY_API_EXTERNAL_URL:-http://localhost:8000}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:8000}
+      CORS_ALLOWED_ORIGIN_REGEX: "${CORS_ALLOWED_ORIGIN_REGEX:-(chrome-extension://.*|http://localhost(:\\d+)?)}"
       # Phase 5 plan 05-01: Graphiti enrichment (fail-soft if not set)
       GRAPHITI_SERVICE_URL: ${GRAPHITI_SERVICE_URL:-http://graphiti-service:8300}
       # Phase 5 plan 05-02: GitHub OAuth membership verification
@@ -144,10 +146,10 @@ services:
       GITHUB_APP_WEBHOOK_SECRET: ${GITHUB_APP_WEBHOOK_SECRET:-}
       # github-read stopgap: user OAuth token used when the App isn't installed
       GITHUB_FALLBACK_TOKEN: ${GITHUB_FALLBACK_TOKEN:-}
-      # Waitlist email proxy (grooveos.app landing page)
+      # Waitlist email proxy (landing page)
       RESEND_API_KEY: ${RESEND_API_KEY:-}
-      WAITLIST_TO: ${WAITLIST_TO:-team@grooveos.app}
-      WAITLIST_FROM: ${WAITLIST_FROM:-GrooveOS <waitlist@grooveos.app>}
+      WAITLIST_TO: ${WAITLIST_TO:-}
+      WAITLIST_FROM: ${WAITLIST_FROM:-Example <waitlist@example.com>}
       # Phase 8: Granola per-user key encryption + GitHub repos proxy
       FERNET_KEY: ${FERNET_KEY:-${OAUTH_CREDENTIALS_ENCRYPTION_KEY}}
       LIBRECHAT_INTERNAL_URL: ${LIBRECHAT_INTERNAL_URL:-http://librechat:3080}
@@ -167,7 +169,7 @@ services:
       CENTRIFUGO_TOKEN_HMAC_SECRET: ${CENTRIFUGO_TOKEN_HMAC_SECRET:-}
       CENTRIFUGO_API_KEY: ${CENTRIFUGO_API_KEY:-}
       CENTRIFUGO_HTTP_URL_INTERNAL: ${CENTRIFUGO_HTTP_URL_INTERNAL:-http://centrifugo:8000}
-      CENTRIFUGO_WS_URL_PUBLIC: ${CENTRIFUGO_WS_URL_PUBLIC:-wss://centrifugo.grooveos.app/connection/websocket}
+      CENTRIFUGO_WS_URL_PUBLIC: ${CENTRIFUGO_WS_URL_PUBLIC:-ws://localhost:8000/connection/websocket}
       # Superadmin wipe-database: drop LibreChat Mongo DB + clear MinIO xbrain-decks bucket.
       LIBRECHAT_MONGO_URI: ${LIBRECHAT_MONGO_URI:-mongodb://librechat-mongo:27017/LibreChat}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-langfuse-minio:9000}
@@ -185,8 +187,10 @@ services:
       # Quick task 260604-glo — OAuth 2.1 AS (Claude.ai Custom Connector).
       # OAUTH_ISSUER_URL = public base for AS metadata + /oauth/* endpoints.
       # OAUTH_RESOURCE_URL = mcp-brain audience the issued tokens are bound to.
-      OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:-https://api.grooveos.app}
-      OAUTH_RESOURCE_URL: ${OAUTH_RESOURCE_URL:-https://mcp.grooveos.app/mcp}
+      # EMPTY is intentional and boot-fatal (14-01 field_validator) — the Makefile
+      # env-check guard (Task 3) is what stops a blind deploy against a missing value.
+      OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:-}
+      OAUTH_RESOURCE_URL: ${OAUTH_RESOURCE_URL:-}
     networks: [xbrain_net]
     # 384m was the Phase 1 (e2-medium 4GB) budget. The signin path (PyJWT
     # RS256 + GitHub token exchange + profile fetch + DB writes) pushed RSS
@@ -391,6 +395,9 @@ services:
     build:
       context: ../apps/librechat
       dockerfile: Dockerfile
+      args:
+        # Feeds 14-02's onboarding.js sed; empty = same-origin fallback.
+        MEMORY_API_BASE_URL: ${LIBRECHAT_MEMORY_API_BASE:-}
     image: xbrain/librechat:phase8g
     container_name: xbrain-librechat
     restart: unless-stopped
@@ -431,6 +438,10 @@ services:
       # Allow frequent OAuth logins (default 7/5min is too tight for multi-provider testing)
       LOGIN_MAX: ${LOGIN_MAX:-50}
       LOGIN_WINDOW: ${LOGIN_WINDOW:-1}
+      # Phase 14: librechat.yaml resolves these 3 vars via ${VAR} at container startup.
+      LIBRECHAT_ALLOWED_DOMAINS: ${LIBRECHAT_ALLOWED_DOMAINS:-localhost}
+      BRIDGE_BASE_URL: ${BRIDGE_BASE_URL:-http://session-bridge:8105/v1}
+      APP_TEAMS_URL: ${APP_TEAMS_URL:-http://localhost:8000/account/teams/}
     volumes:
       - librechat_uploads:/app/client/public/uploads
       - ./librechat/librechat.yaml:/app/librechat.yaml:ro
@@ -464,7 +475,7 @@ services:
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
       OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL}
       OPENAI_API_KEY: ${PIPELINE_API_KEY}
-      WEBUI_URL: https://adm.grooveos.app
+      WEBUI_URL: ${WEBUI_URL:-http://localhost:8080}
     volumes:
       - openwebui_data:/app/backend/data
     networks: [xbrain_net]
@@ -612,7 +623,7 @@ services:
     logging: *default-logging
     environment:
       DATABASE_URL: ${LANGFUSE_POSTGRES_URL}
-      NEXTAUTH_URL: ${LANGFUSE_HOST:-https://lang.grooveos.app}
+      NEXTAUTH_URL: ${LANGFUSE_HOST:-http://localhost:3000}
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET}
       SALT: ${LANGFUSE_SALT}
       ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
@@ -625,7 +636,7 @@ services:
       REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD}
       LANGFUSE_INIT_ORG_ID: xbrain
       LANGFUSE_INIT_ORG_NAME: xbrain
-      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-team@grooveos.app}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-admin@example.com}
       LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-xbrain admin}
       LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD}
       LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_INIT_PROJECT_NAME:-xbrain}
@@ -845,8 +856,11 @@ services:
       # presenting BRIDGE_SHARED_SECRET as X-Internal-Secret. OAUTH_ISSUER_URL +
       # OAUTH_RESOURCE_URL back the protected-resource metadata + audience check.
       MEMORY_API_OAUTH_INTROSPECT_URL: ${MEMORY_API_OAUTH_INTROSPECT_URL:-http://memory-api:8000/oauth/introspect}
-      OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:-https://api.grooveos.app}
-      OAUTH_RESOURCE_URL: ${OAUTH_RESOURCE_URL:-https://mcp.grooveos.app/mcp}
+      # EMPTY is intentional and boot-fatal (14-01 field_validator) — MUST stay in
+      # lockstep with the memory-api OAuth vars above (same .env var feeds both;
+      # a partial fix mints tokens for one resource and rejects them at the other).
+      OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:-}
+      OAUTH_RESOURCE_URL: ${OAUTH_RESOURCE_URL:-}
     expose:
       - "8104"
     networks: [xbrain_net]
@@ -897,7 +911,7 @@ services:
   # the xbrain Chrome extension. Validates xbt_ tokens via memory-api, signs a
   # bridge JWT (BRIDGE_SHARED_SECRET) to upsert user_external_sessions on
   # extension `register` frames. Single-instance (in-memory WS pool); fronted
-  # by nginx vhost bridge.grooveos.app (plan 09-04).
+  # by the nginx bridge vhost (plan 09-04).
   session-bridge:
     build:
       context: ../apps/session-bridge
@@ -926,7 +940,7 @@ services:
   # === centrifugo (quick task 260512-tcr) — realtime WS broker for team chat ===
   # MIT-licensed Go binary. Channels `team:<id>` (broadcast) + `user:<sub>` (Phase 2).
   # JWT auth via CENTRIFUGO_TOKEN_HMAC_SECRET, server-side publish via CENTRIFUGO_API_KEY.
-  # Fronted by nginx vhost centrifugo.grooveos.app.
+  # Fronted by the nginx centrifugo vhost.
   centrifugo:
     image: centrifugo/centrifugo:v6
     container_name: xbrain-centrifugo
@@ -941,6 +955,10 @@ services:
       # to the path-derived var names Centrifugo expects.
       CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY: ${CENTRIFUGO_TOKEN_HMAC_SECRET}
       CENTRIFUGO_HTTP_API_KEY: ${CENTRIFUGO_API_KEY}
+      # client.allowed_origins overlay (space-separated list, Centrifugo v6 slice
+      # env format). chrome-extension://* MUST stay in the default or the
+      # extension's WebSocket is origin-rejected and realtime dies.
+      CENTRIFUGO_CLIENT_ALLOWED_ORIGINS: ${CENTRIFUGO_ALLOWED_ORIGINS:-chrome-extension://* http://localhost:8080}
     ports:
       - "127.0.0.1:8106:8000"
     networks: [xbrain_net]
