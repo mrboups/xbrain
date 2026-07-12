@@ -63,6 +63,14 @@ runtime/infra), `aibrussels` 105 occ, `"default"` team_scope ~49 genuine.
   product's own marketing/docs** keep theirs. This is an APPROVED SCOPE BOUND, not a gap — it
   does not violate PORT-01 (which is about source/config portability). If the marketing surface
   is ever extracted from the OSS repo, revisit in Phase 16.
+  **EXTENDED 2026-07-12** (plan-checker BLOCKER-5/W-D): the same rationale covers
+  `projects-dashboard/**` and `.github/workflows/deploy-dashboard.yml` — that dashboard is deployed at
+  `projects.<brand>` and is the commercial service's own page + the workflow that ships it. Same class as
+  `app-site`/`marketing-site`. EXEMPT.
+  **NOT exempt** (they ship to operators and MUST be brand-free): `Makefile`, `apps/librechat/Dockerfile`,
+  and `.github/workflow-templates/**` — the templates are COPIED INTO OPERATORS' OWN REPOS, so a hardcoded
+  `api.grooveos.app` would point every self-hoster's CI at xbrain's production API. These are owned by
+  14-06 Task 1.
 
 ### D-01b — Factual corrections from research (supersede earlier CONTEXT claims)
 - `apps/memory-api/app/routes/me.py:206` (`Field(default="default")`) is a **FALSE POSITIVE** —
@@ -117,6 +125,24 @@ var documented with a one-line comment and a safe placeholder; group by concern
 (core / LLM keys / storage / optional integrations); mark which are required for a minimal
 boot vs optional. The current `.env.example` (~115 vars) is trimmed/reorganized for the
 OSS-light surface, not the full SaaS surface.
+
+### D-08 — Agent mention aliases become CONFIG-DRIVEN; neutral default `@agent` [user-approved 2026-07-12]
+`apps/memory-api/app/services/mention_detector.py:21` hardcodes the agent trigger regex
+`@(grooveos|groove|gr|g)` — a **brand token baked into runtime code**. A self-hoster would have to type
+`@grooveos` to summon their own agent. (Surfaced as plan-checker BLOCKER-2: the corrected bare-token
+grep now catches it and no plan owned it.)
+
+**Decision:** make the alias list **config-driven** via a new setting (e.g. `AGENT_MENTION_ALIASES`,
+comma-separated), with a **neutral default of `agent`** (i.e. `@agent` works out of the box on a fresh
+OSS install). The deployer overrides it in `.env` if they want their own trigger.
+- **Zero prod behavior change:** xbrain's prod `.env` sets the list to the CURRENT aliases
+  (`grooveos,groove,gr,g`) so existing users keep typing `@groove` exactly as today.
+- **Why this matters beyond portability:** the brand is **in flux** — GrooveOS is NOT becoming Prime
+  (Prime is a separate product); GrooveOS likely continues as the standalone team-chat and may be
+  rebranded (e.g. `teamchat.ai`). A rebrand must be a `.env` change, not a code change.
+- The regex must be BUILT from the config list (escape each alias, preserve the existing
+  `(?:^|(?<=[^\w@]))@(...)` boundary semantics and the lookahead). Keep `apps/memory-api/app/knowledge/
+  xbrain_product_kb.md` in lockstep — the KB documents the aliases and must not desync from the detector.
 
 ### D-07 — Config-only portability is the acceptance bar [PORT-01]
 After this phase, pointing the whole stack at a new domain + new keys must require **zero
