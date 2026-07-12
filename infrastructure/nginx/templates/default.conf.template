@@ -1,0 +1,9 @@
+# Intentionally (almost) empty.
+# The stock nginx image ships /etc/nginx/conf.d/default.conf (name "localhost",
+# root /usr/share/nginx/html). Until Phase 14 that file was MASKED by the
+# read-only ./nginx/conf.d mount. That mount is gone (we now mount
+# /etc/nginx/templates instead), so the stock file would REAPPEAR and add a
+# rogue vhost on :80.
+# This template renders over it: /etc/nginx/templates/default.conf.template
+#   -> /etc/nginx/conf.d/default.conf  (this comment-only file).
+# xbrain's real vhosts live in the numbered templates. Do not add directives here.

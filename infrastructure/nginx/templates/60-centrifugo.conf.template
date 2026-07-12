@@ -1,4 +1,4 @@
-# === centrifugo vhost — centrifugo.grooveos.app (quick task 260512-tcr) ===
+# === centrifugo vhost — centrifugo subdomain (quick task 260512-tcr) ===
 # WS broker for team chat realtime. Channels team:<id> (broadcast) +
 # user:<sub> (Phase 2). Authentication via HMAC JWT issued by memory-api.
 #
@@ -6,7 +6,7 @@
 
 server {
     listen 80;
-    server_name centrifugo.grooveos.app;
+    server_name centrifugo.${XBRAIN_BASE_DOMAIN};
     client_max_body_size 4m;
     access_log /var/log/nginx/centrifugo.access.log;
 

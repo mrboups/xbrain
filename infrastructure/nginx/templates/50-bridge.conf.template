@@ -1,4 +1,4 @@
-# === session-bridge vhost — bridge.grooveos.app (Phase 9) ===
+# === session-bridge vhost — bridge subdomain (Phase 9) ===
 # Cloudflare real-IP and the $connection_upgrade map are declared at the top
 # of 10-xbrain.conf and apply globally — they are NOT redeclared here.
 
@@ -14,7 +14,7 @@ log_format bridge_access '$remote_addr - $remote_user [$time_local] '
 
 server {
     listen 80;
-    server_name bridge.grooveos.app;
+    server_name bridge.${XBRAIN_BASE_DOMAIN};
     client_max_body_size 2m;
     access_log /var/log/nginx/bridge.access.log bridge_access;
 
