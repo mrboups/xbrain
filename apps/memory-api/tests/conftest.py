@@ -23,6 +23,8 @@ os.environ.setdefault("BRIDGE_SHARED_SECRET", "test-bridge-secret-do-not-use-in-
 os.environ.setdefault("GOOGLE_CLIENT_ID", "")
 os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
 os.environ.setdefault("ADMIN_USER_SUBS", "admin-sub-1,admin-sub-2")
+os.environ.setdefault("OAUTH_ISSUER_URL", "https://api.test.example")
+os.environ.setdefault("OAUTH_RESOURCE_URL", "https://mcp.test.example/mcp")
 
 
 # === Helpers ===
