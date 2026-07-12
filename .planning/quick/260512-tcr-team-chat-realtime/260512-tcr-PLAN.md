@@ -66,7 +66,7 @@ Pivoter l'extension d'un Web Clipper avec Sessions vers un **team chat realtime*
 | 4 | Streaming granularity | Token-by-token chunks via Centrifugo publish |
 | 5 | History | 50 last messages on open, scroll-up loads +50 |
 | 6 | Presence | Included v1 — online dots next to user names + "N online" counter. Typing indicators → Phase 2 |
-| 7 | Open LibreChat button | Opens `https://chat.grooveos.app/` root in new tab |
+| 7 | Open LibreChat button | Opens `https://chat.example.com/` root in new tab |
 | 8 | Retention | Full retention now, archive later |
 | 9 | Connection card | Appears only at first launch when no xbt_token stored |
 | 10 | Default project / truth_level | Optional in Settings; overlay always opens but pre-filled |
@@ -132,12 +132,12 @@ Overlay clip (on 📎 click):
 **Files**: `infrastructure/docker-compose.yml`, `infrastructure/centrifugo/config.json`, `infrastructure/nginx/conf.d/60-centrifugo.conf`, `.env` template, Cloudflare DNS
 
 - Add `centrifugo` service to docker-compose: image `centrifugo/centrifugo:v5` (or v6 latest LTS), port 8000 internal
-- `config.json`: HMAC JWT secret, API key for server-side publish, allowed_origins (extension + chat.grooveos.app)
-- nginx vhost `centrifugo.grooveos.app` with WS upgrade headers + 86400s timeout (mirrors `50-bridge.conf`)
+- `config.json`: HMAC JWT secret, API key for server-side publish, allowed_origins (extension + chat.example.com)
+- nginx vhost `centrifugo.example.com` with WS upgrade headers + 86400s timeout (mirrors `50-bridge.conf`)
 - Cloudflare DNS: A record `centrifugo` → VM IP, proxied + WebSockets toggle ON
 - `.env.template`: `CENTRIFUGO_TOKEN_HMAC_SECRET`, `CENTRIFUGO_API_KEY`
 
-**Verify**: `curl https://centrifugo.grooveos.app/health` → 200
+**Verify**: `curl https://centrifugo.example.com/health` → 200
 
 ### Task 2 — memory-api persistence + endpoints
 
@@ -239,7 +239,7 @@ Overlay clip (on 📎 click):
   5. Scroll up → loads older messages
   6. Click 📎 → overlay → confirm → memory item created in xbrain (visible via `/v1/memory/search`)
   7. Click ⚙️ → settings page with chat defaults
-  8. Click 💬 → opens chat.grooveos.app in new tab
+  8. Click 💬 → opens chat.example.com in new tab
 - Write SUMMARY.md + STATE.md row + push
 
 ## Database schema (locked)
@@ -293,7 +293,7 @@ JWT claims for connection: `sub`, `exp`, `channels` (allowed list).
 - Multi-model mentions (`@gpt`, `@grok`, `@gemini`)
 - Keyword triggers configurable per team (regex matchers in Settings)
 - Archive old messages to MinIO (retention policy)
-- Web app version (chat.grooveos.app/teams/X — non-extension surface)
+- Web app version (chat.example.com/teams/X — non-extension surface)
 
 ## Order of execution (suggested waves)
 

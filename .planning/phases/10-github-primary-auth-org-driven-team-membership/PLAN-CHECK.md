@@ -91,7 +91,7 @@ Both M-1 and B-3 fixes must land before this plan is testable.
 Option B full-page redirect flow is correct. CSRF via sessionStorage is correct. 4-state renderAuthHeader covers all states.
 
 External prerequisite (not a plan bug, but must not be forgotten before production testing):
-  https://grooveos.app/account/teams/ must be added to the GitHub OAuth App authorized callback URIs.
+  https://example.com/account/teams/ must be added to the GitHub OAuth App authorized callback URIs.
 This is a manual step by mrboups in the GitHub OAuth App developer settings page. Nothing in the plan scaffolds this.
 
 No code-level blockers found in this plan.
@@ -115,7 +115,7 @@ Fix: replace the storage.set call in signinGithubFlow with:
   await chrome.storage.local.set({ xbt_token: xbt_token, user_sub: user && user.id, api_token_id: response.token_id });
 
 Minor: MEMORY_API_BASE is used in signinGithubFlow but is not imported/declared in background.js.
-Fix: add const MEMORY_API_BASE = "https://api.grooveos.app"; near the top of background.js, or import from a shared constants module.
+Fix: add const MEMORY_API_BASE = "https://api.example.com"; near the top of background.js, or import from a shared constants module.
 
 ### 10-06 (Wave 4) — Verification + Docs
 

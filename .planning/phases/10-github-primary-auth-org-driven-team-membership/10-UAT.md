@@ -6,11 +6,11 @@ but before declaring Phase 10 closed.
 
 **Prerequisites**
 - memory-api deployed with migration 0016 applied (`alembic current` → `0016`).
-- app-site deployed at `https://grooveos.app/`.
+- app-site deployed at `https://example.com/`.
 - Chrome extension built and loaded as unpacked OR pulled from the released
   CRX bundle.
 - GitHub OAuth app `Ov23liVqXmHkS6JdYpcN` authorized-callback list includes
-  `https://grooveos.app/account/teams/`.
+  `https://example.com/account/teams/`.
 - Optional: `SMTP_HOST` configured on the VM for Scenario C verification.
 - A spare GitHub test account that you can revoke / re-authorize on demand.
 
@@ -18,7 +18,7 @@ but before declaring Phase 10 closed.
 
 ### A. Brand-new user signs in via GitHub (web)
 
-1. Open incognito window. Visit https://grooveos.app/account/teams/.
+1. Open incognito window. Visit https://example.com/account/teams/.
 2. Click "Sign in with GitHub". Authorize on GitHub.
 3. **Expected:** redirected back to `/account/teams/` with a clean URL (no
    `?code=` or `?state=` left over after the post-auth redirect).
@@ -75,7 +75,7 @@ but before declaring Phase 10 closed.
 2. Confirm via API:
    ```
    curl -H "Authorization: Bearer <admin-xbt>" \
-        https://api.grooveos.app/v1/teams/<team_id>/org-blocks
+        https://api.example.com/v1/teams/<team_id>/org-blocks
    ```
    Response includes the new entry.
 3. As GitHub user `test-impostor`: sign in.

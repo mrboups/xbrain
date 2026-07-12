@@ -69,7 +69,7 @@ metrics:
 
 ## Goal Achieved
 
-A signed-in superadmin can open `https://app.grooveos.app/account/admin/` and see four sections live within 1 GET round-trip:
+A signed-in superadmin can open `https://app.example.com/account/admin/` and see four sections live within 1 GET round-trip:
 
 1. **Brain Overview** — counts × entity_type matrix per team, hover-tooltip showing the per-`truth_level` breakdown.
 2. **Storage** — PG rows (with per-table tooltip) + Qdrant points + MinIO bytes (human-formatted), with a totals row that excludes `N/A` cells and flags them with a footnote.
@@ -179,7 +179,7 @@ Run after the worktree-agent finished:
 firebase deploy --only hosting:app  →  Deploy complete!
                                        https://dejavu-app.web.app
 
-curl HTTP code matrix (via dejavu-app.web.app — DNS for grooveos.app
+curl HTTP code matrix (via dejavu-app.web.app — DNS for example.com
 not resolvable from this shell, custom-domain serves identically):
   /account/admin/                       200
   /account/admin/admin.js               200
@@ -197,7 +197,7 @@ Payload content checks (curl + grep):
 ```
 
 End-to-end UAT requires:
-- A real superadmin token (team@grooveos.app listed in ADMIN_USER_SUBS on the VM memory-api).
+- A real superadmin token (team@example.com listed in ADMIN_USER_SUBS on the VM memory-api).
 - A real non-superadmin token to confirm the 403 fallback path.
 - A multi-team DB with non-zero brain events so each section renders something visible.
 

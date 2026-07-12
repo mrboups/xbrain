@@ -12,7 +12,7 @@ provides:
   - Web sign-in now authorizes against GitHub App `xbrain` (client_id Iv23liVnZvIN0Lo6isof)
   - Consent screen surfaces the new minimal App permissions
 affects:
-  - Live grooveos.app + dejavu-app.web.app — production sign-in flow
+  - Live example.com + dejavu-app.web.app — production sign-in flow
 tech-stack:
   added: []
   patterns:
@@ -36,7 +36,7 @@ metrics:
 
 ## TL;DR
 
-Replaced the legacy OAuth App client_id `Ov23liy7tZekl0uEztoj` with the Phase 12 GitHub App client_id `Iv23liVnZvIN0Lo6isof` at line 34 of `app-site/account/teams/teams.js`, added a 3-line comment block referencing 12-RESEARCH.md §Q11 (multi-callback URL strategy shared with the Chrome extension), and deployed to both Firebase Hosting targets (`grooveos` → `https://grooveos.app` and `app` → `https://dejavu-app.web.app`). Live verification: new ID present on both sites, legacy ID returns zero matches, 12-07's install-banner DOM slot also serving correctly post-deploy. GHAPP-07 (web piece) complete.
+Replaced the legacy OAuth App client_id `Ov23liy7tZekl0uEztoj` with the Phase 12 GitHub App client_id `Iv23liVnZvIN0Lo6isof` at line 34 of `app-site/account/teams/teams.js`, added a 3-line comment block referencing 12-RESEARCH.md §Q11 (multi-callback URL strategy shared with the Chrome extension), and deployed to both Firebase Hosting targets (`example` → `https://example.com` and `app` → `https://dejavu-app.web.app`). Live verification: new ID present on both sites, legacy ID returns zero matches, 12-07's install-banner DOM slot also serving correctly post-deploy. GHAPP-07 (web piece) complete.
 
 ## What was done
 
@@ -63,19 +63,19 @@ Replaced the legacy OAuth App client_id `Ov23liy7tZekl0uEztoj` with the Phase 12
 ### Firebase deploy
 
 - Project: `xbrain-495115`
-- Targets: `grooveos` (site `grooveos`) + `app` (site `dejavu-app`)
-- Command: `firebase deploy --only hosting:grooveos,hosting:app --project xbrain-495115 --non-interactive`
+- Targets: `example` (site `example`) + `app` (site `dejavu-app`)
+- Command: `firebase deploy --only hosting:example,hosting:app --project xbrain-495115 --non-interactive`
 - 41 files uploaded per target, both finalized + released cleanly.
 
 ### Live smoke tests (production)
 
 | Check                                                                                                    | Result | Evidence                                                                  |
 | -------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------- |
-| `curl https://grooveos.app/account/teams/teams.js \| grep Iv23liVnZvIN0Lo6isof`                          | PASS   | Line 37: `const GITHUB_CLIENT_ID = "Iv23liVnZvIN0Lo6isof";`               |
-| `curl https://grooveos.app/account/teams/teams.js \| grep Ov23liy7tZekl0uEztoj`                          | PASS   | Zero matches                                                              |
-| `curl https://dejavu-app.web.app/account/teams/teams.js \| grep Iv23liVnZvIN0Lo6isof`                    | PASS   | Line 37 mirrors grooveos.app                                              |
+| `curl https://example.com/account/teams/teams.js \| grep Iv23liVnZvIN0Lo6isof`                          | PASS   | Line 37: `const GITHUB_CLIENT_ID = "Iv23liVnZvIN0Lo6isof";`               |
+| `curl https://example.com/account/teams/teams.js \| grep Ov23liy7tZekl0uEztoj`                          | PASS   | Zero matches                                                              |
+| `curl https://dejavu-app.web.app/account/teams/teams.js \| grep Iv23liVnZvIN0Lo6isof`                    | PASS   | Line 37 mirrors example.com                                              |
 | `curl https://dejavu-app.web.app/account/teams/teams.js \| grep Ov23liy7tZekl0uEztoj`                    | PASS   | Zero matches                                                              |
-| 12-07 `install-banner` DOM slot live in `grooveos.app/account/teams/`                                    | PASS   | Lines 398-417 of served index.html contain banner DOM + retry button slot |
+| 12-07 `install-banner` DOM slot live in `example.com/account/teams/`                                    | PASS   | Lines 398-417 of served index.html contain banner DOM + retry button slot |
 
 ## Files modified
 
@@ -116,13 +116,13 @@ The merge commit `a99c278` brought in 12-07's three commits (`d178a37`, `f80db01
 
 - **Plan 12-10** (operator-only): revoke the legacy OAuth App `xbrain` from github.com/settings/applications. Until revoked, the OAuth App stays valid but unused — no functional impact on the new flow.
 - **Browser cache:** users who previously signed in via the OAuth App should test sign-in in an Incognito window to bypass the cached teams.js. Cache-Control on `.js` is `public, max-age=3600` per `firebase.json`, so the cache will roll over within an hour for non-Incognito sessions too.
-- **End-to-end UAT** (covered by Plan 12-11): Incognito → grooveos.app/account/teams/ → click "Sign in with GitHub" → consent screen shows new App `xbrain` with App permissions (not OAuth App scopes) → on consent, redirect handles `?code=...&state=...` → POST `/v1/auth/github/signin` → if dejavudev has the App installed: teams list renders; else: install banner renders with `install_url` linking to App install consent.
+- **End-to-end UAT** (covered by Plan 12-11): Incognito → example.com/account/teams/ → click "Sign in with GitHub" → consent screen shows new App `xbrain` with App permissions (not OAuth App scopes) → on consent, redirect handles `?code=...&state=...` → POST `/v1/auth/github/signin` → if dejavudev has the App installed: teams list renders; else: install banner renders with `install_url` linking to App install consent.
 
 ## Self-Check: PASSED
 
 - **File exists:** `app-site/account/teams/teams.js` — FOUND (modified, contains line 37 `Iv23liVnZvIN0Lo6isof`).
 - **Commit `a7ce36f`:** FOUND in `git log --all`.
 - **Commit `a99c278`:** FOUND in `git log --all`.
-- **Live grooveos.app smoke:** new ID present, legacy ID absent — FOUND/MISSING as expected.
+- **Live example.com smoke:** new ID present, legacy ID absent — FOUND/MISSING as expected.
 - **Live dejavu-app.web.app smoke:** new ID present, legacy ID absent — FOUND/MISSING as expected.
-- **Banner DOM slot live on grooveos.app:** FOUND (lines 398-417 of served index.html).
+- **Banner DOM slot live on example.com:** FOUND (lines 398-417 of served index.html).

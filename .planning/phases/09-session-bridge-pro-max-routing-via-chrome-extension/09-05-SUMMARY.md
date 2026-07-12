@@ -9,7 +9,7 @@ requirements: [SESSION-04]
 
 dependency_graph:
   requires:
-    - "09-01 (session-bridge HTTP/WS, register-upsert path) — runtime endpoint at https://bridge.grooveos.app/v1"
+    - "09-01 (session-bridge HTTP/WS, register-upsert path) — runtime endpoint at https://bridge.example.com/v1"
     - "09-03 (extension background.js ws_status_query listener) — sibling Wave 2, contract documented"
     - "09-04 (memory-api GET/DELETE /v1/me/external-sessions) — popup fetches both"
   provides:
@@ -65,7 +65,7 @@ A new custom endpoint appended after `Claude Reasoning`:
 ```yaml
 - name: "Claude (mon abonnement)"
   apiKey: "user_provided"
-  baseURL: "https://bridge.grooveos.app/v1"
+  baseURL: "https://bridge.example.com/v1"
   models:
     default: ["claude-opus-4-7", "claude-sonnet-4-6"]
     fetch: false
@@ -74,7 +74,7 @@ A new custom endpoint appended after `Claude Reasoning`:
   modelDisplayLabel: "Claude (Pro/Max)"
 ```
 
-LibreChat will surface this in the endpoint dropdown after a config reload. The user pastes their `xbt_` token as the API key; LibreChat forwards it as `Authorization: Bearer xbt_...` to `bridge.grooveos.app/v1/chat/completions`, where session-bridge (09-01) validates against memory-api and relays the request to the user's extension.
+LibreChat will surface this in the endpoint dropdown after a config reload. The user pastes their `xbt_` token as the API key; LibreChat forwards it as `Authorization: Bearer xbt_...` to `bridge.example.com/v1/chat/completions`, where session-bridge (09-01) validates against memory-api and relays the request to the user's extension.
 
 The 4 pre-existing entries (`Anthropic`, `OpenAI`, `xAI`, `Claude Reasoning`) are byte-identical to before — programmatic yaml round-trip confirmed.
 
@@ -97,7 +97,7 @@ Appended ~130 lines under the existing module:
 
 - `renderSessions()` runs on DOMContentLoaded and on every refresh / disconnect cycle.
 - `renderWsStatus()` calls `chrome.runtime.sendMessage({kind: "ws_status_query"})` — the contract from plan 09-03 — and maps `readyState === 1` → `dot.active` (🟢), anything else → `dot.idle` (🔴). Failures are caught and surfaced as `dot.idle` with a tooltip; the popup never errors out if 09-03 hasn't shipped the listener yet.
-- `renderClaudeSessionInfo()` reads `xbt_token` from `chrome.storage.session` (Phase 5/8 convention; will be populated by 09-03 when it wires the WS handshake). If absent → `non connecté` label. If present, fetches `GET https://api.grooveos.app/v1/me/external-sessions`, finds the `provider === "claude"` row, and renders `metadata.email_logged` + relative `last_seen_at`.
+- `renderClaudeSessionInfo()` reads `xbt_token` from `chrome.storage.session` (Phase 5/8 convention; will be populated by 09-03 when it wires the WS handshake). If absent → `non connecté` label. If present, fetches `GET https://api.example.com/v1/me/external-sessions`, finds the `provider === "claude"` row, and renders `metadata.email_logged` + relative `last_seen_at`.
 - `disconnectClaude()` calls `DELETE /v1/me/external-sessions/claude` after a `confirm()` dialog, then re-renders.
 - `formatRelative()` returns `Ns ago`, `Nm ago`, `Nh ago`, or `Locale date` — no date library.
 
@@ -113,7 +113,7 @@ Appended ~130 lines under the existing module:
 
 ### With 09-01 (session-bridge HTTP/WS — already shipped, commits ed244e2/b894c1b/848989b)
 
-The LibreChat custom endpoint's `baseURL: https://bridge.grooveos.app/v1` matches the `routes_chat.py` mount point exposed by `apps/session-bridge`. The `apiKey: user_provided` flow puts the user's `xbt_` token into the `Authorization` header, which `auth.validate_xbt_token` in 09-01 already validates via memory-api `/v1/me`. End-to-end the contract holds — confirmed against 09-01 SUMMARY's "Success criteria from plan" checklist.
+The LibreChat custom endpoint's `baseURL: https://bridge.example.com/v1` matches the `routes_chat.py` mount point exposed by `apps/session-bridge`. The `apiKey: user_provided` flow puts the user's `xbt_` token into the `Authorization` header, which `auth.validate_xbt_token` in 09-01 already validates via memory-api `/v1/me`. End-to-end the contract holds — confirmed against 09-01 SUMMARY's "Success criteria from plan" checklist.
 
 ### With 09-03 (extension background.js WS — Wave 2 sibling, not yet shipped)
 

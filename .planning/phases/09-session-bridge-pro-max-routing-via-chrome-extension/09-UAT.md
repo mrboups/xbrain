@@ -13,15 +13,15 @@ maps_to: ROADMAP Phase 9 success criteria 1-6
 | Verifier        | _______________________     |
 | Date            | _______________________     |
 | VM IP           | __VM_HOST__              |
-| Bridge host     | https://bridge.grooveos.app |
-| Chat host       | https://chat.grooveos.app   |
+| Bridge host     | https://bridge.example.com |
+| Chat host       | https://chat.example.com   |
 | Extension ver.  | 1.1.0                       |
 
 This document is walked manually on the VM after `verify-phase9.sh` passes.
 It maps directly to the six ROADMAP Phase 9 success criteria. SKIPPED in the
 script never blocks — only FAIL == 0 is required.
 
-> **Note on health checks:** `bridge.grooveos.app/nginx-health` returns 200 from
+> **Note on health checks:** `bridge.example.com/nginx-health` returns 200 from
 > the nginx layer (no upstream call) — use this for external monitoring. The
 > session-bridge app's `/healthz` endpoint (returning
 > `{"status":"ok","active_sockets":N}`) is intentionally only reachable from
@@ -33,12 +33,12 @@ script never blocks — only FAIL == 0 is required.
 ## Pre-checks (must be true before starting)
 
 - [ ] `bash infrastructure/scripts/verify-phase9.sh` returned `PASS: N / N (SKIPPED: M)` on the VM, with `FAIL == 0` (M ≥ 0 is fine)
-- [ ] Cloudflare A record `bridge.grooveos.app` resolves to a Cloudflare anycast IP (proxied / orange cloud)
-- [ ] Cloudflare zone `grooveos.app` → Network → **WebSockets toggle ON**
+- [ ] Cloudflare A record `bridge.example.com` resolves to a Cloudflare anycast IP (proxied / orange cloud)
+- [ ] Cloudflare zone `example.com` → Network → **WebSockets toggle ON**
 - [ ] `docker ps` shows `xbrain-session-bridge` (or whatever name the container resolves to) in state `running` / `healthy`
 - [ ] `docker exec xbrain-memory-api alembic current` shows head `0014` (or later)
 - [ ] xbrain Chrome extension v1.1.0 loaded as unpacked (chrome://extensions → reload card after `git pull`)
-- [ ] User logged in to https://chat.grooveos.app (xbt_ token present in `chrome.storage.session.xbt_token`)
+- [ ] User logged in to https://chat.example.com (xbt_ token present in `chrome.storage.session.xbt_token`)
 - [ ] User logged in to https://claude.ai in the **same browser profile** (cookies must be reachable to the extension)
 
 ## Acceptance items
@@ -47,7 +47,7 @@ script never blocks — only FAIL == 0 is required.
 
 ROADMAP criterion 1 — end-to-end routing of a chat request through the user's own Claude Pro/Max subscription.
 
-- [ ] In LibreChat (https://chat.grooveos.app) open the endpoint dropdown — **"Claude (mon abonnement)"** is present
+- [ ] In LibreChat (https://chat.example.com) open the endpoint dropdown — **"Claude (mon abonnement)"** is present
 - [ ] Select it. LibreChat asks for an API key — paste your `xbt_` token (NOT an Anthropic key)
 - [ ] Send the message: `ping from xbrain phase 9 UAT`
 - [ ] Response streams back word-by-word (SSE working end-to-end)
@@ -67,12 +67,12 @@ ROADMAP criterion 2 — when the bridge can't reach the user's browser, LibreCha
 
 ### SC-3: Infrastructure reachability (container + nginx vhost)
 
-ROADMAP criterion 3 — `session-bridge` container running, `bridge.grooveos.app` reachable end-to-end via the nginx vhost.
+ROADMAP criterion 3 — `session-bridge` container running, `bridge.example.com` reachable end-to-end via the nginx vhost.
 
-- [ ] `curl -fsS https://bridge.grooveos.app/nginx-health` returns `ok` (proves Cloudflare → nginx → bridge upstream chain)
-- [ ] `curl -s -o /dev/null -w '%{http_code}' -X POST https://bridge.grooveos.app/v1/chat/completions` returns `401` (route exists, auth check active)
-- [ ] With a valid `xbt_` token: `curl -s -X POST https://bridge.grooveos.app/v1/chat/completions -H "Authorization: Bearer xbt_..." -H "Content-Type: application/json" -d '{"messages":[{"role":"user","content":"x"}]}'` returns 200 (if extension is connected and streaming) OR 503 with `{"error":"...","code":"no_session"}` (if extension is not connected) — both prove route + auth wired
-- [ ] Optional: `wscat -c "wss://bridge.grooveos.app/ws/test-probe?token=invalid"` closes with code 4401 (auth gate at WS layer)
+- [ ] `curl -fsS https://bridge.example.com/nginx-health` returns `ok` (proves Cloudflare → nginx → bridge upstream chain)
+- [ ] `curl -s -o /dev/null -w '%{http_code}' -X POST https://bridge.example.com/v1/chat/completions` returns `401` (route exists, auth check active)
+- [ ] With a valid `xbt_` token: `curl -s -X POST https://bridge.example.com/v1/chat/completions -H "Authorization: Bearer xbt_..." -H "Content-Type: application/json" -d '{"messages":[{"role":"user","content":"x"}]}'` returns 200 (if extension is connected and streaming) OR 503 with `{"error":"...","code":"no_session"}` (if extension is not connected) — both prove route + auth wired
+- [ ] Optional: `wscat -c "wss://bridge.example.com/ws/test-probe?token=invalid"` closes with code 4401 (auth gate at WS layer)
 
 ### SC-4: Popup status + `user_external_sessions` table populated
 

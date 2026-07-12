@@ -13,10 +13,10 @@ maps_to: Phase 12 ROADMAP success criteria GHAPP-01..08 + REVISION 2 fixes (B-2 
 | Verifier      | _______________________ (default: mrboups — sole xbrain user pre-launch) |
 | Date          | _______________________                                              |
 | VM IP         | __VM_HOST__                                                       |
-| App host      | https://app.grooveos.app                                             |
-| Account host  | https://grooveos.app                                                 |
-| API host      | https://api.grooveos.app                                             |
-| Marketing     | https://grooveos.app/docs/github-auth.html                           |
+| App host      | https://app.example.com                                             |
+| Account host  | https://example.com                                                 |
+| API host      | https://api.example.com                                             |
+| Marketing     | https://example.com/docs/github-auth.html                           |
 | GitHub App    | `xbrain` — Client ID `Iv23liVnZvIN0Lo6isof` (App ID 3743573)         |
 | Install slug  | https://github.com/apps/xbrain                                       |
 
@@ -44,14 +44,14 @@ SKIPPED never blocks; only FAIL == 0 is required.
 
 ## Step 1 — Web sign-in (happy path, SC-1 + SC-3)
 
-1. Open https://grooveos.app/account/teams/ in a **fresh Incognito** window (no cookies / localStorage).
+1. Open https://example.com/account/teams/ in a **fresh Incognito** window (no cookies / localStorage).
 2. Click **Sign in with GitHub**.
 3. Observe the GitHub consent screen — confirm:
    - Title reads **"Authorize xbrain"** (the GitHub App, NOT the legacy OAuth App).
    - Permissions listed: **Email addresses (Read)**, **Profile (Read)**, **Members of organizations (Read)**.
    - If consent screen says "xbrain LibreChat" or shows different perms, **STOP** — the wrong app is wired in `teams.js`.
 4. Click **Authorize**.
-5. Land back on `grooveos.app/account/teams/` with at least one team visible (`dejavudev` for mrboups).
+5. Land back on `example.com/account/teams/` with at least one team visible (`dejavudev` for mrboups).
 6. In DevTools → Network panel, confirm the `POST /v1/auth/github/signin` response body contains:
    - `"xbt_token": "xbt_..."` (non-null, saved to `localStorage.xbt_token`)
    - `"install_required": false`
@@ -67,7 +67,7 @@ PASS criteria: teams render, no install banner, `xbt_token` in `localStorage`, r
 
 This step needs a **SECOND** GitHub user whose primary org has NOT installed the xbrain App. If no second user is available, **SKIP this step** — primary coverage is the unit test `tests/test_phase12_signin_install_flow.py`.
 
-1. Sign out of grooveos.app (or open a new Incognito window).
+1. Sign out of example.com (or open a new Incognito window).
 2. Sign in as the second user.
 3. The yellow install banner appears at the top of the teams page reading:
    > Install xbrain on `<org_login>` to continue
@@ -79,7 +79,7 @@ This step needs a **SECOND** GitHub user whose primary org has NOT installed the
    - `"org_login": "<user_primary_org>"` (NOT null, NOT "your organization" generic)
 6. Click **Install**.
 7. GitHub install consent screen appears. The org admin path:
-   - If the user IS the org admin → consent + Install on All repositories (or Only select — doesn't matter, no repo perms used). Redirect back to `grooveos.app/account/teams/?installation_id=...&setup_action=install`.
+   - If the user IS the org admin → consent + Install on All repositories (or Only select — doesn't matter, no repo perms used). Redirect back to `example.com/account/teams/?installation_id=...&setup_action=install`.
    - If the user is NOT the org admin → GitHub shows "approval required" → user sends request to admin. Banner stays visible. **This is still a PASS** for step 2 (the surface works).
 8. After install succeeds and the user lands back on the teams page:
    - Within 5 seconds the install banner disappears.
@@ -188,14 +188,14 @@ PASS criteria: signin worked without re-installing the App, DB row self-healed w
 
 The Phase 5 `/v1/me/link-github` path uses the new `check_github_org_membership` signature post-Plan 12-04. This step proves that flow did NOT break.
 
-1. Visit https://chat.grooveos.app/ → sign in via LibreChat (using LibreChat's own OAuth — the `xbrain LibreChat` OAuth App `Ov23li0XHV3NL8Git7Dk`, which is intentionally NOT migrated).
-2. After landing in LibreChat, open https://grooveos.app/account/onboarding/ in another tab while still logged in to LibreChat.
+1. Visit https://chat.example.com/ → sign in via LibreChat (using LibreChat's own OAuth — the `xbrain LibreChat` OAuth App `Ov23li0XHV3NL8Git7Dk`, which is intentionally NOT migrated).
+2. After landing in LibreChat, open https://example.com/account/onboarding/ in another tab while still logged in to LibreChat.
 3. Follow the "link GitHub" flow if it appears, OR call the endpoint directly to confirm wiring:
    ```
-   curl -X POST https://api.grooveos.app/v1/me/link-github \
+   curl -X POST https://api.example.com/v1/me/link-github \
      -H "Authorization: Bearer <librechat_jwt>" \
      -H "Content-Type: application/json" \
-     -d '{"code":"<code_from_callback>","redirect_uri":"https://chat.grooveos.app/api/auth/callback/github","state":"x"}'
+     -d '{"code":"<code_from_callback>","redirect_uri":"https://chat.example.com/api/auth/callback/github","state":"x"}'
    ```
    (`<librechat_jwt>` comes from LibreChat's `Authorization` header — inspect via DevTools.)
 4. Response: 200 with `{"github_username": "mrboups", "github_id": <int>}` (or similar). NOT a 500.

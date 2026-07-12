@@ -8,14 +8,14 @@ must_haves:
   truths:
     - "Right-click → Options opens a Settings page with two toggles: Open as side panel, Auto-fill API key in LibreChat. Both default ON."
     - "Toggling 'Open as side panel' makes the extension open in Chrome's side panel (Chrome 114+) instead of a floating popup. Side panel stays open during Google sign-in."
-    - "When the user opens chat.grooveos.app and selects the Claude Pro/Max endpoint, the API key field is auto-filled from chrome.storage.local.xbt_token — no copy-paste."
+    - "When the user opens chat.example.com and selects the Claude Pro/Max endpoint, the API key field is auto-filled from chrome.storage.local.xbt_token — no copy-paste."
     - "Auto-fill is gated by the autoFillLibreChat setting (OFF → content script no-ops)."
     - "Auto-fill never targets the wrong endpoint (Anthropic, OpenAI, xAI, Claude Reasoning) — anchored by the surrounding card text containing 'Claude Pro/Max'."
   artifacts:
     - chrome-extension/settings.js (new)
     - chrome-extension/options.html (new)
     - chrome-extension/options.js (new)
-    - chrome-extension/manifest.json (sidePanel + options_ui + chat.grooveos.app)
+    - chrome-extension/manifest.json (sidePanel + options_ui + chat.example.com)
     - chrome-extension/background.js (applyPanelBehavior)
     - chrome-extension/librechat_autofill.js (new content script)
     - chrome-extension/tests/test_settings.mjs (new)
@@ -32,7 +32,7 @@ must_haves:
 Two UX upgrades requested mid-UAT of 260512-eo1:
 
 1. The extension popup closed during Google sign-in, forcing a second Connect click. Move to Chrome's side panel API (Chrome 114+) so the UI stays alive across OAuth windows.
-2. The user still has to manually paste the xbt_ token into LibreChat's API key dialog. Auto-fill it from chrome.storage.local on `chat.grooveos.app`.
+2. The user still has to manually paste the xbt_ token into LibreChat's API key dialog. Auto-fill it from chrome.storage.local on `chat.example.com`.
 
 Both gated by toggleable settings (default ON), accessible via the standard extension Options page.
 
@@ -79,11 +79,11 @@ Both gated by toggleable settings (default ON), accessible via the standard exte
 **files**: `chrome-extension/manifest.json` (already updated in Task B), `chrome-extension/librechat_autofill.js` (new)
 
 **action**:
-- manifest: add `https://chat.grooveos.app/*` to `host_permissions` + new `content_scripts` entry running `librechat_autofill.js` at `document_idle`.
+- manifest: add `https://chat.example.com/*` to `host_permissions` + new `content_scripts` entry running `librechat_autofill.js` at `document_idle`.
 - script: IIFE that reads settings + token, attaches MutationObserver, applies the `shouldFillField` heuristic on every added node, calls `fillInputAsReact` on first match.
 - Exposes `shouldFillField` and `fillInputAsReact` on `globalThis.xbrainLibreChatAutofill` for testing.
 
-**verify**: open chat.grooveos.app, select Claude Pro/Max endpoint → API key dialog → field is pre-filled with the user's xbt_. Toggle autoFillLibreChat OFF, reload chat.grooveos.app → no auto-fill.
+**verify**: open chat.example.com, select Claude Pro/Max endpoint → API key dialog → field is pre-filled with the user's xbt_. Toggle autoFillLibreChat OFF, reload chat.example.com → no auto-fill.
 
 **done**: Auto-fill works for Claude Pro/Max only; OFF setting disables it.
 
@@ -114,8 +114,8 @@ Both gated by toggleable settings (default ON), accessible via the standard exte
 3. Right-click extension icon → **Options** → confirm 2 toggles, both ON.
 4. Click extension icon → side panel opens on the right (not a floating popup).
 5. Click Connect → Google consent → side panel stays open the whole time → 🟢 + email appear without ever clicking Connect twice.
-6. Open `https://chat.grooveos.app` → endpoint dropdown → **Claude Pro/Max** → API key dialog → field pre-filled with `xbt_...`.
-7. Right-click → Options → toggle "Auto-fill API key in LibreChat" OFF → reload chat.grooveos.app → dialog now empty.
+6. Open `https://chat.example.com` → endpoint dropdown → **Claude Pro/Max** → API key dialog → field pre-filled with `xbt_...`.
+7. Right-click → Options → toggle "Auto-fill API key in LibreChat" OFF → reload chat.example.com → dialog now empty.
 
 ## Out of scope (deferred)
 

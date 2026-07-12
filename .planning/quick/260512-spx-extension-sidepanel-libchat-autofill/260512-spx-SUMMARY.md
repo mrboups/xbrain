@@ -21,9 +21,9 @@ Two UX upgrades requested during live UAT of 260512-eo1:
 |-----------|--------|
 | `chrome-extension/settings.js` (NEW) | Pure schema + storage module: `SETTINGS_KEY`, `DEFAULT_SETTINGS`, `loadSettings`, `saveSettings`, `mergeSettings`. Defensive merge strips unknown keys + non-booleans. |
 | `chrome-extension/options.html` + `.js` (NEW) | Settings page (`options_ui` with `open_in_tab: true`). Two checkboxes auto-save to `chrome.storage.sync` — no Save button needed. |
-| `chrome-extension/manifest.json` | Version bump 1.1.0 → 1.2.0. Added: `sidePanel` + `clipboardWrite` permissions, `side_panel.default_path = "popup.html"`, `options_ui`, `host_permissions` += `chat.grooveos.app`, new `content_scripts` entry for `librechat_autofill.js`. |
+| `chrome-extension/manifest.json` | Version bump 1.1.0 → 1.2.0. Added: `sidePanel` + `clipboardWrite` permissions, `side_panel.default_path = "popup.html"`, `options_ui`, `host_permissions` += `chat.example.com`, new `content_scripts` entry for `librechat_autofill.js`. |
 | `chrome-extension/background.js` | Imports settings module. New `applyPanelBehavior()` calls `chrome.sidePanel.setPanelBehavior({openPanelOnActionClick})` based on the toggle. Triggered on SW boot, `onStartup`, and `storage.onChanged` for area=sync. Silent no-op on Chrome < 114. |
-| `chrome-extension/librechat_autofill.js` (NEW) | Content script for `chat.grooveos.app`. MutationObserver watches the DOM; `shouldFillField` heuristic matches inputs by type/attrs/anchor card text "Claude Pro/Max". `fillInputAsReact` uses the prototype value setter + synthetic `input` event so React's controlled component picks up the change. One-shot per page load. |
+| `chrome-extension/librechat_autofill.js` (NEW) | Content script for `chat.example.com`. MutationObserver watches the DOM; `shouldFillField` heuristic matches inputs by type/attrs/anchor card text "Claude Pro/Max". `fillInputAsReact` uses the prototype value setter + synthetic `input` event so React's controlled component picks up the change. One-shot per page load. |
 | `chrome-extension/tests/test_settings.mjs` (NEW) | 6 cases — defaults, persistence, partial merge, unknown-key strip, null safety. |
 | `chrome-extension/tests/test_librechat_autofill.mjs` (NEW) | 7 cases — heuristic accept/reject across multiple input types and wrong-endpoint anchors, React-style value setter end-to-end. |
 
@@ -56,7 +56,7 @@ $ node chrome-extension/tests/run_tests.mjs
 |-----------|--------|----------|
 | Options page with 2 toggles, both default ON | ✅ | `options.html` + `DEFAULT_SETTINGS` in `settings.js`. Tests #1, #2 cover defaults. |
 | Side panel mode (Chrome 114+) keeps UI alive during Google sign-in | ✅ | `applyPanelBehavior()` in `background.js` lines 425-440. Manifest `side_panel.default_path = "popup.html"`. |
-| Auto-fill API key on chat.grooveos.app for Claude Pro/Max | ✅ | `librechat_autofill.js` heuristic + React setter. Tests #4, #5 confirm match; test #6 confirms wrong-endpoint anchor is rejected. |
+| Auto-fill API key on chat.example.com for Claude Pro/Max | ✅ | `librechat_autofill.js` heuristic + React setter. Tests #4, #5 confirm match; test #6 confirms wrong-endpoint anchor is rejected. |
 | Auto-fill gated by autoFillLibreChat setting | ✅ | `main()` in librechat_autofill.js bails out when setting is false. |
 | Auto-fill never targets the wrong endpoint | ✅ | `shouldFillField` requires anchor card text /claude\s*pro\s*\/?\s*max/i. Tested in test_librechat_autofill.mjs #3 and #6. |
 
@@ -90,8 +90,8 @@ $ node chrome-extension/tests/run_tests.mjs
 3. Right-click extension icon → **Options** → confirm 2 toggles, both ON.
 4. Click extension icon → side panel opens on the right edge of the window (not a floating popup).
 5. If not already connected: click Connect → Google consent window appears, **side panel stays open**, completes → 🟢 + email appear automatically.
-6. Open `https://chat.grooveos.app` → endpoint dropdown → **Claude Pro/Max** → API key dialog should pre-fill with `xbt_…`.
-7. Right-click extension icon → Options → toggle "Auto-fill API key in LibreChat" OFF → reload chat.grooveos.app → API key dialog is empty.
+6. Open `https://chat.example.com` → endpoint dropdown → **Claude Pro/Max** → API key dialog should pre-fill with `xbt_…`.
+7. Right-click extension icon → Options → toggle "Auto-fill API key in LibreChat" OFF → reload chat.example.com → API key dialog is empty.
 
 ## Deferred
 

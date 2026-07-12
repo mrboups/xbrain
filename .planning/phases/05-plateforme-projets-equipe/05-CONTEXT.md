@@ -187,7 +187,7 @@ Le RBAC par projet pour Google users (équivalent outside collaborator GitHub) e
 - Architecture : container séparé, Neo4j backend, REST API wrapper FastAPI
 
 ### GCP
-- Projet : `xbrain-495115` (compte team@grooveos.app)
+- Projet : `xbrain-495115` (compte team@example.com)
 - VM existante : `__VM_HOST__` (e2-standard-2, Docker Compose)
 - Cloud Run, Firebase Hosting, Cloud Scheduler — même projet GCP
 - Cloudflare : domaine `dejavu.cat` (DNS + Access)

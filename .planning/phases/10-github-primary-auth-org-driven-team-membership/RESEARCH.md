@@ -23,7 +23,7 @@
 | | Option A — Popup + postMessage | Option B — Full-page redirect | Option C — Server-side 302 |
 |---|---|---|---|
 | **Secret exposure** | code handled JS-side before POST to API | code arrives at frontend, immediately POSTed to API | never touches browser JS |
-| **Callback page needed** | Yes — `grooveos.app/auth/github/callback` must be Firebase-deployed | No — landing page is `grooveos.app/account/teams/` itself | No |
+| **Callback page needed** | Yes — `example.com/auth/github/callback` must be Firebase-deployed | No — landing page is `example.com/account/teams/` itself | No |
 | **State param / CSRF** | Must be stored in sessionStorage before popup, verified after postMessage | Must be stored in sessionStorage before redirect, verified on return | Server generates + validates internally |
 | **Back button / UX** | Popup blocked on mobile and some browsers | Clean redirect — standard behavior everywhere | Clean |
 | **Firebase Hosting complexity** | Requires deploying a second page | None beyond query-param handling | Requires new memory-api routes (`/v1/auth/github/login`, `/v1/auth/github/callback`) and a cookie-based session |
@@ -34,11 +34,11 @@
 
 The app-site is already a single-page JS file with localStorage-based auth (`STORAGE_TOKEN`). The pattern:
 1. Store CSRF `state` in `sessionStorage`.
-2. Redirect to `https://github.com/login/oauth/authorize?client_id=...&redirect_uri=https://grooveos.app/account/teams/&scope=read:user+user:email+read:org&state=...`.
+2. Redirect to `https://github.com/login/oauth/authorize?client_id=...&redirect_uri=https://example.com/account/teams/&scope=read:user+user:email+read:org&state=...`.
 3. On return, detect `?code=...&state=...` in URL, verify state, POST `{code, redirect_uri}` to `POST /v1/auth/github/signin` on memory-api (new endpoint, analogous to the existing `link-github-with-code` but returns an `xbt_` directly).
 4. Store `xbt_` in localStorage, remove query params with `history.replaceState({}, '', '/account/teams/')`.
 
-**client_secret never leaves memory-api.** The `redirect_uri` must be registered in the GitHub OAuth App settings (currently only `https://<extension-id>.chromiumapp.org/` is registered — the VM `.env` `GITHUB_CALLBACK_URL` shows `/oauth/github/callback` which is LibreChat's callback). Adding `https://grooveos.app/account/teams/` as an additional authorized redirect URI in the GitHub OAuth App settings is required. [ASSUMED — needs confirmation that mrboups has access to the OAuth app settings for `Ov23liVqXmHkS6JdYpcN`]
+**client_secret never leaves memory-api.** The `redirect_uri` must be registered in the GitHub OAuth App settings (currently only `https://<extension-id>.chromiumapp.org/` is registered — the VM `.env` `GITHUB_CALLBACK_URL` shows `/oauth/github/callback` which is LibreChat's callback). Adding `https://example.com/account/teams/` as an additional authorized redirect URI in the GitHub OAuth App settings is required. [ASSUMED — needs confirmation that mrboups has access to the OAuth app settings for `Ov23liVqXmHkS6JdYpcN`]
 
 **New memory-api endpoint needed:** `POST /v1/auth/github/signin` (no current auth required, public endpoint):
 - Body: `{code: str, redirect_uri: str}`
@@ -226,7 +226,7 @@ via GitHub org membership.
 To block this user, click the link below:
   {dashboard_url}/account/teams/?focus={team_slug}&action=block&login={new_member_login}
 
-— xbrain (noreply@grooveos.app)
+— xbrain (noreply@example.com)
 ```
 
 ### Multi-recipient pattern
@@ -394,7 +394,7 @@ function renderAuthHeader(me) {
 
 **App-site `/authorize` call:** Request all three scopes. If the user already granted them (LibreChat session or extension), GitHub skips the consent screen.
 
-**No OAuth app configuration change needed** for scopes. The only configuration change is adding `https://grooveos.app/account/teams/` as an authorized redirect URI in the GitHub OAuth App settings page. [ASSUMED — GitHub App settings access needed from mrboups]
+**No OAuth app configuration change needed** for scopes. The only configuration change is adding `https://example.com/account/teams/` as an authorized redirect URI in the GitHub OAuth App settings page. [ASSUMED — GitHub App settings access needed from mrboups]
 
 ---
 
@@ -404,7 +404,7 @@ function renderAuthHeader(me) {
 `Ov23liVqXmHkS6JdYpcN` is LibreChat's GitHub OAuth app. The `GITHUB_CLIENT_SECRET` in `infrastructure/docker-compose.yml` is passed to both LibreChat and memory-api. This is fine — both use the same secret. But if LibreChat rotates the client secret, memory-api breaks. Document this dependency. Affected file: `infrastructure/docker-compose.yml` env block for `memory-api`.
 
 **2. `redirect_uri` must be pre-registered in GitHub OAuth App settings.**
-Adding `https://grooveos.app/account/teams/` as an authorized callback URL requires a one-time manual change in the GitHub OAuth App settings. Until this is done, the app-site flow will return `redirect_uri_mismatch`. The extension uses `https://<extension-id>.chromiumapp.org/` which is registered. This is a deploy-time prerequisite, not a code prerequisite. Needs to happen before the phase is verified.
+Adding `https://example.com/account/teams/` as an authorized callback URL requires a one-time manual change in the GitHub OAuth App settings. Until this is done, the app-site flow will return `redirect_uri_mismatch`. The extension uses `https://<extension-id>.chromiumapp.org/` which is registered. This is a deploy-time prerequisite, not a code prerequisite. Needs to happen before the phase is verified.
 
 **3. The `gho_` flow in `deps.py` does not call `/user/emails`.**
 `deps.py:118` uses `gh.get("email") or f"{gh['login']}@github.noreply"`. After Phase 10, GitHub-primary users who sign in via the new `POST /v1/auth/github/signin` will have real emails (from `/user/emails`). But existing `gho_` bearer token auth (used by nobody in production currently, but accessible) still goes through the old path. If left untouched, the old path creates users with noreply emails. Either patch `check_github_org_membership` to also call `/user/emails`, or document that `gho_` direct-bearer auth is only for legacy and will sunset. Affected file: `apps/memory-api/app/auth.py:130-187`.
@@ -419,7 +419,7 @@ During merge, if both orphan and survivor are already in the same team (e.g., su
 The `To` header in `EmailMessage` is for display. The actual envelope recipients must be passed via the `recipients=` kwarg to `aiosmtplib.send()`. Omitting `recipients=` causes the library to infer from `To`/`Cc`/`Bcc` headers, which works for a simple list but is less explicit. Pass both for correctness.
 
 **7. App-site Firebase Hosting: callback URL and SPA routing.**
-Firebase Hosting serves static files. When the browser navigates back to `https://grooveos.app/account/teams/?code=...&state=...`, Firebase serves `index.html` (because there's no file called `?code=...`). This works correctly — `teams.js` detects the query params on DOMContentLoaded. No `firebase.json` rewrite rules needed. But if the URL path were different (e.g., `/auth/callback`), a rewrite would be required. Using the same path (Option B) avoids this entirely.
+Firebase Hosting serves static files. When the browser navigates back to `https://example.com/account/teams/?code=...&state=...`, Firebase serves `index.html` (because there's no file called `?code=...`). This works correctly — `teams.js` detects the query params on DOMContentLoaded. No `firebase.json` rewrite rules needed. But if the URL path were different (e.g., `/auth/callback`), a rewrite would be required. Using the same path (Option B) avoids this entirely.
 
 ---
 

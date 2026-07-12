@@ -20,7 +20,7 @@ Pivoter l'extension d'un Web Clipper avec Sessions vers un **team chat realtime*
 | Component | Version | Container | Status |
 |-----------|---------|-----------|--------|
 | **Centrifugo** | v6.7.2 OSS | `xbrain-centrifugo` (256MB) | up healthy |
-| nginx vhost `centrifugo.grooveos.app` | — | shared `xbrain-nginx` | proxying WS + /api + /health |
+| nginx vhost `centrifugo.example.com` | — | shared `xbrain-nginx` | proxying WS + /api + /health |
 | Cloudflare DNS `centrifugo` | proxied + WS toggle ON | — | resolving to 104.21.x.x edges |
 | Alembic migration 0015 | — | applied to `xbrain-postgres` | `team_messages` table live with 3 indexes + 2 CHECK constraints |
 
@@ -147,7 +147,7 @@ Backend integration tests for `team_context_cache.py` (`@pytest.mark.integration
 - `xbrain-centrifugo` — Up healthy (Centrifugo v6.7.2 OSS, /health 200, WS/api proxied through nginx)
 - `xbrain-memory-api` — Up healthy at alembic head 0015, includes all new routes + services
 - `xbrain-session-bridge` — Up healthy with the new `acting_user_sub` auth branch
-- Cloudflare DNS — `centrifugo.grooveos.app` proxied + WS toggle ON
+- Cloudflare DNS — `centrifugo.example.com` proxied + WS toggle ON
 - `team_messages` table — empty (0 rows; first message will populate it)
 
 ## Out-of-band manual UAT
@@ -159,7 +159,7 @@ Backend integration tests for `team_context_cache.py` (`@pytest.mark.integration
 5. Type "hello" → Send → message appears in chat instantly
 6. Type "@claude what's our last commit about?" → see Claude bubble streaming token-by-token
 7. Open a second Chrome window with the extension → both see new messages live + "N online" header counter
-8. Click 📎 → overlay opens with `chat.grooveos.app` source preview → set Project + Truth level → Send → confirm memory item lands in xbrain
+8. Click 📎 → overlay opens with `chat.example.com` source preview → set Project + Truth level → Send → confirm memory item lands in xbrain
 9. Right-click → Options → set "Default project = engineering" + "Skip overlay" → reload → next 📎 click auto-sends after 1.5s grace
 
 ## Deferred to Phase 2
@@ -173,5 +173,5 @@ Backend integration tests for `team_context_cache.py` (`@pytest.mark.integration
 - Keyword triggers configurable per team
 - Vector RAG via Qdrant (currently breadth-only top 100 truth_level >= WORKING)
 - Archive old messages to MinIO (retention policy)
-- PWA mobile (chat.grooveos.app/teams/X non-extension surface)
+- PWA mobile (chat.example.com/teams/X non-extension surface)
 - Push notifications

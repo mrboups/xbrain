@@ -65,7 +65,7 @@ Phase 11 (Brain Monitor ships first per ordering decision 2026-05-17) ✅ DONE.
 
 ### Requirements (GHAPP-01 to GHAPP-08, per ROADMAP)
 
-- **GHAPP-01:** Create new GitHub App on `mrboups` account with multi-callback URLs registered: `https://grooveos.app/account/teams/` (web) + `https://<ext-id>.chromiumapp.org/` (Chrome extension stable ID via manifest `key`). Permissions: minimal (per decision above). Generate private key (PEM), store securely server-side.
+- **GHAPP-01:** Create new GitHub App on `mrboups` account with multi-callback URLs registered: `https://example.com/account/teams/` (web) + `https://<ext-id>.chromiumapp.org/` (Chrome extension stable ID via manifest `key`). Permissions: minimal (per decision above). Generate private key (PEM), store securely server-side.
 - **GHAPP-02:** Backend JWT signing infrastructure — load private key from secret, mint JWT signed with RS256 for GitHub App authentication, exchange JWT for installation tokens per installation_id. Cache installation tokens (1h TTL, refresh-on-401).
 - **GHAPP-03:** New `installations` table (`installation_id INT PK`, `github_org_login TEXT`, `installed_at TIMESTAMPTZ`, `installed_by_github_id BIGINT`, `permissions JSONB`, `revoked_at TIMESTAMPTZ NULL`) + webhook handler `/v1/webhooks/github/installation` for `installation` and `installation_repositories` events. Sync source-of-truth from GitHub.
 - **GHAPP-04:** Migrate `/orgs/{org}/members/{username}` org membership check from `GITHUB_API_PAT` to installation token (lookup installation by `github_org_login`, use cached installation token, fall back to "org not installed → user cannot join team" error). Remove `GITHUB_API_PAT` from `.env.example` and runtime config.

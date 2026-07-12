@@ -14,10 +14,10 @@ Ce n'est pas un workspace de chatbot. Le différenciateur est la couche mémoire
 
 ## Current capabilities (as of 2026-05-17)
 
-Capacités livrées et opérationnelles en production (https://grooveos.app + 30 containers sur VM GCP `e2-standard-2`) :
+Capacités livrées et opérationnelles en production (https://example.com + 30 containers sur VM GCP `e2-standard-2`) :
 
 - **5-truth-level promotion workflow** (Phase 2) — état machine `EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC` enforced par memory-api ; promotion review + approval + audit log immuable
-- **Multi-frontend confirmé** (Phases 1, 4, 5, 7, 8, 9, 10) — LibreChat (`chat.grooveos.app`), Open WebUI (`adm.grooveos.app`), Chrome extension MV3 (side panel + clip + chat), app-site Firebase (`grooveos.app/account/teams/`), agents LangGraph (`agent-runtime`), MCP gateway clients — tous lisent/écrivent via `memory-api`
+- **Multi-frontend confirmé** (Phases 1, 4, 5, 7, 8, 9, 10) — LibreChat (`chat.example.com`), Open WebUI (`adm.example.com`), Chrome extension MV3 (side panel + clip + chat), app-site Firebase (`example.com/account/teams/`), agents LangGraph (`agent-runtime`), MCP gateway clients — tous lisent/écrivent via `memory-api`
 - **Memory layer hybride** (Phases 1-3) — `mem0` (Apache 2.0) sous interface `MemoryProvider` + `memory-api` natif FastAPI qui enforce le contrat de tagging à 7 champs et la state machine truth-level
 - **Graphe + extraction temporelle** (Phases 3, 5) — Neo4j Community (relations, lineage) + extraction Claude NER (`/v1/graph/*`) + Graphiti pour extraction temporelle continue
 - **CRM + Tasks + Granola pipeline** (Phases 7-8) — contacts auto-extraits depuis chats/agents/meetings, tasks auto-générées sur action items (regex + Claude detection), notifications email aiosmtplib, Granola API key per-user Fernet-chiffrée, agent `meeting-recap` seedé
@@ -35,7 +35,7 @@ Capacités livrées et opérationnelles en production (https://grooveos.app + 30
 - **OSS light self-host** — une team installe chat + brain complet (analyse de doc, ingest, retrieval, truth-levels, connecteur ChatGPT-web via `mcp-brain`, clip) sur ~10 containers.
 - **Édition par config, pas par branche** — Docker Compose `profiles:` (untagged = cœur OSS, `integrations`/`pro`/`saas`/`ops`) + flag `EDITION` (oss|saas|pro) qui gate le montage des routers dans memory-api, le cœur brain/chat/retrieval/truth-level TOUJOURS actif.
 - **Tier self-host payant "pro"** — clé de licence Ed25519 vérifiée offline débloque le profil `pro` (graphe Neo4j/Graphiti, observabilité Langfuse).
-- **Fondation de portabilité** — dé-câbler ~28 `grooveos.app` / 15 `aibrussels` / 15 `default` team_scope vers la config ; `.env.example` OSS mince et remplissable.
+- **Fondation de portabilité** — dé-câbler ~28 `example.com` / 15 `your-team` / 15 `default` team_scope vers la config ; `.env.example` OSS mince et remplissable.
 - **UI web chat autonome** — extraire le chat du popup de l'extension Chrome vers une web app hébergée (mutualisée avec la future PWA).
 - **CI lockstep** — une pipeline par commit build 1×, teste le sous-ensemble OSS ET le profil full, publie la release OSS ET déploie le SaaS.
 
@@ -95,7 +95,7 @@ Capacités livrées et opérationnelles en production (https://grooveos.app + 30
 - **Workflow de dev imposé.** Claude Code écrit les services / Docker / APIs / migrations / MCP tools. LibreChat + Open WebUI servent à tester les agents, valider humainement, collaborer en équipe. Tout passe par GSD : spec-driven, sub-plans par phase, commits atomiques par tâche.
 - **L'utilisateur travaille en français.** Les artefacts de planning et la communication restent en français sauf contenu purement technique.
 - **Repo GitHub** : `https://github.com/mrboups/xbrain` (origin du dépôt local).
-- **Compte GCP de déploiement** : `team@grooveos.app` (cible Phase 1 pour la VM Ubuntu 24.04).
+- **Compte GCP de déploiement** : `team@example.com` (cible Phase 1 pour la VM Ubuntu 24.04).
 
 ## Constraints
 
@@ -104,7 +104,7 @@ Capacités livrées et opérationnelles en production (https://grooveos.app + 30
   - **Phase 1** : `e2-medium` (4 GB, ~25€/mo) — LibreChat + Open WebUI + Postgres + Qdrant + memory-api stub. Tolérance fine — surveiller OOM, pas de service ajouté en plus sans couper autre chose.
   - **Phase 2** : upgrade vers `e2-standard-2` (8 GB, ~38-49€/mo) en début de phase, **avant** d'ajouter mem0 + LangGraph + agent runtime.
   - **Phase 3** : `e2-standard-4` (16 GB, ~98€/mo) **OU** Langfuse sur VM séparée (~62€/mo total) — décision en début de Phase 3 selon charge observée.
-  - GCP project cible : compte `team@grooveos.app`, projet à créer (`xbrain-prod` proposé) sans toucher aux projets existants.
+  - GCP project cible : compte `team@example.com`, projet à créer (`xbrain-prod` proposé) sans toucher aux projets existants.
 - **Open-source uniquement** : aucun service managé propriétaire dans le chemin critique — **Pourquoi :** auto-hébergeable, pas de lock-in, contrôle complet de la donnée (sensibilité multi-team).
 - **Multi-frontend invariant** : LibreChat + Open WebUI + ChatGPT (API) + Claude Code lisent/écrivent la même mémoire — **Pourquoi :** l'équipe utilise déjà ces outils en pratique. Imposer un frontend unique ferait échouer l'adoption.
 - **Contrat de tagging obligatoire** : 7 champs minimum sur chaque donnée — **Pourquoi :** invariant qui rend possibles l'isolation team, la promotion truth-level, l'audit, le retrieval scopé. C'est le différenciateur.

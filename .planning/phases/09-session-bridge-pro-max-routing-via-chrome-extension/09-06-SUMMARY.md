@@ -81,18 +81,18 @@ metrics:
 | - | --------------------------------------------------- | ---------- | ---------------------------------------------------------- |
 | 1 | session-bridge container in state "running"         | no         | hard fail if container missing                             |
 | 2 | `GET http://127.0.0.1:8105/healthz` returns 200     | no         | hard fail if bridge unreachable                            |
-| 3 | `dig +short bridge.grooveos.app` non-empty          | **yes**    | SKIPPED if dig/getent missing OR DNS not yet propagated    |
-| 4 | nginx -T mentions `bridge.grooveos.app`             | no         | hard fail if vhost missing                                 |
+| 3 | `dig +short bridge.example.com` non-empty          | **yes**    | SKIPPED if dig/getent missing OR DNS not yet propagated    |
+| 4 | nginx -T mentions `bridge.example.com`             | no         | hard fail if vhost missing                                 |
 | 5 | WebSocket upgrade smoke (101/401/403 all OK)        | **yes**    | SKIPPED if `VERIFY_XBT_TOKEN` unset                        |
 | 6 | `to_regclass('user_external_sessions')` exists      | no         | hard fail if migration 0014 not applied                    |
 | 7 | librechat.yaml contains "Claude (mon abonnement)"   | no         | hard fail (reads container first, falls back to host file) |
 | 8 | `cd chrome-extension && node tests/run_tests.mjs`   | no         | hard fail if translator/keepalive tests break              |
 
-Container + DB creds parametrized via env defaults (`BRIDGE_CONTAINER=xbrain-session-bridge`, `DB_CONTAINER=xbrain-postgres`, `PG_USER=xbrain`, `PG_DB=xbrain`, `LIBRECHAT_CONTAINER=xbrain-librechat`, `BRIDGE_HOST=bridge.grooveos.app`, `BRIDGE_LOCAL=http://127.0.0.1:8105`) — fixes WARN-4 from the plan.
+Container + DB creds parametrized via env defaults (`BRIDGE_CONTAINER=xbrain-session-bridge`, `DB_CONTAINER=xbrain-postgres`, `PG_USER=xbrain`, `PG_DB=xbrain`, `LIBRECHAT_CONTAINER=xbrain-librechat`, `BRIDGE_HOST=bridge.example.com`, `BRIDGE_LOCAL=http://127.0.0.1:8105`) — fixes WARN-4 from the plan.
 
 ### `app-site/docs/sessions.html` (27,345 bytes)
 
-Public user-facing doc at `https://chat.grooveos.app/docs/sessions.html`. Matches the dark-theme + sidebar layout of `onboarding.html`. Sections:
+Public user-facing doc at `https://chat.example.com/docs/sessions.html`. Matches the dark-theme + sidebar layout of `onboarding.html`. Sections:
 
 1. **Warning callout (red)** up top: zone grise vis-à-vis Anthropic ToS, ban-risk on user's account, opt-out path (use the regular Anthropic endpoint instead)
 2. **How it works** — 5-step request lifecycle (LibreChat → bridge → WS → claude.ai → SSE translation back)
@@ -239,7 +239,7 @@ The plan's Task 4 is a blocking `checkpoint:human-verify`. Code is shipped — t
    docker exec xbrain-memory-api alembic upgrade head     # apply 0014
    docker compose -f infrastructure/docker-compose.yml restart nginx librechat
    ```
-4. (Cloudflare) Create A record `bridge.grooveos.app → __VM_HOST__` (proxied), confirm WebSockets toggle ON
+4. (Cloudflare) Create A record `bridge.example.com → __VM_HOST__` (proxied), confirm WebSockets toggle ON
 5. Run: `bash infrastructure/scripts/verify-phase9.sh` — expect `PASS: 6 / 6 (SKIPPED: 2)` or `PASS: 8 / 8` (with VERIFY_XBT_TOKEN exported and DNS live), exit 0
 6. Reload the unpacked Chrome extension (chrome://extensions → ↻)
 7. Walk `09-UAT.md` SC-1 through SC-6, ticking each box

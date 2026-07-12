@@ -126,7 +126,7 @@ python infrastructure/scripts/test-phase13-cross-frontend.py \
 
 Langfuse traces for the cross-frontend flow are emitted by the memory-api Haiku classifier
 (`relevance_filter.classified` span) and the librechat-bridge per-turn enricher
-(`message_enricher.turn_enriched` span). These are observable post-deploy at `lang.grooveos.app`.
+(`message_enricher.turn_enriched` span). These are observable post-deploy at `lang.example.com`.
 
 ## DB Cleanup Verification
 

@@ -478,7 +478,7 @@ From `app-site/account/teams/index.html` and `teams.js`:
 ### Existing UI Patterns
 
 From `teams.js`:
-- API base: `const MEMORY_API_BASE = "https://api.grooveos.app"` — hardcoded, same pattern for brain page.
+- API base: `const MEMORY_API_BASE = "https://api.example.com"` — hardcoded, same pattern for brain page.
 - State: plain JS object `const state = { ... }`, re-rendered via DOM manipulation.
 - No virtual DOM — direct `innerHTML` or `createElement` with loops.
 

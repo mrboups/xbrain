@@ -17,7 +17,7 @@ provides:
   - "30-second since-cursor polling that PREPENDS new rows without disturbing scroll, pagination cursor, or in-flight edits"
   - "Admin-only bulk-select toolbar (truth-level apply + delete) with concurrency=4 queue and aggregated failure toast"
   - "IntersectionObserver pagination keeping DOM under ~200 rows"
-  - "Page deployed to Firebase Hosting target 'app' (dejavu-app site) reachable via https://grooveos.app/account/teams/brain/?team=<slug>"
+  - "Page deployed to Firebase Hosting target 'app' (dejavu-app site) reachable via https://example.com/account/teams/brain/?team=<slug>"
 affects: [11-09 (UAT playbook), 11-10 (superadmin dashboard — pattern reference), 11-11 (phase summary)]
 
 tech-stack:
@@ -42,7 +42,7 @@ key-files:
 key-decisions:
   - "URL scheme: real static path /account/teams/brain/index.html + ?team=<slug> query (no firebase.json rewrite needed, matches existing flat-directory pattern)"
   - "No framework / no bundler: vanilla JS + Tailwind-free hand-rolled CSS to match app-site/account/teams/index.html, per CONTEXT and RESEARCH §Q6"
-  - "X-Team-Scope header on every request to api.grooveos.app (mirrors existing convention from teams.js for /v1/teams/{id}/members)"
+  - "X-Team-Scope header on every request to api.example.com (mirrors existing convention from teams.js for /v1/teams/{id}/members)"
   - "since-cursor (strict >) for polling — server-side filter accepted as M-2 documented limitation (sub-microsecond ties not handled, acceptable per CONTEXT)"
   - "Read-only legacy localStorage fallback in brain.js so users landing here directly without visiting /account/teams/ first still work (teams.js does the full migration)"
   - "Admin bulk delete + bulk truth-level — confirmation modal mandatory before destructive bulk operations"
@@ -63,7 +63,7 @@ completed: 2026-05-17
 
 # Phase 11 Plan 11-08: app-site Brain Monitor UI — Vanilla-JS Feed + Filters + Inline Edits Summary
 
-**Vanilla-JS Brain Monitor at `/account/teams/brain/?team=<slug>` with paginated feed, lateral filters, inline truth_level editor, soft-delete + restore, 30s since-cursor live polling, and admin bulk actions — deployed to Firebase Hosting and reachable via `https://grooveos.app/account/teams/brain/`.**
+**Vanilla-JS Brain Monitor at `/account/teams/brain/?team=<slug>` with paginated feed, lateral filters, inline truth_level editor, soft-delete + restore, 30s since-cursor live polling, and admin bulk actions — deployed to Firebase Hosting and reachable via `https://example.com/account/teams/brain/`.**
 
 ## Performance
 
@@ -79,7 +79,7 @@ completed: 2026-05-17
 - **Full SPA shell** at `app-site/account/teams/brain/index.html`: header, filter sidebar (entity_type / truth_level / source / created_by / search / since / Show deleted), main table with sticky header, bulk-action bar, confirmation modal, toast stack, IntersectionObserver sentinel.
 - **brain.js controller (~1100 LOC, vanilla JS):**
   - Reads xbt_token + user_sub from canonical localStorage keys (Phase 10), with read-only legacy fallback for direct landings.
-  - X-Team-Scope header on every request to `api.grooveos.app`.
+  - X-Team-Scope header on every request to `api.example.com`.
   - `loadEvents({append, cursor})` for filter-driven loads + pagination via cursor.
   - `pollForNewItems()` (M-2 fix): dedicated 30s loop, `since=state.items[0].created_at`, honors current filters, prepends fresh rows only, never touches `state.nextCursor` or replaces state.
   - `canEdit(item)`: admin OR author. Truth-level `<select>` rendered `disabled` for non-editable rows AND change-handler short-circuits on `!canEdit` as first line (M-5 defensive gate).
@@ -88,7 +88,7 @@ completed: 2026-05-17
   - **Admin bulk actions**: row checkboxes + select-all + bulk truth-level apply + bulk delete, concurrency=4 queue, aggregated failure toast showing first 3 errors.
   - **Polling lifecycle**: paused on `document.visibilityState === "hidden"`, immediate catch-up poll on resume.
 - **brain.css**: dark theme matching `account/teams/index.html` palette (`--bg/--text/--accent/--border` from Phase 10), JetBrains Mono, truth-level pills, skeleton loaders with shimmer, sticky table header, row highlight animation for newly-prepended rows, responsive collapse at 900px.
-- **Firebase Hosting deploy** (target `app` → `dejavu-app` site): 3 files uploaded. Smoke checks PASS via `https://grooveos.app/account/teams/brain/?team=default` (200, "brain monitor" present, brain.js + brain.css both 200 with correct Content-Type).
+- **Firebase Hosting deploy** (target `app` → `dejavu-app` site): 3 files uploaded. Smoke checks PASS via `https://example.com/account/teams/brain/?team=default` (200, "brain monitor" present, brain.js + brain.css both 200 with correct Content-Type).
 
 ## Task Commits
 
@@ -143,7 +143,7 @@ Each task committed atomically on the local main branch (the Wave 4 convergence 
 
 ## Issues Encountered
 
-- **`app.grooveos.app` DNS is NXDOMAIN.** The plan's acceptance criterion mentions reaching the page at `https://app.grooveos.app/account/teams/brain/?team=default`, but that subdomain is not yet configured on Cloudflare. The page IS reachable via the equivalent `https://grooveos.app/account/teams/brain/?team=default` (the `app` Firebase target's custom domain currently resolves to the apex domain via the same Firebase site `dejavu-app`). Setting up the `app.*` CNAME is an ops follow-up unrelated to the code shipped in 11-08; logged for the Phase 11 ops checklist.
+- **`app.example.com` DNS is NXDOMAIN.** The plan's acceptance criterion mentions reaching the page at `https://app.example.com/account/teams/brain/?team=default`, but that subdomain is not yet configured on Cloudflare. The page IS reachable via the equivalent `https://example.com/account/teams/brain/?team=default` (the `app` Firebase target's custom domain currently resolves to the apex domain via the same Firebase site `dejavu-app`). Setting up the `app.*` CNAME is an ops follow-up unrelated to the code shipped in 11-08; logged for the Phase 11 ops checklist.
 
 ## User Setup Required
 
@@ -151,13 +151,13 @@ None — uses existing memory-api endpoints (shipped in 11-04, 11-05) and the ex
 
 ## Next Phase Readiness
 
-- **For 11-09 (UAT playbook):** the page is live, smoke-checked, and ready for the manual UAT script described in the plan §Acceptance. The 7 scenarios in 11-09 can run directly against `https://grooveos.app/account/teams/brain/?team=<slug>` for the team the UAT user belongs to.
+- **For 11-09 (UAT playbook):** the page is live, smoke-checked, and ready for the manual UAT script described in the plan §Acceptance. The 7 scenarios in 11-09 can run directly against `https://example.com/account/teams/brain/?team=<slug>` for the team the UAT user belongs to.
 - **For 11-10 (superadmin dashboard):** brain.js patterns (since-cursor polling, composite-key diff render, optimistic UI with status-keyed rollback, defensive auth gate, modal+toast UX) are ready to copy/adapt for the cross-team admin view.
-- **Known follow-up (non-blocking):** `app.grooveos.app` Cloudflare CNAME → handle in ops, not Phase 11 code.
+- **Known follow-up (non-blocking):** `app.example.com` Cloudflare CNAME → handle in ops, not Phase 11 code.
 
 ## Threat Flags
 
-None — the page reuses authorization gates already implemented server-side (Phase 11 plans 11-04 + 11-05), adds defensive client-side mirrors (M-5 + the additional Restore/Delete guards), and introduces no new network surface (it talks only to the same `api.grooveos.app` endpoints already in production).
+None — the page reuses authorization gates already implemented server-side (Phase 11 plans 11-04 + 11-05), adds defensive client-side mirrors (M-5 + the additional Restore/Delete guards), and introduces no new network surface (it talks only to the same `api.example.com` endpoints already in production).
 
 ## Self-Check: PASSED
 
@@ -167,7 +167,7 @@ None — the page reuses authorization gates already implemented server-side (Ph
 - `d742fdf` (Task 1 commit) in git log
 - `7d56250` (Task 2 commit) in git log
 - `1484731` (Task 3 commit) in git log
-- Live URL `https://grooveos.app/account/teams/brain/?team=default` returns 200 with "brain monitor" present
+- Live URL `https://example.com/account/teams/brain/?team=default` returns 200 with "brain monitor" present
 
 ---
 *Phase: 11-brain-monitor-universal-truth-level-inspector-soft-delete*

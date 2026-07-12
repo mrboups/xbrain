@@ -37,7 +37,7 @@ Build a new microservice + extension extension that routes Claude chat requests 
    - Streams SSE response back to LibreChat by relaying chunks from the WebSocket
 
 2. **xbrain Chrome extension (extends Phase 4 + Phase 8 work)**
-   - `extension/background.js` (service worker): WebSocket persistent to `wss://bridge.grooveos.app/ws/{user_sub}`, auto-reconnect on disconnect
+   - `extension/background.js` (service worker): WebSocket persistent to `wss://bridge.example.com/ws/{user_sub}`, auto-reconnect on disconnect
    - Handler `handleClaude(req)`: fetch credentialed against `https://api.claude.ai/api/organizations/{org_id}/chat_completions` with `credentials: 'include'`, stream response chunks back via WebSocket
    - `extension/popup.html` / `popup.js`: new "Sessions" section showing Claude session status (🟢 Active / 🔴 None), email loggé on claude.ai, refresh + disconnect buttons
    - `extension/manifest.json`: add `host_permissions` for `https://api.claude.ai/*`, `https://claude.ai/*`
@@ -46,7 +46,7 @@ Build a new microservice + extension extension that routes Claude chat requests 
    ```yaml
    - name: "Claude (mon abonnement)"
      apiKey: "user_provided"
-     baseURL: "https://bridge.grooveos.app/v1"
+     baseURL: "https://bridge.example.com/v1"
      models:
        default: ["claude-opus-4-7", "claude-sonnet-4-6"]
        fetch: false
@@ -71,7 +71,7 @@ Build a new microservice + extension extension that routes Claude chat requests 
    CREATE INDEX idx_external_sessions_user ON user_external_sessions(user_id);
    ```
 
-6. **`infrastructure/nginx/conf.d/`** — new vhost `bridge.grooveos.app`
+6. **`infrastructure/nginx/conf.d/`** — new vhost `bridge.example.com`
    - `/v1/` → proxy_pass to session-bridge:8105 (HTTP, SSE streaming, proxy_buffering off)
    - `/ws/` → proxy_pass to session-bridge:8105 (WebSocket upgrade, proxy_read_timeout 86400s)
 
@@ -86,7 +86,7 @@ Build a new microservice + extension extension that routes Claude chat requests 
      restart: unless-stopped
    ```
 
-8. **DNS** — Cloudflare A record `bridge.grooveos.app` → VM IP `__VM_HOST__`, Proxied
+8. **DNS** — Cloudflare A record `bridge.example.com` → VM IP `__VM_HOST__`, Proxied
 
 ### Translation Layer
 
@@ -100,11 +100,11 @@ The translation can happen on either side (session-bridge or extension). **Decis
 ### Authentication flow
 
 1. User installs extension, signs in to xbrain (xbt_ personal API token already in extension storage from Phase 8)
-2. Extension service worker opens WebSocket: `wss://bridge.grooveos.app/ws/{user_sub}?token={xbt_token}`
+2. Extension service worker opens WebSocket: `wss://bridge.example.com/ws/{user_sub}?token={xbt_token}`
 3. session-bridge validates token via memory-api `GET /v1/users/me` (cached 60s), maps `user_sub` → socket
 4. User browses to claude.ai, signs in (browser session, cookies set on claude.ai domain)
 5. LibreChat user picks "Claude (mon abonnement)" endpoint, pastes their xbt_token as apiKey
-6. LibreChat POSTs to `bridge.grooveos.app/v1/chat/completions` with `Authorization: Bearer xbt_...`
+6. LibreChat POSTs to `bridge.example.com/v1/chat/completions` with `Authorization: Bearer xbt_...`
 7. session-bridge validates token, looks up `USER_SOCKETS[user_sub]`, pushes the chat request to extension
 8. Extension fetches `api.claude.ai/api/organizations/{org_id}/chat_completions` with credentials: 'include'
 9. Streams chunks back via WebSocket, session-bridge SSE-streams to LibreChat
@@ -149,7 +149,7 @@ The translation can happen on either side (session-bridge or extension). **Decis
 
 - Architectural discussion (this session) covered all major decisions — context file is the authoritative source for Phase 9, supersedes ad-hoc references
 - Memory: `project_xbrain_phase7_complete.md`, `project_xbrain_phase4_live.md`, `project_xbrain_phase1_infra.md` — VM is `__VM_HOST__`, Docker Compose orchestration, nginx vhost pattern established
-- Existing nginx config: `infrastructure/nginx/conf.d/10-xbrain.conf` (referenced earlier in conversation, has `chat.grooveos.app`, `adm.grooveos.app`, `lang.grooveos.app`, `mcp.grooveos.app` patterns)
+- Existing nginx config: `infrastructure/nginx/conf.d/10-xbrain.conf` (referenced earlier in conversation, has `chat.example.com`, `adm.example.com`, `lang.example.com`, `mcp.example.com` patterns)
 - `librechat.yaml` patterns: see existing Anthropic/OpenAI/xAI/Claude Reasoning blocks (`apiKey: user_provided` pattern used in BYOK already supported)
 
 ## Open questions for research phase
