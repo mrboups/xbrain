@@ -33,30 +33,49 @@ Locked decision **Q6** dropped the Ed25519 license and the paid self-host tier e
 
 **This must be stated because the ROADMAP actively contradicted it until today.** Phase 15's success criteria SC#4 and SC#5 still demanded "a paying customer installs a valid Ed25519-signed license" and `require_entitlement()` checks. Both were rewritten on 2026-07-12. **Do not plan license, signing, entitlement, or `require_entitlement()` work.** If any source artifact still asks for it, it is stale — this decision wins.
 
-### D-15-02 — Three profiles, not four. `pro` is DELETED. (User decision, 2026-07-12.)
+### D-15-02 — `pro` is DELETED. Four profiles remain: *(unset)* / `integrations` / `saas` / `ops`.
+
+**AMENDED 2026-07-12 after research (user-approved).** The first draft of this decision said "three profiles" and listed ~24 services. Research proved it wrong in three ways, each of which would have shipped a broken OSS-light install. The corrected table is authoritative:
 
 | `COMPOSE_PROFILES` | Services |
 |---|---|
-| *(unset)* — OSS-light core, always runs | memory-api, postgres, qdrant, centrifugo, nginx, minio, mcp-brain, mcp-gateway, mcp-scraper, brain-janitor |
+| *(unset)* — OSS-light core, always runs | memory-api, postgres, qdrant, centrifugo, nginx, **minio**, mcp-brain, mcp-gateway, mcp-scraper, brain-janitor |
 | `integrations` | neo4j, graphiti-service, langfuse (+ its clickhouse/redis deps), mcp-calendar, mcp-drive-read, mcp-deck, mcp-github, granola-sync, drive-sync, searxng, agent-runtime |
-| `saas` | session-bridge, librechat, openwebui |
+| `saas` | session-bridge, librechat, **librechat-mongo, librechat-meili, librechat-bridge**, openwebui, **openwebui-pipeline** |
+| `ops` | **xbrain-backup** |
 
-The old blueprint had a fourth `pro` profile (neo4j / graphiti / langfuse). It is removed: with EDIT-03 gone there is no paid tier for it to unlock, and Q5 already says Neo4j is *"open source, opt-in — the only reason it's not default is ~1 GB RAM. Not paywalled."* A profile named `pro` would advertise a commercial tier that does not exist. Those three services move into `integrations`.
+**`pro` stays deleted** — that is the actual user decision and it is unchanged. With EDIT-03 gone there is no paid tier for it to unlock, and Q5 already says Neo4j is *"open source, opt-in — the only reason it's not default is ~1 GB RAM. Not paywalled."* A profile named `pro` would advertise a commercial tier that does not exist. Neo4j / Graphiti / Langfuse live in `integrations`.
 
-A service with **no** profile tag always runs. That is the OSS-light baseline — it is defined by *absence* of a tag, so getting the tagging wrong silently changes what a default install starts.
+**The three corrections, and why each was forced:**
 
-### D-15-03 — Neo4j must stop being a hard boot dependency. (Real defect, found 2026-07-12.)
+1. **`ops` is restored — it was never the user's to drop; the first draft simply lost it.** `EDIT-01` names four opt-in profiles verbatim: *"`integrations` / `pro` / `saas` / `ops` are opt-in"* (`.planning/REQUIREMENTS.md:21`). Only `pro` was dropped. `xbrain-backup` goes here. This also has a practical payoff: `xbrain-backup` is the **only** service in the entire compose file with no arm64 image (`google/cloud-sdk:slim` is amd64-only, plus a hardcoded x86_64 mongodb-tools `.deb` in its Dockerfile), so isolating it in `ops` keeps every *other* profile verifiable on this arm64 dev host.
 
-`infrastructure/docker-compose.yml` currently declares, on the **memory-api** service:
+2. **MinIO is PROMOTED into the core and renamed.** There is exactly one MinIO in the compose file and it is called `langfuse-minio` (line 583) — but `memory-api` points its media storage at it: `MINIO_ENDPOINT: ${MINIO_ENDPOINT:-langfuse-minio:9000}` (line 190). `media` is a **promised always-on core capability**. Tagging that container `integrations` (the natural reading, since Langfuse brought it) would make `/v1/media/upload` return 503 in *every* OSS-light install. So it becomes an untagged core service named `minio`, and Langfuse — when `integrations` is on — reuses that same instance. Do NOT stand up a second MinIO: that is ~256 MB of duplicated RAM against the whole point of OSS-light.
 
-```yaml
-depends_on:
-  neo4j: { condition: service_healthy }
+3. **Five services the first draft never named** would have leaked into the core by omission. A service with **no** profile tag always runs, so *forgetting* a service is not a no-op — it silently enlarges the default install. `librechat-mongo`, `librechat-meili`, `librechat-bridge` and `openwebui-pipeline` are LibreChat/Open-WebUI dependencies and belong in `saas` (Q4 removes those frontends from the default install). Research proved the omission live: a faithful application of the first draft's table yielded **15** services in the bare-compose core, not ~10.
+
+**The trap to internalise:** the OSS-light baseline is defined by the *absence* of a tag. Every service must be explicitly accounted for. An untagged service is a shipped service.
+
+### D-15-03 — Neo4j must stop being a hard boot dependency. TWO edges, not one. The work is compose-only.
+
+**AMENDED 2026-07-12 after research.** The first draft named one blocker and assumed the app code would need fixing. Both were wrong.
+
+**There are TWO hard `depends_on: neo4j: {condition: service_healthy}` edges**, and both are on services that sit in the *untagged core*:
+
+- `memory-api` — `infrastructure/docker-compose.yml`
+- **`brain-janitor`** — `infrastructure/docker-compose.yml:1131` (missed by the first draft)
+
+Docker Compose's rule here is unforgiving: **a service with no profile may not `depends_on` a service that has one.** Research proved the failure live — applying the profile table without removing these edges makes `docker compose config` abort outright:
+
+```
+service "brain-janitor" depends on undefined service "neo4j": invalid compose project
 ```
 
-So `docker compose up` cannot start memory-api until Neo4j is healthy — an OSS-light install pays ~1 GB of RAM for a graph it never asked for. This directly contradicts Q5 and it is the single most concrete thing this phase must fix.
+So this is not a nice-to-have cleanup. It is a **Wave-0 prerequisite**: until both edges are gone, the compose file does not even parse with profiles applied, and no other task in the phase can be verified.
 
-Removing the `depends_on` is necessary but **not sufficient**: the graph-backed code paths must degrade cleanly when Neo4j is absent (documented behavior, not a crash and not a 500). Check `apps/memory-api/app/neo4j_client.py` (`init_driver` / `close_driver`, called from `main.py` lifespan) and the `outbox_worker` — the plan must establish what happens today when Neo4j is unreachable, and make the no-Neo4j path a first-class, tested one.
+**The application code is ALREADY correct — do not "fix" it.** Research booted memory-api live with no Neo4j container reachable: `/v1/healthz` returned **200**, exactly one `neo4j.connectivity_failed` ERROR log line, no crash, no log spam. The only cost was a ~8.5s DNS-timeout delay at startup, which is worth a look but is not a defect. Three independent graceful-degrade implementations already exist in this codebase and are a good precedent to copy for router gating.
+
+**Therefore D-15-03's real work is removing two compose edges** — plus deciding whether that 8.5s DNS timeout on a Neo4j-less boot should be shortened. Do not plan application-code changes to the Neo4j path.
 
 ### D-15-04 — A profile flip must never change what a service believes about its data.
 
