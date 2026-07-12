@@ -12,7 +12,7 @@ router = APIRouter()
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 WAITLIST_TO = os.getenv("WAITLIST_TO", "")
-WAITLIST_FROM = os.getenv("WAITLIST_FROM", "GrooveOS <waitlist@grooveos.app>")
+WAITLIST_FROM = os.getenv("WAITLIST_FROM", "Example <waitlist@example.com>")
 
 
 class WaitlistRequest(BaseModel):
@@ -30,7 +30,7 @@ async def join_waitlist(body: WaitlistRequest):
         "from": WAITLIST_FROM,
         "to": [WAITLIST_TO],
         "reply_to": body.email,
-        "subject": f"GrooveOS waitlist: {body.name} ({body.plan})",
+        "subject": f"xbrain waitlist: {body.name} ({body.plan})",
         "html": (
             f"<p><strong>Name:</strong> {body.name}</p>"
             f"<p><strong>Email:</strong> {body.email}</p>"
