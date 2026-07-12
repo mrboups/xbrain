@@ -92,3 +92,34 @@ wants real media handling end-to-end.
 endpoint (memory-api) that puts to MinIO + returns a key, a served/proxied URL with team-scoped
 auth, mime/type handling, the tagging contract on the media memory_item, and the three render
 surfaces (LibreChat, extension, Brain Monitor). Sizeable — plan as its own phase.
+
+---
+
+## Agent mention alias — settable from the Settings UI, not just `.env`
+
+**Requested:** 2026-07-12 (mid-Phase-14). **Not in Phase 14 scope** — logged here rather than
+improvised into a plan-checked, half-executed phase.
+
+**Context / decided naming:** the chat agent is summoned with `@chad`, and the product rebrand target
+is `teamchad.ai` (replacing the grooveos.app naming). `@agent` MUST keep working as well — the alias
+list is additive, not a replacement.
+
+**What Phase 14 already gives us (the substrate — do not redo):**
+- `AGENT_MENTION_ALIASES` (added by 14-01, decision D-08) — comma-separated, no leading `@`,
+  code default `"agent"`. `apps/memory-api/app/config.py`. The mention detector reads it; nothing is
+  hardcoded any more.
+- So the deployed value becomes `agent,chad` — both `@agent` and `@chad` resolve. Setting it is a
+  `.env` change today, with no code change and no redeploy of source.
+- Likewise `XBRAIN_BASE_DOMAIN` (14-03a) makes `teamchad.ai` a config value, not a hardcode.
+
+**What is still missing (this backlog item):** an in-app option so the alias can be changed from the
+Settings UI instead of editing `.env` on the VM and restarting. Shape to design:
+- Per-team or global? Per-team is consistent with the rest of the product (team_scope everywhere), but
+  the mention detector currently resolves aliases process-wide — this is the real design question.
+- Needs a persisted override (Postgres) that takes precedence over the env default, a settings surface
+  (likely alongside the existing team admin / Brain Monitor UIs), and cache invalidation so a changed
+  alias takes effect without a restart.
+- Keep the env var as the fallback/bootstrap default so a fresh self-hosted install still works with
+  zero configuration.
+
+**Sizing:** small-to-medium. Candidate for Phase 15 (Edition Mechanics) or a dedicated slice.
