@@ -1,5 +1,6 @@
 """Application settings — read from env via pydantic-settings."""
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,7 +34,7 @@ class Settings(BaseSettings):
     # Fernet key — generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     OAUTH_CREDENTIALS_ENCRYPTION_KEY: str = ""
     # Used to build OAuth redirect_uri returned to Google
-    MEMORY_API_EXTERNAL_URL: str = "https://chat.grooveos.app"
+    MEMORY_API_EXTERNAL_URL: str = "http://localhost:8000"
 
     # === Phase 5 — LibreChat OAuth App (still active — separate from xbrain auth) ===
     # GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET below identify the
@@ -84,8 +85,10 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
-    SMTP_FROM: str = "noreply@grooveos.app"
+    SMTP_FROM: str = "noreply@example.com"
     SMTP_TLS: bool = True
+    # Public base URL of the deployment; used in outbound email links (D-05).
+    APP_PUBLIC_URL: str = "http://localhost:8000"
 
     # Phase 8 — GitHub repos proxy (plan 08-05)
     # Internal Docker network URL to LibreChat. Used by /v1/github/repos to proxy
@@ -104,7 +107,7 @@ class Settings(BaseSettings):
     # Internal Docker network URL (memory-api → centrifugo container).
     CENTRIFUGO_HTTP_URL_INTERNAL: str = "http://centrifugo:8000"
     # Public WSS URL the Chrome extension + PWA connect to.
-    CENTRIFUGO_WS_URL_PUBLIC: str = "wss://centrifugo.grooveos.app/connection/websocket"
+    CENTRIFUGO_WS_URL_PUBLIC: str = "ws://localhost:8000/connection/websocket"
     # TTL for the team memory context bundle cached in-process. 5 minutes
     # matches the Anthropic prompt cache window (cache_control: ephemeral
     # holds ~5min before eviction in practice).
@@ -141,8 +144,24 @@ class Settings(BaseSettings):
     # OAUTH_ISSUER_URL is the public base for AS metadata + /oauth/* endpoints.
     # OAUTH_RESOURCE_URL is the protected-resource (mcp-brain) audience the
     # issued tokens are bound to; normalized (no trailing slash) on every store.
-    OAUTH_ISSUER_URL: str = "https://api.grooveos.app"
-    OAUTH_RESOURCE_URL: str = "https://mcp.grooveos.app/mcp"
+    # Empty by default (D-03) — required, validated below; fails boot loudly
+    # rather than minting tokens bound to a misleading hardcoded default.
+    OAUTH_ISSUER_URL: str = ""
+    OAUTH_RESOURCE_URL: str = ""
+
+    # Browser origins allowed to call this API (FastAPI CORSMiddleware allow_origin_regex).
+    # Set to your own front-end origins in .env. Wired in main.py (amended ROADMAP SC#4).
+    CORS_ALLOWED_ORIGIN_REGEX: str = r"(chrome-extension://.*|http://localhost(:\d+)?)"
+
+    @field_validator("OAUTH_ISSUER_URL", "OAUTH_RESOURCE_URL")
+    @classmethod
+    def _require_oauth_urls(cls, v: str, info) -> str:
+        if not v:
+            raise ValueError(
+                f"{info.field_name} is required — set it in .env "
+                f"(e.g. OAUTH_ISSUER_URL=https://api.yourdomain.com)"
+            )
+        return v
 
     # Phase 13 — Chat → Brain Ingestion + Retrieval Enrichment
     RELEVANCE_HAIKU_ENABLED: bool = True
@@ -155,6 +174,11 @@ class Settings(BaseSettings):
     GITHUB_CATALOG_ENABLED: bool = True
     GITHUB_CATALOG_CONCURRENCY: int = 5   # max parallel upserts per backfill batch
     GITHUB_CATALOG_README_CHARS: int = 8000  # README input cap before Haiku call
+
+    # Comma-separated agent mention aliases, WITHOUT the leading '@'.
+    # Neutral default so a fresh OSS install works out of the box: "@agent".
+    # xbrain prod overrides this in .env to preserve today's triggers.
+    AGENT_MENTION_ALIASES: str = "agent"
 
     @property
     def admin_user_subs(self) -> set[str]:

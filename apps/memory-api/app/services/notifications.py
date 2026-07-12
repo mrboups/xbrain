@@ -77,7 +77,7 @@ async def send_member_autojoined_email(
     team_slug: str,
     new_member_login: str,
     new_member_display: str,
-    dashboard_url: str = "https://grooveos.app",
+    dashboard_url: str | None = None,
 ) -> None:
     """Notify all team admins that a new member auto-joined via GitHub org match.
 
@@ -98,6 +98,8 @@ async def send_member_autojoined_email(
         log.warning("email.no_admins", team_slug=team_slug)
         return
 
+    dashboard_url = dashboard_url or settings.APP_PUBLIC_URL
+
     try:
         # Lazy-import to avoid ImportError at module load when aiosmtplib missing
         import aiosmtplib
@@ -112,7 +114,7 @@ async def send_member_autojoined_email(
             f"To block this user, click the link below:\n"
             f"  {dashboard_url}/account/teams/?focus={team_slug}"
             f"&action=block&login={new_member_login}\n\n"
-            f"— xbrain (noreply@grooveos.app)\n"
+            f"— xbrain ({settings.SMTP_FROM})\n"
         )
         msg.set_content(body)
 

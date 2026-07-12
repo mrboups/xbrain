@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     # Drive push webhook settings
     # Public HTTPS URL where Google Drive sends change notifications.
-    # Must be reachable from the internet — typically https://api.grooveos.app/v1/drive-webhook
+    # Must be reachable from the internet — typically https://api.example.com/v1/drive-webhook
     DRIVE_WEBHOOK_PUBLIC_URL: str = ""
     # Random token (64+ chars) stored in drive_watch_channels.channel_token.
     # Google echoes it back in X-Goog-Channel-Token for auth verification.

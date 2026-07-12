@@ -298,7 +298,7 @@ async def get_current_principal(
             raw_gh_id = claims.get("github_id")
             github_id = int(raw_gh_id) if raw_gh_id else None
             # If the caller carries a github_id that already maps to a user
-            # (e.g. they signed in via GitHub on grooveos.app first), reuse that
+            # (e.g. they signed in via GitHub on the web app first), reuse that
             # row instead of minting an email:<...> identity — the github_id
             # UNIQUE constraint would otherwise reject the insert and surface a
             # spurious 401. This is the account-linking convergence point
