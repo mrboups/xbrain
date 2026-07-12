@@ -13,8 +13,8 @@ Active scope. One codebase, two runtime shapes (OSS self-host / SaaS hosted); a 
 
 ### Portability (config-driven, not hardcoded)
 
-- [ ] **PORT-01**: An operator can point the entire stack at their own domain and keys via config alone — no `example.com`, `your-team`, or hardcoded `default` team_scope remains in source
-- [ ] **PORT-02**: An operator can configure a fresh install from a slim, documented OSS `.env.example` without reading source code
+- [x] **PORT-01**: An operator can point the entire stack at their own domain and keys via config alone — no `example.com`, `your-team`, or hardcoded `default` team_scope remains in source
+- [x] **PORT-02**: An operator can configure a fresh install from a slim, documented OSS `.env.example` without reading source code
 
 ### Edition Mechanics
 
@@ -51,8 +51,8 @@ Mapping requirement -> phase for milestone v2.0 "Open-Core Edition". Filled by t
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PORT-01 | Phase 14 | Pending |
-| PORT-02 | Phase 14 | Pending |
+| PORT-01 | Phase 14 | Done (2026-07-12) |
+| PORT-02 | Phase 14 | Done (2026-07-12) |
 | EDIT-01 | Phase 15 | Pending |
 | EDIT-02 | Phase 15 | Pending |
 | EDIT-03 | ~~Phase 15~~ | DROPPED (Q6, 2026-07-11) |

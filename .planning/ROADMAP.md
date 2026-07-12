@@ -25,8 +25,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 9: Session Bridge — Pro/Max Routing via Chrome Extension** - Les users xbrain consomment leur propre quota Claude Pro/Max au lieu de la clé API team. Nouveau microservice `session-bridge` (port 8105, OpenAI-compat ↔ WebSocket router), extension xbrain étendue (WebSocket persistant + fetch credentialed claude.ai), nouveau endpoint LibreChat "Claude (mon abonnement)", vhost nginx bridge.grooveos.app, table `user_external_sessions`. **Scope: Claude only — ChatGPT Plus déféré Phase 10.** — **LIVE 2026-05-12** (6/6 plans shipped, verify-phase9.sh PASS 6/6 with 2 acceptable SKIP on VM 2026-05-17)
 
 - [x] **Phase 14: Portability Foundation** - De-hardcode `grooveos.app` / `aibrussels` / `default` team_scope into config; slim fillable OSS `.env.example` (completed 2026-07-12)
-- [ ] **Phase 15: Edition Mechanics** - Compose `profiles:` + `EDITION` flag + router gating + Ed25519 license/entitlements so one codebase serves oss/saas/pro
-- [ ] **Phase 16: OSS Light Packaging** - Light compose + install docs + clean-install test on a fresh VM + standalone hosted web chat UI
+- [ ] **Phase 15: Edition Mechanics** - Compose `profiles:` + `EDITION` flag + router gating so one codebase serves oss/saas. (The Ed25519 license + paid `pro` tier was DROPPED by locked decision Q6 — no product feature is paywalled; only the hosted control plane stays closed.)
+- [ ] **Phase 18: Local Auth (OSS default)** - Native email/password sign-in in memory-api, so a self-hoster needs NO external OAuth setup. **Runs BEFORE Phase 16** — execution order is 14 → 15 → 18 → 16 → 17; it is numbered 18 only to avoid renumbering 16/17.
+- [ ] **Phase 16: OSS Light Packaging** - Light compose + install docs + clean-install test on a fresh VM + standalone hosted web chat UI. (Per Q4 the web group-chat IS the product — and it does not exist yet: today the only working chat frontend is the Chrome extension.)
 - [ ] **Phase 17: CI Lockstep** - One pipeline builds/tests both profiles, publishes the OSS release and deploys SaaS from the same commit
 
 ## Phase Details
@@ -570,7 +571,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 11/11 | ✅ LIVE | 2026-05-17 (verify-phase11.sh PASS 5/5 + 11 SKIP fixture, alembic 0018 head on VM, brain-janitor running, UI live grooveos.app/account/teams/brain/ + /account/admin/) |
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 11/11 | ✅ LIVE | 2026-05-17 (alembic 0019 head, memory-api rebuilt, verify-phase12.sh PASS 13/13 + 5 SKIP fixture, Firebase teams.js with new client_id Iv23liVnZvIN0Lo6isof live) |
 | 13. Chat → Brain Ingestion + Retrieval Enrichment | 8/8 | Complete   | 2026-05-27 |
-| 14. Portability Foundation | 8/8 | Complete   | 2026-07-12 |
+| 14. Portability Foundation | 8/8 | Complete    | 2026-07-12 |
 | 15. Edition Mechanics | 0/TBD | Not started | - |
 | 16. OSS Light Packaging | 0/TBD | Not started | - |
 | 17. CI Lockstep | 0/TBD | Not started | - |
