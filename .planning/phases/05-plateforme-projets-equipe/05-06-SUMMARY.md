@@ -58,7 +58,7 @@ Runbook complet (68 lignes) pour protéger `projects.dejavu.cat` avec Cloudflare
 - Étape 1 : Firebase Hosting custom domain — DNS TXT verification + A records en mode Proxied
 - Étape 2 : Identity Provider Google dans Cloudflare Zero Trust (OAuth2 redirect URI format)
 - Étape 3 : Application Access `xbrain Projects Dashboard` sur `projects.dejavu.cat`
-- Étape 4 : Policy `Team xbrain Access` — emails `team@grooveos.app` + `team@grooveos.app`
+- Étape 4 : Policy `Team xbrain Access` — emails `team@example.com` + `team@example.com`
 - Troubleshooting : 523 (SSL mode Full Strict), login loop (redirect URI exact), bypass `.web.app` (accepté)
 
 ### Task 2 — .env.example (section Phase 5)

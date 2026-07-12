@@ -1,4 +1,4 @@
-# Cloudflare DNS runbook — `bridge.grooveos.app` (Phase 9)
+# Cloudflare DNS runbook — `bridge.example.com` (Phase 9)
 
 This runbook covers the manual Cloudflare setup required for the Phase 9
 session-bridge (`apps/session-bridge`). Claude Code cannot drive the Cloudflare
@@ -7,14 +7,14 @@ per environment.
 
 ## What this enables
 
-- `https://bridge.grooveos.app/v1/...` — OpenAI-compatible chat completions, called
+- `https://bridge.example.com/v1/...` — OpenAI-compatible chat completions, called
   by LibreChat's "Claude (mon abonnement)" custom endpoint.
-- `wss://bridge.grooveos.app/ws/{user_sub}` — persistent WebSocket opened by the
+- `wss://bridge.example.com/ws/{user_sub}` — persistent WebSocket opened by the
   xbrain Chrome extension's service worker.
 
 ## Prerequisites
 
-- Cloudflare zone for `grooveos.app` already exists (set up in Phase 7 domain
+- Cloudflare zone for `example.com` already exists (set up in Phase 7 domain
   migration — see `memory/project_xbrain_domain_migration.md`).
 - VM origin IP is `__VM_HOST__` (`gcloud compute instances list` to reconfirm
   if the VM was ever recreated).
@@ -24,10 +24,10 @@ per environment.
 
 ## Step 1 — Add the DNS A record
 
-1. Open https://dash.cloudflare.com and select the `grooveos.app` zone.
+1. Open https://dash.cloudflare.com and select the `example.com` zone.
 2. **DNS → Records → Add record**:
    - Type: **A**
-   - Name: `bridge` (will become `bridge.grooveos.app`)
+   - Name: `bridge` (will become `bridge.example.com`)
    - IPv4 address: `__VM_HOST__`
    - Proxy status: **Proxied** (orange cloud — NOT DNS-only)
    - TTL: Auto
@@ -36,7 +36,7 @@ per environment.
 ## Step 2 — Confirm WebSockets are enabled site-wide
 
 Cloudflare proxies WebSockets only when the site-level toggle is on. It usually
-already is for `grooveos.app` (LibreChat needs it too), but verify:
+already is for `example.com` (LibreChat needs it too), but verify:
 
 1. In the same zone, go to **Network**.
 2. Confirm **WebSockets** is **ON**.
@@ -46,7 +46,7 @@ already is for `grooveos.app` (LibreChat needs it too), but verify:
 From any laptop (NOT from the VM — Cloudflare hides the origin):
 
 ```bash
-nslookup bridge.grooveos.app
+nslookup bridge.example.com
 # Expected: resolves to a Cloudflare anycast IP (e.g. 104.21.x.x or 172.67.x.x),
 # NOT to __VM_HOST__. If it resolves to the VM IP, the proxy is off.
 ```
@@ -54,7 +54,7 @@ nslookup bridge.grooveos.app
 ## Step 4 — Verify the vhost answers (after nginx reload on VM)
 
 ```bash
-curl -fsS https://bridge.grooveos.app/nginx-health
+curl -fsS https://bridge.example.com/nginx-health
 # Expected: ok
 ```
 
@@ -71,7 +71,7 @@ If this returns a Cloudflare error page (525, 526, 1016, ...), check:
 After completing steps 1–4, append a line below for traceability:
 
 ```
-bridge.grooveos.app A record created: YYYY-MM-DD by <operator name>
+bridge.example.com A record created: YYYY-MM-DD by <operator name>
 WebSockets toggle confirmed ON:      YYYY-MM-DD by <operator name>
 ```
 

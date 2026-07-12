@@ -13,9 +13,9 @@ maps_to: Phase 11 ROADMAP success criteria + REVISION 1 (M-2 polling, M-5 403 wo
 | Verifier      | _______________________                                 |
 | Date          | _______________________                                 |
 | VM IP         | __VM_HOST__                                          |
-| App host      | https://app.grooveos.app                                |
-| API host      | https://api.grooveos.app                                |
-| Marketing host| https://grooveos.app                                    |
+| App host      | https://app.example.com                                |
+| API host      | https://api.example.com                                |
+| Marketing host| https://example.com                                    |
 
 This is the manual checklist for the things `verify-phase11.sh` cannot automate —
 mostly UI interactions (inline edits, dropdowns, polling, drill-down banner,
@@ -29,7 +29,7 @@ SKIPPED never blocks; only FAIL == 0 is required.
 ## Pre-checks (must all be true before starting)
 
 - [ ] `bash infrastructure/scripts/verify-phase11.sh` returned `PASS: N / N (SKIPPED: M)` with `FAIL == 0`
-- [ ] You are signed in to https://app.grooveos.app as a team member (admin of `default` ideally)
+- [ ] You are signed in to https://app.example.com as a team member (admin of `default` ideally)
 - [ ] Team `default` has at least 10 brain events visible (any mix of memory_items, tasks, conversations, contacts — top up via the app / API if dev DB is empty)
 - [ ] Team `default` has at least one item where you are NOT the author (needed for step 7 — sign in as a second principal once or have an admin seed)
 - [ ] **For step 8 (superadmin)** the VM has `ADMIN_USER_SUBS` set and includes your `sub` for the superadmin half, AND at least one OTHER team exists in the DB (seed via `POST /v1/admin/teams` if there's only `default`)
@@ -42,7 +42,7 @@ SKIPPED never blocks; only FAIL == 0 is required.
 
 ### Step 1 — Load page (SC-3, BMO-09)
 
-- [ ] Open https://app.grooveos.app/account/teams/brain/?team=default in a fresh browser tab.
+- [ ] Open https://app.example.com/account/teams/brain/?team=default in a fresh browser tab.
 - [ ] Page loads in **under 2 seconds** (measure via DevTools → Network → DOMContentLoaded).
 - [ ] The brain events table is rendered with at least 10 rows.
 - [ ] The filter sidebar (left or top, depending on viewport) is visible and lists at least `entity_type` and `truth_level` filter groups.
@@ -99,7 +99,7 @@ SKIPPED never blocks; only FAIL == 0 is required.
 - [ ] Note the topmost row currently visible in the brain monitor table.
 - [ ] In a **second browser tab** (or via curl on the VM with a valid xbt_), create a brand-new memory_item in team `default`:
       ```
-      curl -X POST https://api.grooveos.app/v1/memory/upsert \
+      curl -X POST https://api.example.com/v1/memory/upsert \
         -H "Authorization: Bearer $TEST_XBT" \
         -H "X-Team-Scope: default" \
         -H "Content-Type: application/json" \
@@ -130,7 +130,7 @@ docker exec -i xbrain-postgres psql -U xbrain -d xbrain -c \
 ```
 If there's only `default`, create another via:
 ```
-curl -X POST https://api.grooveos.app/v1/admin/teams \
+curl -X POST https://api.example.com/v1/admin/teams \
   -H "Authorization: Bearer $SUPERADMIN_XBT" -H "Content-Type: application/json" \
   -d '{"slug":"uat-extra","name":"UAT Extra Team"}'
 ```
@@ -138,7 +138,7 @@ curl -X POST https://api.grooveos.app/v1/admin/teams \
 #### 8a — Superadmin view
 
 - [ ] Sign in as a **superadmin** principal (`sub` listed in `ADMIN_USER_SUBS`).
-- [ ] Open https://app.grooveos.app/account/admin/ in a fresh tab.
+- [ ] Open https://app.example.com/account/admin/ in a fresh tab.
 - [ ] All **4 sections** render within ~2 s of page load:
       - Brain Overview matrix (per team × entity_type)
       - Storage table (per team rows / Qdrant points / MinIO bytes — N/A cells acceptable)
@@ -154,7 +154,7 @@ curl -X POST https://api.grooveos.app/v1/admin/teams \
 #### 8b — Drill-down with banner + audit
 
 - [ ] Click **Drill down →** on any team row in Brain Overview (any team works — `default` or the seeded extra).
-- [ ] Browser navigates to `https://app.grooveos.app/account/teams/brain/?team=<slug>&as_superadmin=1`.
+- [ ] Browser navigates to `https://app.example.com/account/teams/brain/?team=<slug>&as_superadmin=1`.
 - [ ] A **yellow banner** appears at the top of the page reading exactly:
       > Viewing as superadmin — this access is logged.
 - [ ] The brain monitor table renders for the target team.

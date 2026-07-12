@@ -30,9 +30,9 @@ user_setup: []
 
 must_haves:
   truths:
-    - "An unauthenticated MCP request to mcp.grooveos.app returns 401 + WWW-Authenticate pointing at the protected-resource metadata URL"
-    - "GET https://mcp.grooveos.app/.well-known/oauth-protected-resource returns JSON whose authorization_servers lists https://api.grooveos.app and whose resource exactly matches the pasted URL (no trailing slash)"
-    - "GET https://api.grooveos.app/.well-known/oauth-authorization-server returns AS metadata advertising S256 PKCE, the /oauth/* endpoints, and token_endpoint_auth_methods_supported including 'none'"
+    - "An unauthenticated MCP request to mcp.example.com returns 401 + WWW-Authenticate pointing at the protected-resource metadata URL"
+    - "GET https://mcp.example.com/.well-known/oauth-protected-resource returns JSON whose authorization_servers lists https://api.example.com and whose resource exactly matches the pasted URL (no trailing slash)"
+    - "GET https://api.example.com/.well-known/oauth-authorization-server returns AS metadata advertising S256 PKCE, the /oauth/* endpoints, and token_endpoint_auth_methods_supported including 'none'"
     - "Claude.ai can dynamically register a client (POST /oauth/register), complete an authorization-code+PKCE flow where the user logs in via GitHub and picks ONE team, and exchange the code for an oat_ access token bound to that single team_scope"
     - "mcp-brain validates an oat_ access token by introspecting it against memory-api, rejecting tokens whose audience does not match the pasted resource, and serves the full toolset under the bound team_scope"
     - "Connector-originated writes carry source='claude.ai-connector' and a truth_level capped at WORKING, scoped strictly to the token's bound team_scope"
@@ -63,7 +63,7 @@ must_haves:
       pattern: "oauth/introspect"
     - from: "Claude.ai connector"
       to: "memory-api GET /.well-known/oauth-authorization-server"
-      via: "nginx /.well-known/ proxy block on api.grooveos.app (app owns CORS via CORSMiddleware allow_origin_regex incl. https://claude.ai)"
+      via: "nginx /.well-known/ proxy block on api.example.com (app owns CORS via CORSMiddleware allow_origin_regex incl. https://claude.ai)"
       pattern: "well-known"
     - from: "memory-api /oauth/authorize consent"
       to: "GitHub sign-in + list_teams_for_user"
@@ -129,7 +129,7 @@ added via a FastMCP custom route / Starlette mount on the same app.
 EXISTING CORS on memory-api (apps/memory-api/app/main.py, ~line 91) — load-bearing for blocker 1:
   app.add_middleware(
       CORSMiddleware,
-      allow_origin_regex=r"(chrome-extension://.*|https://chat\.grooveos\.app|https://grooveos\.app|https://grooveos\.web\.app|https://dejavu-app\.web\.app)",
+      allow_origin_regex=r"(chrome-extension://.*|https://chat\.example.com|https://example.com|https://example.web.app|https://dejavu-app\.web\.app)",
       allow_credentials=True,
       allow_methods=["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
       allow_headers=["Authorization","X-Team-Scope","Content-Type","Accept"],
@@ -176,10 +176,10 @@ Alembic chain head: 0021_brain_events_media (down_revision for the new 0022 migr
 Alembic revision style: see 0013_api_tokens.py — string revision id, op.execute() raw DDL, CREATE TABLE IF NOT EXISTS + indexes.
 
 nginx facts:
-  - api.grooveos.app (20-api.conf) currently ONLY proxies /v1/ and /v1/drive-webhook -> memory-api:8000. /.well-known/ and /oauth/ are NOT proxied -> MUST ADD.
-  - mcp.grooveos.app (40-mcp.conf) proxies / (everything) -> mcp-brain:8104 with CORS on the root location. /.well-known/oauth-protected-resource already falls through to mcp-brain (good); confirm CORS covers it.
+  - api.example.com (20-api.conf) currently ONLY proxies /v1/ and /v1/drive-webhook -> memory-api:8000. /.well-known/ and /oauth/ are NOT proxied -> MUST ADD.
+  - mcp.example.com (40-mcp.conf) proxies / (everything) -> mcp-brain:8104 with CORS on the root location. /.well-known/oauth-protected-resource already falls through to mcp-brain (good); confirm CORS covers it.
   - Both configs already pass `proxy_set_header Authorization $http_authorization;`.
-  - CRITICAL (blocker 1): the memory-api app already emits its own ACAO via CORSMiddleware. nginx MUST NOT add Access-Control-Allow-Origin on /.well-known/ or /oauth/ on api.grooveos.app, or the browser sees duplicate ACAO headers and CORS fails.
+  - CRITICAL (blocker 1): the memory-api app already emits its own ACAO via CORSMiddleware. nginx MUST NOT add Access-Control-Allow-Origin on /.well-known/ or /oauth/ on api.example.com, or the browser sees duplicate ACAO headers and CORS fails.
 </interfaces>
 </context>
 
@@ -225,13 +225,13 @@ Write `tests/test_oauth_as.py` covering the five behaviors above against an in-m
     apps/memory-api/tests/test_oauth_as.py
   </files>
   <behavior>
-    - GET /.well-known/oauth-authorization-server -> 200 JSON with issuer=https://api.grooveos.app, authorization_endpoint/token_endpoint/registration_endpoint/introspection_endpoint/revocation_endpoint under /oauth/, response_types_supported=["code"], grant_types_supported=["authorization_code","refresh_token"], code_challenge_methods_supported=["S256"], token_endpoint_auth_methods_supported INCLUDES "none", scopes_supported=["brain:read","brain:write"]. (Gotchas: S256 mandatory; "none" mandatory for public client.)
+    - GET /.well-known/oauth-authorization-server -> 200 JSON with issuer=https://api.example.com, authorization_endpoint/token_endpoint/registration_endpoint/introspection_endpoint/revocation_endpoint under /oauth/, response_types_supported=["code"], grant_types_supported=["authorization_code","refresh_token"], code_challenge_methods_supported=["S256"], token_endpoint_auth_methods_supported INCLUDES "none", scopes_supported=["brain:read","brain:write"]. (Gotchas: S256 mandatory; "none" mandatory for public client.)
     - POST /oauth/register with {client_name, redirect_uris:["https://claude.ai/api/mcp/auth_callback"], grant_types, response_types} -> 201 with {client_id, redirect_uris, ...}. Accepts public clients (no client_secret).
     - POST /oauth/introspect with the correct X-Internal-Secret header and {token} -> 200 {active:true, sub, team_scope, aud, scope, source} for a live oat_; {active:false} otherwise (RFC 7662).
     - POST /oauth/introspect with a MISSING or WRONG X-Internal-Secret header -> 401 (or 403); it never reveals token claims to an uncredentialed caller.
   </behavior>
   <action>
-Issuer base URL comes from a new setting `OAUTH_ISSUER_URL` (default "https://api.grooveos.app") and resource default `OAUTH_RESOURCE_URL` (default "https://mcp.grooveos.app/mcp") added to memory-api `app/config.py` Settings.
+Issuer base URL comes from a new setting `OAUTH_ISSUER_URL` (default "https://api.example.com") and resource default `OAUTH_RESOURCE_URL` (default "https://mcp.example.com/mcp") added to memory-api `app/config.py` Settings.
 
 Create `oauth_metadata.py`: a router with `GET /.well-known/oauth-authorization-server` returning the static metadata dict above (built from OAUTH_ISSUER_URL). Create `oauth_register.py`: `POST /oauth/register` validating the body (pydantic), calling oauth_store.register_client, returning the RFC 7591 response. Create `oauth_introspect.py`: `POST /oauth/introspect` (accepts form OR json `token`), calling oauth_store.introspect_token, returning the RFC 7662 body; this endpoint is internal (called by mcp-brain) — gate it with the existing BRIDGE_SHARED_SECRET via an X-Internal-Secret header check using `hmac.compare_digest` (constant-time). If the header is missing or does not match, return 401 (do NOT call introspect_token, do NOT leak claims) — it must NOT require the bearer it is validating.
 
@@ -263,7 +263,7 @@ Extend `tests/test_oauth_as.py`: use FastAPI TestClient to assert the metadata J
   </behavior>
   <action>
 Create the consent flow. `oauth_authorize.py`:
-  - `GET /oauth/authorize` receives `response_type=code`, `client_id`, `redirect_uri`, `code_challenge`, `code_challenge_method=S256`, `state`, `resource`, `scope`. Validate the client_id exists (DCR) AND that `redirect_uri` is one of that client's registered `oauth_clients.redirect_uris` — if the client is unknown or the redirect_uri is not registered, return a 400 error page and DO NOT redirect anywhere (defends open-redirect / code exfiltration). Validate code_challenge_method == S256; normalize `resource` via normalize_resource(). Persist the in-flight authorize params in a short-lived signed cookie/state record, then redirect the browser into GitHub sign-in. REUSE the GitHub App: build the GitHub authorize URL with `settings.GITHUB_APP_CLIENT_ID` and a memory-api callback `redirect_uri=https://api.grooveos.app/oauth/github-callback` (per RESEARCH.md Open Question 3 recommendation — memory-api owns its own callback that resumes the flow). Do NOT reuse Claude.ai's redirect for the GitHub leg.
+  - `GET /oauth/authorize` receives `response_type=code`, `client_id`, `redirect_uri`, `code_challenge`, `code_challenge_method=S256`, `state`, `resource`, `scope`. Validate the client_id exists (DCR) AND that `redirect_uri` is one of that client's registered `oauth_clients.redirect_uris` — if the client is unknown or the redirect_uri is not registered, return a 400 error page and DO NOT redirect anywhere (defends open-redirect / code exfiltration). Validate code_challenge_method == S256; normalize `resource` via normalize_resource(). Persist the in-flight authorize params in a short-lived signed cookie/state record, then redirect the browser into GitHub sign-in. REUSE the GitHub App: build the GitHub authorize URL with `settings.GITHUB_APP_CLIENT_ID` and a memory-api callback `redirect_uri=https://api.example.com/oauth/github-callback` (per RESEARCH.md Open Question 3 recommendation — memory-api owns its own callback that resumes the flow). Do NOT reuse Claude.ai's redirect for the GitHub leg.
   - `GET /oauth/github-callback` receives GitHub's `code`+`state`: call the existing `_exchange_code_for_token` + `_fetch_github_profile` + `_resolve_or_merge_user` from auth_github.py to resolve the xbrain User. Then load `list_teams_for_user(user_id)`. If the user has exactly one team, skip selection; otherwise render `oauth_consent.html` listing the teams as radio options + an "Authorize Claude.ai for team X" submit. Carry the original authorize params through the state.
   - `POST /oauth/authorize` (consent submit) receives the chosen `team_scope` + the in-flight authorize state. Re-verify the redirect_uri is still the one registered for the client (defense in depth). Verify the user IS a member of the chosen team via get_membership (reject otherwise — strict isolation, one team per connection per CONTEXT.md). Call oauth_store.create_auth_code(client_id, user_id, team_scope, resource, code_challenge, redirect_uri, scope), then 302 redirect to the ORIGINAL (registered) Claude.ai redirect_uri with `?code=...&state=...`.
 
@@ -294,14 +294,14 @@ Extend `tests/test_oauth_as.py` with FastAPI TestClient behavioral tests coverin
   </files>
   <action>
 CORS (blocker 1) — `apps/memory-api/app/main.py`: extend the existing CORSMiddleware `allow_origin_regex` to ALSO match `https://claude.ai` so the FastAPI app emits a correct single `Access-Control-Allow-Origin` for Claude.ai's browser calls to /.well-known/oauth-authorization-server, /oauth/register, and /oauth/token. Change the regex from
-  `r"(chrome-extension://.*|https://chat\.grooveos\.app|https://grooveos\.app|https://grooveos\.web\.app|https://dejavu-app\.web\.app)"`
+  `r"(chrome-extension://.*|https://chat\.example.com|https://example.com|https://example.web.app|https://dejavu-app\.web\.app)"`
 to additionally include `https://claude\.ai` (e.g. add `|https://claude\.ai` before the closing paren). Do NOT touch allow_credentials/allow_methods/allow_headers. The app — not nginx — owns ACAO on these paths.
 
-20-api.conf (api.grooveos.app): add `location /.well-known/ { proxy_pass http://memory-api:8000; ... }` and `location /oauth/ { proxy_pass http://memory-api:8000; ... }` — same proxy_set_header block as the existing /v1/ location (Host, X-Real-IP, X-Forwarded-For, X-Forwarded-Proto, Authorization). CRITICAL (blocker 1): do NOT add any `Access-Control-Allow-Origin` / CORS `add_header` in these two location blocks — the memory-api app already emits ACAO via CORSMiddleware, so an nginx-added ACAO would produce DUPLICATE ACAO headers and the browser would reject the response. Just proxy through and let the app set CORS (its OPTIONS preflight is handled by Starlette's CORSMiddleware). Add a short comment in each block: `# CORS owned by memory-api CORSMiddleware — do NOT add_header ACAO here (duplicate-header CORS failure).`
+20-api.conf (api.example.com): add `location /.well-known/ { proxy_pass http://memory-api:8000; ... }` and `location /oauth/ { proxy_pass http://memory-api:8000; ... }` — same proxy_set_header block as the existing /v1/ location (Host, X-Real-IP, X-Forwarded-For, X-Forwarded-Proto, Authorization). CRITICAL (blocker 1): do NOT add any `Access-Control-Allow-Origin` / CORS `add_header` in these two location blocks — the memory-api app already emits ACAO via CORSMiddleware, so an nginx-added ACAO would produce DUPLICATE ACAO headers and the browser would reject the response. Just proxy through and let the app set CORS (its OPTIONS preflight is handled by Starlette's CORSMiddleware). Add a short comment in each block: `# CORS owned by memory-api CORSMiddleware — do NOT add_header ACAO here (duplicate-header CORS failure).`
 
-40-mcp.conf (mcp.grooveos.app): confirm `/.well-known/oauth-protected-resource` falls through to the existing `location /` (it does — no more-specific block). The existing root-location CORS on mcp.grooveos.app is unchanged; only add a comment noting the well-known path is covered by the root location. If FastMCP serves protected-resource at `/mcp/.well-known/oauth-protected-resource` rather than root, add an explicit note — the executor confirms the actual served path in Task 5 and adjusts the resource_metadata URL accordingly.
+40-mcp.conf (mcp.example.com): confirm `/.well-known/oauth-protected-resource` falls through to the existing `location /` (it does — no more-specific block). The existing root-location CORS on mcp.example.com is unchanged; only add a comment noting the well-known path is covered by the root location. If FastMCP serves protected-resource at `/mcp/.well-known/oauth-protected-resource` rather than root, add an explicit note — the executor confirms the actual served path in Task 5 and adjusts the resource_metadata URL accordingly.
 
-docker-compose.yml: add `OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:-https://api.grooveos.app}` and `OAUTH_RESOURCE_URL: ${OAUTH_RESOURCE_URL:-https://mcp.grooveos.app/mcp}` to the `memory-api` service env. Add `MEMORY_API_OAUTH_INTROSPECT_URL: ${MEMORY_API_OAUTH_INTROSPECT_URL:-http://memory-api:8000/oauth/introspect}` and reconfirm `BRIDGE_SHARED_SECRET` is present on the `mcp-brain` service env (it is) — mcp-brain uses it as the X-Internal-Secret on introspection calls.
+docker-compose.yml: add `OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:-https://api.example.com}` and `OAUTH_RESOURCE_URL: ${OAUTH_RESOURCE_URL:-https://mcp.example.com/mcp}` to the `memory-api` service env. Add `MEMORY_API_OAUTH_INTROSPECT_URL: ${MEMORY_API_OAUTH_INTROSPECT_URL:-http://memory-api:8000/oauth/introspect}` and reconfirm `BRIDGE_SHARED_SECRET` is present on the `mcp-brain` service env (it is) — mcp-brain uses it as the X-Internal-Secret on introspection calls.
   </action>
   <verify>
     <automated>cd apps/memory-api && python -m py_compile app/main.py && python -c "import re,pathlib; s=pathlib.Path('app/main.py').read_text(encoding='utf-8'); m=re.search(r'allow_origin_regex\s*=\s*r?[\"\x27](.*?)[\"\x27]', s); assert m and 'claude' in m.group(1), 'claude.ai missing from CORS regex'; print('cors ok')" && cd ../.. && grep -v '^[[:space:]]*#' infrastructure/nginx/conf.d/20-api.conf | grep -c 'location /\(\.well-known\|oauth\)/' | grep -qx 2 && echo "nginx blocks ok" && (grep -v '^[[:space:]]*#' infrastructure/nginx/conf.d/20-api.conf | grep -A6 'location /\(\.well-known\|oauth\)/' | grep -qi 'Access-Control-Allow-Origin' && echo "FAIL: nginx adds duplicate ACAO" && exit 1 || echo "no duplicate ACAO in oauth/well-known blocks") && grep -qE 'OAUTH_ISSUER_URL|OAUTH_RESOURCE_URL' infrastructure/docker-compose.yml && grep -qE 'MEMORY_API_OAUTH_INTROSPECT_URL' infrastructure/docker-compose.yml && echo "compose env ok"</automated>
@@ -328,7 +328,7 @@ docker-compose.yml: add `OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL:-https://api.groov
     - When the resolved auth is_connector (oat_ token), memory_add, task_create, and contact_add all force source="claude.ai-connector"; memory_add additionally caps truth_level at WORKING (EPHEMERAL/WORKING pass through; VALIDATED/CANONICAL/PUBLIC are downgraded to WORKING); all connector writes use the bound team_scope only.
   </behavior>
   <action>
-config.py: add `OAUTH_ISSUER_URL: str = "https://api.grooveos.app"`, `OAUTH_RESOURCE_URL: str = "https://mcp.grooveos.app/mcp"`, `MEMORY_API_OAUTH_INTROSPECT_URL: str = "http://memory-api:8000/oauth/introspect"`.
+config.py: add `OAUTH_ISSUER_URL: str = "https://api.example.com"`, `OAUTH_RESOURCE_URL: str = "https://mcp.example.com/mcp"`, `MEMORY_API_OAUTH_INTROSPECT_URL: str = "http://memory-api:8000/oauth/introspect"`.
 
 oauth_verify.py (new): `async def introspect(raw_token) -> dict` — httpx POST to MEMORY_API_OAUTH_INTROSPECT_URL with `{"token": raw_token}` and header `X-Internal-Secret: settings.BRIDGE_SHARED_SECRET`; if response `active` is true, return `{"sub":..., "team_scope":..., "source":..., "resource":...}`; else raise ValueError("OAuth token inactive"). Also validate the returned `resource` equals settings.OAUTH_RESOURCE_URL.rstrip("/") (audience check — RFC 8707; mismatch -> ValueError).
 
@@ -361,12 +361,12 @@ tests/test_oauth_resolve.py: unit-test (a) the truth_level clamp helper (VALIDAT
        `git archive HEAD apps/memory-api apps/mcp-brain infrastructure/nginx/conf.d/20-api.conf infrastructure/nginx/conf.d/40-mcp.conf infrastructure/docker-compose.yml | gzip | ssh user@130.211.55.142 'cd /home/user/xbrain && tar xzf -'`
        then on the VM: apply alembic (memory-api migrate to 0022), `docker compose build memory-api mcp-brain && docker compose up -d memory-api mcp-brain && docker compose exec nginx nginx -s reload`.
     2. Metadata reachability (no auth) + CORS check:
-       - `curl -s https://api.grooveos.app/.well-known/oauth-authorization-server | jq .` → S256 + "none" + /oauth/ endpoints present.
-       - `curl -si -H 'Origin: https://claude.ai' https://api.grooveos.app/.well-known/oauth-authorization-server` → EXACTLY ONE `Access-Control-Allow-Origin: https://claude.ai` header (NOT two — blocker 1 regression check).
-       - `curl -s https://mcp.grooveos.app/.well-known/oauth-protected-resource | jq .` → resource == https://mcp.grooveos.app/mcp (no trailing slash), authorization_servers == ["https://api.grooveos.app"]. (If FastMCP serves it under /mcp/.well-known/..., adjust the WWW-Authenticate resource_metadata URL accordingly and re-test.)
-       - `curl -si https://mcp.grooveos.app/mcp` (no Authorization) → 401 with `WWW-Authenticate: Bearer resource_metadata=...`.
-    3. MCP Inspector dry-run (catches Gotcha 7, the streamable-HTTP+OAuth GET-loop): `npx @modelcontextprotocol/inspector` → connect to `https://mcp.grooveos.app/mcp` → complete the OAuth browser flow → confirm tools list + a memory_search call succeeds. If Inspector GET-loops, add an `/sse` fallback before user testing.
-    4. Official Claude.ai connect: Claude.ai → Settings → Connectors → Add custom connector → URL `https://mcp.grooveos.app/mcp` → complete browser OAuth (GitHub login → pick ONE team → authorize) → confirm the connector shows connected and the brain tools are callable. Verify a memory_add from Claude.ai lands as source='claude.ai-connector', truth_level<=WORKING, in the bound team only (check Brain Monitor / `memory_items`).
+       - `curl -s https://api.example.com/.well-known/oauth-authorization-server | jq .` → S256 + "none" + /oauth/ endpoints present.
+       - `curl -si -H 'Origin: https://claude.ai' https://api.example.com/.well-known/oauth-authorization-server` → EXACTLY ONE `Access-Control-Allow-Origin: https://claude.ai` header (NOT two — blocker 1 regression check).
+       - `curl -s https://mcp.example.com/.well-known/oauth-protected-resource | jq .` → resource == https://mcp.example.com/mcp (no trailing slash), authorization_servers == ["https://api.example.com"]. (If FastMCP serves it under /mcp/.well-known/..., adjust the WWW-Authenticate resource_metadata URL accordingly and re-test.)
+       - `curl -si https://mcp.example.com/mcp` (no Authorization) → 401 with `WWW-Authenticate: Bearer resource_metadata=...`.
+    3. MCP Inspector dry-run (catches Gotcha 7, the streamable-HTTP+OAuth GET-loop): `npx @modelcontextprotocol/inspector` → connect to `https://mcp.example.com/mcp` → complete the OAuth browser flow → confirm tools list + a memory_search call succeeds. If Inspector GET-loops, add an `/sse` fallback before user testing.
+    4. Official Claude.ai connect: Claude.ai → Settings → Connectors → Add custom connector → URL `https://mcp.example.com/mcp` → complete browser OAuth (GitHub login → pick ONE team → authorize) → confirm the connector shows connected and the brain tools are callable. Verify a memory_add from Claude.ai lands as source='claude.ai-connector', truth_level<=WORKING, in the bound team only (check Brain Monitor / `memory_items`).
     5. Isolation check: with a second team, confirm a token bound to team A cannot read/write team B (audience + team_scope binding holds).
   </how-to-verify>
   <resume-signal>This is PLAN-ONLY — do not run the runbook now. Type "approved" to accept the plan; execution + this smoke test happen in a separate run.</resume-signal>
@@ -379,8 +379,8 @@ tests/test_oauth_resolve.py: unit-test (a) the truth_level clamp helper (VALIDAT
 
 | Boundary | Description |
 |----------|-------------|
-| Claude.ai client → mcp.grooveos.app (mcp-brain) | Untrusted public client; bearer token must be validated every request; unauth → 401 |
-| Claude.ai browser → api.grooveos.app /oauth/authorize | Untrusted browser; PKCE + one-time code + state + registered-redirect_uri check defend the auth-code exchange |
+| Claude.ai client → mcp.example.com (mcp-brain) | Untrusted public client; bearer token must be validated every request; unauth → 401 |
+| Claude.ai browser → api.example.com /oauth/authorize | Untrusted browser; PKCE + one-time code + state + registered-redirect_uri check defend the auth-code exchange |
 | mcp-brain → memory-api /oauth/introspect | Internal; gated by X-Internal-Secret == BRIDGE_SHARED_SECRET (constant-time via hmac.compare_digest) |
 | oat_ access token → team data | Token is bound to ONE team_scope + ONE resource (aud); cross-team / cross-resource use must be rejected |
 
@@ -397,7 +397,7 @@ tests/test_oauth_resolve.py: unit-test (a) the truth_level clamp helper (VALIDAT
 | T-glo-07 | Tampering | open-redirect / auth-code exfiltration via unregistered redirect_uri | mitigate | GET /oauth/authorize rejects any redirect_uri not in oauth_clients.redirect_uris with 400 (no redirect); POST /oauth/token re-checks redirect_uri match; behavioral test (Task 3) |
 | T-glo-08 | Information disclosure | duplicate ACAO / CORS misconfig exposing or breaking /oauth + well-known | mitigate | app owns ACAO via CORSMiddleware (claude.ai added to regex); nginx forbidden from adding ACAO on /.well-known/ + /oauth/ blocks (Task 4); deploy-time single-ACAO curl check (Task 6) |
 | T-glo-09 | Repudiation | token theft / replay | accept | oat_ stored as SHA-256 hash, short access-token TTL + revoked_at column; full rotation/audit deferred — low value target, internal team, revocation column present for manual kill |
-| T-glo-10 | Denial of service | DCR registration spam growing oauth_clients | accept | small team, nginx per-IP rate limiting already fronts api.grooveos.app; CIMD migration noted in RESEARCH.md if growth becomes an issue |
+| T-glo-10 | Denial of service | DCR registration spam growing oauth_clients | accept | small team, nginx per-IP rate limiting already fronts api.example.com; CIMD migration noted in RESEARCH.md if growth becomes an issue |
 </threat_model>
 
 <verification>

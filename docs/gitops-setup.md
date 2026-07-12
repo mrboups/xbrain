@@ -1,7 +1,7 @@
 # GitOps Setup — Runbook GCP one-shot
 
 Ce runbook est à exécuter **une seule fois** pour configurer le projet GCP `xbrain-495115` pour les déploiements GitOps (Cloud Run + Firebase Hosting). Il suppose que :
-- `gcloud` CLI est installé et authentifié avec le compte `team@grooveos.app`
+- `gcloud` CLI est installé et authentifié avec le compte `team@example.com`
 - `firebase-tools` est installé (`npm install -g firebase-tools`)
 - Le projet GCP `xbrain-495115` existe
 

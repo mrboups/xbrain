@@ -158,7 +158,7 @@ CREATE INDEX idx_users_github_access_token_hash ON public.users
 
 ### 2.1 Live Firebase deploy uses new GitHub App client_id
 
-`curl https://grooveos.app/account/teams/teams.js | grep client_id` returns:
+`curl https://example.com/account/teams/teams.js | grep client_id` returns:
 
 ```javascript
 // Phase 12 — GitHub App client_id (replaces the legacy OAuth App).
@@ -202,7 +202,7 @@ References in `.env.example` and `apps/memory-api/app/config.py` (intentional �
 ### 2.5 Web sign-in page loads
 
 ```
-https://grooveos.app/account/teams/ : 200
+https://example.com/account/teams/ : 200
 ```
 
 ### 2.6 `/v1/auth/github/signin` route wired (validation kicks in on empty body → 422)
@@ -214,8 +214,8 @@ https://grooveos.app/account/teams/ : 200
 ### 3.1 UI routes load
 
 ```
-https://grooveos.app/account/teams/brain/ : 200
-https://grooveos.app/account/admin/       : 200
+https://example.com/account/teams/brain/ : 200
+https://example.com/account/admin/       : 200
 ```
 
 ### 3.2 verify-phase11.sh — PASS 5 / 5 (SKIPPED 11 fixture)
@@ -278,7 +278,7 @@ Matches the BMO-01 contract documented in the roadmap.
 |---|---|---|
 | `xbrain-granola-sync` | healthy (14h) | per-user Granola poller |
 | `xbrain-session-bridge` | healthy (14h) | Pro/Max routing (Phase 9) |
-| `bridge.grooveos.app/nginx-health` | **200 OK** body `ok` | nginx vhost forwarding to session-bridge |
+| `bridge.example.com/nginx-health` | **200 OK** body `ok` | nginx vhost forwarding to session-bridge |
 | `xbrain-centrifugo` | healthy (14h) | team chat realtime broker |
 | `xbrain-librechat-bridge` | healthy (14h) | mongo_watcher → memory pipeline |
 
@@ -287,10 +287,10 @@ Matches the BMO-01 contract documented in the roadmap.
 ## 5. Frontends Firebase — 4 / 4 PASS
 
 ```
-https://grooveos.app                       : 200
-https://grooveos.app/account/teams/        : 200
-https://grooveos.app/account/teams/brain/  : 200
-https://grooveos.app/account/admin/        : 200
+https://example.com                       : 200
+https://example.com/account/teams/        : 200
+https://example.com/account/teams/brain/  : 200
+https://example.com/account/admin/        : 200
 ```
 
 ---
@@ -340,7 +340,7 @@ Logging caps holding: zero log file exceeds 100 MB. ✅
 ### 6.4 Langfuse
 
 ```
-https://lang.grooveos.app/ : 200
+https://lang.example.com/ : 200
 ```
 
 Langfuse web UI reachable. (Full traces-list verification requires auth — skipped per read-only mandate.)

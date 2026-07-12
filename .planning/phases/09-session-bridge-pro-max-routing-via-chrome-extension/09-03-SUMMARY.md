@@ -11,7 +11,7 @@ requires:
   - "09-04: memory-api upsert (consumed by session-bridge on register handshake)"
 provides:
   - "Chrome extension v1.1.0 manifest with claude.ai + bridge host_permissions"
-  - "Persistent WS service-worker → wss://bridge.grooveos.app/ws/{user_sub}"
+  - "Persistent WS service-worker → wss://bridge.example.com/ws/{user_sub}"
   - "Exponential-backoff reconnect + chrome.alarms watchdog (MV3-safe)"
   - "register handshake frame on every WS open (populates user_external_sessions)"
   - "chat_request dispatcher → handleClaude with sendFrame callback"
@@ -55,7 +55,7 @@ commits:
 
 # Phase 9 Plan 03: Chrome Extension WS Layer — Summary
 
-Persistent WebSocket from the extension's MV3 service worker to `wss://bridge.grooveos.app/ws/{user_sub}`, with register-on-open handshake and chat_request dispatch to `handleClaude` (from 09-02). Closes the round-trip: bridge → user's browser → claude.ai with Pro/Max cookies.
+Persistent WebSocket from the extension's MV3 service worker to `wss://bridge.example.com/ws/{user_sub}`, with register-on-open handshake and chat_request dispatch to `handleClaude` (from 09-02). Closes the round-trip: bridge → user's browser → claude.ai with Pro/Max cookies.
 
 ## WS frame contracts honored
 
@@ -72,7 +72,7 @@ Persistent WebSocket from the extension's MV3 service worker to `wss://bridge.gr
 
 | File | Status | Purpose |
 |------|--------|---------|
-| `chrome-extension/manifest.json` | modified | v1.0.0 → v1.1.0, host_permissions for claude.ai/api.claude.ai/bridge.grooveos.app, `"type":"module"` SW, `alarms` permission |
+| `chrome-extension/manifest.json` | modified | v1.0.0 → v1.1.0, host_permissions for claude.ai/api.claude.ai/bridge.example.com, `"type":"module"` SW, `alarms` permission |
 | `chrome-extension/ws_keepalive.js` | created | Pure module: `computeBackoffMs`, `PING_INTERVAL_MS`, `WATCHDOG_PERIOD_MIN`, `MAX_ATTEMPT` |
 | `chrome-extension/background.js` | modified | Imports handleClaude/getOrgId; `openBridgeWS`, ping/reconnect/watchdog, register-on-open, chat_request dispatcher, `ws_status_query` reply, sender.id guard. Phase 4/8 Web Clipper handlers preserved |
 | `chrome-extension/tests/test_ws_keepalive.mjs` | created | 6 assertions — backoff math + jitter bounds + MV3 invariant |

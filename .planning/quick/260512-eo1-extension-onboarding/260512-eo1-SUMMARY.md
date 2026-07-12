@@ -52,7 +52,7 @@ Close the Phase 9 onboarding gap surfaced during 2026-05-12 UAT — popup expect
 === Phase 9 Verification ===
 [1/8] session-bridge container running              PASS
 [2/8] /healthz reachable                            PASS (active_sockets: 1)
-[3/8] bridge.grooveos.app DNS resolves              PASS
+[3/8] bridge.example.com DNS resolves              PASS
 [4/8] nginx vhost 50-bridge.conf loaded             PASS
 [5/8] WebSocket endpoint reachable end-to-end       SKIPPED (no VERIFY_XBT_TOKEN)
 [6/8] user_external_sessions table exists           PASS
@@ -75,5 +75,5 @@ Local: `node chrome-extension/tests/run_tests.mjs` → 4/4 test files PASS (32 i
 3. Click extension icon → see "🔑 Connect xbrain account" button.
 4. Click Connect → Google consent flow (or cached) → "Connected as <email> ✓" message → 🟢 + Disconnect button appears.
 5. Close Chrome entirely → reopen → click extension → still 🟢 (token persisted in `chrome.storage.local`).
-6. Open LibreChat (https://chat.grooveos.app) → confirm endpoint dropdown shows "Claude Pro/Max" (not French).
+6. Open LibreChat (https://chat.example.com) → confirm endpoint dropdown shows "Claude Pro/Max" (not French).
 7. Click Disconnect → confirm dialog → button reverts to "Connect"; verify in DB that the `user_api_tokens` row is `revoked_at IS NOT NULL`.

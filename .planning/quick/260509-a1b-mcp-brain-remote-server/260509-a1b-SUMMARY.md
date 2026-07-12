@@ -25,7 +25,7 @@ decisions:
   - "SHA-256 hash stored, plaintext returned once only — standard secure token storage pattern"
   - "get_team_scope validates API token team_scope equals X-Team-Scope header — tokens are single-team scoped"
   - "_touch_token uses fire-and-forget asyncio.create_task — avoids blocking the auth path on last_used_at update"
-  - "chatgpt-actions.json points to api.grooveos.app directly — ChatGPT Custom GPT Actions use OpenAPI (not MCP protocol)"
+  - "chatgpt-actions.json points to api.example.com directly — ChatGPT Custom GPT Actions use OpenAPI (not MCP protocol)"
 metrics:
   duration: "~25 minutes"
   completed: "2026-05-09"
@@ -69,9 +69,9 @@ metrics:
 
 ### Task 3: Infrastructure
 
-- **nginx/conf.d/40-mcp.conf**: `mcp.grooveos.app` server block with CORS preflight (OPTIONS → 204), `Access-Control-Allow-*` headers for browser MCP clients, `proxy_buffering off` + `proxy_http_version 1.1` for SSE/streaming, 120s read timeout.
+- **nginx/conf.d/40-mcp.conf**: `mcp.example.com` server block with CORS preflight (OPTIONS → 204), `Access-Control-Allow-*` headers for browser MCP clients, `proxy_buffering off` + `proxy_http_version 1.1` for SSE/streaming, 120s read timeout.
 - **docker-compose.yml**: `mcp-brain` service added after `mcp-deck`. Port 8104, `nc -z localhost 8104` healthcheck, `mem_limit: 128m`, `depends_on: memory-api`.
-- **chatgpt-actions.json**: Valid OpenAPI 3.0 spec for ChatGPT Custom GPT Actions pointing to `api.grooveos.app`. 5 paths: `/v1/memory/search`, `/v1/memory/upsert`, `/v1/tasks` (GET+POST), `/v1/crm/contacts`, `/v1/me`.
+- **chatgpt-actions.json**: Valid OpenAPI 3.0 spec for ChatGPT Custom GPT Actions pointing to `api.example.com`. 5 paths: `/v1/memory/search`, `/v1/memory/upsert`, `/v1/tasks` (GET+POST), `/v1/crm/contacts`, `/v1/me`.
 
 ## Deviations from Plan
 
@@ -93,7 +93,7 @@ None — all endpoints delegate to real memory-api routes. mcp-brain is a thin p
 | Flag | File | Description |
 |------|------|-------------|
 | threat_flag: new_auth_path | apps/memory-api/app/deps.py | New `xbt_` token auth path — 4th principal kind bypasses Google/GitHub OIDC. Tokens are long-lived (no expiry in v1). Consider adding expiry or rotation mechanism in a future plan. |
-| threat_flag: cors_wildcard | infrastructure/nginx/conf.d/40-mcp.conf | `Access-Control-Allow-Origin: *` on mcp.grooveos.app — mitigated by Bearer token requirement, but wildcard is broader than needed for Claude.ai-only use. |
+| threat_flag: cors_wildcard | infrastructure/nginx/conf.d/40-mcp.conf | `Access-Control-Allow-Origin: *` on mcp.example.com — mitigated by Bearer token requirement, but wildcard is broader than needed for Claude.ai-only use. |
 
 ## Self-Check: PASSED
 

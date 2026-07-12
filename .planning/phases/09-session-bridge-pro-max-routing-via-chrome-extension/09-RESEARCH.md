@@ -18,13 +18,13 @@
 
 **Components to build (locked)**:
 1. `apps/session-bridge` (new FastAPI microservice, port 8105). Endpoints: `POST /v1/chat/completions` (OpenAI-compat, called by LibreChat) and `WS /ws/{user_sub}` (persistent WebSocket from extension). In-memory `USER_SOCKETS: dict[str, WebSocket]` (no Redis in Phase 9). Auth: `Authorization: Bearer <xbt_token>` validated against memory-api `/v1/users/me`.
-2. xbrain Chrome extension extended: `background.js` opens persistent WS to `wss://bridge.grooveos.app/ws/{user_sub}`, auto-reconnect. Handler `handleClaude(req)` does credentialed fetch to `api.claude.ai/api/organizations/{org_id}/chat_completions`. New "Sessions" section in `popup.html`. Manifest gets `host_permissions` for `https://api.claude.ai/*` and `https://claude.ai/*`.
-3. `infrastructure/librechat/librechat.yaml` — new custom endpoint `"Claude (mon abonnement)"` with `apiKey: "user_provided"`, `baseURL: "https://bridge.grooveos.app/v1"`, models `["claude-opus-4-7", "claude-sonnet-4-6"]`.
+2. xbrain Chrome extension extended: `background.js` opens persistent WS to `wss://bridge.example.com/ws/{user_sub}`, auto-reconnect. Handler `handleClaude(req)` does credentialed fetch to `api.claude.ai/api/organizations/{org_id}/chat_completions`. New "Sessions" section in `popup.html`. Manifest gets `host_permissions` for `https://api.claude.ai/*` and `https://claude.ai/*`.
+3. `infrastructure/librechat/librechat.yaml` — new custom endpoint `"Claude (mon abonnement)"` with `apiKey: "user_provided"`, `baseURL: "https://bridge.example.com/v1"`, models `["claude-opus-4-7", "claude-sonnet-4-6"]`.
 4. `apps/memory-api` — `GET /v1/me/external-sessions`, `DELETE /v1/me/external-sessions/{provider}`.
 5. Alembic 0014 `user_external_sessions` table (UUID PK, user_id FK CASCADE, provider, extension_id, last_seen_at, metadata JSONB, UNIQUE(user_id, provider)).
-6. `infrastructure/nginx/conf.d/` — new vhost `bridge.grooveos.app` with `/v1/` (HTTP SSE) and `/ws/` (WebSocket upgrade, proxy_read_timeout 86400s).
+6. `infrastructure/nginx/conf.d/` — new vhost `bridge.example.com` with `/v1/` (HTTP SSE) and `/ws/` (WebSocket upgrade, proxy_read_timeout 86400s).
 7. `infrastructure/docker-compose.yml` — `session-bridge` service on `127.0.0.1:8105`.
-8. DNS — Cloudflare A record `bridge.grooveos.app` → `__VM_HOST__`, Proxied.
+8. DNS — Cloudflare A record `bridge.example.com` → `__VM_HOST__`, Proxied.
 
 **Translation Layer (locked decision)**: OpenAI ↔ claude.ai SSE translation happens **in the extension**, not the bridge. Bridge relays opaque chunks.
 
@@ -58,7 +58,7 @@ Phase 9 has no v1 REQ-IDs (post-v1 capability set SESSION-01..06). The ROADMAP d
 |---|---|
 | 1. End-to-end LibreChat → extension → claude.ai with Pro/Max quota decrement | §1 claude.ai API shape, §2 MV3 fetch credentialed, §4 SSE relay pattern |
 | 2. Explicit error when extension absent / claude.ai not logged in | §4 connection pool + 503 pattern, §6 401 from claude.ai surfaced |
-| 3. `session-bridge` docker container with `/v1/chat/completions` + `/ws/{user_sub}` reachable via `bridge.grooveos.app` | §4 FastAPI pattern, §5 nginx vhost + Cloudflare WS |
+| 3. `session-bridge` docker container with `/v1/chat/completions` + `/ws/{user_sub}` reachable via `bridge.example.com` | §4 FastAPI pattern, §5 nginx vhost + Cloudflare WS |
 | 4. Popup shows session status; `user_external_sessions` track extensions | §2 extension popup pattern, §10 metadata table |
 | 5. claude.ai SSE translated to OpenAI SSE for LibreChat | §1 claude.ai format, §7 OpenAI SSE format, §4 relay structure |
 | 6. `verify-phase9.sh` PASS — at minimum: healthcheck, vhost 200 on auth body, WS echo, E2E with mock | §11 verification design |
@@ -140,7 +140,7 @@ websockets = ">=12.0"  # transitive via uvicorn[standard] but pin explicitly
 ```
 ┌──────────────────┐     OpenAI SSE      ┌──────────────────────┐
 │   LibreChat      │ ──────────────────▶ │  session-bridge      │
-│  (chat.grooveos) │   POST /v1/chat/    │  (FastAPI, 8105)     │
+│  (chat.example.com) │   POST /v1/chat/    │  (FastAPI, 8105)     │
 └──────────────────┘   completions       │                      │
         ▲              Authorization:    │  ┌────────────────┐  │
         │              Bearer xbt_xxx    │  │ USER_SOCKETS   │  │
@@ -389,7 +389,7 @@ async def ws_endpoint(
 // chrome-extension/background.js (extension)
 // Source: developer.chrome.com/docs/extensions/mv3/tut_websockets/
 
-const BRIDGE_WS_URL_TEMPLATE = "wss://bridge.grooveos.app/ws/{sub}?token={token}";
+const BRIDGE_WS_URL_TEMPLATE = "wss://bridge.example.com/ws/{sub}?token={token}";
 let ws = null;
 let reconnectAttempt = 0;
 let pingTimer = null;
@@ -692,7 +692,7 @@ function sendFrame(envelope) {
 }
 ```
 
-**Status of this pattern:** [ASSUMED] — the EXACT payload shape, header set, and SSE event names of `api.claude.ai/api/organizations/{org_id}/chat_conversations/{conv_uuid}/completion` as of 2026-05 are **not publicly documented**. The shape above is the historical pre-2024 format ([CITED: github.com/KoushikNavuluri/Claude-API claude_api.py]) plus the Anthropic Messages SSE shape ([CITED: docs.anthropic.com/claude/reference/messages-streaming]) as a fallback. **First implementation task must be a live DevTools capture on grooveos.app's own claude.ai session and update the code accordingly.**
+**Status of this pattern:** [ASSUMED] — the EXACT payload shape, header set, and SSE event names of `api.claude.ai/api/organizations/{org_id}/chat_conversations/{conv_uuid}/completion` as of 2026-05 are **not publicly documented**. The shape above is the historical pre-2024 format ([CITED: github.com/KoushikNavuluri/Claude-API claude_api.py]) plus the Anthropic Messages SSE shape ([CITED: docs.anthropic.com/claude/reference/messages-streaming]) as a fallback. **First implementation task must be a live DevTools capture on example.com's own claude.ai session and update the code accordingly.**
 
 ### Anti-Patterns to Avoid
 
@@ -745,7 +745,7 @@ Phase 9 is **mostly greenfield** but touches existing systems. The inventory bel
 
 ### Pitfall 2: Cloudflare 100s SSE idle timeout
 
-**What goes wrong:** LibreChat's HTTP request to `bridge.grooveos.app/v1/chat/completions` is held open by an `EventSource`-style SSE response. If no `data:` line is sent within 100s, Cloudflare returns a 524 and drops the connection. Users see "Chat error: connection lost".
+**What goes wrong:** LibreChat's HTTP request to `bridge.example.com/v1/chat/completions` is held open by an `EventSource`-style SSE response. If no `data:` line is sent within 100s, Cloudflare returns a 524 and drops the connection. Users see "Chat error: connection lost".
 
 **Why it happens:** Cloudflare's default 100s idle timeout applies to HTTP, and SSE is HTTP. Same problem as Phase 5's drive-sync slow polls.
 
@@ -833,17 +833,17 @@ async def validate_xbt_token(token: str) -> dict[str, Any]:
 
 Source pattern: same as mcp-brain's `memory_client.get_me()` [VERIFIED: codebase apps/mcp-brain/app/main.py].
 
-### nginx vhost for bridge.grooveos.app
+### nginx vhost for bridge.example.com
 
 ```nginx
 # infrastructure/nginx/conf.d/50-bridge.conf
 # (Follows the same Cloudflare real-IP setup as 10-xbrain.conf — declared
 # at the top of that file via set_real_ip_from / real_ip_header.)
 
-# === session-bridge at bridge.grooveos.app ===
+# === session-bridge at bridge.example.com ===
 server {
   listen 80;
-  server_name bridge.grooveos.app;
+  server_name bridge.example.com;
   client_max_body_size 2m;
 
   # Healthcheck
@@ -900,7 +900,7 @@ server {
 # infrastructure/librechat/librechat.yaml — append under endpoints.custom
 - name: "Claude (mon abonnement)"
   apiKey: "user_provided"
-  baseURL: "https://bridge.grooveos.app/v1"
+  baseURL: "https://bridge.example.com/v1"
   models:
     default: ["claude-opus-4-7", "claude-sonnet-4-6"]
     fetch: false
@@ -1002,7 +1002,7 @@ def downgrade():
 4. **Does Cloudflare's free plan support WebSockets when the origin is Proxied (orange cloud)?**
    - What we know: Cloudflare supports WebSockets across all plans (including Free) when the site is Proxied. There's a "WebSockets" toggle under Network settings — default ON for Free as of 2024+.
    - What's unclear: any documented per-IP WS connection limit on Free?
-   - Recommendation: verify dashboard toggle is ON for grooveos.app. Document in Phase 9 entry-gate.
+   - Recommendation: verify dashboard toggle is ON for example.com. Document in Phase 9 entry-gate.
 
 5. **Will MongoDB's encryption of LibreChat's per-user `xbt_token` survive a `CREDS_KEY` rotation?**
    - What we know: LibreChat AES-256-CBC encrypts user-provided keys; rotation of `CREDS_KEY` invalidates them.
@@ -1018,7 +1018,7 @@ def downgrade():
 | Postgres | Alembic migration 0014 | ✓ | 17 | — |
 | MongoDB (LibreChat per-user keys) | LibreChat BYOK storage | ✓ | 8.0.20 | — |
 | Chrome ≥ 116 | extension WS-keepalive-extends-SW behavior | Assumed (modern Chromes) | — | Older Chromes fall back to chrome.alarms watchdog |
-| Cloudflare WebSocket support | bridge.grooveos.app | ✓ (Free plan supports WS) | — | If disabled by accident, dashboard toggle |
+| Cloudflare WebSocket support | bridge.example.com | ✓ (Free plan supports WS) | — | If disabled by accident, dashboard toggle |
 | nginx 1.25+ (existing in xbrain) | new vhost | ✓ | — | — |
 
 **Missing dependencies with no fallback:** none.
@@ -1089,7 +1089,7 @@ def downgrade():
 | WS DoS by single user opening 1000 sockets | DoS | Pool's last-write-wins behavior naturally limits to 1 socket per user; no explicit cap needed in Phase 9 |
 | Extension impersonation (someone else's xbt_ stolen) | Spoofing | Rely on Phase 8 token revocation UX (`/v1/me/api-tokens/{id}` DELETE); add audit log entry per WS connect: `(user_sub, ip, connected_at)` |
 | Bridge replay attack (replay LibreChat → bridge `/v1/chat/completions`) | Tampering | Bearer-token-only auth, no nonce/replay protection — but the content is the message itself, so replay = send-same-message-twice; not a security issue, just UX |
-| Cloudflare bypass via direct origin IP | Spoofing | nginx vhost binds `bridge.grooveos.app`; default server returns 302; origin IP firewalled to Cloudflare ranges only (existing Phase 1 pattern) |
+| Cloudflare bypass via direct origin IP | Spoofing | nginx vhost binds `bridge.example.com`; default server returns 302; origin IP firewalled to Cloudflare ranges only (existing Phase 1 pattern) |
 | MV3 SW message origin spoofing (postMessage from injected content) | Spoofing | All cross-runtime messages MUST use `chrome.runtime.onMessage` (not `window.postMessage`); validate `sender.id === chrome.runtime.id` |
 
 ## Project Constraints (from CLAUDE.md)

@@ -358,7 +358,7 @@ Pour le pattern ADD COLUMN + CREATE INDEX, copier depuis `0005_multi_folder_driv
 registration:
   socialLogins: ["google"]
   allowedDomains:
-    - "grooveos.app"
+    - "example.com"
     - "gmail.com"
 ```
 
@@ -367,7 +367,7 @@ Modifier pour Phase 5 :
 registration:
   socialLogins: ["google", "github"]   # ajout github
   allowedDomains:
-    - "grooveos.app"
+    - "example.com"
     - "gmail.com"
     # pas de restriction par domaine pour GitHub — la Org membership est le filtre
 ```

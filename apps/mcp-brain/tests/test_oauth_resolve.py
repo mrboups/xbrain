@@ -119,7 +119,7 @@ async def test_oauth_verify_rejects_audience_mismatch():
 
     with (
         patch("app.oauth_verify.httpx.AsyncClient", return_value=mock_client),
-        patch("app.oauth_verify.settings.OAUTH_RESOURCE_URL", "https://mcp.grooveos.app/mcp"),
+        patch("app.oauth_verify.settings.OAUTH_RESOURCE_URL", "https://mcp.example.com/mcp"),
         patch("app.oauth_verify.settings.BRIDGE_SHARED_SECRET", _SECRET),
     ):
         with pytest.raises(ValueError, match="audience"):
@@ -138,7 +138,7 @@ async def test_oauth_verify_accepts_matching_audience():
                 "active": True,
                 "sub": "github:alice",
                 "team_scope": _TEAM,
-                "aud": "https://mcp.grooveos.app/mcp/",  # trailing slash normalized
+                "aud": "https://mcp.example.com/mcp/",  # trailing slash normalized
                 "source": "claude.ai-connector",
             }
 
@@ -148,7 +148,7 @@ async def test_oauth_verify_accepts_matching_audience():
 
     with (
         patch("app.oauth_verify.httpx.AsyncClient", return_value=mock_client),
-        patch("app.oauth_verify.settings.OAUTH_RESOURCE_URL", "https://mcp.grooveos.app/mcp"),
+        patch("app.oauth_verify.settings.OAUTH_RESOURCE_URL", "https://mcp.example.com/mcp"),
         patch("app.oauth_verify.settings.BRIDGE_SHARED_SECRET", _SECRET),
     ):
         info = await oauth_verify.introspect(_OAT)
@@ -188,7 +188,7 @@ async def test_oat_routes_to_introspect_and_sets_is_connector():
 
     mock_introspect = AsyncMock(return_value={
         "sub": "github:alice", "team_scope": _TEAM,
-        "source": "claude.ai-connector", "resource": "https://mcp.grooveos.app/mcp",
+        "source": "claude.ai-connector", "resource": "https://mcp.example.com/mcp",
     })
 
     with (
@@ -273,7 +273,7 @@ async def test_resolve_returns_three_tuple_for_connector():
 
     mock_introspect = AsyncMock(return_value={
         "sub": "github:bob", "team_scope": _TEAM,
-        "source": "claude.ai-connector", "resource": "https://mcp.grooveos.app/mcp",
+        "source": "claude.ai-connector", "resource": "https://mcp.example.com/mcp",
     })
 
     with (

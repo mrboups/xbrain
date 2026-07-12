@@ -8,7 +8,7 @@ requires:
     provides: VM e2-standard-2 (entry gate Phase 2 partial)
 provides:
   - apps/spike-mem0/ Python project with 4-test spike script
-  - test_data.json with 100 facts across 3 teams (xbrain, acme, aibrussels content)
+  - test_data.json with 100 facts across 3 teams (xbrain, acme, your-team content)
   - spike.py runs : team isolation + versioning + truth-level glue effort + latency
   - Output : spike-results.json with GO/NO-GO recommendation
   - PARTIAL : User runs the spike on local Docker, then writes 02-SPIKE-RESULT.md
@@ -22,7 +22,7 @@ key-files:
   created:
     - apps/spike-mem0/pyproject.toml
     - apps/spike-mem0/README.md (setup + run + cleanup instructions)
-    - apps/spike-mem0/test_data.json (100 facts, 3 teams, real xbrain/acme/aibrussels content)
+    - apps/spike-mem0/test_data.json (100 facts, 3 teams, real xbrain/acme/your-team content)
     - apps/spike-mem0/spike.py (4-test runner, asyncio, output JSON)
 
 key-decisions:

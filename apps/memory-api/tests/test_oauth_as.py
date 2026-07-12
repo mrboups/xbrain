@@ -75,7 +75,7 @@ def test_normalize_resource_strips_trailing_slash():
 # ===========================================================================
 
 _VERIFIER = "verifier_with_plenty_of_entropy_aaaaaaaaaaaaaa"
-_RESOURCE = "https://mcp.grooveos.app/mcp"
+_RESOURCE = "https://mcp.example.com/mcp"
 _REDIRECT = "https://claude.ai/api/mcp/auth_callback"
 _CLIENT = "oac_client1"
 
@@ -365,7 +365,7 @@ def test_token_mismatched_redirect_uri_is_400_no_token(monkeypatch):
 def test_token_resource_mismatch_is_invalid_target_no_token(monkeypatch):
     store = _seed_token_route(monkeypatch, code_row=_base_code_row())
     client = _test_client()
-    r = _token_post(client, resource="https://mcp.grooveos.app/other")
+    r = _token_post(client, resource="https://mcp.example.com/other")
     assert r.status_code == 400
     assert r.json()["error"] == "invalid_target"
     assert store.minted == []

@@ -120,7 +120,7 @@ All 8 requirements covered.
 ## External coordination (one-time, mandatory)
 
 - GitHub OAuth App `Ov23liVqXmHkS6JdYpcN`: authorized-callback list MUST include
-  `https://grooveos.app/account/teams/` for the app-site OAuth Option B flow
+  `https://example.com/account/teams/` for the app-site OAuth Option B flow
   (10-04). Coordinated in advance per the Phase 10 planning note. Confirm
   live in GitHub OAuth App settings before flipping the app-site to GitHub-primary.
 
@@ -133,7 +133,7 @@ Recorded for audit; none changed the public contract.
 | 10-01 | Rule 3| Migration 0016 set `down_revision="0015"` (not the next free slot) — required to chain on the latest head at time of merge. |
 | 10-02 | Rule 1| `team_scope=''` (empty string) used as the multi-team sentinel for xbt_ tokens minted at sign-in (vs. NULL), matching `_mint_xbt_for_user` shape. |
 | 10-04 | Rule 1| Canonical storage-key migration in app-site to align with extension (`xbt_token` / `user_sub` / `api_token_id`). |
-| 10-05 | Rule 1| `MEMORY_API_BASE` constant fix in extension `background.js` to point at the deployed `api.grooveos.app`.                     |
+| 10-05 | Rule 1| `MEMORY_API_BASE` constant fix in extension `background.js` to point at the deployed `api.example.com`.                     |
 | 10-06 | Rule 1| `/v1/me` test endpoint uses top-level `id` + `email` (matches actual `routes/me.py` shape) instead of nested `user.id` — see test_orphan_token_lands_on_survivor. |
 | 10-06 | Rule 2| Orphan github fields cleared **before** survivor assignment inside the M-3 test, mirroring the B-2 fix path in `_resolve_or_merge_user`. Required so the test compiles a valid in-memory state. |
 | 10-06 | Rule 1| Phase SUMMARY filename is `10-SUMMARY.md` (not bare `SUMMARY.md`) to match the existing Phase 9 per-plan SUMMARY naming convention (09-XX-SUMMARY.md) and to avoid a tooling reservation on the bare filename. |
@@ -150,7 +150,7 @@ Recorded for audit; none changed the public contract.
 
 ## Known follow-ups (out of scope for Phase 10)
 
-- LibreChat GitHub SSO (`chat.grooveos.app`) does NOT call
+- LibreChat GitHub SSO (`chat.example.com`) does NOT call
   `/v1/auth/github/signin` — it follows its own Phase 5 OAuth path and the
   xbrain user row gets created via the `librechat-onboarding` bridge JWT in
   `deps.py:188-205`. Convergence with the Phase 10 sign-in route is a future
@@ -171,9 +171,9 @@ Recorded for audit; none changed the public contract.
   apply migration with `alembic upgrade 0016`.
 - **GitHub OAuth App callback URL verification:** confirm in
   https://github.com/settings/applications that the redirect URI list now
-  includes `https://grooveos.app/account/teams/`.
+  includes `https://example.com/account/teams/`.
 - **Run `bash infrastructure/scripts/verify-phase10.sh` on the VM** with
-  `MEMORY_API_BASE=https://api.grooveos.app`. Expected: `PASS: 8 / 8` (or
+  `MEMORY_API_BASE=https://api.example.com`. Expected: `PASS: 8 / 8` (or
   `PASS: N / 8 (SKIPPED: M)` if pytest is not on the VM PATH — verify-phase10.sh
   is SKIP-aware and never blocks on missing pytest).
 - **Run 10-UAT.md scenarios A–G** with a spare GitHub test account, ideally

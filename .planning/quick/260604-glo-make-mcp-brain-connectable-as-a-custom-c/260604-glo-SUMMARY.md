@@ -58,7 +58,7 @@ key-decisions:
   - "memory-api is a PLAIN FastAPI app — OAuth routes hand-rolled as native routers (no MCP SDK OAuthAuthorizationServerProvider), mounted un-prefixed"
   - "mcp-brain keeps manual header-based _resolve() and gains an oat_ branch; FastMCP auth=/token_verifier= deliberately NOT used (would break xbt_ + email paths)"
   - "Converted app/auth.py into an app/auth/ package so oauth_store/oauth_tokens are importable as app.auth.* while preserving all existing re-exports (verified by test_auth.py)"
-  - "Protected-resource metadata is served at app ROOT (confirmed against installed mcp 1.27.2: custom routes mount at root, default streamable_http_path=/mcp); WWW-Authenticate resource_metadata = https://mcp.grooveos.app/.well-known/oauth-protected-resource"
+  - "Protected-resource metadata is served at app ROOT (confirmed against installed mcp 1.27.2: custom routes mount at root, default streamable_http_path=/mcp); WWW-Authenticate resource_metadata = https://mcp.example.com/.well-known/oauth-protected-resource"
   - "401 emitted via a thin ASGI middleware on the streamable app (the SDK cannot 401 without taking over auth); build_app() + uvicorn.run wires it, forwarding lifespan"
   - "oat_ resolved to a bridge JWT for the bound team rather than teaching /v1 auth about oat_ (deps.get_team_scope already trusts bridge JWTs)"
 
@@ -91,7 +91,7 @@ completed: 2026-06-06
 - OAuth 2.1 AS storage: alembic 0022 (3 tables) + pure token helpers + async DB store (hashes only, resource normalized, one-time codes).
 - AS metadata (S256 + auth method `none` + 5 /oauth/ endpoints), RFC 7591 DCR, RFC 7662 introspection gated by a constant-time X-Internal-Secret.
 - Full browser flow: GET /oauth/authorize (registered-redirect_uri + S256 validation, GitHub sign-in via memory-api's own callback), GitHub callback (reuses Phase 12 helpers, single-team auto-skip else English-only consent), POST /oauth/authorize (membership re-check + one-time PKCE-bound code), POST /oauth/token (PKCE + redirect_uri + resource checks, refresh rotation, public client `none`).
-- nginx /.well-known/ + /oauth/ proxy on api.grooveos.app with NO nginx ACAO (app-owned CORS, claude.ai added to regex); 40-mcp.conf fall-through documented.
+- nginx /.well-known/ + /oauth/ proxy on api.example.com with NO nginx ACAO (app-owned CORS, claude.ai added to regex); 40-mcp.conf fall-through documented.
 - mcp-brain Protected Resource: 3-tuple _resolve with oat_ branch first, introspection + audience check, protected-resource metadata at root, 401 middleware, and connector write guardrails.
 
 ## Task Commits
@@ -124,9 +124,9 @@ Final consolidated run: memory-api `test_oauth_as.py` 16 passed / 2 skipped; mcp
 
 - **Installed version:** `mcp 1.27.2` (matches pyproject `mcp>=1.27.0`).
 - **Custom-route decorator:** `@mcp.custom_route("/path", methods=[...])` taking a Starlette `Request` -> `Response` (confirmed present on the FastMCP instance).
-- **Streamable served path:** default `streamable_http_path = "/mcp"` -> MCP endpoint is `https://mcp.grooveos.app/mcp`.
-- **Protected-resource served path:** `GET /.well-known/oauth-protected-resource` at the app **ROOT** (NOT under /mcp). Smoke-tested with Starlette TestClient (lifespan active): returns 200 with `resource: https://mcp.grooveos.app/mcp` (no trailing slash).
-- **WWW-Authenticate resource_metadata URL wired:** `Bearer resource_metadata="https://mcp.grooveos.app/.well-known/oauth-protected-resource"` (root path, NOT `/mcp/.well-known/...`) — verified live via the 401 on an unauthenticated `GET /mcp`. nginx 40-mcp.conf root location already covers this path; no extra nginx block needed.
+- **Streamable served path:** default `streamable_http_path = "/mcp"` -> MCP endpoint is `https://mcp.example.com/mcp`.
+- **Protected-resource served path:** `GET /.well-known/oauth-protected-resource` at the app **ROOT** (NOT under /mcp). Smoke-tested with Starlette TestClient (lifespan active): returns 200 with `resource: https://mcp.example.com/mcp` (no trailing slash).
+- **WWW-Authenticate resource_metadata URL wired:** `Bearer resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"` (root path, NOT `/mcp/.well-known/...`) — verified live via the 401 on an unauthenticated `GET /mcp`. nginx 40-mcp.conf root location already covers this path; no extra nginx block needed.
 
 ## Files Created/Modified
 See frontmatter `key-files`. Highlights:
@@ -163,10 +163,10 @@ See frontmatter `key-decisions`. The architecturally load-bearing ones:
 
 **3. [Rule 1 - Bug] WWW-Authenticate resource_metadata URL was malformed**
 - **Found during:** Task 5
-- **Issue:** First implementation used `OAUTH_RESOURCE_URL.split("/mcp")[0]`, which also split at `//mcp.grooveos...` producing `https:/...`.
+- **Issue:** First implementation used `OAUTH_RESOURCE_URL.split("/mcp")[0]`, which also split at `//mcp.example.com...` producing `https:/...`.
 - **Fix:** Derive the resource host root via `urllib.parse.urlparse` (scheme + netloc) so only the trailing `/mcp` path segment is dropped.
 - **Files modified:** apps/mcp-brain/app/main.py
-- **Verification:** Live 401 smoke test shows `resource_metadata="https://mcp.grooveos.app/.well-known/oauth-protected-resource"`.
+- **Verification:** Live 401 smoke test shows `resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"`.
 - **Committed in:** `72e0f16`
 
 **4. [Rule 1 - Bug] Existing test_resolve.py unpacked the old 2-tuple**
@@ -206,18 +206,18 @@ Deployed to the VM via surgical `git archive HEAD` of the 5 changed paths -> tar
 **Incident (resolved): migration 0023 crash-loop.** First boot, `0023`'s `ALTER TABLE tasks ALTER COLUMN source TYPE` failed — the `v_brain_events` view (Brain Monitor, Phase 11) depends on `tasks.source` (`cannot alter type of a column used by a view or rule`), and memory-api's boot command runs `alembic upgrade head`, so the container crash-looped (whole batch rolled back, head stayed `0021`). Fixed by rewriting `0023` to capture the live `pg_get_viewdef`, drop the view, widen the column, then recreate the view verbatim (robust across envs); rebuilt + restarted. Repo (commit `412d1a8`) matches deployed. Downtime was limited to memory-api/mcp-brain during the loop; no other service affected, no data touched.
 
 **Live verification (public path, as Claude.ai will hit it):**
-- `GET https://api.grooveos.app/.well-known/oauth-authorization-server` -> 200, S256 + `none` + all 5 `/oauth/` endpoints.
+- `GET https://api.example.com/.well-known/oauth-authorization-server` -> 200, S256 + `none` + all 5 `/oauth/` endpoints.
 - CORS: `Origin: https://claude.ai` -> exactly **one** `Access-Control-Allow-Origin: https://claude.ai` (blocker-1 clean).
-- `GET https://mcp.grooveos.app/.well-known/oauth-protected-resource` -> `resource=https://mcp.grooveos.app/mcp` (no trailing slash), `authorization_servers=[https://api.grooveos.app]`.
-- Unauthenticated `GET https://mcp.grooveos.app/mcp` -> 401 + `WWW-Authenticate: Bearer resource_metadata="https://mcp.grooveos.app/.well-known/oauth-protected-resource"`.
+- `GET https://mcp.example.com/.well-known/oauth-protected-resource` -> `resource=https://mcp.example.com/mcp` (no trailing slash), `authorization_servers=[https://api.example.com]`.
+- Unauthenticated `GET https://mcp.example.com/mcp` -> 401 + `WWW-Authenticate: Bearer resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"`.
 - DCR `POST /oauth/register` -> `client_id` (public client, `auth_method: none`).
-- `GET /oauth/authorize` (registered redirect_uri) -> 302 to GitHub authorize, redirect_uri=`https://api.grooveos.app/oauth/github-callback`, signed `state` JWT (`stage: pre_github`). Unregistered redirect_uri -> 400, no redirect (open-redirect defense).
+- `GET /oauth/authorize` (registered redirect_uri) -> 302 to GitHub authorize, redirect_uri=`https://api.example.com/oauth/github-callback`, signed `state` JWT (`stage: pre_github`). Unregistered redirect_uri -> 400, no redirect (open-redirect defense).
 
 **Remaining USER-only steps (cannot be done server-side):**
-1. **REQUIRED — GitHub App `xbrain` callback URL.** The consent flow sends users to GitHub with `redirect_uri=https://api.grooveos.app/oauth/github-callback`. GitHub requires the host+port to match a registered callback URL. Add `https://api.grooveos.app/oauth/github-callback` to the GitHub App's Callback URLs (it allows multiple; existing sign-in callback stays). Without this, the GitHub login step fails with a redirect_uri mismatch.
+1. **REQUIRED — GitHub App `xbrain` callback URL.** The consent flow sends users to GitHub with `redirect_uri=https://api.example.com/oauth/github-callback`. GitHub requires the host+port to match a registered callback URL. Add `https://api.example.com/oauth/github-callback` to the GitHub App's Callback URLs (it allows multiple; existing sign-in callback stays). Without this, the GitHub login step fails with a redirect_uri mismatch.
 2. **For team members other than the App owner — make the GitHub App public** (Settings -> Advanced). A private App can only be authorized by its owner; this is the same blocker already tracked for 2nd-member sign-in/install. The owner's own first connect works while private.
-3. **Connect in Claude.ai:** Settings -> Connectors -> Add custom connector -> URL `https://mcp.grooveos.app/mcp` -> complete the browser OAuth (GitHub authorize -> pick ONE team -> Authorize). Then confirm tools list + a `memory_search`, and that a `memory_add` lands as `source='claude.ai-connector'`, `truth_level<=WORKING`, in the bound team only (Brain Monitor).
-4. **If Claude.ai GET-loops after auth** (known upstream bug #291, streamable-HTTP+OAuth): we add an `/sse` fallback. Optionally pre-check with `npx @modelcontextprotocol/inspector` against `https://mcp.grooveos.app/mcp`.
+3. **Connect in Claude.ai:** Settings -> Connectors -> Add custom connector -> URL `https://mcp.example.com/mcp` -> complete the browser OAuth (GitHub authorize -> pick ONE team -> Authorize). Then confirm tools list + a `memory_search`, and that a `memory_add` lands as `source='claude.ai-connector'`, `truth_level<=WORKING`, in the bound team only (Brain Monitor).
+4. **If Claude.ai GET-loops after auth** (known upstream bug #291, streamable-HTTP+OAuth): we add an `/sse` fallback. Optionally pre-check with `npx @modelcontextprotocol/inspector` against `https://mcp.example.com/mcp`.
 
 ## Next Phase Readiness
 - Build is complete and green on both services; ready for the operator-run deploy (Task 6).

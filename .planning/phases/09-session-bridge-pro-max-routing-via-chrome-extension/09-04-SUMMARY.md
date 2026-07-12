@@ -6,7 +6,7 @@ tags: [nginx, alembic, memory-api, external-sessions, cloudflare-dns, phase-9, w
 
 requires: []
 provides:
-  - nginx vhost bridge.grooveos.app (/ws/ WebSocket + /v1/ SSE) with token elision in access logs
+  - nginx vhost bridge.example.com (/ws/ WebSocket + /v1/ SSE) with token elision in access logs
   - Alembic migration 0014 — user_external_sessions table (UUID PK, user_id FK CASCADE, UNIQUE(user_id, provider), JSONB metadata, idx on user_id)
   - GET  /v1/me/external-sessions  (user principal only — popup UX)
   - POST /v1/me/external-sessions  (UPSERT — accepts user OR bridge JWT with acting_user_sub)
@@ -52,7 +52,7 @@ metrics:
   completed: 2026-05-12
 ---
 
-# Phase 09 Plan 04: bridge.grooveos.app vhost + Alembic 0014 + /v1/me/external-sessions Summary
+# Phase 09 Plan 04: bridge.example.com vhost + Alembic 0014 + /v1/me/external-sessions Summary
 
 Infrastructure rails for the Phase 9 session-bridge: nginx vhost for the public WebSocket/SSE surface, Alembic migration 0014 creating `user_external_sessions`, and the memory-api endpoints (`GET / POST / DELETE /v1/me/external-sessions`) that back the popup UI and the session-bridge register-handshake. Cloudflare DNS A record is documented in a runbook and listed below under "USER ACTION REQUIRED".
 
@@ -68,7 +68,7 @@ Infrastructure rails for the Phase 9 session-bridge: nginx vhost for the public 
 
 ### nginx vhost — `infrastructure/nginx/conf.d/50-bridge.conf`
 
-- `server_name bridge.grooveos.app` on port 80 (TLS terminates at Cloudflare's orange-cloud proxy).
+- `server_name bridge.example.com` on port 80 (TLS terminates at Cloudflare's orange-cloud proxy).
 - `/ws/` block: `proxy_pass http://session-bridge:8105` with `Upgrade $http_upgrade` + `Connection $connection_upgrade` (map declared globally in `10-xbrain.conf`), `proxy_read_timeout 86400s`, `proxy_buffering off`.
 - `/v1/` block: same upstream, SSE-friendly (`proxy_buffering off`, `chunked_transfer_encoding off`, `X-Accel-Buffering no`), 600s timeout, passes `Authorization` header.
 - Access log uses a custom `log_format bridge_access` with `$args_redacted` (T-09-04-01 mitigation — elides `?token=xbt_...` to `?token=<REDACTED>` before it ever hits disk).
@@ -119,15 +119,15 @@ The cross-plan contract between `apps/session-bridge` (09-01) and `apps/memory-a
 
 Before the bridge can be reached from the open internet, a human operator must:
 
-1. Open https://dash.cloudflare.com → zone `grooveos.app` → **DNS → Records → Add record**
+1. Open https://dash.cloudflare.com → zone `example.com` → **DNS → Records → Add record**
    - Type: `A`
    - Name: `bridge`
    - IPv4: `__VM_HOST__`
    - Proxy status: **Proxied** (orange cloud)
    - TTL: Auto
 2. In the same zone → **Network** → confirm **WebSockets** toggle is **ON**.
-3. Verify with `nslookup bridge.grooveos.app` from any laptop (should resolve to a Cloudflare anycast IP, not to `__VM_HOST__`).
-4. After the next nginx reload on the VM (which will happen automatically when the Phase 9 docker-compose changes from 09-01 / 09-06 land), confirm `curl -fsS https://bridge.grooveos.app/nginx-health` returns `ok`.
+3. Verify with `nslookup bridge.example.com` from any laptop (should resolve to a Cloudflare anycast IP, not to `__VM_HOST__`).
+4. After the next nginx reload on the VM (which will happen automatically when the Phase 9 docker-compose changes from 09-01 / 09-06 land), confirm `curl -fsS https://bridge.example.com/nginx-health` returns `ok`.
 
 Full runbook lives at `docs/cloudflare-bridge-dns.md`, including recovery steps if the VM IP or zone changes later.
 

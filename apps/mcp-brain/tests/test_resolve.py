@@ -61,7 +61,7 @@ class FakeContext:
 _SECRET = "test-secret-do-not-use"
 _WRONG_SECRET = "wrong-secret"
 _EMAIL = "alice@test.local"
-_TEAM = "aibrussels"
+_TEAM = "your-team"
 _XBT_TOKEN = "xbt_faketoken123"
 
 

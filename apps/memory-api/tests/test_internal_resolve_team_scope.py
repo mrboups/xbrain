@@ -80,14 +80,14 @@ async def test_resolve_known_email_sub_returns_team_slug(pg_url, session, client
     )
     team = await teams_repo.create_team(
         session,
-        slug="aibrussels",
+        slug="your-team",
         display_name="AI Brussels",
         creator_user_id=user.id,
     )
     await session.commit()
 
     # Install a bridge principal override so the endpoint accepts the request
-    _install_bridge_principal_override(team_scope="aibrussels")
+    _install_bridge_principal_override(team_scope="your-team")
 
     resp = await client.get(
         "/v1/internal/resolve-team-scope",
@@ -97,7 +97,7 @@ async def test_resolve_known_email_sub_returns_team_slug(pg_url, session, client
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["team_scope"] == "aibrussels"
+    assert body["team_scope"] == "your-team"
     assert body["user_id"] == str(user.id)
 
 

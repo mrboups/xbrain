@@ -47,8 +47,8 @@ from xbrain_memory.types import TruthLevel, ValidationStatus, Visibility  # noqa
 
 def test_build_catalog_item_id_deterministic():
     """Same (team_scope, full_name) → same UUID every time."""
-    id1 = build_catalog_item_id("aibrussels", "aibrussels/xbrain")
-    id2 = build_catalog_item_id("aibrussels", "aibrussels/xbrain")
+    id1 = build_catalog_item_id("your-team", "your-team/xbrain")
+    id2 = build_catalog_item_id("your-team", "your-team/xbrain")
     assert id1 == id2
 
 
@@ -87,13 +87,13 @@ def test_build_catalog_item_id_uses_catalog_namespace():
 def test_build_catalog_content_shape():
     """Content follows the locked shape: '{full_name} — {summary}\\n...'"""
     content = build_catalog_content(
-        "aibrussels/xbrain",
+        "your-team/xbrain",
         "Collective memory system for teams.",
         "Python",
         ["memory", "ai"],
         "public",
     )
-    assert content.startswith("aibrussels/xbrain — ")
+    assert content.startswith("your-team/xbrain — ")
     assert "Collective memory system for teams." in content
     assert "Language: Python" in content
     assert "Topics: memory, ai" in content
@@ -133,18 +133,18 @@ def test_build_catalog_content_none_topics():
 def test_build_catalog_item_tagging_contract():
     """The built MemoryItem carries the full 7-field tagging contract."""
     repo_obj = {
-        "full_name": "aibrussels/xbrain",
+        "full_name": "your-team/xbrain",
         "name": "xbrain",
         "description": "The brain.",
         "default_branch": "main",
         "language": "Python",
         "visibility": "private",
-        "html_url": "https://github.com/aibrussels/xbrain",
+        "html_url": "https://github.com/your-team/xbrain",
         "topics": ["memory", "ai"],
     }
     item = build_catalog_item(
         repo_obj,
-        "aibrussels",
+        "your-team",
         summary="Collective memory for teams.",
         readme_summarized=True,
         installation_id=12345,
@@ -159,13 +159,13 @@ def test_build_catalog_item_tagging_contract():
     # validation_status
     assert item.validation_status == ValidationStatus.PENDING
     # team_scope
-    assert item.team_scope == "aibrussels"
+    assert item.team_scope == "your-team"
     # project_scope = short name
     assert item.project_scope == "xbrain"
     # confidence
     assert item.confidence == 0.6
     # id determinism
-    expected_id = build_catalog_item_id("aibrussels", "aibrussels/xbrain")
+    expected_id = build_catalog_item_id("your-team", "your-team/xbrain")
     assert item.id == expected_id
 
 

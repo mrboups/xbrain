@@ -9,7 +9,7 @@
 Make the existing remote MCP server (`apps/mcp-brain`) connectable as a **Custom Connector** in the **official Claude.ai app** (web + desktop), so a team member can use their team brain directly from Claude.ai.
 
 Existing state:
-- `apps/mcp-brain` — FastMCP, `transport="streamable-http"`, exposed at `https://mcp.grooveos.app` (nginx `infrastructure/nginx/conf.d/40-mcp.conf`).
+- `apps/mcp-brain` — FastMCP, `transport="streamable-http"`, exposed at `https://mcp.example.com` (nginx `infrastructure/nginx/conf.d/40-mcp.conf`).
 - Current auth: `Authorization: Bearer xbt_…` (validated via memory-api `GET /v1/me`) + an internal `X-Internal-Secret` path.
 - Tools: memory_search, memory_add, tasks_list/create/update, contacts_search/add, agent_invoke, team_context.
 
@@ -41,7 +41,7 @@ The GAP: Claude.ai's official custom-connector flow uses the MCP **Authorization
 
 - Keep everything OSS + self-hostable — no proprietary auth service (no Auth0/Clerk/etc. in the critical path).
 - Honor the project tagging contract on any connector-originated write.
-- The connect target the user pastes into Claude.ai is `https://mcp.grooveos.app/mcp` (confirm exact path during research).
+- The connect target the user pastes into Claude.ai is `https://mcp.example.com/mcp` (confirm exact path during research).
 </specifics>
 
 <canonical_refs>

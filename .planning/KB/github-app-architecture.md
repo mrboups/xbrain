@@ -145,7 +145,7 @@ After the GitHub install consent screen (or "approval required" if the
 user is not an org admin), GitHub redirects to:
 
 ```
-https://grooveos.app/account/teams/?installation_id=<int>&setup_action=install&state=<orig>
+https://example.com/account/teams/?installation_id=<int>&setup_action=install&state=<orig>
 ```
 
 The page re-fires the signin flow. The `find_installation_for_org`
@@ -232,7 +232,7 @@ as a "do not rotate without comms" step.
 
 ```
 Phase 5  →  OAuth App "xbrain" created (Client ID Ov23liy7tZekl0uEztoj)
-            One callback: https://grooveos.app/account/teams/
+            One callback: https://example.com/account/teams/
             GITHUB_API_PAT in env for /orgs/{org}/members/{username}
             Chrome extension flow broken (single-callback limit)
 
@@ -241,7 +241,7 @@ Phase 10 →  Auto-grant + org membership checks formalized
             GITHUB_API_PAT still in env, still long-lived
 
 Phase 12 →  GitHub App "xbrain" created (Client ID Iv23liVnZvIN0Lo6isof)
-            Multi-callback: https://grooveos.app/account/teams/
+            Multi-callback: https://example.com/account/teams/
                           + https://<ext-id>.chromiumapp.org/
             App JWT + installation tokens replace GITHUB_API_PAT
             Refresh token flow (ghu_/ghr_) for user-to-server tokens

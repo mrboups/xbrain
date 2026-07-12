@@ -19,14 +19,14 @@
 | `apps/memory-api/app/repos/teams.py` | Modify | Add search, github-matches, join, join-request, api-key CRUD |
 | `apps/memory-api/app/routes/teams.py` | Modify | Add 7 new endpoints; open team creation to all users |
 | `apps/memory-api/app/deps.py` | Modify | Handle `iss: librechat-onboarding` bridge JWT → user resolution |
-| `apps/memory-api/app/main.py` | Modify | Expand CORS to allow `chat.grooveos.app` |
+| `apps/memory-api/app/main.py` | Modify | Expand CORS to allow `chat.example.com` |
 | `apps/librechat/patches/socialLogin.js` | Create | Copy of the VM-patched OAuth linking fix |
 | `apps/librechat/patches/xbrain-routes.js` | Create | Express route: `GET /api/xbrain/token` → short-lived bridge JWT for caller |
 | `apps/librechat/patches/patch-server.js` | Create | Node.js script run at image build: injects `require('./routes/xbrain-routes')` into LibreChat's server |
 | `apps/librechat/patches/onboarding.js` | Create | Vanilla JS 4-step modal (300 lines, no build step) |
 | `apps/librechat/Dockerfile` | Create | Extends LibreChat image; bakes patches; patches index.html |
 | `infrastructure/docker-compose.yml` | Modify | LibreChat service: `build:` instead of `image:`, add `BRIDGE_SHARED_SECRET` to env |
-| `infrastructure/nginx/conf.d/20-api.conf` | Modify | Add `Access-Control-Allow-Origin: https://chat.grooveos.app` to memory-api location |
+| `infrastructure/nginx/conf.d/20-api.conf` | Modify | Add `Access-Control-Allow-Origin: https://chat.example.com` to memory-api location |
 
 ---
 
@@ -1011,7 +1011,7 @@ git commit -m "feat(api): onboarding endpoints — my-team, search, github-match
 **Files:**
 - Modify: `apps/memory-api/app/main.py`
 
-The onboarding.js vanilla script at `chat.grooveos.app` calls `api.grooveos.app`. CORS must allow this origin.
+The onboarding.js vanilla script at `chat.example.com` calls `api.example.com`. CORS must allow this origin.
 
 - [ ] **Step 1: Update CORS middleware in `main.py`**
 
@@ -1020,7 +1020,7 @@ Find the `CORSMiddleware` block and update `allow_origin_regex`:
 ```python
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"(chrome-extension://.*|https://chat\.grooveos\.app)",
+    allow_origin_regex=r"(chrome-extension://.*|https://chat\.example.com)",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "X-Team-Scope", "Content-Type", "Accept"],
@@ -1038,7 +1038,7 @@ Expected: all existing tests PASS
 
 ```bash
 git add apps/memory-api/app/main.py
-git commit -m "fix(cors): allow chat.grooveos.app origin for onboarding modal"
+git commit -m "fix(cors): allow chat.example.com origin for onboarding modal"
 ```
 
 ---
@@ -1191,8 +1191,8 @@ Create `apps/librechat/patches/onboarding.js`:
 /**
  * xbrain team onboarding modal — injected into LibreChat's index.html.
  *
- * Runs at chat.grooveos.app context. Uses /api/xbrain/token (same-origin)
- * to get a bridge JWT, then calls api.grooveos.app/v1/teams/* endpoints.
+ * Runs at chat.example.com context. Uses /api/xbrain/token (same-origin)
+ * to get a bridge JWT, then calls api.example.com/v1/teams/* endpoints.
  *
  * Shows a non-closable 4-step modal if the user has no team assigned.
  * Hides itself and stores completion in sessionStorage to avoid re-checking.
@@ -1201,7 +1201,7 @@ Create `apps/librechat/patches/onboarding.js`:
 (function () {
   'use strict';
 
-  const MEMORY_API = 'https://api.grooveos.app';
+  const MEMORY_API = 'https://api.example.com';
   const STORAGE_KEY = 'xbrain_onboarding_done';
 
   // Skip if already completed this session
@@ -1739,22 +1739,22 @@ EOF
 
 ```bash
 # Check /api/xbrain/token route exists
-curl -s -o /dev/null -w "%{http_code}" https://chat.grooveos.app/api/xbrain/token
+curl -s -o /dev/null -w "%{http_code}" https://chat.example.com/api/xbrain/token
 # Expected: 401 (not 404) — route exists but returns unauthorized without session
 
 # Check memory-api my-team route
-curl -s -o /dev/null -w "%{http_code}" https://api.grooveos.app/v1/teams/my-team
+curl -s -o /dev/null -w "%{http_code}" https://api.example.com/v1/teams/my-team
 # Expected: 401 (route exists, no token)
 
 # Check CORS header from chat origin
-curl -s -I -H "Origin: https://chat.grooveos.app" https://api.grooveos.app/v1/teams/my-team \
+curl -s -I -H "Origin: https://chat.example.com" https://api.example.com/v1/teams/my-team \
   | grep -i "access-control"
-# Expected: Access-Control-Allow-Origin: https://chat.grooveos.app
+# Expected: Access-Control-Allow-Origin: https://chat.example.com
 ```
 
 - [ ] **Step 5: Manual end-to-end test**
 
-1. Open `https://chat.grooveos.app` in an incognito window
+1. Open `https://chat.example.com` in an incognito window
 2. Log in with Google
 3. After login, the onboarding modal should appear within ~2 seconds
 4. Walk through all 4 steps: search for "acme" → should find the team → join (or create if not found)
@@ -1768,7 +1768,7 @@ If the modal does not appear, open DevTools console and check for errors from `o
 # On VM, call the self-create endpoint as the admin user
 # First get a token from LibreChat (log in, get token from /api/xbrain/token)
 # Then:
-curl -s -X POST https://api.grooveos.app/v1/teams/self \
+curl -s -X POST https://api.example.com/v1/teams/self \
   -H "Authorization: Bearer <TOKEN_FROM_LIBRECHAT>" \
   -H "Content-Type: application/json" \
   -d '{"slug":"acme","display_name":"Acme","visibility":"closed","github_org":"your-github-org"}'
@@ -1803,7 +1803,7 @@ git commit -m "feat(phase8): team onboarding modal complete — DB + API + Libre
 | DB: visibility + github_org + description | Task 1 migration + Task 2 model | ✅ |
 | DB: team_api_keys | Task 1 + Task 2 + Task 3 + Task 4 | ✅ |
 | DB: team_join_requests | Task 1 + Task 2 + Task 3 + Task 4 | ✅ |
-| CORS for chat.grooveos.app | Task 5 | ✅ |
+| CORS for chat.example.com | Task 5 | ✅ |
 | socialLogin.js permanent fix | Task 6 | ✅ |
 | Custom LibreChat Docker image | Task 8 | ✅ |
 | `/api/xbrain/token` auth bridge | Task 6 + Task 4 deps.py | ✅ |

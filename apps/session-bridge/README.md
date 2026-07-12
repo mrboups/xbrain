@@ -6,7 +6,7 @@ WebSocket pool (`USER_SOCKETS: dict[str, WebSocket]`), one WS per `user_sub`,
 last-write-wins.
 
 Port: **8105** (bound to `127.0.0.1` on the VM, fronted by nginx vhost
-`bridge.grooveos.app`).
+`bridge.example.com`).
 
 ## Endpoints
 

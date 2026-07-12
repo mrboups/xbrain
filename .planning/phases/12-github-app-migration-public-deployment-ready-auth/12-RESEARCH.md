@@ -40,7 +40,7 @@
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| GHAPP-01 | Création GitHub App sur compte `mrboups` avec multi-callback URLs (grooveos.app + `<ext-id>.chromiumapp.org`) + permissions minimales + private key PEM stockée server-side. | §Q1 (permission mapping), §Q6 (Chrome ext ID derivation), §Q11 (multi-callback URL setup). |
+| GHAPP-01 | Création GitHub App sur compte `mrboups` avec multi-callback URLs (example.com + `<ext-id>.chromiumapp.org`) + permissions minimales + private key PEM stockée server-side. | §Q1 (permission mapping), §Q6 (Chrome ext ID derivation), §Q11 (multi-callback URL setup). |
 | GHAPP-02 | Backend JWT signing infrastructure — mint JWT RS256 avec App private key, échange contre installation tokens, cache (1h TTL, refresh-on-401). | §Q5 (PyJWT[crypto]), §Q12 (App JWT vs installation token vs user-to-server distinction). |
 | GHAPP-03 | Table `installations` + webhook handler `/v1/webhooks/github/installation` pour `installation` + `installation_repositories`. | §Q3 (installation lookup), §Q4 (webhook signature), §Q13 (`installation` vs `installation_target` events). |
 | GHAPP-04 | Migration `/orgs/{org}/members/{username}` de `GITHUB_API_PAT` vers installation token + removal du PAT. | §Q1 (Members read permission), §Q14 (auth options pour cette endpoint). |
@@ -434,7 +434,7 @@ async def refresh_user_token_if_needed(session, user) -> str:
 | Category | Items Found | Action Required |
 |----------|-------------|------------------|
 | **Stored data** | (1) `users.github_id` rows — preserved as-is (PK is `github_id` numeric, OAuth App identity == GitHub App identity for the same user). mrboups's `github_id` = same int → same user row → same teams/brain data. **No data migration needed.** (2) Live `gho_` token in `user_api_tokens` is NOT stored (xbt_ tokens only). The `gho_` token Phase 10 stored only in-process for the single sign-in HTTP request, never persisted. | None. |
-| **Live service config** | (1) GitHub OAuth App `xbrain` (Client ID `Ov23liy7tZekl0uEztoj`) registered at github.com/settings/applications. (2) GitHub OAuth App `xbrain LibreChat` (Client ID `Ov23li0XHV3NL8Git7Dk`) — **out of scope per CONTEXT.md**. (3) Existing `xbrain` callback URLs registered: `https://grooveos.app/account/teams/` (per teams.js line 24 comment). | Create new GitHub App registration on `mrboups` account ; transfer/revoke OAuth App `xbrain` **AFTER** GitHub App is live (per §Q7). |
+| **Live service config** | (1) GitHub OAuth App `xbrain` (Client ID `Ov23liy7tZekl0uEztoj`) registered at github.com/settings/applications. (2) GitHub OAuth App `xbrain LibreChat` (Client ID `Ov23li0XHV3NL8Git7Dk`) — **out of scope per CONTEXT.md**. (3) Existing `xbrain` callback URLs registered: `https://example.com/account/teams/` (per teams.js line 24 comment). | Create new GitHub App registration on `mrboups` account ; transfer/revoke OAuth App `xbrain` **AFTER** GitHub App is live (per §Q7). |
 | **OS-registered state** | None. memory-api runs in Docker container `xbrain-memory-api` ; no OS-level service registration carries OAuth App identifiers. | None. |
 | **Secrets and env vars** | (1) `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` in `.env` on VM — currently the OAuth App `xbrain`. (2) `GITHUB_API_PAT` (declared as `GITHUB_ORG_PAT` in `.env.example` line 178) — long-lived PAT used for `/orgs/{org}/members/{username}` checks. (3) `GITHUB_ORG_NAME` (line 179) — confusing : code uses `GITHUB_ORG` (settings.py line 41) which historically had a stale literal default, but the real prod org for Phase 10 is `dejavudev` per CONTEXT.md mention. Default has since been blanked so the operator must set the value explicitly. Verify which value is actually set in `.env` on the VM. | **NEW envs** to add: `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_PRIVATE_KEY` (multi-line PEM), `GITHUB_APP_WEBHOOK_SECRET`. **REMOVE**: `GITHUB_API_PAT` / `GITHUB_ORG_PAT` (both spellings). **DECISION POINT for planner**: rename `GITHUB_CLIENT_ID` → `GITHUB_OAUTH_APP_CLIENT_ID` (Phase 5 OAuth App = LibreChat-only, still in use) ; reserve `GITHUB_APP_CLIENT_ID` for the new GitHub App. Documenting this naming in `.env.example` prevents 3-month-later confusion. |
 | **Build artifacts / installed packages** | (1) `apps/memory-api/pyproject.toml` — needs `PyJWT[crypto]>=2.10,<3` added. (2) Chrome extension built artifact — current `manifest.json` lacks `key` field. After adding `key`, every developer + the deployed extension will have a stable, NEW extension ID. Old extension ID (currently `chrome.runtime.id` is randomized per-install) is dropped. Users who had clipped notes via the old extension keep working (memory-api never tied data to the extension ID — only to the user_sub). | Add PyJWT to deps. Generate key + add to manifest in plan covering GHAPP-01/07. Communicate the new ext ID to mrboups (he reloads the unpacked extension once). |
@@ -932,7 +932,7 @@ The output of Step B is the `chrome.runtime.id` at runtime. The output of Step A
    - Register the new GitHub App on `mrboups` account (web UI, manual).
    - Generate App keypair (private key PEM), webhook secret. Add to `.env` on VM.
    - Install the GitHub App on `dejavudev` org via web UI (one click for mrboups).
-   - Verify the webhook URL points to `https://api.grooveos.app/v1/webhooks/github/installation` — but the endpoint doesn't exist yet. The first webhooks will fail until we deploy.
+   - Verify the webhook URL points to `https://api.example.com/v1/webhooks/github/installation` — but the endpoint doesn't exist yet. The first webhooks will fail until we deploy.
 
 2. **Deploy memory-api code with NEW GitHub App support:**
    - Migration 0019 (`installations` + `users.github_*` columns) applies at container boot.
@@ -1051,7 +1051,7 @@ The output of Step B is the `chrome.runtime.id` at runtime. The output of Step A
         │      installations row.                                         │
         │ ◄───────────────────────────────────────────────────────────── │
         │                                                                 │
-        │ 12b. user redirected back to grooveos.app/account/teams/        │
+        │ 12b. user redirected back to example.com/account/teams/        │
         │      with ?installation_id=...&setup_action=install             │
         │ ◄──────────────────────────────────────────────────────────────│
         │                                                                 │
@@ -1117,7 +1117,7 @@ See "Test fixture pattern" code example above for the verified scaffolding.
 ### Q11 — Multi-callback URL configuration (additional detail)
 
 **GitHub App settings UI :** "Callback URL" field accepts MULTIPLE URLs (one per line). Add both:
-- `https://grooveos.app/account/teams/`
+- `https://example.com/account/teams/`
 - `https://<computed-ext-id>.chromiumapp.org/`
 
 When the OAuth `authorize` request includes `&redirect_uri=...`, GitHub validates it matches one of the registered URLs (exact match OR prefix match — exact match is safer for production).
@@ -1192,7 +1192,7 @@ Implications for plan:
 
 ### Q16 — Webhook URL gotcha for Cloudflare passthrough
 
-The webhook endpoint `https://api.grooveos.app/v1/webhooks/github/installation` will go through Cloudflare (DNS) → VM nginx → memory-api Docker container. Three things to verify in the deploy plan:
+The webhook endpoint `https://api.example.com/v1/webhooks/github/installation` will go through Cloudflare (DNS) → VM nginx → memory-api Docker container. Three things to verify in the deploy plan:
 
 1. nginx must NOT buffer or modify the POST body (default OK, but worth confirming `client_max_body_size` is adequate — webhooks are typically <100KB but `installation_repositories` with hundreds of repos can be larger).
 2. Cloudflare passes through POST bodies by default — no special config needed unless rate limiting or WAF rules interfere.
@@ -1260,7 +1260,7 @@ The webhook endpoint `https://api.grooveos.app/v1/webhooks/github/installation` 
 | openssl CLI | Generate Chrome ext keypair + manifest key | ✓ (assumed — universal on dev machines) | any recent | If unavailable on dev workstation, use Plasmo's web tool |
 | `gh` CLI | Verify GitHub App settings during deploy | optional | — | Manual via web UI |
 | nginx (on VM) | Reverse-proxy webhook endpoint | ✓ | (Phase 1 stack) | — |
-| Cloudflare (DNS) | api.grooveos.app routing | ✓ | (existing) | — |
+| Cloudflare (DNS) | api.example.com routing | ✓ | (existing) | — |
 | Alembic 1.14+ | Migration 0019 | ✓ | per pyproject | — |
 
 **Missing dependencies with no fallback :** None.
@@ -1288,7 +1288,7 @@ ASVS categories applicable to Phase 12:
 | V5 Input Validation | yes | Pydantic models for SigninGithubBody, webhook payloads. Validate `redirect_uri` is in the allowlist before exchange. |
 | V6 Cryptography | yes | RS256 JWT signing — use PyJWT[crypto] (never hand-roll). HMAC-SHA256 webhook verify with `hmac.compare_digest`. |
 | V8 Data Protection | yes | Encrypt `github_access_token` + `github_refresh_token` at rest if possible (Fernet — same key as drive-sync). Strong recommendation, not a hard blocker for v1 (DB-at-rest encryption at infra level is the alternative). |
-| V9 Communication | yes | TLS everywhere ; HTTPS on grooveos.app + api.grooveos.app already enforced. |
+| V9 Communication | yes | TLS everywhere ; HTTPS on example.com + api.example.com already enforced. |
 | V10 Malicious Code | partial | Use only well-known PyJWT ; pin to `>=2.10,<3` ; lockfile via pip-tools if not already. |
 | V14 Configuration | yes | Secrets in `.env`/SOPS, never committed. App private key (PEM) is the critical new secret — leak = anyone can mint App JWTs and impersonate xbrain to any org that installed it. |
 

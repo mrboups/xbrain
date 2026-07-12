@@ -34,14 +34,14 @@ registering the App, you have to come back and edit the App's callback URLs.
 2. Fill in:
    - **GitHub App name:** `xbrain` (or `xbrain-app` if `xbrain` is taken by
      an old App on the same account)
-   - **Homepage URL:** https://grooveos.app
+   - **Homepage URL:** https://example.com
    - **Callback URLs** (one per line — both required for Phase 12):
      ```
-     https://grooveos.app/account/teams/
+     https://example.com/account/teams/
      https://anigikcnmldoklcmogffmgcojdhhficb.chromiumapp.org/
      ```
    - **Setup URL (optional):** leave blank
-   - **Webhook URL:** https://api.grooveos.app/v1/webhooks/github/installation
+   - **Webhook URL:** https://api.example.com/v1/webhooks/github/installation
    - **Webhook secret:** generate via `openssl rand -hex 32` → SAVE this
      value for `GITHUB_APP_WEBHOOK_SECRET`.
 3. **Permissions** (per `12-CONTEXT.md` minimal scope decision):
@@ -145,7 +145,7 @@ bash infrastructure/scripts/verify-phase12.sh
 Required env vars (export before running):
 
 ```bash
-export MEMAPI_HOST=https://api.grooveos.app
+export MEMAPI_HOST=https://api.example.com
 export GITHUB_APP_CLIENT_ID=Iv23liVnZvIN0Lo6isof
 export GITHUB_APP_WEBHOOK_SECRET=<from Step 3>
 export TEST_INSTALLATION_ID=<from Step 5 — read from psql>

@@ -88,10 +88,10 @@ Note: `CHAT07_TOP_K` and `CHAT07_TRUTH_FILTER_MIN_LEVEL` correctly belong to `li
 ### 1.5 Live Haiku classification activity (from logs)
 
 ```json
-{"team_scope": "aibrussels", "relevant": true, "score": 0.89, "tokens_in": 25,
+{"team_scope": "your-team", "relevant": true, "score": 0.89, "tokens_in": 25,
  "cache_creation_input_tokens": 0, "cache_read_input_tokens": 5201, "latency_ms": 832,
  "event": "relevance_filter.classified", ...}
-{"team_scope": "aibrussels", "relevant": false, "score": 0.08, "tokens_in": 23,
+{"team_scope": "your-team", "relevant": false, "score": 0.08, "tokens_in": 23,
  "cache_creation_input_tokens": 0, "cache_read_input_tokens": 5201, "latency_ms": 1345,
  "event": "relevance_filter.classified", ...}
 ```
@@ -255,10 +255,10 @@ No Granola API key configured (`teams=0 users=0`). Container polling correctly, 
 
 The `messages_watch_loop` logs show `messages_watch_event_failed` events but no explicit `messages_watch_loop.started` heartbeat in the last 2-hour window. The watch is functionally active (events being processed), but structured heartbeat logging may not be implemented or may be at DEBUG level. The container health is `(healthy)` via its own probe.
 
-### 4.5 ✓ session-bridge — `bridge.grooveos.app/nginx-health` 200 OK
+### 4.5 ✓ session-bridge — `bridge.example.com/nginx-health` 200 OK
 
 ```
-curl https://bridge.grooveos.app/nginx-health → 200
+curl https://bridge.example.com/nginx-health → 200
 ```
 
 ---
@@ -266,10 +266,10 @@ curl https://bridge.grooveos.app/nginx-health → 200
 ## 5. Frontends (LibreChat + Open WebUI + app-site) — 4 / 4 PASS
 
 ```
-curl https://chat.grooveos.app         → 200 OK
-curl https://grooveos.app              → 200 OK
-curl https://grooveos.app/docs/index.html → 200 OK
-curl https://grooveos.app/account/teams/ → 200 OK
+curl https://chat.example.com         → 200 OK
+curl https://example.com              → 200 OK
+curl https://example.com/docs/index.html → 200 OK
+curl https://example.com/account/teams/ → 200 OK
 ```
 
 All four public-facing frontend URLs return 200. LibreChat and the app-site are serving correctly. Firebase Hosting for app-site is operational.
@@ -288,7 +288,7 @@ xbrain-nginx       Up 10 days (healthy)
 ### 6.1 ✓ Langfuse web UI — 200 OK
 
 ```
-curl https://lang.grooveos.app/ → 200
+curl https://lang.example.com/ → 200
 xbrain-langfuse   Up 10 days (healthy)
 ```
 
@@ -398,11 +398,11 @@ Avg cache_read_input_tokens: 4,801
 
 Sample events:
 ```json
-{"team_scope": "aibrussels", "relevant": true,  "score": 0.89, "tokens_in": 25,
+{"team_scope": "your-team", "relevant": true,  "score": 0.89, "tokens_in": 25,
  "cache_read_input_tokens": 5201, "latency_ms": 832}
-{"team_scope": "aibrussels", "relevant": false, "score": 0.08, "tokens_in": 23,
+{"team_scope": "your-team", "relevant": false, "score": 0.08, "tokens_in": 23,
  "cache_read_input_tokens": 5201, "latency_ms": 1345}
-{"team_scope": "aibrussels", "relevant": false, "score": 0.08, "tokens_in": 21,
+{"team_scope": "your-team", "relevant": false, "score": 0.08, "tokens_in": 21,
  "cache_read_input_tokens": 5201, "latency_ms": 973}
 ```
 
@@ -417,7 +417,7 @@ brain_ingest.external.skipped_by_filter count (24h): ~4 (implied from classified
 
 Latest event:
 ```json
-{"team_scope": "aibrussels", "source": "team-chat:verify-phase13-g",
+{"team_scope": "your-team", "source": "team-chat:verify-phase13-g",
  "chars": 69, "idem_key": "verify-phase13-test-g",
  "event": "brain_ingest.external.ok", "timestamp": "2026-05-27T19:11:58Z"}
 ```
@@ -448,7 +448,7 @@ All 7 Phase 13 env vars present across the correct containers.
 ```
 brain_ingest.external.ok   source=team-chat:verify-phase13-g   idem_key=verify-phase13-test-g
 PATCH /v1/brain/events/memory_item/c02ad3ce-...  → 200 OK  (truth_level promotion)
-GET  /v1/system-prompt?query=deploy%20window%20Tuesday&min_level=VALIDATED&top_k=5&team_scope=aibrussels → 200 OK
+GET  /v1/system-prompt?query=deploy%20window%20Tuesday&min_level=VALIDATED&top_k=5&team_scope=your-team → 200 OK
 POST /v1/brain/ingest  → 202 Accepted
 relevance_filter.classified  relevant=false  score=0.08  (short irrelevant message correctly rejected)
 ```

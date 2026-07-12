@@ -13,7 +13,7 @@ Active scope. One codebase, two runtime shapes (OSS self-host / SaaS hosted); a 
 
 ### Portability (config-driven, not hardcoded)
 
-- [ ] **PORT-01**: An operator can point the entire stack at their own domain and keys via config alone — no `grooveos.app`, `aibrussels`, or hardcoded `default` team_scope remains in source
+- [ ] **PORT-01**: An operator can point the entire stack at their own domain and keys via config alone — no `example.com`, `your-team`, or hardcoded `default` team_scope remains in source
 - [ ] **PORT-02**: An operator can configure a fresh install from a slim, documented OSS `.env.example` without reading source code
 
 ### Edition Mechanics
@@ -355,7 +355,7 @@ Phase 8 introduced per-user Granola integration, universal extraction across fro
 ### Phase 9 — Session Bridge — Pro/Max Routing via Chrome Extension (LIVE 2026-05-12) — SESSION-01..06
 
 - **SESSION-01**: Microservice `session-bridge` (port 8105) exposes OpenAI-compatible `/v1/chat/completions` HTTP endpoint + `/ws/{user_sub}` WebSocket pool per user.
-- **SESSION-02**: Chrome extension v1.1.0+ maintains persistent WebSocket to `bridge.grooveos.app` with `chrome.alarms` watchdog, dispatches inbound chat requests to credentialed `fetch()` against claude.ai internal API.
+- **SESSION-02**: Chrome extension v1.1.0+ maintains persistent WebSocket to `bridge.example.com` with `chrome.alarms` watchdog, dispatches inbound chat requests to credentialed `fetch()` against claude.ai internal API.
 - **SESSION-03**: Per-user session tracking in `user_external_sessions` table (last_seen_at, metadata JSONB); extension popup surfaces session status with logged claude.ai email.
 - **SESSION-04**: Graceful fallback — requests without active extension session OR without claude.ai login return explicit error "Install xbrain extension and login to claude.ai", no silent fallback to team API key.
 - **SESSION-05**: LibreChat config exposes "Claude (mon abonnement)" endpoint routing via `session-bridge`; Sonnet via routed chat consumes user's Pro/Max quota visible at claude.ai/settings/usage.
@@ -391,7 +391,7 @@ ChatGPT Plus routing explicitly deferred (out of scope Phase 9 — possibly revi
 
 ### Phase 12 — GitHub App Migration (LIVE 2026-05-17) — GHAPP-01..08
 
-- **GHAPP-01**: GitHub App "xbrain" created on `mrboups` personal account with multi-callback URLs natively supported: `https://grooveos.app/account/teams/` (web) + `https://anigikcnmldoklcmogffmgcojdhhficb.chromiumapp.org/` (Chrome extension stable ID via manifest `key`). Minimal permissions: `read:user`, `user:email`, `read:org`. Private key (PEM, RS256) stored server-side as `GITHUB_APP_PRIVATE_KEY_B64`. App ID `3743573`, Client ID `Iv23liVnZvIN0Lo6isof`.
+- **GHAPP-01**: GitHub App "xbrain" created on `mrboups` personal account with multi-callback URLs natively supported: `https://example.com/account/teams/` (web) + `https://anigikcnmldoklcmogffmgcojdhhficb.chromiumapp.org/` (Chrome extension stable ID via manifest `key`). Minimal permissions: `read:user`, `user:email`, `read:org`. Private key (PEM, RS256) stored server-side as `GITHUB_APP_PRIVATE_KEY_B64`. App ID `3743573`, Client ID `Iv23liVnZvIN0Lo6isof`.
 - **GHAPP-02**: Backend JWT signing infrastructure — `app/services/github_app_jwt.mint_app_jwt()` mints RS256 JWT signed with `GITHUB_APP_PRIVATE_KEY_B64`, `iss = GITHUB_APP_CLIENT_ID`, 10-min TTL. `app/services/github_installation.get_installation_token()` exchanges JWT for installation token (1h TTL), in-process LRU cache, refresh-on-401. PyJWT[crypto]>=2.10 added to `apps/memory-api/pyproject.toml`.
 - **GHAPP-03**: New `installations` table (`installation_id BIGINT PK`, `github_org_login TEXT`, `github_account_type TEXT DEFAULT 'Organization'`, `installed_at TIMESTAMPTZ`, `installed_by_github_id BIGINT NULL`, `permissions JSONB`, `suspended_at TIMESTAMPTZ NULL`, `revoked_at TIMESTAMPTZ NULL`, `raw_payload JSONB`, `updated_at TIMESTAMPTZ`) + webhook handler `POST /v1/webhooks/github/installation` with HMAC signature verification for `installation` and `installation_repositories` events. Source-of-truth synced from GitHub.
 - **GHAPP-04**: `/orgs/{org}/members/{username}` org membership check migrated from `GITHUB_API_PAT` to installation token via hybrid lookup (`get_installation_token_for_org(session, org)` — looks up `installations` row, mints/caches installation token, falls back to "org not installed" error if absent). `GITHUB_API_PAT` removed from `.env.example`, `docker-compose.yml`, and all runtime config.
@@ -407,7 +407,7 @@ Several capabilities shipped between phases via the GSD Quick Task surface (atom
 - **mcp-brain remote MCP server** (2026-05-09, commit `9f21d52`) — remote MCP server allowing Claude.ai web + ChatGPT web to access team brain via standard MCP protocol.
 - **LibreChat LLM stack expansion** (2026-05-11, commit `d8fcb69`) — Grok-3 endpoint, Claude Reasoning endpoint, second-opinion 3-way (Sonnet+Opus 4.7+Grok-3), Anthropic prompt caching on 6 extraction sites.
 - **Chrome extension v1.2.0** (2026-05-12) — single-click Connect/Disconnect, side panel mode (Chrome 114+), LibreChat API key auto-fill, zero-click silent Google auto-mint, context menu "Add selection to xbrain" with team submenu, link GitHub account from extension.
-- **Team chat realtime** (2026-05-12, commit `d7716c1`) — Centrifugo v6 broker (`centrifugo.grooveos.app`, MIT, ~50MB RAM), `team_messages` table, 4 messaging endpoints, agent-context-bundle endpoint, session-bridge accepts `acting_user_sub` JWT, inline Claude handler with Pro/Max routing + Anthropic fallback, 5min team memory cache, full extension UI redesign (chat-first, clip overlay).
+- **Team chat realtime** (2026-05-12, commit `d7716c1`) — Centrifugo v6 broker (`centrifugo.example.com`, MIT, ~50MB RAM), `team_messages` table, 4 messaging endpoints, agent-context-bundle endpoint, session-bridge accepts `acting_user_sub` JWT, inline Claude handler with Pro/Max routing + Anthropic fallback, 5min team memory cache, full extension UI redesign (chat-first, clip overlay).
 
 ---
 *Requirements defined: 2026-05-02 (v1 73 REQ-IDs frozen)*

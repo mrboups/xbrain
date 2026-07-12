@@ -83,7 +83,7 @@ metrics:
 
 ## What shipped
 
-A standalone microservice at `apps/session-bridge/` that LibreChat will hit via `bridge.grooveos.app/v1/chat/completions` (configured in plan 09-04 nginx + 09-05 librechat.yaml). It accepts a user's `xbt_` Bearer token, validates it against memory-api `/v1/me` (60s TTL cache), looks up that user's WebSocket from an in-memory `Pool` keyed by `user_sub`, and streams an SSE response by relaying frames the user's Chrome extension pushes over the WS.
+A standalone microservice at `apps/session-bridge/` that LibreChat will hit via `bridge.example.com/v1/chat/completions` (configured in plan 09-04 nginx + 09-05 librechat.yaml). It accepts a user's `xbt_` Bearer token, validates it against memory-api `/v1/me` (60s TTL cache), looks up that user's WebSocket from an in-memory `Pool` keyed by `user_sub`, and streams an SSE response by relaying frames the user's Chrome extension pushes over the WS.
 
 On WS open the extension sends a `register` frame; the bridge fires a non-blocking `asyncio.create_task` to upsert `user_external_sessions` in memory-api (using an HS256 bridge JWT with an `acting_user_sub` claim so memory-api can attribute the row to the right user). The extension gets a `register_ack` immediately — the upsert outcome is logged but never blocks the WS or sends an error back to the extension.
 
@@ -158,11 +158,11 @@ None — no new attack surface beyond what the plan's threat register enumerated
 
 ## What's needed next from Wave 2
 
-- **Plan 09-03 (extension v1.1.0):** wire the WS client + register-on-open path. Contract is fixed: open `wss://bridge.grooveos.app/ws/{user_sub}?token={xbt_token}`, send `{"type":"register","provider":"claude","extension_id":...,"email_logged":...,"org_id":...}` immediately after `onopen`, then listen for `{"type":"chat_request","request_id":...,"openai_body":...}` and stream `chunk`/`end`/`error` frames back keyed by `request_id`. Ping every 20s with `{"type":"ping","ts":...}`.
+- **Plan 09-03 (extension v1.1.0):** wire the WS client + register-on-open path. Contract is fixed: open `wss://bridge.example.com/ws/{user_sub}?token={xbt_token}`, send `{"type":"register","provider":"claude","extension_id":...,"email_logged":...,"org_id":...}` immediately after `onopen`, then listen for `{"type":"chat_request","request_id":...,"openai_body":...}` and stream `chunk`/`end`/`error` frames back keyed by `request_id`. Ping every 20s with `{"type":"ping","ts":...}`.
 
 - **Plan 09-04 (memory-api `/v1/me/external-sessions`):** must implement the POST upsert endpoint accepting a bridge JWT with `acting_user_sub` claim, body `{provider, extension_id, metadata}`, returning 2xx. The bridge fire-and-forgets the call, so memory-api outages don't break the WS — but rows won't show up in the popup until memory-api is healthy.
 
-- **Plan 09-05 (popup + librechat.yaml):** popup queries memory-api `GET /v1/me/external-sessions` (also plan 09-04) and renders `metadata.email_logged`. LibreChat config points `baseURL: https://bridge.grooveos.app/v1`.
+- **Plan 09-05 (popup + librechat.yaml):** popup queries memory-api `GET /v1/me/external-sessions` (also plan 09-04) and renders `metadata.email_logged`. LibreChat config points `baseURL: https://bridge.example.com/v1`.
 
 ## Self-Check
 
