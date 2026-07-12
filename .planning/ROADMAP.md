@@ -496,7 +496,13 @@ Plans:
 
 > **SC#4 and SC#5 were REWRITTEN on 2026-07-12.** They previously demanded an Ed25519-signed license unlocking a paid `pro` tier — which locked decision **Q6** explicitly DROPPED (`EDIT-03`; no product feature is paywalled, only the hosted control plane is closed). Planning license or entitlement work would build something that was cancelled. The two criteria above replace them with the gates the phase actually needs: making Neo4j opt-in (Q5, and a real contradiction found by the 2026-07-12 wiring audit) and guaranteeing that profile selection cannot silently change data identity (the class of bug that made brain-janitor's Qdrant purge a no-op — see commit 215882b).
 
-**Plans**: TBD (populated by `/gsd:plan-phase 15`)
+**Plans**: 4 plans in 3 waves
+
+- [ ] 15-01-PLAN.md — Make the compose graph profile-safe: cut the 3 cross-profile `depends_on` edges (memory-api→neo4j, brain-janitor→neo4j, xbrain-backup→librechat-mongo) + promote/rename `langfuse-minio` → core `minio` (wave 1)
+- [ ] 15-02-PLAN.md — `EDITION` flag + explicit router gating in memory-api (33 core / 2 SaaS-only), fail-fast on unknown values, negative-case tests (wave 1, parallel)
+- [ ] 15-03-PLAN.md — Apply the profile table to all 32 services (10 untagged core / 14 `integrations` / 7 `saas` / 1 `ops`) + wire `EDITION` through compose (wave 2)
+- [ ] 15-04-PLAN.md — `verify-phase15.sh`: the acceptance gate, asserted against real `docker compose` output and real running containers (wave 3)
+
 **UI hint**: no (infra/backend gating — no new user-facing surface; existing frontends unaffected)
 
 ### Phase 18: Local Auth (OSS default)
