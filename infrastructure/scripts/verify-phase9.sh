@@ -5,8 +5,8 @@
 # Tests (8, SKIP-aware — SKIP never counts as FAIL):
 #   1. session-bridge container running
 #   2. /healthz returns 200 (local on 127.0.0.1:8105)
-#   3. bridge.grooveos.app DNS resolves (SKIPPED if not yet configured)
-#   4. nginx vhost 50-bridge.conf loaded (server_name bridge.grooveos.app present in nginx -T)
+#   3. $BRIDGE_HOST DNS resolves (SKIPPED if not yet configured)
+#   4. nginx vhost 50-bridge.conf loaded (server_name $BRIDGE_HOST present in nginx -T)
 #   5. WebSocket reachable end-to-end via the bridge (SKIPPED if VERIFY_XBT_TOKEN unset)
 #   6. user_external_sessions table exists in postgres (migration 0014)
 #   7. librechat.yaml contains "Claude Pro/Max" custom endpoint
@@ -20,7 +20,7 @@
 #   bash infrastructure/scripts/verify-phase9.sh
 #
 # Optional env overrides:
-#   BRIDGE_HOST           default bridge.grooveos.app
+#   BRIDGE_HOST           default bridge.example.com
 #   BRIDGE_LOCAL          default http://127.0.0.1:8105
 #   NGINX_CONTAINER       default xbrain-nginx
 #   BRIDGE_CONTAINER      default xbrain-session-bridge (or session-bridge)
@@ -34,7 +34,7 @@
 
 set -uo pipefail   # NOT -e — every test runs independently; the summary line is the truth
 
-BRIDGE_HOST="${BRIDGE_HOST:-bridge.grooveos.app}"
+BRIDGE_HOST="${BRIDGE_HOST:-localhost}"
 BRIDGE_LOCAL="${BRIDGE_LOCAL:-http://127.0.0.1:8105}"
 NGINX_CONTAINER="${NGINX_CONTAINER:-xbrain-nginx}"
 BRIDGE_CONTAINER="${BRIDGE_CONTAINER:-xbrain-session-bridge}"
@@ -92,7 +92,7 @@ test_02_healthz_local() {
 # -----------------------------------------------------------------------------
 test_03_dns_resolves() {
   echo
-  echo "[3/8] bridge.grooveos.app DNS resolves"
+  echo "[3/8] \$BRIDGE_HOST DNS resolves"
   if ! command -v dig >/dev/null 2>&1; then
     # Fall back to getent if dig is missing
     if command -v getent >/dev/null 2>&1; then
@@ -187,8 +187,8 @@ test_07_librechat_endpoint() {
   if docker ps --filter "name=${LIBRECHAT_CONTAINER}" --format "{{.Names}}" 2>/dev/null | grep -q "${LIBRECHAT_CONTAINER}"; then
     content=$(docker exec "${LIBRECHAT_CONTAINER}" cat /app/librechat.yaml 2>/dev/null || true)
   fi
-  if [[ -z "$content" ]] && [[ -f infrastructure/librechat/librechat.yaml ]]; then
-    content=$(cat infrastructure/librechat/librechat.yaml)
+  if [[ -z "$content" ]] && [[ -f infrastructure/librechat/librechat.yaml.template ]]; then
+    content=$(cat infrastructure/librechat/librechat.yaml.template)
   fi
   if echo "$content" | grep -q 'Claude Pro/Max'; then
     ok "endpoint 'Claude Pro/Max' present"

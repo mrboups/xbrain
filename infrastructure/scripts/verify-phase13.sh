@@ -18,17 +18,17 @@
 #   1 when FAIL > 0
 #
 # Usage:
-#   MEMAPI_HOST=https://api.grooveos.app \
+#   MEMAPI_HOST=https://api.example.com \
 #   BRIDGE_SHARED_SECRET=<secret> \
-#   TEST_TEAM_SCOPE=dejavudev \
+#   TEST_TEAM_SCOPE=default \
 #   TEST_USER_SUB=mrboups@github \
 #   bash infrastructure/scripts/verify-phase13.sh
 #
 # Fixtures sourced from infrastructure/.env.test if present.
 #
 # Configurable env overrides:
-#   MEMAPI_HOST           default https://api.grooveos.app
-#   LIBRECHAT_HOST        default https://chat.grooveos.app
+#   MEMAPI_HOST           default http://localhost:8000
+#   LIBRECHAT_HOST        default http://localhost:8080
 #   OWUI_PIPELINE_HOST    default http://localhost:8200 (internal Docker port on VM)
 #   DB_CONTAINER          default xbrain-postgres
 #   QDRANT_CONTAINER      default xbrain-qdrant
@@ -36,7 +36,7 @@
 #   API_CONTAINER         default xbrain-memory-api
 #   PG_USER               default xbrain
 #   PG_DB                 default xbrain
-#   TEST_TEAM_SCOPE       default dejavudev
+#   TEST_TEAM_SCOPE       default 'default' (neutral team, D-04)
 #   TEST_USER_SUB         default mrboups@github
 #   BRIDGE_SHARED_SECRET  required for tests a/b/g (sourced from .env.test)
 #   PIPELINE_API_KEY      required for test c (sourced from .env.test)
@@ -60,8 +60,8 @@ if [[ -f "infrastructure/.env.test" ]]; then
   set -a; . "infrastructure/.env.test"; set +a
 fi
 
-MEMAPI_HOST="${MEMAPI_HOST:-https://api.grooveos.app}"
-LIBRECHAT_HOST="${LIBRECHAT_HOST:-https://chat.grooveos.app}"
+MEMAPI_HOST="${MEMAPI_HOST:-http://localhost:8000}"
+LIBRECHAT_HOST="${LIBRECHAT_HOST:-http://localhost:8080}"
 OWUI_PIPELINE_HOST="${OWUI_PIPELINE_HOST:-http://localhost:8200}"
 DB_CONTAINER="${DB_CONTAINER:-xbrain-postgres}"
 QDRANT_CONTAINER="${QDRANT_CONTAINER:-xbrain-qdrant}"
@@ -69,7 +69,7 @@ LC_MONGO_CONTAINER="${LC_MONGO_CONTAINER:-xbrain-mongodb-librechat}"
 API_CONTAINER="${API_CONTAINER:-xbrain-memory-api}"
 PG_USER="${PG_USER:-xbrain}"
 PG_DB="${PG_DB:-xbrain}"
-TEST_TEAM_SCOPE="${TEST_TEAM_SCOPE:-dejavudev}"
+TEST_TEAM_SCOPE="${TEST_TEAM_SCOPE:-default}"
 TEST_USER_SUB="${TEST_USER_SUB:-mrboups@github}"
 BRIDGE_SHARED_SECRET="${BRIDGE_SHARED_SECRET:-}"
 PIPELINE_API_KEY="${PIPELINE_API_KEY:-}"

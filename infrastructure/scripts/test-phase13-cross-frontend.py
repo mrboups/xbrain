@@ -22,7 +22,7 @@ Exit codes:
   77 — SKIP (missing prerequisite, e.g., BRIDGE_SHARED_SECRET not set)
 
 Environment variables:
-  MEMAPI_HOST             default https://api.grooveos.app
+  MEMAPI_HOST             default http://localhost:8000
   TEAM_SCOPE              default dejavudev (overridden by --team-scope)
   BRIDGE_SHARED_SECRET    required — HS256 key used by bridge JWT
   PG_DSN                  optional — direct Postgres DSN for DB assertions
@@ -85,7 +85,7 @@ FIXTURE_IDEMPOTENCY_G = "verify-phase13-test-g"
 # Configuration
 # ---------------------------------------------------------------------------
 
-MEMAPI_HOST = os.environ.get("MEMAPI_HOST", "https://api.grooveos.app").rstrip("/")
+MEMAPI_HOST = os.environ.get("MEMAPI_HOST", "http://localhost:8000").rstrip("/")
 QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333").rstrip("/")
 OWUI_PIPELINE_HOST = os.environ.get("OWUI_PIPELINE_HOST", "http://localhost:8200").rstrip("/")
 BRIDGE_SHARED_SECRET = os.environ.get("BRIDGE_SHARED_SECRET", "")

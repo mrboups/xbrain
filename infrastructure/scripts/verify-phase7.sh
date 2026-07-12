@@ -23,7 +23,7 @@ FAILURES=()
 
 DB_CONTAINER="${DB_CONTAINER:-xbrain-postgres}"
 GRANOLA_CONTAINER="${GRANOLA_CONTAINER:-xbrain-granola-sync}"
-MEMAPI_HOST="${MEMAPI_HOST:-https://api.grooveos.app}"
+MEMAPI_HOST="${MEMAPI_HOST:-http://localhost:8000}"
 
 pass() { echo "  PASS: $1"; TEST_PASSED=$((TEST_PASSED + 1)); }
 fail() { echo "  FAIL: $1 — $2"; FAILURES+=("$1: $2"); }

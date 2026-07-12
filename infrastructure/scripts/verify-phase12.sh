@@ -27,7 +27,7 @@
 #   1 when FAIL > 0
 #
 # Usage:
-#   MEMAPI_HOST=https://api.grooveos.app \
+#   MEMAPI_HOST=https://api.example.com \
 #   GITHUB_APP_CLIENT_ID=Iv23li... \
 #   TEST_INSTALLATION_ID=12345 \                    # operator-provided (the dejavudev install)
 #   TEST_GITHUB_ORG=dejavudev \
@@ -39,7 +39,7 @@
 # Fixtures sourced from infrastructure/.env.test if present.
 #
 # Optional env overrides:
-#   MEMAPI_HOST           default https://api.grooveos.app
+#   MEMAPI_HOST           default http://localhost:8000
 #   DB_CONTAINER          default xbrain-postgres
 #   API_CONTAINER         default xbrain-memory-api
 #   PG_USER               default xbrain
@@ -48,7 +48,7 @@
 # Assertion 18 prep (operator must run BEFORE invoking this script):
 #   1. Pick a fixture github_login OTHER THAN mrboups (e.g. a test bot account or
 #      a colleague's login). The user MUST be a member of TEST_GITHUB_ORG on
-#      GitHub AND must have signed in to grooveos.app at least once after the
+#      GitHub AND must have signed in to the deployment at least once after the
 #      block was set.
 #   2. Insert the block row:
 #        psql -c "INSERT INTO team_org_blocks (team_id, github_login, blocked_by)
@@ -69,7 +69,7 @@ if [[ -f "infrastructure/.env.test" ]]; then
   set -a; . "infrastructure/.env.test"; set +a
 fi
 
-MEMAPI_HOST="${MEMAPI_HOST:-https://api.grooveos.app}"
+MEMAPI_HOST="${MEMAPI_HOST:-http://localhost:8000}"
 DB_CONTAINER="${DB_CONTAINER:-xbrain-postgres}"
 API_CONTAINER="${API_CONTAINER:-xbrain-memory-api}"
 PG_USER="${PG_USER:-xbrain}"

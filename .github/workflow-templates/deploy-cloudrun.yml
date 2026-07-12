@@ -9,6 +9,10 @@
 #   Variables (Settings > Secrets and variables > Variables) :
 #     GCP_PROJECT_NUMBER  — Numéro du projet GCP (ex: 495115)
 #     CLOUD_RUN_SERVICE_NAME — Nom du service Cloud Run (ex: my-api, scraper-tool)
+#     MEMORY_API_URL      — URL de votre déploiement memory-api pour le brain
+#                           indexing (optionnel — brain-index.sh est fail-soft ;
+#                           sans cette variable il retombe sur localhost et le
+#                           step "Brain indexing" se termine en exit 0 sans effet)
 #
 # Prérequis GCP (à faire une seule fois via docs/gitops-setup.md) :
 #   - APIs activées : run, cloudbuild, artifactregistry, iamcredentials
@@ -70,7 +74,7 @@ jobs:
       - name: Brain indexing
         env:
           XBRAIN_BRIDGE_JWT: ${{ secrets.XBRAIN_BRIDGE_JWT }}
-          MEMORY_API_URL: https://api.grooveos.app
+          MEMORY_API_URL: ${{ vars.MEMORY_API_URL }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           bash infrastructure/scripts/brain-index.sh || true

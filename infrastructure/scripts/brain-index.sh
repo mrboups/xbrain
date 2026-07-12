@@ -8,7 +8,9 @@
 #   XBRAIN_BRIDGE_JWT    — JWT de service signé avec BRIDGE_SHARED_SECRET
 #
 # Variables optionnelles :
-#   MEMORY_API_URL       — URL de l'API xbrain (défaut: https://api.grooveos.app)
+#   MEMORY_API_URL       — URL de l'API xbrain (défaut: http://localhost:8000)
+#   XBRAIN_BASE_DOMAIN   — domaine de base utilisé pour construire l'URL du projet
+#                          enregistré dans la registry (défaut: localhost)
 #   GITHUB_REPOSITORY    — Owner/repo (ex: <your-org>/my-project, auto-détecté en CI)
 #
 # Dépendances : bash, curl, python3 (avec pyyaml — disponible dans ubuntu-latest)
@@ -19,9 +21,10 @@
 
 set -uo pipefail
 
-MEMORY_API_URL="${MEMORY_API_URL:-https://api.grooveos.app}"
+MEMORY_API_URL="${MEMORY_API_URL:-http://localhost:8000}"
 XBRAIN_BRIDGE_JWT="${XBRAIN_BRIDGE_JWT:-}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-}"
+XBRAIN_BASE_DOMAIN="${XBRAIN_BASE_DOMAIN:-localhost}"
 
 BRAIN_YAML="${BRAIN_YAML_PATH:-brain.yaml}"
 
@@ -153,7 +156,7 @@ import json
 print(json.dumps({
     'slug': '${BRAIN_SLUG}',
     'name': '${BRAIN_NAME}',
-    'url': 'https://${BRAIN_SLUG}.grooveos.app',
+    'url': 'https://${BRAIN_SLUG}.${XBRAIN_BASE_DOMAIN}',
     'team_scope': '${BRAIN_TEAM}',
     'project_scope': '${BRAIN_PROJECT}',
     'deploy_target': '${DEPLOY_TARGET}',
