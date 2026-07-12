@@ -43,7 +43,7 @@
 #   TEST_DRILLDOWN_TEAM_SLUG  any non-default team slug for assertion 15 drill-down
 #
 # Optional env overrides:
-#   MEMAPI_HOST               default https://api.grooveos.app
+#   MEMAPI_HOST               default http://localhost:8000
 #   DB_CONTAINER              default xbrain-postgres
 #   PG_USER                   default xbrain
 #   PG_DB                     default xbrain
@@ -79,7 +79,7 @@ if [[ -f "infrastructure/.env.test" ]]; then
   set -a; . "infrastructure/.env.test"; set +a
 fi
 
-MEMAPI_HOST="${MEMAPI_HOST:-https://api.grooveos.app}"
+MEMAPI_HOST="${MEMAPI_HOST:-http://localhost:8000}"
 DB_CONTAINER="${DB_CONTAINER:-xbrain-postgres}"
 PG_USER="${PG_USER:-xbrain}"
 PG_DB="${PG_DB:-xbrain}"

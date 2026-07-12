@@ -8,6 +8,12 @@
 #                                      (généré via docs/gitops-setup.md Étape 4)
 #   XBRAIN_BRIDGE_JWT               — JWT de service xbrain (BRIDGE_SHARED_SECRET signé HS256)
 #
+# Variables (Settings > Secrets and variables > Variables) :
+#   MEMORY_API_URL — URL de votre déploiement memory-api pour le brain indexing
+#                    (optionnel — brain-index.sh est fail-soft ; sans cette
+#                    variable il retombe sur localhost et le step "Brain
+#                    indexing" se termine en exit 0 sans effet)
+#
 # Le repo doit avoir à sa racine :
 #   - firebase.json        (généré par `firebase init hosting`)
 #   - .firebaserc          (généré par `firebase init hosting`)
@@ -82,7 +88,7 @@ jobs:
       - name: Brain indexing
         env:
           XBRAIN_BRIDGE_JWT: ${{ secrets.XBRAIN_BRIDGE_JWT }}
-          MEMORY_API_URL: https://api.grooveos.app
+          MEMORY_API_URL: ${{ vars.MEMORY_API_URL }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           bash infrastructure/scripts/brain-index.sh || true

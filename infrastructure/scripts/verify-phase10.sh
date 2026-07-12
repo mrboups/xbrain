@@ -8,7 +8,7 @@
 #   (c) POST /v1/teams/{id}/members/{uid}/block returns 403 for non-admin (pytest)
 #   (d) merge_user_rows migrates team_members orphan→survivor (pytest)
 #   (e) admin email captured on auto-grant (pytest with SMTP fail-soft monkeypatch)
-#   (f) https://grooveos.app/account/teams/ returns HTTP 200
+#   (f) $APP_SITE_BASE/account/teams/ returns HTTP 200
 #   (g) get_team_scope returns 403 "Member blocked" when blocked_at is set (pytest)
 #   (h) REVISION 1 M-3 — END-TO-END: orphan's pre-merge xbt_ token resolves to
 #       survivor identity at GET /v1/me. Exercises BOTH user_api_tokens FK
@@ -23,8 +23,8 @@
 #   bash infrastructure/scripts/verify-phase10.sh
 #
 # Optional env overrides:
-#   MEMORY_API_BASE       default https://api.grooveos.app
-#   APP_SITE_BASE         default https://grooveos.app
+#   MEMORY_API_BASE       default http://localhost:8000
+#   APP_SITE_BASE         default http://localhost:8000
 #   PYTEST_CMD            default "pytest" (use "docker exec xbrain-memory-api pytest"
 #                         to run inside the container if local pytest isn't installed)
 #   PYTEST_CWD            default "apps/memory-api" (where to invoke pytest from)
@@ -34,8 +34,8 @@
 
 set -uo pipefail   # NOT -e — every test runs independently; the summary line is the truth
 
-API="${MEMORY_API_BASE:-https://api.grooveos.app}"
-SITE="${APP_SITE_BASE:-https://grooveos.app}"
+API="${MEMORY_API_BASE:-http://localhost:8000}"
+SITE="${APP_SITE_BASE:-http://localhost:8000}"
 PYTEST_CMD="${PYTEST_CMD:-pytest}"
 PYTEST_CWD="${PYTEST_CWD:-apps/memory-api}"
 

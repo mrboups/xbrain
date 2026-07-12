@@ -26,7 +26,7 @@ run_test "graphiti-service POST /v1/ingest -> 202 Accepted" \
 
 # Test 3 — GitHub OAuth dans librechat.yaml
 run_test "librechat.yaml a 'github' dans socialLogins" \
-    "grep -q 'github' infrastructure/librechat/librechat.yaml"
+    "grep -q 'github' infrastructure/librechat/librechat.yaml.template"
 
 # Test 4 — Migration 0007 : colonne github_username dans users
 run_test "table users a la colonne github_username (migration 0007)" \
@@ -56,7 +56,7 @@ assert 'background' in d
 assert 'identity' in d.get('permissions', [])
 \""
 
-# Test 7 — projects.grooveos.app Firebase config
+# Test 7 — projects dashboard Firebase config
 run_test "projects-dashboard/firebase.json existe et est valide JSON" \
     "python3 -c \"import json; d=json.load(open('projects-dashboard/firebase.json')); assert 'hosting' in d\""
 
