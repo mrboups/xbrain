@@ -202,7 +202,7 @@ async def _wipe_qdrant_team(team_slug: str) -> dict[str, Any]:
         )
         try:
             await client.delete(
-                collection_name="messages",
+                collection_name=settings.QDRANT_COLLECTION,
                 points_selector=FilterSelector(
                     filter=Filter(
                         must=[
@@ -234,20 +234,20 @@ async def _wipe_qdrant_full() -> dict[str, Any]:
         )
         try:
             try:
-                await client.delete_collection(collection_name="messages")
+                await client.delete_collection(collection_name=settings.QDRANT_COLLECTION)
             except Exception as exc:
                 log.info("admin_wipe.qdrant_delete_collection_missing", error=str(exc))
             await client.create_collection(
-                collection_name="messages",
+                collection_name=settings.QDRANT_COLLECTION,
                 vectors_config=VectorParams(size=1536, distance=Distance.COSINE),
             )
             await client.create_payload_index(
-                collection_name="messages",
+                collection_name=settings.QDRANT_COLLECTION,
                 field_name="team_scope",
                 field_schema=PayloadSchemaType.KEYWORD,
             )
             await client.create_payload_index(
-                collection_name="messages",
+                collection_name=settings.QDRANT_COLLECTION,
                 field_name="truth_level",
                 field_schema=PayloadSchemaType.KEYWORD,
             )

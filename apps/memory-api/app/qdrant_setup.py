@@ -8,7 +8,11 @@ from app.config import settings
 
 log = structlog.get_logger()
 
-COLLECTION_NAME = "messages"
+# Single source of truth for the collection name. It MUST come from settings: this module
+# CREATES the collection, brain_metrics.py QUERIES it, and admin_wipe.py DELETES it. If any
+# of the three disagreed, an operator who set QDRANT_COLLECTION would get a split brain —
+# writes landing in one collection while reads and wipes targeted another.
+COLLECTION_NAME = settings.QDRANT_COLLECTION
 VECTOR_SIZE = 1536  # OpenAI text-embedding-3-small / placeholder Phase 2
 
 

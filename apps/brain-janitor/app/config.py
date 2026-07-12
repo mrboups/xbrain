@@ -16,9 +16,13 @@ class Settings(BaseSettings):
     NEO4J_PASSWORD: str = ""
     RETENTION_DAYS: int = 30  # locked by Phase 11 CONTEXT.md
     LOG_LEVEL: str = "INFO"
-    # memory_items vector collection (canonical name from apps/memory-api/app/qdrant_setup.py
-    # and packages/memory-models/xbrain_memory/providers/native_provider.py). Each Qdrant
-    # point uses memory_items.id directly as PointStruct.id, so purging by UUID list is exact.
+    # The Qdrant COLLECTION that memory-api creates and writes — canonically "messages"
+    # (apps/memory-api/app/qdrant_setup.py). Do NOT confuse it with `memory_items`, which is the
+    # POSTGRES TABLE. That conflation is exactly what broke this service: docker-compose passed
+    # QDRANT_COLLECTION=memory_items, so the purge below targeted a collection that does not
+    # exist, qdrant_purger.py swallowed the error, and vector hard-deletes were a silent no-op.
+    # Each Qdrant point uses the memory_items ROW id as its PointStruct.id, so purging by UUID
+    # list is exact — that is where the table name legitimately enters, and nowhere else.
     QDRANT_COLLECTION: str = "messages"
 
     class Config:
