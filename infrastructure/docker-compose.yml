@@ -29,6 +29,8 @@ volumes:
   xbrain_backups: { name: xbrain_backups }
   langfuse_clickhouse_data: { name: langfuse_clickhouse_data }
   langfuse_redis_data: { name: langfuse_redis_data }
+  # Deliberately still named langfuse_minio_data even though the service is now `minio` (Phase 15):
+  # renaming a volume does not move data, it orphans it. The name is cosmetic; the data is not.
   langfuse_minio_data: { name: langfuse_minio_data }
   neo4j_data: { name: neo4j_data }
 
@@ -187,7 +189,7 @@ services:
       CENTRIFUGO_WS_URL_PUBLIC: ${CENTRIFUGO_WS_URL_PUBLIC:-ws://localhost:8000/connection/websocket}
       # Superadmin wipe-database: drop LibreChat Mongo DB + clear MinIO xbrain-decks bucket.
       LIBRECHAT_MONGO_URI: ${LIBRECHAT_MONGO_URI:-mongodb://librechat-mongo:27017/LibreChat}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-langfuse-minio:9000}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
       MINIO_DECKS_BUCKET: ${MINIO_DECKS_BUCKET:-xbrain-decks}
@@ -195,7 +197,7 @@ services:
       # get_minio_client() reads MINIO_URL/ACCESS_KEY/SECRET_KEY; the deck path and MinIO
       # container use MINIO_ENDPOINT/ROOT_USER/ROOT_PASSWORD. Map them here so a single
       # MinIO instance serves both the decks path and the new media endpoints.
-      MINIO_URL: ${MINIO_URL:-http://${MINIO_ENDPOINT:-langfuse-minio:9000}}
+      MINIO_URL: ${MINIO_URL:-http://${MINIO_ENDPOINT:-minio:9000}}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-minio}}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD}}
       MINIO_BUCKET: ${MINIO_MEDIA_BUCKET:-xbrain-media}
@@ -586,10 +588,18 @@ services:
       timeout: 5s
       retries: 5
 
-  # === Langfuse MinIO (S3-compat for event/media uploads, mandatory in Langfuse v3) ===
-  langfuse-minio:
+  # === MinIO (untagged CORE — Phase 15 / D-15-02) ===
+  # S3-compatible object store. Serves THREE consumers:
+  #   1. memory-api  /v1/media/upload + /v1/media/{id}/raw   (bucket xbrain-media)  ← CORE capability
+  #   2. mcp-deck    generated decks                          (bucket xbrain-decks)
+  #   3. langfuse    event + media uploads                    (bucket langfuse)     ← only when `integrations` is on
+  # It used to carry Langfuse's name (Langfuse was the first consumer to add it), which made it
+  # LOOK like an `integrations` service. It is not: media is promised in every edition, so tagging
+  # this `integrations` would 503 /v1/media/upload in every OSS-light install. Hence: core, renamed.
+  # ONE instance only — Langfuse reuses it. Do not stand up a second.
+  minio:
     image: cgr.dev/chainguard/minio
-    container_name: xbrain-langfuse-minio
+    container_name: xbrain-minio
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -628,13 +638,13 @@ services:
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
       LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
       LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
-      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
       LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
       LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
       LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
       LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
       LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
-      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
       LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
       LANGFUSE_S3_MEDIA_UPLOAD_REGION: us-east-1
     networks: [xbrain_net]
@@ -643,7 +653,7 @@ services:
       langfuse-clickhouse: { condition: service_healthy }
       langfuse-redis: { condition: service_healthy }
       postgres: { condition: service_healthy }
-      langfuse-minio: { condition: service_healthy }
+      minio: { condition: service_healthy }
 
   langfuse:
     image: langfuse/langfuse:3
@@ -675,20 +685,20 @@ services:
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
       LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
       LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
-      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
       LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
       LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
       LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
       LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
       LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
-      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
       LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
       LANGFUSE_S3_MEDIA_UPLOAD_REGION: us-east-1
     networks: [xbrain_net]
     mem_limit: 1152m
     depends_on:
       langfuse-worker: { condition: service_started }
-      langfuse-minio: { condition: service_healthy }
+      minio: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "wget -qO - http://127.0.0.1:3000/api/public/health 2>/dev/null | grep -qi ok"]
       interval: 30s
@@ -840,7 +850,10 @@ services:
     restart: unless-stopped
     logging: *default-logging
     environment:
-      MINIO_ENDPOINT: langfuse-minio:9000
+      # D-15-04 (one identity, every edition): must resolve the SAME MinIO endpoint as
+      # memory-api's MINIO_ENDPOINT above — hardcoding a different literal here is exactly how
+      # QDRANT_COLLECTION drifted and made brain-janitor's vector purge a silent no-op (215882b).
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET_DECKS: ${MINIO_BUCKET_DECKS:-xbrain-decks}
@@ -854,7 +867,7 @@ services:
     mem_limit: 192m
     depends_on:
       memory-api: { condition: service_healthy }
-      langfuse-minio: { condition: service_healthy }
+      minio: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8103/healthz 2>/dev/null || exit 0"]
       interval: 30s

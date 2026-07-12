@@ -25,7 +25,7 @@ from mcp.server.fastmcp import FastMCP
 log = structlog.get_logger(__name__)
 
 # ── Config ───────────────────────────────────────────────────────────────────
-MINIO_ENDPOINT = os.environ.get("MINIO_ENDPOINT", "langfuse-minio:9000")
+MINIO_ENDPOINT = os.environ.get("MINIO_ENDPOINT", "minio:9000")
 MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY", "")
 MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY", "")
 MINIO_BUCKET = os.environ.get("MINIO_BUCKET_DECKS", "xbrain-decks")
