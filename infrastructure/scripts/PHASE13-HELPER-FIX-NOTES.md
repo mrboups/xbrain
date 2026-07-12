@@ -5,7 +5,7 @@
 
 ## Summary
 
-Fixed 3 test failures in the Phase 13 verify/helper scripts that caused tests (a), (g), and (h) to FAIL on the VM with `TEST_TEAM_SCOPE=aibrussels`.
+Fixed 3 test failures in the Phase 13 verify/helper scripts that caused tests (a), (g), and (h) to FAIL on the VM with `TEST_TEAM_SCOPE=your-team`.
 
 All 3 failures shared the same root category: the scripts sent requests to endpoints whose auth contracts were incompatible with the bridge JWT they minted.
 

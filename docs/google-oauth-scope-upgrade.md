@@ -72,7 +72,7 @@ comme Test users, soit passer à "In production" (pas de vérification OAuth req
 ### 3.1 — Ajouter les scopes au client OAuth
 
 1. Ouvrir [Google Cloud Console](https://console.cloud.google.com/) et sélectionner le projet
-   **`xbrain-495115`** (compte `team@grooveos.app`).
+   **`xbrain-495115`** (compte `team@example.com`).
 
 2. Menu de gauche → **"APIs & Services"** → **"OAuth consent screen"**.
 
