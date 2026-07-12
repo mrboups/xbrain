@@ -33,7 +33,12 @@ COPY patches/patch-server.js /tmp/patch-server.js
 RUN node /tmp/patch-server.js
 
 # Patch 4 + 5: Onboarding modal
+# MEMORY_API_BASE_URL: build-time memory-api base for onboarding.js. Empty
+# default -> same-origin relative fetches (boot-safe fallback). Prod sets this
+# via docker-compose build.args from ${LIBRECHAT_MEMORY_API_BASE} (Plan 14-03b).
+ARG MEMORY_API_BASE_URL=""
 COPY patches/onboarding.js /app/client/dist/onboarding.js
+RUN sed -i "s|__XBRAIN_MEMORY_API_BASE__|${MEMORY_API_BASE_URL}|" /app/client/dist/onboarding.js
 RUN sed -i 's|</head>|<script defer src="/onboarding.js?v=13"></script></head>|' \
     /app/client/dist/index.html
 

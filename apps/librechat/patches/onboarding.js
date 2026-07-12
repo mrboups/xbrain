@@ -1,8 +1,8 @@
 /**
  * xbrain team onboarding modal — injected into LibreChat's index.html.
  *
- * Runs at chat.grooveos.app context. Uses /api/xbrain/token (same-origin)
- * to get a bridge JWT, then calls api.grooveos.app/v1/teams/* endpoints.
+ * Runs in the LibreChat frontend context. Uses /api/xbrain/token (same-origin)
+ * then calls the memory-api /v1/teams/* endpoints at the configured base.
  *
  * Shows a non-closable 4-step modal if the user has no team assigned.
  * Hides itself and stores completion in sessionStorage to avoid re-checking.
@@ -11,7 +11,8 @@
 (function () {
   'use strict';
 
-  const MEMORY_API = 'https://api.grooveos.app';
+  const MEMORY_API_RAW = '__XBRAIN_MEMORY_API_BASE__';
+  const MEMORY_API = MEMORY_API_RAW.indexOf('__') === 0 ? '' : MEMORY_API_RAW;
   const STORAGE_KEY = 'xbrain_onboarding_done';
 
   // Skip if already completed this session
