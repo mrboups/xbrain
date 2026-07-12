@@ -444,6 +444,11 @@ services:
       LIBRECHAT_ALLOWED_DOMAINS: ${LIBRECHAT_ALLOWED_DOMAINS:-localhost}
       BRIDGE_BASE_URL: ${BRIDGE_BASE_URL:-http://session-bridge:8105/v1}
       APP_TEAMS_URL: ${APP_TEAMS_URL:-http://localhost:8000/account/teams/}
+      # Phase 14 (14-07): same alias list mention_detector.py reads server-side (14-01).
+      # The entrypoint derives AGENT_MENTION_PRIMARY (first entry) from this and
+      # envsubst's it into the promptPrefix system prompts — a self-hoster who
+      # changes nothing sees "@agent", which actually resolves.
+      AGENT_MENTION_ALIASES: ${AGENT_MENTION_ALIASES:-agent}
     volumes:
       - librechat_uploads:/app/client/public/uploads
       - ./librechat/librechat.yaml.template:/app/librechat.yaml.template:ro
