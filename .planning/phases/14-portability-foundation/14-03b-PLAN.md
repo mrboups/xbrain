@@ -364,6 +364,7 @@ OAUTH_ISSUER_URL=https://api.grooveos.app
 OAUTH_RESOURCE_URL=https://mcp.grooveos.app/mcp
 CORS_ALLOWED_ORIGIN_REGEX=(chrome-extension://.*|https://chat\.grooveos\.app|https://grooveos\.app|https://grooveos\.web\.app|https://dejavu-app\.web\.app|https://claude\.ai)
 XBRAIN_BASE_DOMAIN=grooveos.app
+AGENT_MENTION_ALIASES=agent,grooveos,groove,gr,g
 MEMORY_API_EXTERNAL_URL=https://chat.grooveos.app
 APP_PUBLIC_URL=https://grooveos.app
 CENTRIFUGO_WS_URL_PUBLIC=wss://centrifugo.grooveos.app/connection/websocket
