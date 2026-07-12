@@ -75,11 +75,23 @@ echo "  MEMAPI_HOST, LIBRECHAT_HOST, TEST_TEAM_SCOPE (production values: 14-06-S
 test_a_source_clean() {
   echo
   echo "(a) PORT-01 source+infra clean (repo-wide scan, documented excludes, self-excluded, build-artifact-excluded)"
+  # BUILD-ARTIFACT EXCLUDES (the first block below) are not scope decisions — they are
+  # gitignored tool caches. They MUST all be listed, or this gate becomes flaky: it passes
+  # on a clean checkout and FAILS on any machine (or CI runner) that ran the tests first.
+  # That is exactly what happened once: `.pytest_cache/v/cache/nodeids` stores pytest node
+  # IDs, which include the brand token from the legitimately-excluded tests/ fixtures — so
+  # the cache smuggled a `tests/`-excluded string back into the scan from outside tests/.
+  # If you add a tool that writes a gitignored cache dir under apps/, add it here.
   local matches
   matches=$(grep -rIlE "$BRAND_RE" \
     apps/ infrastructure/ Makefile .github/ CLAUDE.md \
     --exclude-dir=__pycache__ \
     --exclude=*.pyc \
+    --exclude-dir=.pytest_cache \
+    --exclude-dir=.ruff_cache \
+    --exclude-dir=.mypy_cache \
+    --exclude-dir=node_modules \
+    --exclude-dir=.venv \
     --exclude-dir=tests \
     --exclude-dir=spike-mem0 \
     --exclude=chatgpt-actions.json \
