@@ -290,7 +290,7 @@ INPUT: "cool cool cool"
 OUTPUT: {"relevant": false, "score": 0.03}
 
 Example 57 — Observability setup:
-INPUT: "Langfuse traces go to langfuse.grooveos.app — use LANGFUSE_PUBLIC_KEY + LANGFUSE_SECRET_KEY from VM .env for all LLM calls"
+INPUT: "Langfuse traces go to langfuse.example.com — use LANGFUSE_PUBLIC_KEY + LANGFUSE_SECRET_KEY from VM .env for all LLM calls"
 OUTPUT: {"relevant": true, "score": 0.93}
 
 Example 58 — Single punctuation:
@@ -322,7 +322,7 @@ INPUT: "agreed"
 OUTPUT: {"relevant": false, "score": 0.05}
 
 Example 65 — TLS certificate management:
-INPUT: "TLS certs are managed by Let's Encrypt certbot — auto-renews 30 days before expiry, renewal hook reloads nginx; cert path /etc/letsencrypt/live/grooveos.app/"
+INPUT: "TLS certs are managed by Let's Encrypt certbot — auto-renews 30 days before expiry, renewal hook reloads nginx; cert path /etc/letsencrypt/live/example.com/"
 OUTPUT: {"relevant": true, "score": 0.94}
 
 Example 66 — Short confusion:

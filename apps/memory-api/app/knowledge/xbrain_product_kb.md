@@ -1,16 +1,16 @@
 # GrooveOS — Product knowledge base
 
-> **This file is the SHARED CONTEXT given to the @groove agent in every team
-> chat, and (condensed) to the LibreChat assistant.** Edit it to teach all
-> GrooveOS users about the product — terminology, features, data model — without
-> seeding every team's memory.
+> **This file is the SHARED CONTEXT given to the mention-triggered agent in
+> every team chat, and (condensed) to the LibreChat assistant.** Edit it to
+> teach all GrooveOS users about the product — terminology, features, data
+> model — without seeding every team's memory.
 >
 > **Anthropic prompt cache:** this block is sent with `cache_control: ephemeral`
 > and is byte-stable across calls, so cache hits are near-100% after warm-up.
 > Keep it focused — every byte costs cached-input tokens.
 >
 > **Update workflow:** edit this file → commit → memory-api rebuild/restart →
-> next @groove mention loads the new content. No DB migration required.
+> next agent mention loads the new content. No DB migration required.
 
 ---
 
@@ -64,11 +64,12 @@ items are ignored by default in recall so noise doesn't drown signal.
 2. **Passive recall (LibreChat per-turn injection):** the top ~5 **CANONICAL**
    facts closest to the user's message are auto-injected as context. Only
    production-level facts inject passively, and each is capped (~280 chars).
-3. **The @groove agent snapshot (extension):** when mentioned, the @groove agent
-   gets a preloaded snapshot of the team's **work+** memory (WORKING/VALIDATED/
-   CANONICAL), newest-first, up to 5,000 chars per item / 60,000 chars total,
-   cached 5 min. The @groove agent has no live tools — it answers from this
-   snapshot + recent chat, so very long single items may still be summarized.
+3. **The mention-triggered agent snapshot (extension):** when mentioned, the
+   agent gets a preloaded snapshot of the team's **work+** memory
+   (WORKING/VALIDATED/CANONICAL), newest-first, up to 5,000 chars per item /
+   60,000 chars total, cached 5 min. The agent has no live tools — it answers
+   from this snapshot + recent chat, so very long single items may still be
+   summarized.
 
 ## Knowledge graph (Graphiti + Neo4j)
 
@@ -98,7 +99,7 @@ can leverage a repo (e.g. a Claude-Code project) even without direct access:
 Auth uses the GitHub App installation (org or personal) or a configured fallback
 token. If the App isn't installed on the owner, reads return a clear "install
 the GitHub App" message. The GitHub tools are available in LibreChat (and the
-extension @groove can be asked to sync).
+extension agent can be asked to sync).
 
 ## CRM / contacts
 
@@ -136,21 +137,21 @@ searchable content.
 - **Sign in / Link GitHub** — GitHub is the primary identity; org membership can
   auto-grant team access.
 
-## Mentioning @groove in team chat
+## Mentioning the agent in team chat
 
-Mention **`@grooveos`** / **`@groove`** (or shortcuts **`@gr`** / **`@g`**) anywhere in a message
-and the Groove agent (Claude Sonnet 4.6 under the hood) replies in the channel,
-streaming token-by-token. Word-boundary anchored, so `alice@groove.com` or
-`@google` won't trigger it. (`@claude` / `@c` no longer trigger — the alias was
-renamed to @groove.)
+Mention **`@agent`** anywhere in a message and the agent (Claude Sonnet 4.6
+under the hood) replies in the channel, streaming token-by-token.
+Word-boundary anchored, so `alice@agent.com` or `@google` won't trigger it.
+The mention alias is configurable per deployment via `AGENT_MENTION_ALIASES`
+(comma-separated, no leading `@`); `@agent` is the default.
 
 **Routing:** by default the reply is routed through the mentioning user's
-**Pro/Max claude.ai subscription** via the session-bridge (zero $ to GrooveOS).
-If no live bridge connection, it falls back to the team's Anthropic API key
-(billed to GrooveOS). Each reply shows a provenance pill: **"via Pro/Max"** or
-**"via team API"**.
+**Pro/Max claude.ai subscription** via the session-bridge (zero cost to the
+team). If no live bridge connection, it falls back to the team's Anthropic API
+key (billed to the team). Each reply shows a provenance pill: **"via Pro/Max"**
+or **"via team API"**.
 
-## What @groove sees when answering
+## What the agent sees when answering
 
 1. A short role system prompt.  2. **This product KB** (so it can explain
 GrooveOS without learning).  3. The team's memory snapshot (work+ items,
@@ -162,27 +163,27 @@ included.  6. The user's question. Output is capped at 4000 tokens.
 
 | Frontend | Where | How it reaches the brain |
 |---|---|---|
-| **LibreChat** | chat.grooveos.app | passive recall + MCP tools (memory_search/add, tasks, contacts, github, scraper, calendar, deck) |
-| **Chrome extension** | popup | REST + @groove agent over Centrifugo |
-| **ChatGPT / Claude.ai / MCP clients** | mcp.grooveos.app | remote MCP server, auth via personal `xbt_` token |
+| **LibreChat** | your LibreChat frontend | passive recall + MCP tools (memory_search/add, tasks, contacts, github, scraper, calendar, deck) |
+| **Chrome extension** | popup | REST + agent over Centrifugo |
+| **ChatGPT / Claude.ai / MCP clients** | your deployment's remote MCP server URL | remote MCP server, auth via personal `xbt_` token |
 
 ## Brain Monitor
 
-At `chat.grooveos.app/account/teams/brain/` you can **view** all brain entities
-(memory items, messages, conversations, tasks, contacts, granola notes),
-**promote** truth_level, **soft-delete** (hidden from recall immediately, purged
-after 30 days), and **restore**. Members edit what they created; admins edit
-anything. A superadmin cross-team view lives at `/account/admin/`.
+At `/account/teams/brain/` on your xbrain web app you can **view** all brain
+entities (memory items, messages, conversations, tasks, contacts, granola
+notes), **promote** truth_level, **soft-delete** (hidden from recall
+immediately, purged after 30 days), and **restore**. Members edit what they
+created; admins edit anything. A superadmin cross-team view lives at
+`/account/admin/`.
 
 ## Sign in
 
 GitHub is the **primary identity** (gives a personal `xbt_` token + auto-grant
 to teams whose `github_org` matches your GitHub orgs). Google is a secondary
 option (also needed for Drive/Calendar sync); you can link both to one user.
-Sign in: web `grooveos.app/account/teams/`, the extension popup, or LibreChat
-`chat.grooveos.app/`.
+Sign in via your xbrain web app, the extension popup, or LibreChat.
 
-## What @groove should NOT do
+## What the agent should NOT do
 
 - Don't invent a team's internal details that aren't in the memory snapshot. If
   memory is sparse, say so and suggest capturing more (📎 clip, sync a repo, or
