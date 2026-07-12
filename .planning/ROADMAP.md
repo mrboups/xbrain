@@ -435,7 +435,8 @@ Plans:
 > **AMENDED 2026-07-12** — the original goal + SC#1/#2/#4 contradicted the locked decisions in `.planning/phases/14-portability-foundation/14-CONTEXT.md` (D-01c, D-01e, D-04). Those decisions are newer and deliberate; this section is corrected to match them (user-approved 2026-07-12). Three carve-outs now apply:
 > - **`"default"` team_scope is KEPT** (D-04) — it is a neutral, brand-free fallback string, not a brand. Making it env-configurable adds zero portability value. NOT in scope for de-hardcoding.
 > - **Browser/client bundles are DEFERRED to Phase 16** (D-01c) — `chrome-extension/**`, `app-site/account/**`. The frontend is being replaced there by the web group-chat; cleaning code we are about to delete is waste.
-> - **Hosted-product marketing/docs KEEP `grooveos.app`** (D-01e) — `app-site/docs/**`, `marketing-site/docs/**`, `app-site/v0-v12/**`, README positioning. These are the live pages of the commercial hosted service, whose domain legitimately *is* grooveos.app. They are not OSS code an operator self-hosts.
+> - **Hosted-product marketing/docs KEEP `grooveos.app`** (D-01e) — `app-site/docs/**`, `marketing-site/docs/**`, `app-site/v0-v12/**`, README positioning, **`projects-dashboard/**` and `.github/workflows/deploy-dashboard.yml`** (EXTENDED 2026-07-12: that dashboard is deployed at `projects.<brand>` and the workflow is what ships it — same class as app-site/marketing-site). These are the live pages of the commercial hosted service, whose domain legitimately *is* grooveos.app. They are not OSS code an operator self-hosts.
+>   **NOT exempt** (they ship to operators and MUST be brand-free): `Makefile`, `apps/librechat/Dockerfile`, and `.github/workflow-templates/**` — those templates are COPIED INTO OPERATORS' OWN REPOS, so a hardcoded `api.grooveos.app` would point every self-hoster's CI at xbrain's production API.
 
 **Depends on**: Phase 13 (v1.0 complete) — first phase of milestone v2.0, no phase-internal dependency
 **Entry gate**: Milestone v1.0 SHIPPED (13/13 phases). Real counts measured 2026-07-11 (see `14-RESEARCH.md`; the earlier "28x/15x/15x" figures were wrong — they conflated tests+docs): `grooveos.app` ~1009 occurrences / 203 files repo-wide but only **~123 occ / ~33 files in runtime+infra source**; `aibrussels` 105 occ / 20 files; `"default"` team_scope ~49 genuine occurrences (KEPT per D-04). `.env.example` at 115 vars (~90% already externalized). **NOTE: the production VM is currently TERMINATED** (cost pause during the Prime pivot) — see SC#2.
@@ -447,17 +448,33 @@ Plans:
   3. An operator can fill a single slim, documented OSS `.env.example` and get a working install pointed at their own domain, without opening any source file to find a hidden hardcoded reference.
   4. Setting the domain config vars to a different value (e.g. a fictitious `acme.example`) produces correctly-branded URLs, OAuth issuer/audience claims, webhook URLs, email bodies, **CORS allow-origin regex**, nginx `server_name`, and agent-KB copy — no residual xbrain-specific string leaks through the **backend/infra request-response path**. (Browser-bundle request paths are explicitly deferred to Phase 16 per D-01c and are NOT asserted by this phase's verifier.)
 
-**Plans**: 6 plans
-Plans:
+**Plans**: 7 plans
 
-- [ ] 14-01-PLAN.md — memory-api + mcp-brain runtime config neutralization + OAuth fail-fast validator + notifications/waitlist env fallbacks
-- [ ] 14-02-PLAN.md — Functional domain leaks: xbrain_product_kb.md neutral rewrite + relevance_filter few-shots + onboarding.js build-configurable base
-- [ ] 14-03-PLAN.md — Infra: docker-compose fallback neutralization + nginx envsubst templates + librechat.yaml ${VAR} + centrifugo origins env
-- [ ] 14-04-PLAN.md — Slim, documented OSS .env.example (PORT-02) + delete vestigial infrastructure/.env.example + per-service templates
-- [ ] 14-05-PLAN.md — Mechanical docs + .planning history scrub (autonomous, Sonnet-friendly) with logged pragmatic bound
-- [ ] 14-06-PLAN.md — Regression safety: parameterize verify-phase{5,7,8,9,10,12,13}.sh + brain-index.sh + new verify-phase14.sh (PORT-01/PORT-02 gate)
+**Wave 1** *(no dependencies — disjoint file trees, run in parallel)*
 
-**Wave order**: 1 (14-01 + 14-02 + 14-05 parallel — disjoint file trees) → 2 (14-03 — infra, needs 14-01's new config var contract) → 3 (14-04 — .env.example documents 14-01 + 14-03 vars) → 4 (14-06 — verify everything: source clean + fail-fast + fresh acme.example boot)
+- [ ] 14-01-PLAN.md — memory-api + mcp-brain config neutralization + OAuth fail-fast validator + env-driven CORS + config-driven agent mention aliases (D-08) + pytest conftest repair
+- [ ] 14-02-PLAN.md — Functional domain leaks: xbrain_product_kb.md neutral rewrite (incl. the `@agent` alias, in lockstep with 14-01) + relevance_filter few-shots + onboarding.js build-configurable base
+- [ ] 14-03a-PLAN.md — nginx envsubst templates (all 7 vhosts) + real `nginx -t` render validation + stock default.conf handling
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 14-03b-PLAN.md — docker-compose fallback neutralization + librechat.yaml `${VAR}` + centrifugo origins env + Makefile env-check/deploy guard
+- [ ] 14-05-PLAN.md — Mechanical docs + `.planning` history scrub (autonomous, Sonnet executor) with a logged pragmatic bound
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 14-04-PLAN.md — Slim, documented OSS `.env.example` (PORT-02) + delete the vestigial infrastructure/.env.example
+
+**Wave 4** *(blocked on Wave 3 — the acceptance gate)*
+
+- [ ] 14-06-PLAN.md — Regression safety: parameterize the verify/infra scripts + `preflight-env.sh` crashloop guard + `verify-phase14.sh` (PORT-01/PORT-02 gate) + the DEFERRED live-regression checkpoint
+
+**Wave order**: 1 (14-01 + 14-02 + 14-03a ∥) → 2 (14-03b + 14-05 ∥) → 3 (14-04) → 4 (14-06)
+
+**Cross-cutting constraints** (appear in 2+ plans):
+- The `"default"` team_scope literal is KEPT everywhere (D-04) — it is neutral, not a brand.
+- Five vars are MANDATORY at deploy or prod breaks silently: `OAUTH_ISSUER_URL`, `OAUTH_RESOURCE_URL` (empty → memory-api + mcp-brain crashloop), `CORS_ALLOWED_ORIGIN_REGEX` (missing → browser CORS-blocked), `XBRAIN_BASE_DOMAIN` (missing → every nginx vhost renders `*.localhost` = total ingress outage), `AGENT_MENTION_ALIASES` (missing → `@groove` silently stops working). Guarded by `preflight-env.sh` + Makefile `env-check`.
+- **NOT autonomous**: 14-06 carries a blocking `checkpoint:human-verify` — the live regression suite is a DEFERRED gate (the prod VM is TERMINATED and the scripts curl a live deployment).
 **UI hint**: no (backend/config refactor — no new user-facing surface)
 
 ### Phase 15: Edition Mechanics

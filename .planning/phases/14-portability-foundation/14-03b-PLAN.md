@@ -17,7 +17,8 @@ must_haves:
     - "WEBUI_URL is env-overridable (no longer an unwrapped hardcode)"
     - "librechat.yaml's 3 brand strings resolve from ${VAR} at container startup — and the RESOLVED value is asserted on a booted container, not assumed"
     - "Centrifugo allowed_origins is env-driven via CENTRIFUGO_CLIENT_ALLOWED_ORIGINS and the default still admits chrome-extension://* (or realtime silently dies for the extension)"
-    - "`make env-check` FAILS when OAUTH_ISSUER_URL / OAUTH_RESOURCE_URL / CORS_ALLOWED_ORIGIN_REGEX are missing, and `make deploy` runs env-check first — the crashloop guard for the next deploy (ROADMAP SC#2a)"
+    - "`make env-check` FAILS when ANY of the 5 now-mandatory vars is missing — OAUTH_ISSUER_URL, OAUTH_RESOURCE_URL, CORS_ALLOWED_ORIGIN_REGEX, XBRAIN_BASE_DOMAIN, AGENT_MENTION_ALIASES — and `make deploy` runs env-check first (ROADMAP SC#2a). Each has a distinct SILENT failure mode: empty OAuth -> memory-api + mcp-brain crashloop; missing CORS -> browser/extension silently blocked; missing XBRAIN_BASE_DOMAIN -> every nginx vhost renders as *.localhost = TOTAL INGRESS OUTAGE; missing AGENT_MENTION_ALIASES -> @groove/@grooveos silently stop working (round-3 W-A / B2)"
+    - "The REMOTE (VM) .env guard checks the SAME 5 vars — not just the 2 OAuth ones. `make env-check` and `preflight-env.sh` read the LOCAL .env; only the SSH guard sees the VM's, which is the one that actually boots the containers (project memory: VM .env vars DO go missing)"
   artifacts:
     - path: "infrastructure/docker-compose.yml"
       provides: "Neutral env fallbacks + APP_PUBLIC_URL + CORS regex + librechat build arg + centrifugo origins env"
@@ -249,8 +250,8 @@ the infra layer, so a failure here cannot leave the ingress half-migrated.
        the file remains valid). The value is supplied by `CENTRIFUGO_CLIENT_ALLOWED_ORIGINS` (compose,
        Task 1), whose default carries `chrome-extension://*`. Do not delete any other key.
     In Makefile:
-    2. Extend `env-check`'s var list with the three vars that are now REQUIRED-or-broken:
-       `OAUTH_ISSUER_URL OAUTH_RESOURCE_URL CORS_ALLOWED_ORIGIN_REGEX`
+    2. Extend `env-check`'s var list with the **FIVE** vars that are now REQUIRED-or-broken:
+       `OAUTH_ISSUER_URL OAUTH_RESOURCE_URL CORS_ALLOWED_ORIGIN_REGEX XBRAIN_BASE_DOMAIN AGENT_MENTION_ALIASES`
        (appended to the existing `POSTGRES_PASSWORD GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
        BRIDGE_SHARED_SECRET MEILI_MASTER_KEY OPENWEBUI_SECRET_KEY` loop). Why each:
          - OAUTH_ISSUER_URL / OAUTH_RESOURCE_URL: empty is now FATAL at boot (14-01 field_validator).
@@ -258,13 +259,23 @@ the infra layer, so a failure here cannot leave the ingress half-migrated.
            been in `.env.example` — so the VM `.env` almost certainly lacks them. Missing → crashloop.
          - CORS_ALLOWED_ORIGIN_REGEX: missing → the neutral default applies → the Chrome extension and
            the web app are CORS-blocked in prod (silent functional regression, not a crash).
+         - **XBRAIN_BASE_DOMAIN** (round-3 W-A): missing → the compose default `${XBRAIN_BASE_DOMAIN:-localhost}`
+           applies → **all 7 nginx vhosts (14-03a) render as `*.localhost` = TOTAL PROD INGRESS OUTAGE.**
+           The default is a safe LOCAL default and a catastrophic PROD one. This is the single highest-blast-
+           radius var in the phase and it was in NO guard.
+         - **AGENT_MENTION_ALIASES** (round-3 B2): missing → falls back to the neutral default `agent` →
+           `@groove` / `@grooveos` **silently stop working** in prod. Prod value:
+           `agent,grooveos,groove,gr,g` (legacy kept + `agent` added so the shipped KB is also true).
     3. Make `deploy` depend on the guard: change `deploy: sync` → `deploy: env-check sync`.
        Add a `@echo` in `env-check`'s failure path pointing at the phase-14 DEPLOY-PREREQ
        (e.g. `echo "MISSING: $$v — see .planning/phases/14-portability-foundation/14-06-SUMMARY.md (DEPLOY-PREREQ)"`).
     4. Add a REMOTE guard line at the top of the `deploy` recipe (the VM `.env` is the one that
        actually matters — `env-check` only reads the LOCAL `.env`, and project memory
        `project_xbrain_vm_env_gotchas` records that VM `.env` vars go missing):
-       `$(SSH) 'cd /home/$(VM_USER)/xbrain && grep -q "^OAUTH_ISSUER_URL=" .env && grep -q "^OAUTH_RESOURCE_URL=" .env' || (echo "ABORT: VM .env is missing OAUTH_ISSUER_URL / OAUTH_RESOURCE_URL — memory-api + mcp-brain will crashloop. See 14-06-SUMMARY.md DEPLOY-PREREQ."; exit 1)`
+       The remote guard MUST check **the same 5 vars** as `env-check` — not just the 2 OAuth ones
+       (round-3 W-A: the earlier 2-var guard would have passed a VM `.env` that then rendered every nginx
+       vhost as `*.localhost`). Loop them:
+       `$(SSH) 'cd /home/$(VM_USER)/xbrain && for v in OAUTH_ISSUER_URL OAUTH_RESOURCE_URL CORS_ALLOWED_ORIGIN_REGEX XBRAIN_BASE_DOMAIN AGENT_MENTION_ALIASES; do grep -qE "^$$v=.+" .env || { echo "ABORT: VM .env is missing $$v"; exit 1; }; done' || (echo "ABORT: the VM .env is missing a now-mandatory var — deploying would crashloop memory-api/mcp-brain, or silently break the ingress / CORS / @mentions. See 14-06-SUMMARY.md DEPLOY-PREREQ."; exit 1)`
        (match the existing `$(SSH)` / `$(VM_USER)` macro style already used by the `backup` target).
        NOTE: the production VM is currently TERMINATED, so this line cannot be EXECUTED now — its
        acceptance is static (`make -n deploy` shows it; the Makefile parses). It fires at the next

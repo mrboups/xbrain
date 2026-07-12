@@ -362,7 +362,15 @@ Recommend explicitly deleting `infrastructure/.env.example` (superseded/misleadi
 | A3 | `apps/mcp-brain/chatgpt-actions.json` is not loaded by any running service (confirmed via `grep -rn chatgpt-actions apps/` finding zero code references) — treated as a manual operator template rather than app config | Grounded Inventory — grooveos.app | If wrong (some undiscovered code path reads this file), it would need the same env-driven fix as `config.py`; low risk given the grep coverage |
 | A4 | The official `nginx:1.27-alpine` image's envsubst-template mechanism (`.template` → `.conf`) is the right fix for `nginx/conf.d/*.conf`, as opposed to leaving nginx domain names as a documented manual-edit step | Landmine list, Don't Hand-Roll | If the planner decides manual-edit is acceptable for v1 of portability (nginx setup is inherently more "infra" than "app config" for most self-hosters), this whole sub-item could be descoped without violating D-07's "runtime source" grep bar, since nginx conf isn't Python/JS "source" in the strict sense — flagged as Open Question #2, not asserted as required |
 
-## Open Questions
+## Open Questions (RESOLVED — see 14-CONTEXT.md)
+
+> **All four are settled. Do NOT re-open them:**
+> - **Q1** (chrome-extension + app-site static JS) -> **D-01c**: DEFERRED to Phase 16 (the frontend is replaced there).
+> - **Q2** (nginx server_name templating) -> **D-01d**: IN SCOPE, envsubst (plan 14-03a).
+> - **Q3** (xbrain_product_kb.md) -> neutral rewrite (plan 14-02 Task 1).
+> - **Q4** (how exhaustively to scrub `.planning/` history) -> **SUPERSEDED**. This section recommended
+>   "forward-only; leave the history untouched" — the user OVERRODE that on 2026-07-11/12: the history IS
+>   scrubbed (D-01, plan 14-05). Ignore the recommendation below.
 
 1. **Are `chrome-extension/**` and `app-site/account/**` in scope for Phase 14, or deferred to Phase 16?**
    - What we know: both contain hardcoded `MEMORY_API_BASE = "https://api.grooveos.app"` client-side constants with no existing config mechanism (static bundle / no-build-step Firebase site respectively). Neither is listed in CONTEXT.md's canonical_refs. Phase 16 (`PKG-02`) explicitly plans a NEW standalone web-chat UI and the design doc's Q4 decision drops LibreChat/OpenWebUI — the chrome extension's OSS-light role is undefined.

@@ -135,11 +135,24 @@ grep now catches it and no plan owned it.)
 **Decision:** make the alias list **config-driven** via a new setting (e.g. `AGENT_MENTION_ALIASES`,
 comma-separated), with a **neutral default of `agent`** (i.e. `@agent` works out of the box on a fresh
 OSS install). The deployer overrides it in `.env` if they want their own trigger.
-- **Zero prod behavior change:** xbrain's prod `.env` sets the list to the CURRENT aliases
-  (`grooveos,groove,gr,g`) so existing users keep typing `@groove` exactly as today.
+- **Prod value (REQUIRED — round-3 B2):** xbrain's prod `.env` MUST set
+  `AGENT_MENTION_ALIASES=agent,grooveos,groove,gr,g` — note `agent` is FIRST and the legacy triggers are
+  KEPT. Both must be present:
+    - keeping `grooveos,groove,gr,g` = existing users keep typing `@groove` exactly as today;
+    - adding `agent` = the shipped KB (which 14-02 rewrites to document `@agent`) is TRUE in prod too,
+      otherwise the agent would tell prod users to type a trigger prod does not answer to.
+  **This var MUST appear in every deploy guard** (`preflight-env.sh` required set, Makefile `env-check`,
+  14-03b's DEPLOY-PREREQ block, 14-06 Task 4's runbook). If it is missing from the VM `.env`, memory-api
+  silently falls back to the neutral default `agent` and **`@groove` / `@grooveos` stop working in
+  production with no error** — and project memory `project_xbrain_vm_env_gotchas` records that VM `.env`
+  vars DO go missing. An unguarded var here is a silent prod regression, not a theoretical one.
 - **Why this matters beyond portability:** the brand is **in flux** — GrooveOS is NOT becoming Prime
   (Prime is a separate product); GrooveOS likely continues as the standalone team-chat and may be
-  rebranded (e.g. `teamchat.ai`). A rebrand must be a `.env` change, not a code change.
+  rebranded (e.g. `teamchat.ai`). A rebrand should be a `.env` change, not a code change.
+  **Caveat (honest scope):** `chrome-extension/chat_stream.js:22` carries a CLIENT-SIDE MIRROR of the same
+  regex (`detectMentionClient`). It is a UX hint only — `team_chat.py` is authoritative — and the whole
+  bundle is deferred to Phase 16 (D-01c). So until Phase 16, a rebrand is a `.env` change **for the
+  server**, plus one line in the extension. Do not overclaim; carry this forward to Phase 16.
 - The regex must be BUILT from the config list (escape each alias, preserve the existing
   `(?:^|(?<=[^\w@]))@(...)` boundary semantics and the lookahead). Keep `apps/memory-api/app/knowledge/
   xbrain_product_kb.md` in lockstep — the KB documents the aliases and must not desync from the detector.
