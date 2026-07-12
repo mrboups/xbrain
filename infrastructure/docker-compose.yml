@@ -45,6 +45,10 @@ services:
       - ./nginx/templates:/etc/nginx/templates:ro
     environment:
       XBRAIN_BASE_DOMAIN: ${XBRAIN_BASE_DOMAIN:-localhost}
+      # Fallback target for the projects vhost. MUST be XBRAIN_-prefixed or NGINX_ENVSUBST_FILTER
+      # below will not substitute it. Empty => that vhost returns 404 instead of redirecting the
+      # operator's visitors to a third-party host.
+      XBRAIN_PROJECTS_FALLBACK_URL: ${XBRAIN_PROJECTS_FALLBACK_URL:-}
       NGINX_ENVSUBST_FILTER: "^XBRAIN_"
     networks: [xbrain_net]
     mem_limit: 64m
@@ -125,6 +129,12 @@ services:
       MEMORY_API_EXTERNAL_URL: ${MEMORY_API_EXTERNAL_URL:-http://localhost:8000}
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:8000}
       CORS_ALLOWED_ORIGIN_REGEX: "${CORS_ALLOWED_ORIGIN_REGEX:-(chrome-extension://.*|http://localhost(:\\d+)?)}"
+      # Phase 14 (14-01/14-07): memory-api is the ONLY consumer of this — mention_detector.py
+      # builds its regex from it. It is ALSO passed to librechat (below), which only DISPLAYS the
+      # first alias in the assistant's system prompt. Both services must receive it: if only
+      # librechat gets it, the prompt advertises an alias that memory-api never learned to answer
+      # to, and the mention silently does nothing.
+      AGENT_MENTION_ALIASES: ${AGENT_MENTION_ALIASES:-agent}
       # Phase 5 plan 05-01: Graphiti enrichment (fail-soft if not set)
       GRAPHITI_SERVICE_URL: ${GRAPHITI_SERVICE_URL:-http://graphiti-service:8300}
       # Phase 5 plan 05-02: GitHub OAuth membership verification

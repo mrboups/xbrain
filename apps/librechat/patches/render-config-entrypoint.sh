@@ -5,12 +5,13 @@
 # is only applied at specific field-consumption sites (apiKey, custom endpoint
 # baseURL, MCP url/env/headers) — NOT to registration.allowedDomains (a plain
 # string array read directly off the parsed config) or customUserVars.description
-# (a plain z.string() with no transform). Proven by inspecting the shipped
-# LibreChat v0.8.2-rc2 image source (packages/api/src/endpoints/custom/config.ts,
-# packages/data-provider/src/mcp.ts, api/server/middleware/checkDomainAllowed.js) —
-# see 14-03b-SUMMARY.md for the trace. Rendering the template here, once, at
-# container start, makes ALL THREE of librechat.yaml's brand strings resolve
-# uniformly regardless of which mechanism LibreChat itself uses per-field.
+# (a plain z.string() with no transform). Proven by inspecting the source of the
+# image this Dockerfile actually pins — ghcr.io/danny-avila/librechat:v0.8.5
+# (packages/api/src/endpoints/custom/config.ts, packages/data-provider/src/mcp.ts,
+# api/server/middleware/checkDomainAllowed.js) — see 14-03b-SUMMARY.md for the trace.
+# Rendering the template here, once, at container start, makes every operator-configurable
+# string in librechat.yaml resolve uniformly, regardless of which mechanism LibreChat
+# itself happens to use per-field.
 #
 # Only the vars below are substituted — every other ${VAR} in the file
 # (apiKey, MCP headers, etc.) is left untouched for LibreChat's own native
@@ -31,8 +32,12 @@ set -e
 # a member of the working alias set. Ordering the list is therefore a free,
 # purely-cosmetic lever: AGENT_MENTION_ALIASES=chad,agent makes the prompt show
 # "@chad" while both "@chad" and "@agent" still resolve.
+# The value is substituted INTO a double-quoted YAML string (the promptPrefix), so it must not
+# contain anything that could terminate or corrupt that string. Whitelist the identifier charset
+# rather than blacklisting: a stray `"` or `\` in the alias would otherwise render an unparseable
+# librechat.yaml and the container would fail to start with a confusing YAML error.
 AGENT_MENTION_PRIMARY=$(printf '%s' "${AGENT_MENTION_ALIASES:-agent}" \
-  | cut -d, -f1 | tr -d '[:space:]@')
+  | cut -d, -f1 | tr -cd 'A-Za-z0-9_-')
 [ -z "$AGENT_MENTION_PRIMARY" ] && AGENT_MENTION_PRIMARY=agent
 export AGENT_MENTION_PRIMARY
 

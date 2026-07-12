@@ -29,6 +29,12 @@ def _build_mention_regex(aliases_csv: str) -> re.Pattern[str]:
     regardless of alias ordering in the env var.
     """
     aliases = [a.strip() for a in aliases_csv.split(",") if a.strip()]
+    if not aliases:
+        # A blank/comma-only value (AGENT_MENTION_ALIASES="" or ",,") would otherwise
+        # produce the alternation "" and compile to `@()`, which matches a BARE "@" —
+        # every "@" in every message would summon the agent. Fall back to the same
+        # default the Settings field declares.
+        aliases = ["agent"]
     aliases.sort(key=len, reverse=True)
     escaped = "|".join(re.escape(a) for a in aliases)
     return re.compile(

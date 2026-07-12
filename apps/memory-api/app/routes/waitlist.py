@@ -1,5 +1,6 @@
 """POST /v1/waitlist — proxy Resend email signup, no auth required."""
 
+import html
 import logging
 import os
 
@@ -31,10 +32,13 @@ async def join_waitlist(body: WaitlistRequest):
         "to": [WAITLIST_TO],
         "reply_to": body.email,
         "subject": f"xbrain waitlist: {body.name} ({body.plan})",
+        # This endpoint is unauthenticated, so name/email/plan are attacker-controlled. Escape
+        # before interpolating into HTML, or a submitted name can inject arbitrary markup (links,
+        # images, a fake message) into the notification email the team receives.
         "html": (
-            f"<p><strong>Name:</strong> {body.name}</p>"
-            f"<p><strong>Email:</strong> {body.email}</p>"
-            f"<p><strong>Plan:</strong> {body.plan}</p>"
+            f"<p><strong>Name:</strong> {html.escape(body.name)}</p>"
+            f"<p><strong>Email:</strong> {html.escape(body.email)}</p>"
+            f"<p><strong>Plan:</strong> {html.escape(body.plan)}</p>"
         ),
     }
 

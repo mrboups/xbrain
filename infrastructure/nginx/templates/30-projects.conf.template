@@ -17,9 +17,28 @@ server {
         access_log off;
     }
 
-    # Fallback redirect vers Firebase Hosting
-    # Normalement, le DNS Cloudflare pointe directement vers Firebase (A proxied)
+    # Fallback redirect to the projects-dashboard host. Normally DNS points straight at that
+    # host and this vhost is never hit; it exists as a safety net.
+    #
+    # This target MUST stay operator-configurable (PORT-01). It used to be a hardcoded literal
+    # pointing at the original maintainer's own Firebase project, which meant any self-hoster's
+    # projects.<their-domain> silently redirected THEIR visitors to SOMEONE ELSE'S site. The
+    # brand-token scan could never catch it — the literal contains no brand token at all.
+    #
+    # Empty (the default) => 404. Never redirect a self-hoster's visitors to a third party just
+    # because they left a variable blank. Set XBRAIN_PROJECTS_FALLBACK_URL (scheme + host, no
+    # trailing slash) to enable the redirect.
+    #
+    # The variable must be PRESENT in the container environment — empty is fine, ABSENT is not.
+    # The nginx image's envsubst only substitutes vars it finds in the environment, so if this one
+    # is missing entirely the `${...}` below survives into the rendered config and nginx dies at
+    # boot with an "unknown variable" error. docker-compose.yml guarantees presence via
+    # `XBRAIN_PROJECTS_FALLBACK_URL: ${XBRAIN_PROJECTS_FALLBACK_URL:-}` — keep that line.
     location / {
-        return 301 https://xbrain-495115.web.app$request_uri;
+        set $projects_fallback "${XBRAIN_PROJECTS_FALLBACK_URL}";
+        if ($projects_fallback = "") {
+            return 404;
+        }
+        return 301 $projects_fallback$request_uri;
     }
 }

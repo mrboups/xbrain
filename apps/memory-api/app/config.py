@@ -1,5 +1,7 @@
 """Application settings — read from env via pydantic-settings."""
 
+import re
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -160,6 +162,41 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"{info.field_name} is required — set it in .env "
                 f"(e.g. OAUTH_ISSUER_URL=https://api.yourdomain.com)"
+            )
+        return v
+
+    @field_validator("CORS_ALLOWED_ORIGIN_REGEX")
+    @classmethod
+    def _reject_wildcard_cors(cls, v: str) -> str:
+        """Refuse a CORS regex that would allow ANY origin.
+
+        main.py passes this to Starlette's CORSMiddleware together with
+        `allow_credentials=True`. Starlette then does `regex.fullmatch(origin)` and, on a
+        match, echoes that origin back with `Access-Control-Allow-Credentials: true`. So a
+        catch-all pattern (`.*`) does not merely relax CORS — it lets ANY website on the
+        internet make credentialed calls to this API with the visitor's session and READ the
+        responses. `.env.example` warns against it; this makes the warning enforceable.
+
+        Probed functionally rather than by blacklisting strings: compile the pattern and ask
+        whether it matches an arbitrary hostile origin, exactly the way Starlette will.
+        """
+        if not v:
+            raise ValueError(
+                "CORS_ALLOWED_ORIGIN_REGEX is required — set it in .env to the browser "
+                "origins that may call this API (e.g. https://app\\.yourdomain\\.com)"
+            )
+        try:
+            pattern = re.compile(v)
+        except re.error as exc:
+            raise ValueError(
+                f"CORS_ALLOWED_ORIGIN_REGEX is not a valid regex: {exc}"
+            ) from exc
+        if pattern.fullmatch("https://attacker.example"):
+            raise ValueError(
+                "CORS_ALLOWED_ORIGIN_REGEX matches arbitrary origins. Combined with "
+                "allow_credentials=True this lets any website make authenticated calls to "
+                "this API and read the responses. Anchor it to the origins you actually "
+                r"serve, e.g. (https://app\.yourdomain\.com|chrome-extension://.*)"
             )
         return v
 
