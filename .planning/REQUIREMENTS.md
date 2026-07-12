@@ -7,7 +7,9 @@
 
 ## Milestone v2.0 Requirements — Open-Core Edition
 
-Active scope. One codebase, multiple editions (OSS self-host / SaaS hosted / paid self-host "pro"); a single update flows to all editions — never a fork. Design source: `.planning/features/open-core-edition-design.md`.
+Active scope. One codebase, two runtime shapes (OSS self-host / SaaS hosted); a single update flows to both — never a fork. Design source: `.planning/features/open-core-edition-design.md`.
+
+> **⚠️ Model shift locked 2026-07-11** (see design doc "Locked Decisions"): the "paid self-host pro" edition is **dropped**. It is now **OSS-everything + monetize-hosted**: no product feature is paywalled; only the hosted control plane (billing/multi-tenant) stays closed. Code license = **AGPLv3 + CLA**. Consequences below: `EDIT-03` (Ed25519 license) is **DROPPED**; new requirements needed for **local email/password auth** and **local embeddings**; the OSS frontend is the **web group-chat** (not LibreChat). REQUIREMENTS + ROADMAP to be re-synced for phases 15–16; Phase 14 (Portability) is unaffected in intent and expands to a full cleanup.
 
 ### Portability (config-driven, not hardcoded)
 
@@ -18,7 +20,7 @@ Active scope. One codebase, multiple editions (OSS self-host / SaaS hosted / pai
 
 - [ ] **EDIT-01**: An operator selects which services run via `COMPOSE_PROFILES` — untagged services are the OSS-light core; `integrations` / `pro` / `saas` / `ops` are opt-in
 - [ ] **EDIT-02**: The same memory-api image serves every edition — an `EDITION` flag (oss|saas|pro) gates SaaS/pro-only routers while brain, chat, retrieval, truth-levels and the ChatGPT-web connector stay always mounted
-- [ ] **EDIT-03**: A paying customer unlocks the `pro` profile by installing a signed Ed25519 license verified offline; a missing or invalid license falls back to OSS behavior
+- [~] **EDIT-03**: ~~A paying customer unlocks the `pro` profile by installing a signed Ed25519 license verified offline~~ — **DROPPED 2026-07-11** (no paid product tier; monetize hosted only)
 
 ### OSS Packaging
 

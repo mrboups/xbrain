@@ -4,6 +4,35 @@
 **Goal:** One codebase, two+ editions (OSS self-host / SaaS hosted / paid self-host "pro"),
 so a single update flows to all editions automatically. No fork, ever.
 
+## Locked Decisions — 2026-07-11 (supersede the blueprint below where they conflict)
+
+**Model shift: this is no longer "open-core." It is OSS-everything + monetize-hosted.**
+The whole product ships open source; the only thing NOT open-sourced is the hosted control
+plane (billing, multi-tenant provisioning, trial caps). No product feature is paywalled.
+
+| # | Question | Decision |
+|---|----------|----------|
+| Q1 | Hardcoded values (`grooveos.app`, `aibrussels`, `default`) | **Full cleanup** — runtime AND docs/planning/KB. Public URLs → neutral defaults (`localhost`); OAuth identity URLs → empty + fail-fast at boot. **No auto-seed team** (first user creates theirs via existing `POST /v1/teams/self-solo`). `"default"` team_scope fallback kept for now (neutral, not a portability blocker). |
+| Q2 | OSS auth | **Add a local email/password auth path** as the OSS default (zero external OAuth setup). GitHub App / Google OAuth become opt-in for org-driven membership. *New scope — own phase.* |
+| Q3 | Embeddings | **Local embeddings by default** (in-container, no API key, no external call). OpenAI embeddings remain selectable via config. Provider stays pluggable (`packages/memory-models/xbrain_memory/providers`). |
+| — | Single-key operation | **One key — Anthropic OR OpenAI OR Grok — drives the whole system.** Chat uses whichever key is set; embeddings run locally (keyless — Anthropic/Grok sell no embeddings API); relevance filter falls back to heuristic when no Anthropic key. |
+| Q4 | OSS frontend | **Main product = the team group chat, served as a web page** — NOT LibreChat, NOT a generic AI chat. Every message flows into the brain; info is retrievable at any point inside that same group chat. LibreChat + Open WebUI are **removed from the default OSS-light install** (removes Mongo + Meili + LibreChat OAuth app) and become an **opt-in "go further" add-on** (Docker profile) for companies that want a full multi-model chat / RAG workspace — never the main product. Opt-in frontends still feed the same brain (Phase 13 ingest holds). |
+| Q5 | Graph (Neo4j) | **Open source, opt-in** (via `integrations` profile — the only reason it's not default is ~1 GB RAM). Not paywalled. |
+| Q6 | What's paid | **Nothing in the product. Monetize the hosted service only.** **Drop the Ed25519 license / pro-entitlement system entirely** (removes EDIT-03 and the license half of Phase 15). |
+| Q7 | Relevance filter | **Heuristic (≥15 char) is the OSS default; Haiku is opt-in** when `ANTHROPIC_API_KEY` is set. Already works. |
+| License | Code license | **AGPLv3 + CLA.** AGPL keeps it genuinely open while discouraging a competitor from hosting a closed fork; coherent with bundled Neo4j/MinIO (already AGPL). CLA preserves the right to dual-license later. |
+| Brand | Trademark | **Protect the product name** (code free; name + "official hosted X" reserved). Applies to the final name (pending Prime/GrooveOS pivot). |
+| Timing | Monetization | **Deferred.** Ship the OSS product + drive adoption first (one-command install, docs, deploy buttons). Build hosted billing / enterprise tier (SSO/SAML/audit/SLA) only when adoption demands it. |
+
+**Roadmap impact (to reflect in ROADMAP.md / REQUIREMENTS.md):**
+- **Phase 14 (Portability)** — expands to full cleanup (runtime + docs) + local-first defaults + no-auto-seed.
+- **New scope** — local email/password auth (Q2) + local embeddings default (Q3): insert as phase(s).
+- **Phase 15 (Edition Mechanics)** — loses the license/entitlement half (Q6). Keeps only `COMPOSE_PROFILES` + light SaaS toggles (`ENABLE_TRIAL_CAPS`, `ENABLE_MULTI_TENANT`).
+- **Phase 16 (OSS Packaging)** — frontend = web group-chat (Q4); drop LibreChat/OWUI.
+- **Add** AGPLv3 `LICENSE` + `CLA.md` + trademark step.
+
+---
+
 ## Golden rule
 
 One repo, one `main`. Edition = a **deployment-time selection** (compose profile + config
