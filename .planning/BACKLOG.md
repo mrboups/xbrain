@@ -123,3 +123,47 @@ Settings UI instead of editing `.env` on the VM and restarting. Shape to design:
   zero configuration.
 
 **Sizing:** small-to-medium. Candidate for Phase 15 (Edition Mechanics) or a dedicated slice.
+
+---
+
+## Telegram bridge — chat in your team chat from Telegram
+
+**Requested:** 2026-07-12. Feasibility checked against the live code, not assumed.
+
+**Verdict: feasible, and a clean plug-in — not a rewrite.** The team chat is a real backend in
+memory-api, not something buried in the web frontend. The whole surface is a handful of endpoints
+(`apps/memory-api/app/routes/team_chat.py`):
+- `POST /v1/teams/{team_id}/messages` — inserts the message, publishes to Centrifugo, and enqueues the
+  agent task if a mention is detected
+- `GET /v1/teams/{team_id}/messages` — history
+- `POST /v1/me/centrifugo-token` — realtime subscription token
+
+The web team chat is a thin client over exactly these. So a Telegram bridge is **another frontend**,
+consistent with the project's multi-frontend invariant. Three in-repo precedents to copy the shape
+from: `apps/librechat-bridge`, `apps/session-bridge`, `apps/openwebui-pipeline`.
+
+**Shape:**
+- Inbound: Telegram Bot API webhook → `telegram-bridge` adapter → `POST /v1/teams/{id}/messages`
+- Outbound: adapter subscribes to the team's Centrifugo channel → `sendMessage` back to the Telegram chat
+- `@chad` works for free: `mention_detector.detect(body.content)` runs **server-side** on the message
+  content, so mentioning the agent from Telegram summons it exactly as in the web chat. No agent work.
+
+**Where the actual work is (NOT the transport):**
+1. **Identity linking — the bulk of it.** The routes require a `principal` from a GitHub-backed JWT.
+   A Telegram user only has a `telegram_user_id`. Needs a link table + a pairing flow (bot `/link` →
+   one-time code → user confirms in the web app while signed in) and stored per-user tokens. Without
+   this, messages cannot be attributed and the tagging contract (`source`, author) breaks. There is
+   precedent for a service-principal path (`routes/internal.py` + `BRIDGE_SHARED_SECRET`).
+2. **Team mapping.** Admin-set binding `telegram_chat_id → team_id`.
+3. Telegram specifics: Markdown flavor, message length caps, no real threading (forum topics only).
+
+**OPEN DECISION — must be settled BEFORE this is planned. Do not start without it:**
+A Telegram group is outside xbrain's access control. Once team-brain content flows into a Telegram
+group, anyone later added to that group sees it — the `team_scope` isolation that is *the* product
+differentiator ends at the Telegram boundary. Two candidate positions:
+- **(a) Chat-only.** Messages relay both ways, but memory recall/brain content never egresses to
+  Telegram. Safe, less useful.
+- **(b) Full member.** The bound Telegram group is treated as a full team surface, brain content
+  included. Useful, but the operator owns the leak risk and it must be explicit and consented.
+
+Sizing: modest phase, dominated by the identity-pairing work — but blocked on the decision above.
