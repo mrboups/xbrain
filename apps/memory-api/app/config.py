@@ -175,6 +175,11 @@ class Settings(BaseSettings):
     GITHUB_CATALOG_CONCURRENCY: int = 5   # max parallel upserts per backfill batch
     GITHUB_CATALOG_README_CHARS: int = 8000  # README input cap before Haiku call
 
+    # Comma-separated agent mention aliases, WITHOUT the leading '@'.
+    # Neutral default so a fresh OSS install works out of the box: "@agent".
+    # xbrain prod overrides this in .env to preserve today's triggers.
+    AGENT_MENTION_ALIASES: str = "agent"
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}

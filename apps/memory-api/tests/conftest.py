@@ -25,6 +25,7 @@ os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
 os.environ.setdefault("ADMIN_USER_SUBS", "admin-sub-1,admin-sub-2")
 os.environ.setdefault("OAUTH_ISSUER_URL", "https://api.test.example")
 os.environ.setdefault("OAUTH_RESOURCE_URL", "https://mcp.test.example/mcp")
+os.environ.setdefault("AGENT_MENTION_ALIASES", "agent")
 
 
 # === Helpers ===
