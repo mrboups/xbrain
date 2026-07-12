@@ -1,4 +1,4 @@
-"""/v1/crm — CRM contacts CRUD (paid tier only — D1, D2)."""
+"""/v1/crm — CRM contacts CRUD (D1, D2). Core in every edition."""
 
 from typing import Any
 from uuid import UUID
