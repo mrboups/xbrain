@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Open-Core Edition
-status: roadmapped
-last_updated: "2026-07-11T13:30:00.000Z"
-last_activity: 2026-07-11
+status: executing
+stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
+last_updated: "2026-07-12T02:38:55.882Z"
+last_activity: 2026-07-12 -- Phase 14 execution started
 progress:
-  total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 15
+  completed_phases: 13
+  total_plans: 118
+  completed_plans: 109
+  percent: 87
 ---
 
 # Project State
@@ -20,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 14 — Portability Foundation (milestone v2.0 "Open-Core Edition", first of 4 phases: 14 Portability -> 15 Edition Mechanics -> 16 OSS Light Packaging -> 17 CI Lockstep)
+**Current focus:** Phase 14 — portability-foundation
 
 ## Current Position
 
-Phase: Phase 14 — Portability Foundation (not started)
-Plan: — (awaiting `/gsd:plan-phase 14`)
-Status: Roadmap created — 10/10 v2.0 requirements mapped across 4 phases (14-17), 100% coverage validated
-Last activity: 2026-07-11 — ROADMAP.md + REQUIREMENTS.md traceability written for milestone v2.0
+Phase: 14 (portability-foundation) — EXECUTING
+Plan: 1 of 7
+Status: Executing Phase 14
+Last activity: 2026-07-12 -- Phase 14 execution started
 
 ## Performance Metrics
 

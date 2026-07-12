@@ -452,9 +452,9 @@ Plans:
 
 **Wave 1** *(no dependencies — disjoint file trees, run in parallel)*
 
-- [ ] 14-01-PLAN.md — memory-api + mcp-brain config neutralization + OAuth fail-fast validator + env-driven CORS + config-driven agent mention aliases (D-08) + pytest conftest repair
-- [ ] 14-02-PLAN.md — Functional domain leaks: xbrain_product_kb.md neutral rewrite (incl. the `@agent` alias, in lockstep with 14-01) + relevance_filter few-shots + onboarding.js build-configurable base
-- [ ] 14-03a-PLAN.md — nginx envsubst templates (all 7 vhosts) + real `nginx -t` render validation + stock default.conf handling
+- [x] 14-01-PLAN.md — memory-api + mcp-brain config neutralization + OAuth fail-fast validator + env-driven CORS + config-driven agent mention aliases (D-08) + pytest conftest repair
+- [x] 14-02-PLAN.md — Functional domain leaks: xbrain_product_kb.md neutral rewrite (incl. the `@agent` alias, in lockstep with 14-01) + relevance_filter few-shots + onboarding.js build-configurable base
+- [x] 14-03a-PLAN.md — nginx envsubst templates (all 7 vhosts) + real `nginx -t` render validation + stock default.conf handling
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -549,7 +549,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 11. Brain Monitor — Universal Truth-Level Inspector + Soft Delete + Superadmin Dashboard | 11/11 | ✅ LIVE | 2026-05-17 (verify-phase11.sh PASS 5/5 + 11 SKIP fixture, alembic 0018 head on VM, brain-janitor running, UI live grooveos.app/account/teams/brain/ + /account/admin/) |
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 11/11 | ✅ LIVE | 2026-05-17 (alembic 0019 head, memory-api rebuilt, verify-phase12.sh PASS 13/13 + 5 SKIP fixture, Firebase teams.js with new client_id Iv23liVnZvIN0Lo6isof live) |
 | 13. Chat → Brain Ingestion + Retrieval Enrichment | 8/8 | Complete   | 2026-05-27 |
-| 14. Portability Foundation | 0/6 | Planned | - |
+| 14. Portability Foundation | 3/7 | In Progress|  |
 | 15. Edition Mechanics | 0/TBD | Not started | - |
 | 16. OSS Light Packaging | 0/TBD | Not started | - |
 | 17. CI Lockstep | 0/TBD | Not started | - |

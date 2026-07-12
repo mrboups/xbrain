@@ -99,3 +99,7 @@ app-site/demo/*.mp4
 
 # Large marketing video sources — kept local only, deploy copies live in app-site/demo/ also gitignored
 marketing-site/*.mp4
+.gstack/
+
+# Local working files (demo props, scratch) — never committed
+.local/
