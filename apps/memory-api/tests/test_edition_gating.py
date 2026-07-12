@@ -4,17 +4,32 @@ The load-bearing test here is the NEGATIVE one: an OSS boot must NOT expose the 
 "the core routes work" proves nothing — the core routes work today (ROADMAP SC#3 says exactly this).
 And test_every_router_module_is_classified is the trap that keeps it true over time: a router added in a
 future phase and classified nowhere FAILS the suite instead of silently shipping into every OSS install.
+
+Imports of `app.config` / `app.main` / `app.routes` are deliberately LAZY (inside each test / helper,
+never at module top-level) — matching the codebase's established convention (see test_health.py,
+test_brain_events_list.py's `_get_app_and_dep()`). `app.config.settings` and `app.db.session.engine`
+are both module-level singletons evaluated ONCE at first import, reading `DATABASE_URL` from the
+environment at that instant. A top-level `from app.main import ...` here would import them during
+pytest's COLLECTION phase — before the `pg_url` fixture (used by other integration test files in the
+same session) ever sets `DATABASE_URL` to the testcontainers URL — permanently freezing `settings`/
+`engine` on the wrong (default `localhost:5432`) URL for the rest of the session and breaking every
+integration test that runs after this file. Confirmed live: with top-level imports, running this file
+before `test_outbox_neo4j_guard.py` in the same session made that file's Postgres-backed tests fail with
+`ConnectionRefusedError` during Alembic migration setup.
 """
 
-import importlib
-import pkgutil
-
-import httpx
 import pytest
 
-import app.routes as routes_pkg
-from app.config import Settings
-from app.main import CORE_ROUTERS, SAAS_ONLY_ROUTERS, create_app
+
+def _create_app(edition: str):
+    from app.main import create_app
+
+    return create_app(edition)
+
+
+def _paths(edition: str) -> set[str]:
+    return {r.path for r in _create_app(edition).routes}
+
 
 SAAS_ONLY_PATHS = ["/v1/waitlist", "/v1/me/external-sessions"]
 # Core paths that must exist in EVERY edition. One per capability named in ROADMAP SC#2.
@@ -23,10 +38,6 @@ CORE_PATHS = [
     "/v1/media/upload",
     "/.well-known/oauth-authorization-server",  # ChatGPT/Claude.ai web connector — core, never gated
 ]
-
-
-def _paths(edition: str) -> set[str]:
-    return {r.path for r in create_app(edition).routes}
 
 
 def test_oss_does_not_mount_saas_routers():
@@ -55,6 +66,12 @@ def test_oss_is_a_strict_subset_of_saas():
 
 def test_every_router_module_is_classified():
     """A router in neither list would silently ship into every OSS install. Make that impossible."""
+    import importlib
+    import pkgutil
+
+    import app.routes as routes_pkg
+    from app.main import CORE_ROUTERS, SAAS_ONLY_ROUTERS
+
     classified = {id(r) for r, _, _ in [*CORE_ROUTERS, *SAAS_ONLY_ROUTERS]}
     unclassified = []
     for mod in pkgutil.iter_modules(routes_pkg.__path__):
@@ -74,12 +91,16 @@ def test_every_router_module_is_classified():
 @pytest.mark.parametrize("bad", ["pro", "OSS", "Saas", "", "enterprise"])
 def test_settings_rejects_unknown_edition(monkeypatch, bad):
     """There is no `pro` edition (locked decision Q6). An unknown value must fail fast at boot."""
+    from app.config import Settings
+
     monkeypatch.setenv("EDITION", bad)
     with pytest.raises(Exception, match="EDITION"):
         Settings()
 
 
 def test_settings_edition_defaults_to_oss(monkeypatch):
+    from app.config import Settings
+
     monkeypatch.delenv("EDITION", raising=False)
     assert Settings().EDITION == "oss"
 
@@ -91,7 +112,9 @@ async def test_oss_returns_404_not_401_for_saas_routes():
     Only 404 proves the router is ABSENT. A 401 would mean the SaaS surface shipped and merely
     happened to reject this caller. ROADMAP SC#3 requires exactly this assertion.
     """
-    transport = httpx.ASGITransport(app=create_app("oss"))
+    import httpx
+
+    transport = httpx.ASGITransport(app=_create_app("oss"))
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         assert (await c.post("/v1/waitlist", json={})).status_code == 404
         assert (await c.get("/v1/me/external-sessions")).status_code == 404
@@ -110,7 +133,9 @@ async def test_saas_reaches_the_routes_it_mounts():
     get_current_principal() rejection path (401 Invalid token), which is what "route exists,
     auth rejected" is supposed to mean here.
     """
-    transport = httpx.ASGITransport(app=create_app("saas"))
+    import httpx
+
+    transport = httpx.ASGITransport(app=_create_app("saas"))
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         assert (await c.post("/v1/waitlist", json={})).status_code == 422        # validation, route exists
         r = await c.get(

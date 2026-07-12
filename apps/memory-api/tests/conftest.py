@@ -7,6 +7,7 @@ Two-tier strategy:
 If Docker is not available, integration tests are skipped automatically.
 """
 
+import asyncio
 import os
 import time
 from collections.abc import AsyncGenerator
@@ -78,14 +79,45 @@ async def pg_url() -> AsyncGenerator[str, None]:
     asyncpg_url = raw.replace("postgresql+psycopg2://", "postgresql+asyncpg://")
     os.environ["DATABASE_URL"] = asyncpg_url
 
-    # Run alembic upgrade head against the test DB
+    # `app.config.settings` and `app.db.session.engine` are both module-level singletons
+    # evaluated ONCE at first import, reading DATABASE_URL from the environment at that
+    # instant. Setting os.environ above is not enough: if ANY test module was already
+    # imported before this fixture ran this session (collection-time imports, or an
+    # earlier-collected test file that imports app.config/app.main/app.db.session — even
+    # lazily, inside a test body that executes before this fixture's first use), those
+    # singletons are already frozen on the OLD (non-testcontainers) DATABASE_URL, and
+    # env.py's own `settings.DATABASE_URL` read (below) would silently overwrite the
+    # correct URL we're about to pass to Alembic with the stale one — every DB-touching
+    # test for the rest of the session then fails to connect. Patch the singletons
+    # directly so this fixture is correct regardless of what already ran or imported
+    # things earlier in the session.
+    import app.config as app_config
+
+    app_config.settings.DATABASE_URL = asyncpg_url
+    import app.db.session as db_session
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+    await db_session.engine.dispose()
+    db_session.engine = create_async_engine(
+        asyncpg_url, pool_size=10, max_overflow=5, pool_pre_ping=True
+    )
+    db_session.async_session_factory = async_sessionmaker(
+        db_session.engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    # Run alembic upgrade head against the test DB.
+    # alembic/env.py's run_migrations_online() calls asyncio.run(...) internally. Calling
+    # command.upgrade() directly here would nest that asyncio.run() inside the event loop
+    # pytest-asyncio is already running this fixture under ("asyncio.run() cannot be called
+    # from a running event loop"). Running it in a worker thread gives it a clean thread with
+    # no running loop, which is exactly what asyncio.run() requires.
     from alembic import command
     from alembic.config import Config
 
     cfg = Config(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
     cfg.set_main_option("sqlalchemy.url", asyncpg_url)
     cfg.set_main_option("script_location", os.path.join(os.path.dirname(__file__), "..", "alembic"))
-    command.upgrade(cfg, "head")
+    await asyncio.to_thread(command.upgrade, cfg, "head")
 
     yield asyncpg_url
     pg.stop()
@@ -101,6 +133,14 @@ async def session(pg_url: str):
         async with async_session_factory(bind=conn) as s:
             yield s
         await trans.rollback()
+    # `engine` is a module-level singleton (app/db/session.py) shared across the whole
+    # pytest session, but pytest-asyncio gives each test FUNCTION its own event loop by
+    # default. A pooled asyncpg connection checked back in here stays bound to THIS
+    # test's (about-to-close) loop; the next test's fresh loop then trips
+    # "RuntimeError: Event loop is closed" trying to reuse or terminate it. Disposing the
+    # pool after every test forces the next test to open connections fresh on its own
+    # loop instead of inheriting a stale one.
+    await engine.dispose()
 
 
 @pytest_asyncio.fixture

@@ -24,6 +24,7 @@ from app.deps import (
     get_team_scope,
 )
 from app.models.neo4j_outbox import NeoOutboxEntry
+from app.neo4j_client import get_driver
 
 log = structlog.get_logger(__name__)
 
@@ -322,8 +323,23 @@ async def upsert_item(
     # Runs in the same SQLAlchemy transaction as the audit log (committed together below).
     # Threat T-03-05-02: entity_name and team_scope are passed as $params — never
     # interpolated into the Cypher string.
+    #
+    # Phase 15: ALSO gated on a LIVE Neo4j driver. Neo4j is opt-in from this phase on (the
+    # `integrations` profile), and outbox_worker.drain_outbox() no-ops while the driver is None
+    # (`if driver is None: continue`). Without this guard, an OSS-light install would enqueue rows
+    # that NOTHING will ever drain or delete — unbounded growth of neo4j_outbox, silently, in the
+    # DEFAULT install.
+    #
+    # The check is get_driver(), NOT a static-config check on the NEO4J_URI / NEO4J_PASSWORD
+    # settings: compose passes NEO4J_URI as a bare literal (docker-compose.yml:128) and
+    # .env.example ships a fill-me NEO4J_PASSWORD (line 201), so BOTH settings are truthy even in
+    # an install with no Neo4j container at all. Config says "someone typed a password";
+    # get_driver() says "Neo4j is actually reachable". Only the second is true when it matters —
+    # and it is exactly what the drainer reads, so writer and drainer cannot disagree.
+    #
+    # The memory item itself is written either way: dropping graph enrichment must never drop data.
     entities = (body.item.metadata or {}).get("entities", [])
-    if entities:
+    if entities and get_driver() is not None:
         for entity in entities:
             entity_name = entity.get("name", "")
             entity_type = entity.get("type", "concept")
