@@ -215,7 +215,12 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       qdrant: { condition: service_healthy }
-      neo4j: { condition: service_healthy }
+      # NO neo4j edge (Phase 15 / D-15-03). Neo4j is opt-in (`integrations` profile), and Compose
+      # forbids an untagged service from depending on a tagged one — that edge made the whole
+      # compose file unparseable with profiles applied. memory-api already degrades cleanly with
+      # no Neo4j: init_driver() returns None, graph.py 503s, the outbox worker no-ops.
+      # Cost of the missing edge: a ~8.5s DNS-timeout at startup when NEO4J_URI is set but the
+      # host is absent. Not a defect — do not "fix" it by re-adding the dependency.
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/v1/healthz"]
       interval: 10s
@@ -540,7 +545,9 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       qdrant: { condition: service_healthy }
-      librechat-mongo: { condition: service_healthy }
+      # NO librechat-mongo edge (Phase 15). xbrain-backup is `ops`; librechat-mongo is `saas`.
+      # Compose does not auto-activate a dependency's profile, so `--profile ops` alone would
+      # abort the whole project on this edge. backup.sh now treats Mongo as optional instead.
 
   # === Langfuse stack (plan 02-09) — observability for agents + chat completions ===
   langfuse-clickhouse:
@@ -1128,7 +1135,12 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       qdrant: { condition: service_healthy }
-      neo4j: { condition: service_healthy }
+      # NO neo4j edge (Phase 15 / D-15-03). Neo4j is opt-in (`integrations` profile), and Compose
+      # forbids an untagged service from depending on a tagged one — that edge made the whole
+      # compose file unparseable with profiles applied. memory-api already degrades cleanly with
+      # no Neo4j: init_driver() returns None, graph.py 503s, the outbox worker no-ops.
+      # Cost of the missing edge: a ~8.5s DNS-timeout at startup when NEO4J_URI is set but the
+      # host is absent. Not a defect — do not "fix" it by re-adding the dependency.
     healthcheck:
       test: ["CMD-SHELL", "test -f /tmp/brain-janitor-alive && [ $$(($$(date +%s) - $$(stat -c %Y /tmp/brain-janitor-alive))) -lt 90000 ] || exit 1"]
       interval: 1h
