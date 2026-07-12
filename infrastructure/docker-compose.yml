@@ -42,7 +42,10 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
+    environment:
+      XBRAIN_BASE_DOMAIN: ${XBRAIN_BASE_DOMAIN:-localhost}
+      NGINX_ENVSUBST_FILTER: "^XBRAIN_"
     networks: [xbrain_net]
     mem_limit: 64m
     healthcheck:
