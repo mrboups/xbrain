@@ -22,6 +22,15 @@ Active scope. One codebase, two runtime shapes (OSS self-host / SaaS hosted); a 
 - [ ] **EDIT-02**: The same memory-api image serves every edition — an `EDITION` flag (oss|saas|pro) gates SaaS/pro-only routers while brain, chat, retrieval, truth-levels and the ChatGPT-web connector stay always mounted
 - [~] **EDIT-03**: ~~A paying customer unlocks the `pro` profile by installing a signed Ed25519 license verified offline~~ — **DROPPED 2026-07-11** (no paid product tier; monetize hosted only)
 
+### Local Auth (OSS default)
+
+> Added 2026-07-12. Locked decision **Q2** ("Add a local email/password auth path as the OSS default — zero external OAuth setup") had been recorded in the design doc since 2026-07-11 but had **no requirement and no roadmap phase**. Found by the standalone-product wiring audit: `apps/memory-api/app/deps.py:46-333` resolves five principal kinds (Google ID token, Google OAuth, GitHub App, legacy GitHub OAuth, personal API token, bridge JWT) — **none password-based**. Executes as Phase 18, BEFORE Phase 16.
+>
+> **Why this is not a duplicate of the v1 `AUTH-02` below (which is ticked [x] Done).** v1 `AUTH-02` ("sign in with email/password as fallback") was satisfied by **LibreChat's own built-in local auth**, not by memory-api — LibreChat ships password login backed by its Mongo store. Locked decision **Q4 removes LibreChat from the default OSS install**. So removing LibreChat silently removes the product's only password login, while `AUTH-02` still reads as "Done". `LAUTH-01/02` re-establish that capability **natively in memory-api**, where it survives LibreChat's removal and serves the standalone web group-chat (the actual product per Q4).
+
+- [ ] **LAUTH-01**: A user registers and signs in with email + password on an install that has NO Google OAuth and NO GitHub App configured — zero third-party setup required to reach your own deployment. Passwords stored only as a salted memory-hard KDF hash (argon2id/bcrypt).
+- [ ] **LAUTH-02**: The local-auth principal is indistinguishable downstream — `get_current_principal` returns the same shape and every team-scoped route authorizes it identically, with no per-route special case. Google OAuth and the GitHub App keep working unchanged when configured; the local path is a default, not a replacement.
+
 ### OSS Packaging
 
 - [ ] **PKG-01**: A team can stand up the OSS-light edition (chat + full brain: doc analysis, ingest, retrieval, truth-levels, ChatGPT connector, clip) on a fresh VM from the install docs alone
@@ -46,21 +55,27 @@ Mapping requirement -> phase for milestone v2.0 "Open-Core Edition". Filled by t
 | PORT-02 | Phase 14 | Pending |
 | EDIT-01 | Phase 15 | Pending |
 | EDIT-02 | Phase 15 | Pending |
-| EDIT-03 | Phase 15 | Pending |
+| EDIT-03 | ~~Phase 15~~ | DROPPED (Q6, 2026-07-11) |
+| LAUTH-01 | Phase 18 | Pending |
+| LAUTH-02 | Phase 18 | Pending |
 | PKG-01 | Phase 16 | Pending |
 | PKG-02 | Phase 16 | Pending |
 | REL-01 | Phase 17 | Pending |
 | REL-02 | Phase 17 | Pending |
 | REL-03 | Phase 17 | Pending |
 
-**Coverage:**
-- v2.0 requirements: 10 total (PORT x2, EDIT x3, PKG x2, REL x3)
-- Mapped to phases: 10/10
+**Coverage:** (re-synced 2026-07-12 — EDIT-03 dropped per Q6, LAUTH added per Q2)
+- v2.0 requirements: 12 declared, 11 active (PORT x2, EDIT x3 **of which EDIT-03 is DROPPED**, LAUTH x2, PKG x2, REL x3)
+- Mapped to phases: 11/11 active
 - Phase 14 (Portability Foundation): 2 requirements
-- Phase 15 (Edition Mechanics): 3 requirements
+- Phase 15 (Edition Mechanics): 2 active requirements (EDIT-01, EDIT-02 — EDIT-03 dropped)
+- Phase 18 (Local Auth): 2 requirements — **runs BEFORE Phase 16** (execution order 14 → 15 → 18 → 16 → 17)
 - Phase 16 (OSS Light Packaging): 2 requirements
 - Phase 17 (CI Lockstep): 3 requirements
 - Unmapped: 0
+
+**Still unmapped from the locked decisions — NOT yet a requirement (flagged 2026-07-12):**
+- **Q3 — local embeddings by default** (in-container, no API key, no external call; OpenAI embeddings remain selectable). The design doc's own model-shift note (line 12 above) calls for "new requirements needed for local email/password auth **and local embeddings**". The auth half is now covered by LAUTH-01/02; **the embeddings half is still missing.** A self-hoster today needs an embeddings API key for the brain to work at all, which contradicts the "one key — Anthropic OR OpenAI OR Grok" single-key promise. Needs a requirement + a phase.
 - Out of scope for v2.0 (separate tracks, not phase-mapped): Email feature; Grok API-key fallback + per-message trial cap
 
 ---

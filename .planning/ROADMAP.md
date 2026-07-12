@@ -479,10 +479,10 @@ Plans:
 
 ### Phase 15: Edition Mechanics
 
-**Goal**: One codebase serves every edition (OSS self-host / SaaS hosted / paid self-host "pro") purely through deployment-time selection — Docker Compose `profiles:` pick which services run, an `EDITION` flag picks which memory-api routes/behaviors are active, and a signed Ed25519 license unlocks the paid `pro` tier offline. The core (brain, chat, retrieval, truth-levels, ChatGPT-web connector) is always mounted regardless of edition — a fix there ships to every edition automatically.
+**Goal**: One codebase serves every edition (OSS self-host / SaaS hosted) purely through deployment-time selection — Docker Compose `profiles:` pick which services run, and an `EDITION` flag picks which memory-api routes/behaviors are active. The core (brain, chat, retrieval, truth-levels, ChatGPT-web connector) is always mounted regardless of edition — a fix there ships to every edition automatically. **No product feature is paywalled** (locked decision Q6): the only closed surface is the hosted control plane (billing, multi-tenant provisioning, trial caps).
 **Depends on**: Phase 14 (portability foundation must land first — profiles/flags read config values, not hardcoded ones)
 **Entry gate**: Phase 14 SHIPPED — de-hardcoding complete, slim OSS `.env.example` exists.
-**Requirements**: EDIT-01, EDIT-02, EDIT-03
+**Requirements**: EDIT-01, EDIT-02 (~~EDIT-03~~ — the Ed25519 license was DROPPED by locked decision Q6 on 2026-07-11; see REQUIREMENTS.md:23)
 **Success Criteria** (what must be TRUE):
 
   1. An operator can bring up the OSS-light service set (~10 untagged services: memory-api, postgres, qdrant, centrifugo, nginx, minio, mcp-brain, mcp-gateway, mcp-scraper, brain-janitor) with `COMPOSE_PROFILES` unset, and separately opt into `integrations` (calendar/drive/deck/github/granola/searxng/agent-runtime), `pro` (neo4j/graphiti/langfuse), and `saas` (session-bridge/librechat/openwebui) profiles independently — verified service lists match the design blueprint's profile table exactly.
@@ -494,11 +494,32 @@ Plans:
 **Plans**: TBD (populated by `/gsd:plan-phase 15`)
 **UI hint**: no (infra/backend gating — no new user-facing surface; existing frontends unaffected)
 
+### Phase 18: Local Auth (OSS default)
+
+> **Execution order: 14 → 15 → 18 → 16 → 17.** Numbered 18 to avoid renumbering Phases 16/17 (which are cross-referenced by REQUIREMENTS.md), but it runs BEFORE Phase 16 — its position in this file reflects execution order, not numeric order.
+
+**Goal**: A self-hoster can create an account and sign in with an email and a password, with **zero external OAuth setup** — no Google Cloud project, no GitHub App, no callback URLs. Google OAuth and the GitHub App become opt-in paths for org-driven membership rather than the only way in. Locked decision **Q2** of the open-core design; it had no roadmap entry at all until 2026-07-12.
+**Depends on**: Phase 14 (portability — auth config must be env-driven, and the OAuth identity vars now fail-fast at boot, so a no-OAuth install needs a path that does not set them)
+**Entry gate**: Phase 14 SHIPPED.
+**Requirements**: LAUTH-01, LAUTH-02
+**Why it blocks Phase 16**: Phase 16 SC#1 promises an operator reaches a running stack "following only the published install docs (no source reading, no tribal knowledge)", and SC#4 promises a user opens the standalone web app and chats. Today the ONLY ways in are Google OAuth and the GitHub App (`apps/memory-api/app/deps.py:46-333` resolves five principal kinds — none password-based). Requiring a self-hoster to register an OAuth application with a third party before they can log in to their own install contradicts both criteria. It is equally the blocker for hosted signup: nobody signs up to a SaaS through a GitHub App.
+**Success Criteria** (what must be TRUE):
+
+  1. On a fresh install with no `GOOGLE_CLIENT_ID`, no `GITHUB_APP_*` and no OAuth identity vars set, a new user registers with email + password and signs in — the stack boots and the flow completes end to end.
+  2. Passwords are stored only as a salted hash from a memory-hard KDF (argon2id or bcrypt) — never plaintext, never a bare SHA. Verified by inspecting the persisted row.
+  3. The resulting principal is indistinguishable downstream from the existing ones: `get_current_principal` returns the same shape, and every existing team-scoped route (chat, brain, memory, promotions) authorizes it identically — no route learns a sixth special case.
+  4. Google OAuth and the GitHub App still work unchanged when configured, and an install may enable any combination of the three — the local path is a default, not a replacement.
+  5. The account surface is complete enough to be usable and safe: registration, sign-in, sign-out, and password change. (Email-based password RESET is explicitly OUT of scope — it needs outbound SMTP, which an OSS-light install has no reason to require. Document the recovery story instead.)
+  6. Basic abuse resistance on the credential endpoints — rate limiting / lockout on repeated failures — so a default install is not trivially brute-forceable.
+
+**Plans**: TBD (populated by `/gsd:plan-phase 18`)
+**UI hint**: yes (registration + sign-in + password-change surface — new user-facing screens)
+
 ### Phase 16: OSS Light Packaging
 
 **Goal**: A team with no prior knowledge of the xbrain source code can stand up the OSS-light edition (chat + full brain — doc analysis, ingest, retrieval, truth-levels, ChatGPT-web connector, clip) on a fresh VM from the install docs alone, and users can chat with their team brain from a standalone hosted web app without installing a browser extension.
-**Depends on**: Phase 14 (portability), Phase 15 (edition mechanics — profiles + EDITION flag must exist for the light compose to reference)
-**Entry gate**: Phase 14 + Phase 15 SHIPPED. OSS-light service set defined and boot-tested individually in Phase 15.
+**Depends on**: Phase 14 (portability), Phase 15 (edition mechanics — profiles + EDITION flag must exist for the light compose to reference), **Phase 18 (local auth — without it, SC#1's "install docs alone" and SC#4's standalone web app both require the operator to register a third-party OAuth app first)**
+**Entry gate**: Phase 14 + Phase 15 + Phase 18 SHIPPED. OSS-light service set defined and boot-tested individually in Phase 15.
 **Requirements**: PKG-01, PKG-02
 **Success Criteria** (what must be TRUE):
 
