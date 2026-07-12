@@ -22,10 +22,33 @@ PGPASSWORD="${POSTGRES_PASSWORD}" pg_dump \
   -Fc -Z 6 -f "${WORK}/postgres-${TS}.dump"
 echo "  → $(du -h ${WORK}/postgres-${TS}.dump | cut -f1)"
 
-# --- 2. MongoDB (LibreChat) ---
+# --- 2. MongoDB (LibreChat) — OPTIONAL ---
+# LibreChat lives in the `saas` compose profile (Phase 15). An OSS-light or `ops`-only install has
+# no Mongo at all, so this step must SKIP rather than abort the whole backup (set -e would otherwise
+# take the Postgres + Qdrant steps down with it). We retry first, so that a *deployed* Mongo that is
+# merely slow to come up is not mistaken for an absent one (the depends_on edge that used to
+# guarantee ordering was removed — it was illegal across profiles).
 echo "[2/4] Mongo dump..."
-mongodump --uri="${LIBRECHAT_MONGO_URI}" --gzip --archive="${WORK}/librechat-mongo-${TS}.archive.gz"
-echo "  → $(du -h ${WORK}/librechat-mongo-${TS}.archive.gz | cut -f1)"
+MONGO_ARCHIVE="${WORK}/librechat-mongo-${TS}.archive.gz"
+if [ -z "${LIBRECHAT_MONGO_URI:-}" ]; then
+  echo "  → SKIP: LIBRECHAT_MONGO_URI unset (LibreChat not deployed)"
+else
+  MONGO_OK=0
+  for attempt in 1 2 3; do
+    if mongodump --uri="${LIBRECHAT_MONGO_URI}" --gzip --archive="${MONGO_ARCHIVE}"; then
+      MONGO_OK=1
+      break
+    fi
+    echo "  … mongodump attempt ${attempt}/3 failed; retrying in 10s"
+    sleep 10
+  done
+  if [ "${MONGO_OK}" = "1" ]; then
+    echo "  → $(du -h "${MONGO_ARCHIVE}" | cut -f1)"
+  else
+    rm -f "${MONGO_ARCHIVE}"
+    echo "  → WARN SKIP: mongodump failed 3x — LibreChat Mongo unreachable (saas profile off?). Postgres + Qdrant backups continue."
+  fi
+fi
 
 # --- 3. Qdrant snapshot ---
 echo "[3/4] Qdrant snapshot..."

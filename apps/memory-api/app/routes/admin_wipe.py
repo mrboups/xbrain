@@ -322,7 +322,7 @@ async def _wipe_mongo_librechat() -> dict[str, Any]:
 async def _wipe_minio_decks() -> dict[str, Any]:
     """Delete every object under the xbrain-decks MinIO bucket."""
     bucket = os.environ.get("MINIO_BUCKET_DECKS", "xbrain-decks")
-    endpoint = os.environ.get("MINIO_ENDPOINT", "langfuse-minio:9000")
+    endpoint = os.environ.get("MINIO_ENDPOINT", "minio:9000")
     access_key = os.environ.get("MINIO_ACCESS_KEY") or os.environ.get("MINIO_ROOT_USER") or "minio"
     secret_key = (
         os.environ.get("MINIO_SECRET_KEY")
