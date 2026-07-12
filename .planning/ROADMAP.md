@@ -499,7 +499,7 @@ Plans:
 **Plans**: 4 plans in 3 waves
 
 - [ ] 15-01-PLAN.md — Make the compose graph profile-safe: cut the 3 cross-profile `depends_on` edges (memory-api→neo4j, brain-janitor→neo4j, xbrain-backup→librechat-mongo) + promote/rename `langfuse-minio` → core `minio` (wave 1)
-- [ ] 15-02-PLAN.md — `EDITION` flag + explicit router gating in memory-api (33 core / 2 SaaS-only), fail-fast on unknown values, negative-case tests (wave 1, parallel)
+- [ ] 15-02-PLAN.md — `EDITION` flag + explicit router gating in memory-api (33 core / 2 SaaS-only), fail-fast on unknown values, the `EDITION=oss` negative-case tests, and the `neo4j_outbox` guard (a Neo4j-less install must not grow a table nothing drains) (wave 1, parallel)
 - [ ] 15-03-PLAN.md — Apply the profile table to all 32 services (10 untagged core / 14 `integrations` / 7 `saas` / 1 `ops`) + wire `EDITION` through compose (wave 2)
 - [ ] 15-04-PLAN.md — `verify-phase15.sh`: the acceptance gate, asserted against real `docker compose` output and real running containers (wave 3)
 
