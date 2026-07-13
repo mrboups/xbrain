@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import write_audit
-from app.deps import _user_id_from_principal, get_current_principal, get_session, require_paid_tier
+from app.deps import _user_id_from_principal, get_current_principal, get_session, get_team_scope
 
 router = APIRouter()
 
@@ -66,7 +66,7 @@ class ContactOut(BaseModel):
 @router.get("/crm/contacts", response_model=list[ContactOut])
 async def list_contacts(
     session: AsyncSession = Depends(get_session),
-    team_scope: str = Depends(require_paid_tier),
+    team_scope: str = Depends(get_team_scope),
     contact_type: str | None = Query(None, pattern=r"^(direct|mass)$"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -90,7 +90,7 @@ async def list_contacts(
 async def get_contact(
     contact_id: UUID,
     session: AsyncSession = Depends(get_session),
-    team_scope: str = Depends(require_paid_tier),
+    team_scope: str = Depends(get_team_scope),
 ):
     # Phase 11 (BMO-07) — soft-deleted contacts 404 here. The brain monitor
     # surfaces them via `/v1/brain/events/contact/{id}` instead.
@@ -111,7 +111,7 @@ async def create_contact(
     body: ContactCreateBody,
     principal: dict[str, Any] = Depends(get_current_principal),
     session: AsyncSession = Depends(get_session),
-    team_scope: str = Depends(require_paid_tier),
+    team_scope: str = Depends(get_team_scope),
 ):
     user_id = _user_id_from_principal(principal)
     if body.email:
@@ -182,7 +182,7 @@ async def update_contact(
     body: ContactPatchBody,
     principal: dict[str, Any] = Depends(get_current_principal),
     session: AsyncSession = Depends(get_session),
-    team_scope: str = Depends(require_paid_tier),
+    team_scope: str = Depends(get_team_scope),
 ):
     fields = body.model_dump(exclude_unset=True)
     if not fields:
@@ -213,7 +213,7 @@ async def delete_contact(
     contact_id: UUID,
     principal: dict[str, Any] = Depends(get_current_principal),
     session: AsyncSession = Depends(get_session),
-    team_scope: str = Depends(require_paid_tier),
+    team_scope: str = Depends(get_team_scope),
 ):
     result = await session.execute(sa.text(
         "DELETE FROM contacts WHERE id = :id AND team_scope = :ts RETURNING id"
