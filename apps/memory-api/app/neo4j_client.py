@@ -44,21 +44,30 @@ async def init_driver(quiet: bool = False):
         return None
     from neo4j import AsyncGraphDatabase  # lazy import — avoid import error if not installed
 
-    _driver = AsyncGraphDatabase.driver(
+    # Build into a LOCAL, and publish to the module global `_driver` ONLY after verify_connectivity()
+    # succeeds. Publishing before verification opens a TOCTOU window: verify_connectivity() is a real
+    # network round-trip (seconds-wide on OSS-light, where the Neo4j DNS name is configured but the
+    # container is absent), and reconnect_loop() runs this repeatedly WHILE the app is already serving.
+    # If `_driver` were published pre-verify, a concurrent /v1/memory/upsert calling get_driver() would
+    # see a truthy-but-doomed driver and write neo4j_outbox rows that nothing will ever drain — exactly
+    # the unbounded-growth bug the memory.py guard exists to prevent, reopened in the connect window.
+    # get_driver() must mean "verified reachable", never "constructed but unverified".
+    candidate = AsyncGraphDatabase.driver(
         settings.NEO4J_URI,
         auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD),
     )
     try:
-        await _driver.verify_connectivity()
-        log.info("neo4j.connected", uri=settings.NEO4J_URI)
+        await candidate.verify_connectivity()
     except Exception as exc:
         if quiet:
             log.debug("neo4j.connectivity_failed", error=str(exc))
         else:
             log.error("neo4j.connectivity_failed", error=str(exc))
-        # Don't crash — memory-api is still usable without Neo4j
-        await _driver.close()
-        _driver = None
+        # Don't crash — memory-api is still usable without Neo4j. Never publish the failed candidate.
+        await candidate.close()
+        return None
+    _driver = candidate
+    log.info("neo4j.connected", uri=settings.NEO4J_URI)
     return _driver
 
 
