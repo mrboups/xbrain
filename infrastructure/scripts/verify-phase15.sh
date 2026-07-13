@@ -183,6 +183,17 @@ elif mode == "data-identity":
     good = not mismatches
     print(f"{'OK' if good else 'BAD'} mismatches={mismatches}")
 
+elif mode == "memapi-env":
+    # Write memory-api's COMPOSE-RESOLVED environment to an env-file (KEY=VALUE per line, skip null)
+    # — this is the env the live harness boots with, so if compose fails to pass EDITION/NEO4J_URI,
+    # the harness sees it. sys.argv[2]=source compose JSON, sys.argv[3]=dest env-file.
+    d = load(sys.argv[2])
+    env = d["services"]["memory-api"]["environment"]
+    lines = [f"{k}={v}" for k, v in env.items() if v is not None]
+    with open(sys.argv[3], "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"OK wrote {len(lines)} vars")
+
 else:
     print(f"BAD unknown mode {mode!r}")
     sys.exit(1)
@@ -199,10 +210,56 @@ J_OPS="$(mktemp --suffix=.json)"
 J_ALL="$(mktemp --suffix=.json)"
 MEMAPI_ENV="$(mktemp)"
 
+# The in-container outbox test (check g): mints a bridge JWT (BRIDGE_SHARED_SECRET is already in the
+# harness env), upserts a MemoryItem carrying metadata.entities, and prints the HTTP status. A 1536-d
+# embedding is supplied so NativeProvider skips the OpenAI embedder (the hermetic env's OPENAI_API_KEY
+# is a placeholder). The bridge principal needs no pre-seeded team row — get_team_scope only checks the
+# JWT's team_scope matches the X-Team-Scope header (deps.py).
+G_PYTEST="$(mktemp --suffix=.py)"
+cat > "$G_PYTEST" <<'GPYEOF'
+import json, os, time, urllib.request, urllib.error
+from authlib.jose import jwt
+
+secret = os.environ["BRIDGE_SHARED_SECRET"]
+team = "p15team"
+now = int(time.time())
+tok = jwt.encode(
+    {"alg": "HS256"},
+    {"iss": "verify-phase15", "sub": "p15tester", "team_scope": team,
+     "scope": "bridge", "iat": now, "exp": now + 300},
+    secret,
+).decode("ascii")
+item = {
+    "id": "00000000-0000-4000-8000-000000000abc",
+    "team_scope": team,
+    "content": "Phase 15 outbox guard test fact about Acme Corp",
+    "metadata": {"entities": [{"name": "Acme Corp", "type": "organization"}]},
+    "embedding": [0.001] * 1536,
+    "source": "verify-phase15",
+    "truth_level": "WORKING",
+    "created_at": "2026-07-14T00:00:00Z",
+    "updated_at": "2026-07-14T00:00:00Z",
+}
+req = urllib.request.Request(
+    "http://127.0.0.1:8000/v1/memory/upsert",
+    data=json.dumps({"item": item}).encode(),
+    method="POST",
+    headers={"Authorization": f"Bearer {tok}", "X-Team-Scope": team,
+             "Content-Type": "application/json"},
+)
+try:
+    r = urllib.request.urlopen(req, timeout=30)
+    print("UPSERT_STATUS", r.status)
+except urllib.error.HTTPError as e:
+    print("UPSERT_STATUS", e.code)
+    print("UPSERT_BODY", e.read().decode()[:300])
+GPYEOF
+
 cleanup() {
   "${DC[@]}" down -v --remove-orphans >/dev/null 2>&1
   docker rm -f xbrain-p15-memapi >/dev/null 2>&1
-  rm -f "$ENVF" "$PYCHECK" "$J_OSS" "$J_SAAS" "$J_BARE" "$J_INT" "$J_SAASPROF" "$J_OPS" "$J_ALL" "$MEMAPI_ENV"
+  docker volume rm xbrain-p15-pipcache >/dev/null 2>&1
+  rm -f "$ENVF" "$PYCHECK" "$G_PYTEST" "$J_OSS" "$J_SAAS" "$J_BARE" "$J_INT" "$J_SAASPROF" "$J_OPS" "$J_ALL" "$MEMAPI_ENV"
 }
 trap cleanup EXIT
 
@@ -533,12 +590,176 @@ test_h_preflight_coupling() {
   fi
 }
 
+# -----------------------------------------------------------------------------
+# code() — HTTP status of a request to the live harness on 127.0.0.1:18000.
+code() { curl -s -o /dev/null -w '%{http_code}' "$@" 2>/dev/null; }
+
+# boot_edition <oss|saas> — (re)start uvicorn INSIDE the already-prepared harness container with
+# only EDITION changed. Kills any previous uvicorn via its pidfile with SIGKILL (uvicorn's graceful
+# SIGTERM shutdown hangs on the background reconnect/outbox tasks, leaving the port bound), waits
+# for the port to actually free, then boots and polls /v1/healthz. Returns 0 on healthz 200 within
+# ~30s, 1 otherwise. Same container, same installed site-packages, same source — ONLY the env
+# differs: a literal demonstration of D-15-05 ("one image, no rebuild").
+boot_edition() {
+  local ed="$1" i
+  docker exec xbrain-p15-memapi sh -c '
+    if [ -f /tmp/uvicorn.pid ]; then kill -9 "$(cat /tmp/uvicorn.pid)" 2>/dev/null || true; fi
+  ' >/dev/null 2>&1
+  # Wait for the port to release (a dead process frees its socket even while a zombie lingers).
+  for i in $(seq 1 15); do
+    code http://127.0.0.1:18000/v1/healthz >/dev/null 2>&1 || break
+    sleep 1
+  done
+  docker exec -d -e "EDITION=$ed" xbrain-p15-memapi sh -c \
+    "cd /build && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/$ed.log 2>&1 & echo \$! > /tmp/uvicorn.pid; wait"
+  for i in $(seq 1 15); do   # 30s budget — must NOT block on 15-05's 120s Neo4j reconnect window
+    [ "$(code http://127.0.0.1:18000/v1/healthz)" = "200" ] && return 0
+    sleep 2
+  done
+  return 1
+}
+
+test_g_live_edition_boot() {
+  echo
+  echo "(g) SC#2/SC#3/SC#4/D-15-05 — REAL memory-api: EDITION=oss 404s SaaS routes; flip to saas reaches them; outbox stays empty with no Neo4j"
+
+  if ! $LIVE_BOOT_OK; then
+    skip "check (f)'s live core (postgres/qdrant/minio) is not up — cannot exercise a real memory-api"
+    return
+  fi
+
+  # 1. Env comes from COMPOSE's resolved config, not from this script's imagination — so if compose
+  #    fails to pass EDITION (or MINIO_ENDPOINT, or NEO4J_URI), this check breaks. Paths are passed to
+  #    python as argv (NEVER embedded in -c) so MSYS translates them; a path baked into -c is not.
+  env -u EDITION "${DC[@]}" config --format json >"$J_BARE" 2>/dev/null
+  python "$PYCHECK" memapi-env "$J_BARE" "$MEMAPI_ENV"
+  grep -q '^EDITION=oss$'            "$MEMAPI_ENV" || { ko "compose did not pass EDITION=oss to memory-api"; return; }
+  grep -q '^NEO4J_URI=bolt://neo4j'  "$MEMAPI_ENV" || { ko "compose did not pass a bolt://neo4j NEO4J_URI to memory-api"; return; }
+  grep -qE '^NEO4J_PASSWORD=.+'      "$MEMAPI_ENV" || { ko "compose did not pass a non-empty NEO4J_PASSWORD to memory-api"; return; }
+  ok "compose-resolved memory-api env carries EDITION=oss + a non-empty NEO4J_URI/NEO4J_PASSWORD (the exact dangerous state: Neo4j configured, no Neo4j container)"
+
+  # 2. Host paths for the bind mount + env-file. The Git-Bash mount trap: a POSIX path silently fails
+  #    to mount. Use Windows paths (cygpath -w) and MSYS_NO_PATHCONV=1 so the container-internal
+  #    /repo target is NOT rewritten either.
+  local REPO_ROOT HOST_REPO MEMAPI_ENV_WIN
+  REPO_ROOT="$(pwd)"
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) HOST_REPO="$(cygpath -w "$REPO_ROOT")"; MEMAPI_ENV_WIN="$(cygpath -w "$MEMAPI_ENV")" ;;
+    *)                    HOST_REPO="$REPO_ROOT"; MEMAPI_ENV_WIN="$MEMAPI_ENV" ;;
+  esac
+
+  # 3. One long-lived stock python container. NO IMAGE BUILD. Published on loopback only.
+  docker rm -f xbrain-p15-memapi >/dev/null 2>&1
+  MSYS_NO_PATHCONV=1 docker run -d --name xbrain-p15-memapi --network xbrain_net \
+    -p 127.0.0.1:18000:8000 --env-file "$MEMAPI_ENV_WIN" \
+    -v "${HOST_REPO}:/repo:ro" -v xbrain-p15-pipcache:/root/.cache/pip \
+    python:3.12-slim sleep infinity >/dev/null 2>&1
+
+  # 4. MOUNT GUARD — a silently-unmounted volume makes every check below pass while proving NOTHING.
+  #    FAIL, never SKIP. (MSYS_NO_PATHCONV so the /repo path in the exec argv is not rewritten.)
+  if ! MSYS_NO_PATHCONV=1 docker exec xbrain-p15-memapi test -f /repo/apps/memory-api/app/main.py; then
+    ko "bind mount did not land (Git-Bash path trap) — aborting check (g); its assertions would be meaningless against an empty /repo"
+    return
+  fi
+  ok "mount guard: /repo/apps/memory-api/app/main.py is visible inside the harness container (bind mount landed)"
+
+  # 5. Reproduce the Dockerfile's staging order (15-05: `pip install .` on the flat tree fails with
+  #    "Multiple top-level packages discovered"; the Dockerfile installs from pyproject alone FIRST,
+  #    then copies app/ + alembic/ in), then MIGRATE (the real command runs `alembic upgrade head`
+  #    before uvicorn — check (g)'s outbox assertion needs the schema).
+  if ! docker exec xbrain-p15-memapi sh -euc '
+      mkdir -p /app/packages && cp -r /repo/packages/memory-models /app/packages/
+      mkdir -p /build && cp /repo/apps/memory-api/pyproject.toml /build/
+      cd /build && pip install -q --disable-pip-version-check . >/tmp/pip.log 2>&1
+      cp -r /repo/apps/memory-api/app /build/app
+      cp -r /repo/apps/memory-api/alembic /build/alembic
+      cp /repo/apps/memory-api/alembic.ini /build/alembic.ini
+      cd /build && python -m alembic upgrade head >/tmp/alembic.log 2>&1
+  ' >/dev/null 2>&1; then
+    skip "pip install / alembic upgrade failed inside the harness (offline? see /tmp/pip.log|alembic.log in xbrain-p15-memapi) — the live EDITION check could not run"
+    return
+  fi
+  ok "harness staged the real memory-api source + ran alembic upgrade head (no image built)"
+
+  # ---- EDITION=oss ------------------------------------------------------------------------------
+  if ! boot_edition oss; then
+    ko "memory-api did not reach /v1/healthz 200 within 30s under EDITION=oss (startup must NOT block on 15-05's 120s Neo4j reconnect)"
+    return
+  fi
+  local base="http://127.0.0.1:18000"
+  ok "EDITION=oss: /v1/healthz = 200 within 30s with NO Neo4j container anywhere (SC#4; 15-05 reconnect does not block startup)"
+
+  local degrade
+  degrade=$(docker exec xbrain-p15-memapi sh -c 'grep -c neo4j.connectivity_failed /tmp/oss.log 2>/dev/null || echo 0')
+  if [[ "${degrade:-0}" -ge 1 ]]; then
+    ok "EDITION=oss: neo4j.connectivity_failed present ($degrade) — the degrade path was genuinely EXERCISED, Neo4j was not secretly reachable"
+  else
+    ko "EDITION=oss: expected >=1 neo4j.connectivity_failed in the log (degrade path not exercised)"
+  fi
+
+  # SC#2/SC#3 negative case — the SaaS routers must be ABSENT (404), not merely auth-rejecting.
+  local c_wait c_ext c_oauth c_media
+  c_wait=$(code -X POST "$base/v1/waitlist" -H 'Content-Type: application/json' -d '{}')
+  c_ext=$(code "$base/v1/me/external-sessions" -H 'Authorization: Bearer invalidtoken')
+  c_oauth=$(code "$base/.well-known/oauth-authorization-server")
+  c_media=$(code -X POST "$base/v1/media/upload" -H 'Authorization: Bearer invalidtoken' -H 'X-Team-Scope: p15team')
+
+  [[ "$c_wait" == "404" ]] && ok "EDITION=oss: POST /v1/waitlist = 404 (SaaS router ABSENT — SC#3 negative case)" \
+                           || ko "EDITION=oss: POST /v1/waitlist = $c_wait (expected 404 — a non-404 means the SaaS surface leaked into oss)"
+  [[ "$c_ext" == "404" ]]  && ok "EDITION=oss: GET /v1/me/external-sessions = 404 (SaaS router ABSENT — routing precedes auth, so a Bearer still 404s)" \
+                           || ko "EDITION=oss: GET /v1/me/external-sessions = $c_ext (expected 404 — SaaS surface leaked)"
+  [[ "$c_oauth" == "200" ]] && ok "EDITION=oss: GET /.well-known/oauth-authorization-server = 200 (ChatGPT/Claude.ai web connector is CORE, never gated)" \
+                            || ko "EDITION=oss: oauth metadata = $c_oauth (expected 200 — the web connector must be CORE)"
+  [[ "$c_media" == "401" || "$c_media" == "403" ]] && ok "EDITION=oss: POST /v1/media/upload (bad token) = $c_media (media router MOUNTED, not 404)" \
+                            || ko "EDITION=oss: POST /v1/media/upload = $c_media (expected 401/403 — media must be mounted core)"
+
+  # SC#1 — the promoted core minio is reachable from the harness (so /v1/media/upload has a backend).
+  if docker exec xbrain-p15-memapi python -c "import socket;s=socket.socket();s.settimeout(3);s.connect(('minio',9000));s.close()" >/dev/null 2>&1; then
+    ok "EDITION=oss: minio:9000 reachable from the harness (SC#1 — promoted core MinIO backs media in an OSS-light install)"
+  else
+    ko "EDITION=oss: minio:9000 NOT reachable from the harness (SC#1 — media would 503)"
+  fi
+
+  # T-15-02-04 against real containers — the outbox guard in the EXACT dangerous state.
+  # Inject the test via stdin (not `docker cp`) to sidestep host-path translation entirely.
+  docker exec -i xbrain-p15-memapi sh -c 'cat > /tmp/outbox_test.py' < "$G_PYTEST"
+  local upsert_out upsert_status outbox_rows item_rows
+  upsert_out=$(docker exec xbrain-p15-memapi sh -c 'cd /build && python /tmp/outbox_test.py 2>/dev/null')
+  upsert_status=$(echo "$upsert_out" | grep '^UPSERT_STATUS' | awk '{print $2}')
+  outbox_rows=$(docker exec xbrain-postgres psql -U xbrain -d xbrain -tAc "SELECT count(*) FROM neo4j_outbox" 2>/dev/null | tr -d '[:space:]')
+  item_rows=$(docker exec xbrain-postgres psql -U xbrain -d xbrain -tAc "SELECT count(*) FROM memory_items WHERE source = 'verify-phase15'" 2>/dev/null | tr -d '[:space:]')
+
+  if [[ "$upsert_status" == "201" ]] && [[ "$outbox_rows" == "0" ]] && [[ "${item_rows:-0}" -ge 1 ]]; then
+    ok "EDITION=oss: upsert with metadata.entities = 201, neo4j_outbox rows = 0 (get_driver() guard held in the NEO4J_URI-set/no-container state), memory_items row present (data not dropped)"
+  else
+    ko "EDITION=oss: outbox guard FAILED — upsert=$upsert_status (want 201), neo4j_outbox=$outbox_rows (want 0), memory_items=$item_rows (want >=1)"
+  fi
+
+  # ---- EDITION=saas (same container, env flip only) ---------------------------------------------
+  if ! boot_edition saas; then
+    ko "memory-api did not reach /v1/healthz 200 within 30s under EDITION=saas"
+    return
+  fi
+  local s_wait s_ext s_health
+  s_health=$(code "$base/v1/healthz")
+  s_wait=$(code -X POST "$base/v1/waitlist" -H 'Content-Type: application/json' -d '{}')
+  s_ext=$(code "$base/v1/me/external-sessions" -H 'Authorization: Bearer invalidtoken')
+
+  [[ "$s_health" == "200" ]] && ok "EDITION=saas: /v1/healthz = 200 (core unaffected by the flip — same running container)" \
+                             || ko "EDITION=saas: /v1/healthz = $s_health (expected 200)"
+  [[ "$s_wait" == "422" ]]   && ok "EDITION=saas: POST /v1/waitlist (empty) = 422 (route now EXISTS — validation error, not 404)" \
+                             || ko "EDITION=saas: POST /v1/waitlist = $s_wait (expected 422 — the route should now be mounted)"
+  [[ "$s_ext" == "401" || "$s_ext" == "403" ]] && ok "EDITION=saas: GET /v1/me/external-sessions (bad token) = $s_ext (route now EXISTS and rejects — not 404 absent, not 405 shadowed)" \
+                             || ko "EDITION=saas: GET /v1/me/external-sessions = $s_ext (expected 401/403 — the route should now be mounted)"
+}
+
 test_a_profiles
 test_b_core_by_name
 test_c_deny_list
 test_d_profile_membership
 test_e_edition_and_data_identity
 test_f_live_core_boot
+test_g_live_edition_boot
 test_h_preflight_coupling
 
 echo
