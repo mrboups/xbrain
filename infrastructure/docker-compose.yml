@@ -126,6 +126,17 @@ services:
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       ADMIN_USER_SUBS: ${ADMIN_USER_SUBS:-}
+      # Phase 15 (EDIT-02) — deployment edition. Selects which routers app/main.py mounts.
+      #   oss  (default) — the core: brain, chat, teams, memory, promotions/truth-levels, media,
+      #                    graph, health, me, auth, ChatGPT/Claude.ai web connector.
+      #   saas           — the above PLUS the hosted-control-plane routers (waitlist,
+      #                    external_sessions).
+      # SAME IMAGE either way (D-15-05) — an env flip at boot, never a rebuild.
+      # An unknown value is boot-fatal (field_validator in app/config.py) — a typo must crashloop,
+      # not silently serve a crippled API. There is no `pro` edition (EDIT-03 was cancelled).
+      # INVARIANT: if COMPOSE_PROFILES includes `saas`, EDITION must be `saas` — session-bridge
+      # (a `saas` service) POSTs /v1/me/external-sessions, which EDITION=oss does not mount.
+      EDITION: ${EDITION:-oss}
       # Phase 3: Neo4j graph sync (optional — graceful degrade if not set)
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
