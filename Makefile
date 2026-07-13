@@ -63,12 +63,15 @@ sync:  ## Rsync code vers la VM (sans deploy)
 
 .PHONY: deploy
 deploy: env-check preflight sync  ## Sync + (re)build + up sur la VM
-	@# Phase 14 remote guard — env-check only reads the LOCAL .env; the VM .env is
-	@# the one that actually boots the containers, and project memory
-	@# (project_xbrain_vm_env_gotchas) confirms VM .env vars go missing. Check the
-	@# SAME 5 now-mandatory vars remotely before syncing a config that would
-	@# crashloop memory-api/mcp-brain, break ingress, block CORS, or kill @mentions.
-	$(SSH) 'cd /home/$(VM_USER)/xbrain && for v in OAUTH_ISSUER_URL OAUTH_RESOURCE_URL CORS_ALLOWED_ORIGIN_REGEX XBRAIN_BASE_DOMAIN AGENT_MENTION_ALIASES; do grep -qE "^$$v=.+" .env || { echo "ABORT: VM .env is missing $$v"; exit 1; }; done' || (echo "ABORT: the VM .env is missing a now-mandatory var — deploying would crashloop memory-api/mcp-brain, or silently break the ingress / CORS / @mentions. See 14-06-SUMMARY.md DEPLOY-PREREQ."; exit 1)
+	@# Phase 14 remote guard, Phase 15 generalised: `preflight` above only reads the LOCAL .env, but
+	@# the VM .env is the one that actually boots the containers, and project memory
+	@# (project_xbrain_vm_env_gotchas) confirms VM .env vars go missing. `sync` has just pushed the
+	@# current preflight-env.sh to the VM, so run THAT script against the VM's OWN .env — ONE
+	@# implementation of the rule, enforced on both sides, instead of a second inline copy that can
+	@# drift from the first. It checks the 5 now-mandatory vars AND the Phase 15
+	@# COMPOSE_PROFILES/EDITION invariant (saas profile + EDITION=oss => session-bridge 404s silently).
+	$(SSH) 'cd /home/$(VM_USER)/xbrain && bash infrastructure/scripts/preflight-env.sh .env' \
+	  || (echo "ABORT: the VM .env failed preflight — see the FATAL message above. Deploying would crashloop memory-api/mcp-brain, silently break ingress/CORS/@mentions, or 404 session-bridge's register frame."; exit 1)
 	$(SSH) 'cd /home/$(VM_USER)/xbrain && docker compose -f infrastructure/docker-compose.yml --env-file .env up -d --build'
 
 .PHONY: vm-logs
@@ -107,3 +110,7 @@ env-check:  ## Vérifie que toutes les vars critiques sont dans .env
 .PHONY: preflight
 preflight:  ## Pre-deploy crashloop guard — same 5 vars as env-check, actionable messages (B3)
 	@bash infrastructure/scripts/preflight-env.sh .env
+
+.PHONY: verify-phase15
+verify-phase15:  ## Phase 15 acceptance gate — compose-layer + live-boot (EDIT-01 + EDIT-02)
+	@bash infrastructure/scripts/verify-phase15.sh
