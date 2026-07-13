@@ -240,6 +240,7 @@ services:
       dockerfile: Dockerfile
     image: xbrain/agent-runtime:phase2
     container_name: xbrain-agent-runtime
+    profiles: ["integrations"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -276,6 +277,7 @@ services:
       dockerfile: Dockerfile
     image: xbrain/librechat-bridge:phase1
     container_name: xbrain-librechat-bridge
+    profiles: ["saas"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -312,6 +314,7 @@ services:
       dockerfile: Dockerfile
     image: xbrain/openwebui-pipeline:phase1
     container_name: xbrain-openwebui-pipeline
+    profiles: ["saas"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -350,6 +353,7 @@ services:
   librechat-mongo:
     image: mongo:7
     container_name: xbrain-librechat-mongo
+    profiles: ["saas"]
     restart: unless-stopped
     logging: *default-logging
     command: ["--replSet", "rs0", "--bind_ip_all"]
@@ -373,6 +377,7 @@ services:
   librechat-meili:
     image: getmeili/meilisearch:v1.10
     container_name: xbrain-librechat-meili
+    profiles: ["saas"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -395,6 +400,7 @@ services:
   searxng:
     image: searxng/searxng:latest
     container_name: xbrain-searxng
+    profiles: ["integrations"]
     restart: unless-stopped
     logging: *default-logging
     volumes:
@@ -422,6 +428,7 @@ services:
         MEMORY_API_BASE_URL: ${LIBRECHAT_MEMORY_API_BASE:-}
     image: xbrain/librechat:phase8g
     container_name: xbrain-librechat
+    profiles: ["saas"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -490,6 +497,7 @@ services:
   openwebui:
     image: ghcr.io/open-webui/open-webui:v0.9.0
     container_name: xbrain-openwebui
+    profiles: ["saas"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -525,6 +533,7 @@ services:
       dockerfile: Dockerfile
     image: xbrain/backup:phase1
     container_name: xbrain-backup
+    profiles: ["ops"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -555,6 +564,7 @@ services:
   langfuse-clickhouse:
     image: clickhouse/clickhouse-server:24.8
     container_name: xbrain-langfuse-clickhouse
+    profiles: ["integrations"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -575,6 +585,7 @@ services:
   langfuse-redis:
     image: redis:7-alpine
     container_name: xbrain-langfuse-redis
+    profiles: ["integrations"]
     restart: unless-stopped
     logging: *default-logging
     command: ["redis-server", "--requirepass", "${LANGFUSE_REDIS_PASSWORD}"]
@@ -621,6 +632,7 @@ services:
   langfuse-worker:
     image: langfuse/langfuse-worker:3
     container_name: xbrain-langfuse-worker
+    profiles: ["integrations"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -658,6 +670,7 @@ services:
   langfuse:
     image: langfuse/langfuse:3
     container_name: xbrain-langfuse
+    profiles: ["integrations"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -710,6 +723,7 @@ services:
   neo4j:
     image: neo4j:2026.04.0-community
     container_name: xbrain-neo4j
+    profiles: ["integrations"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -795,6 +809,7 @@ services:
       dockerfile: Dockerfile
     image: xbrain/mcp-drive-read:phase3
     container_name: xbrain-mcp-drive-read
+    profiles: ["integrations"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -821,6 +836,7 @@ services:
       dockerfile: Dockerfile
     image: xbrain/mcp-calendar:phase3
     container_name: xbrain-mcp-calendar
+    profiles: ["integrations"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -847,6 +863,7 @@ services:
       dockerfile: Dockerfile
     image: xbrain/mcp-deck:phase4
     container_name: xbrain-mcp-deck
+    profiles: ["integrations"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -929,6 +946,7 @@ services:
       dockerfile: Dockerfile
     image: xbrain/mcp-github:phase1
     container_name: xbrain-mcp-github
+    profiles: ["integrations"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -960,6 +978,7 @@ services:
       dockerfile: Dockerfile
     image: xbrain/session-bridge:phase9
     container_name: xbrain-session-bridge
+    profiles: ["saas"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -1019,6 +1038,7 @@ services:
       dockerfile: Dockerfile
     image: xbrain/graphiti-service:phase5
     container_name: xbrain-graphiti-service
+    profiles: ["integrations"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -1054,6 +1074,7 @@ services:
       dockerfile: apps/drive-sync/Dockerfile
     image: xbrain/drive-sync:phase3
     container_name: xbrain-drive-sync
+    profiles: ["integrations"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -1089,6 +1110,7 @@ services:
       dockerfile: apps/granola-sync/Dockerfile
     image: xbrain/granola-sync:phase7
     container_name: xbrain-granola-sync
+    profiles: ["integrations"]
     restart: unless-stopped
     logging: *default-logging
     environment:
