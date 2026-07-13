@@ -75,5 +75,35 @@ if ! has_var AGENT_MENTION_ALIASES; then
     "AGENT_MENTION_ALIASES=agent,ai,assistant"
 fi
 
-echo "PREFLIGHT OK — all 5 required vars are set in ${ENV_FILE}."
+# --- Phase 15: COMPOSE_PROFILES / EDITION consistency ------------------------------------------
+# This is the FIRST check in this script of a RELATIONSHIP between two vars (everything above only
+# checks that a var is present-and-non-empty).
+#
+# `session-bridge` lives in the `saas` compose profile and POSTs to memory-api's
+# /v1/me/external-sessions. That router is SAAS-ONLY: under EDITION=oss (the default) it is NOT
+# mounted, so the register frame gets a 404 — and there is NO other symptom anywhere. The Pro/Max
+# routing bridge just silently stops working.
+#
+# This is enforced HERE, in the ops layer, and NOT as a field_validator inside memory-api:
+# COMPOSE_PROFILES is an orchestrator concept, and teaching the application to read it would invert
+# the dependency (the app would refuse to boot on a variable that means nothing outside Compose, and
+# would break anyone running memory-api standalone with COMPOSE_PROFILES merely exported in their
+# shell). preflight runs on every `make deploy`, so a real deploy cannot ship this combination.
+PROFILES="$(grep -E '^COMPOSE_PROFILES=' "$ENV_FILE" | head -1 | cut -d= -f2- || true)"
+EDITION_VAL="$(grep -E '^EDITION=' "$ENV_FILE" | head -1 | cut -d= -f2- || true)"
+EDITION_VAL="${EDITION_VAL:-oss}"     # same default as apps/memory-api/app/config.py
+case ",${PROFILES}," in
+  *,saas,*)
+    if [[ "$EDITION_VAL" != "saas" ]]; then
+      echo "FATAL: COMPOSE_PROFILES includes 'saas' but EDITION is '${EDITION_VAL}' in ${ENV_FILE}." >&2
+      echo "  The 'saas' profile starts session-bridge, which POSTs /v1/me/external-sessions — a" >&2
+      echo "  router that EDITION=oss does not mount. It would 404 silently, with no other symptom." >&2
+      echo "  Set:" >&2
+      echo "    EDITION=saas" >&2
+      exit 1
+    fi
+    ;;
+esac
+
+echo "PREFLIGHT OK — all 5 required vars are set in ${ENV_FILE}, and COMPOSE_PROFILES/EDITION are consistent."
 exit 0

@@ -341,11 +341,205 @@ test_e_edition_and_data_identity() {
   fi
 }
 
+# -----------------------------------------------------------------------------
+# Container-name deny-list. container_name: is EXPLICIT and GLOBAL in docker-compose.yml
+# (not namespaced to a compose project), and it is `xbrain-<service>` for every opt-in
+# service EXCEPT xbrain-backup, whose service name already carries the prefix (its
+# container_name is literally `xbrain-backup`, not `xbrain-xbrain-backup`). Built once
+# here so checks (f) and (g) share exactly one source of truth for "is this an opt-in
+# container".
+OPT_IN_CONTAINERS="xbrain-neo4j xbrain-graphiti-service xbrain-langfuse xbrain-langfuse-worker xbrain-langfuse-clickhouse xbrain-langfuse-redis xbrain-mcp-calendar xbrain-mcp-drive-read xbrain-mcp-deck xbrain-mcp-github xbrain-granola-sync xbrain-drive-sync xbrain-searxng xbrain-agent-runtime xbrain-session-bridge xbrain-librechat xbrain-librechat-mongo xbrain-librechat-meili xbrain-librechat-bridge xbrain-openwebui xbrain-openwebui-pipeline xbrain-backup"
+
+LIVE_BOOT_OK=false
+
+test_f_live_core_boot() {
+  echo
+  echo "(f) SC#1/SC#4 — REAL docker compose up of the 5 pull-only OSS-light core services (no build)"
+
+  local existing
+  existing=$(docker ps -a --format '{{.Names}}' 2>/dev/null | grep -E '^xbrain-' || true)
+  if [[ -n "$existing" ]]; then
+    skip "an xbrain-* container already exists on this host (container_name: is global) — refusing to clobber a running stack: $(echo $existing | tr '\n' ' ')"
+    return
+  fi
+
+  local up_log
+  up_log="$(mktemp)"
+  if ! "${DC[@]}" up -d postgres qdrant minio centrifugo nginx >"$up_log" 2>&1; then
+    ko "docker compose up -d postgres qdrant minio centrifugo nginx failed: $(tail -5 "$up_log" | tr '\n' ' ')"
+    rm -f "$up_log"
+    return
+  fi
+  rm -f "$up_log"
+
+  # postgres/qdrant/minio/centrifugo: Docker's own healthcheck field is the right signal
+  # and is unaffected by anything below — poll it directly.
+  local names=(xbrain-postgres xbrain-qdrant xbrain-minio xbrain-centrifugo)
+  local waited=0
+  local all_healthy=false
+  local unhealthy=""
+  while (( waited < 120 )); do
+    unhealthy=""
+    local n status
+    for n in "${names[@]}"; do
+      status=$(docker inspect --format '{{.State.Health.Status}}' "$n" 2>/dev/null || echo "missing")
+      if [[ "$status" != "healthy" ]]; then
+        unhealthy="$unhealthy $n=$status"
+      fi
+    done
+    if [[ -z "$unhealthy" ]]; then
+      all_healthy=true
+      break
+    fi
+    sleep 5
+    waited=$((waited+5))
+  done
+
+  if $all_healthy; then
+    ok "postgres/qdrant/minio/centrifugo all reached healthy within ${waited}s"
+  else
+    ko "postgres/qdrant/minio/centrifugo did not all reach healthy within 120s:$unhealthy"
+  fi
+
+  # nginx: Docker's OWN healthcheck (`wget -q -O - http://127.0.0.1/nginx-health`, no Host
+  # override) is a PRE-EXISTING, non-Phase-15 finding — see deferred-items.md. It sends
+  # Host: 127.0.0.1, which matches none of the named vhosts, so nginx routes it to the
+  # catch-all `default_server` block (10-xbrain.conf.template:180-182), which unconditionally
+  # 302-redirects to `https://chat.$XBRAIN_BASE_DOMAIN/...`. nginx never listens on 443 in
+  # this compose file (TLS terminates externally, e.g. Cloudflare, which loops back to this
+  # same origin on port 80 in production) — so that redirect can only ever be followed
+  # successfully via a live internet round-trip through a real TLS-terminating reverse
+  # proxy. It is structurally impossible to satisfy in ANY isolated environment (this
+  # harness, CI, or a fresh self-hosted install before DNS/TLS is configured), regardless of
+  # XBRAIN_BASE_DOMAIN's value. This is unrelated to anything any Phase 15 plan touches
+  # (confirmed: no Phase 15 plan modifies infrastructure/nginx/) and is explicitly out of
+  # this plan's file scope to fix (`<the_whole_point_of_this_plan>` forbids rewriting these
+  # templates) — logged to deferred-items.md, not silently patched.
+  #
+  # What this check asserts INSTEAD, to test what SC#4 actually claims (ingress resilience
+  # to absent upstreams): a REAL named vhost, addressed with ITS OWN Host header (bypassing
+  # the catch-all entirely, exactly the way a real client via Cloudflare would arrive),
+  # serves its own /nginx-health location directly — proving nginx's config is valid and it
+  # is genuinely serving correctly with ZERO of its proxied upstreams (librechat, openwebui,
+  # langfuse, session-bridge, drive-sync) present in this project at all.
+  local docker_health vhost_probe
+  docker_health=$(docker inspect --format '{{.State.Health.Status}}' xbrain-nginx 2>/dev/null || echo "missing")
+
+  local probed=0
+  vhost_probe=""
+  while (( probed < 15 )); do
+    vhost_probe=$(docker exec xbrain-nginx wget -q -O - --header="Host: chat.p15.test" http://127.0.0.1/nginx-health 2>/dev/null || true)
+    [[ "$vhost_probe" == "ok" ]] && break
+    sleep 1
+    probed=$((probed+1))
+  done
+
+  local nginx_probe_ok=false
+  if [[ "$vhost_probe" == "ok" ]]; then
+    ok "xbrain-nginx serves its real vhost (Host: chat.p15.test) /nginx-health directly = 'ok', with zero of its 5 absent upstreams present — proves SC#4 ingress resilience"
+    if [[ "$docker_health" != "healthy" ]]; then
+      yellow "  NOTE: Docker's own .State.Health.Status for xbrain-nginx reports '$docker_health', not 'healthy' — this is the pre-existing default_server/HTTPS-redirect finding above, NOT a Phase 15 regression (see deferred-items.md). Not counted as a FAIL here."
+    fi
+    nginx_probe_ok=true
+  else
+    ko "xbrain-nginx did NOT serve its real vhost /nginx-health within 15s (got '$vhost_probe') — nginx is genuinely not serving correctly, this IS a real failure"
+  fi
+
+  if $all_healthy && $nginx_probe_ok; then
+    LIVE_BOOT_OK=true
+  else
+    LIVE_BOOT_OK=false
+  fi
+
+  local running leaked=""
+  running=$(docker ps --format '{{.Names}}' 2>/dev/null)
+  local cname
+  for cname in $OPT_IN_CONTAINERS; do
+    if echo "$running" | grep -qx "$cname"; then
+      leaked="$leaked $cname"
+    fi
+  done
+  local n_deny
+  n_deny=$(echo "$OPT_IN_CONTAINERS" | wc -w)
+  if [[ -z "$leaked" ]]; then
+    ok "zero opt-in containers running (checked the deny-list of all $n_deny opt-in container names)"
+  else
+    ko "opt-in container(s) running that must not be (SC#1 over-inclusion leak):$leaked"
+  fi
+
+  local expected_running="xbrain-centrifugo xbrain-minio xbrain-nginx xbrain-postgres xbrain-qdrant"
+  local actual_running
+  actual_running=$(docker ps --format '{{.Names}}' 2>/dev/null | grep -E '^xbrain-' | sort | tr '\n' ' ' | sed 's/ *$//')
+  if [[ "$actual_running" == "$expected_running" ]]; then
+    ok "exactly the 5 requested containers are running — nothing dragged in by an unexpected depends_on: $actual_running"
+  else
+    ko "running xbrain-* container set != the 5 requested. actual='$actual_running' expected='$expected_running'"
+  fi
+}
+
+# -----------------------------------------------------------------------------
+test_h_preflight_coupling() {
+  echo
+  echo "(h) T-15-04-02 — preflight rejects COMPOSE_PROFILES=saas + EDITION=oss (session-bridge 404s silently)"
+
+  # $ENVF has the 5 preflight-mandatory vars present and non-empty, and COMPOSE_PROFILES/EDITION
+  # deliberately ABSENT — so it IS a valid OSS-light default env for preflight.
+  local T rc1 rc2 rc3
+  T="$(mktemp)"; cp "$ENVF" "$T"; printf 'COMPOSE_PROFILES=saas\n' >> "$T"
+  bash infrastructure/scripts/preflight-env.sh "$T" >/dev/null 2>&1; rc1=$?
+
+  printf 'EDITION=saas\n' >> "$T"
+  bash infrastructure/scripts/preflight-env.sh "$T" >/dev/null 2>&1; rc2=$?
+
+  bash infrastructure/scripts/preflight-env.sh "$ENVF" >/dev/null 2>&1; rc3=$?
+
+  # Also confirm the rejection message actually NAMES the fix (EDITION), not just any exit 1.
+  local T2 rejmsg
+  T2="$(mktemp)"; cp "$ENVF" "$T2"; printf 'COMPOSE_PROFILES=saas\n' >> "$T2"
+  rejmsg=$(bash infrastructure/scripts/preflight-env.sh "$T2" 2>&1 || true)
+
+  rm -f "$T" "$T2"
+
+  if [[ "$rc1" -eq 1 ]] && echo "$rejmsg" | grep -q 'EDITION'; then
+    ok "saas + default EDITION REJECTED (exit 1) and the FATAL message names EDITION"
+  else
+    ko "saas + default EDITION NOT rejected as required (exit=$rc1) or message did not name EDITION"
+  fi
+  if [[ "$rc2" -eq 0 ]]; then
+    ok "saas + EDITION=saas ACCEPTED (exit 0)"
+  else
+    ko "saas + EDITION=saas was NOT accepted (exit=$rc2)"
+  fi
+  if [[ "$rc3" -eq 0 ]]; then
+    ok "OSS-light default (no profiles, no EDITION) ACCEPTED (exit 0)"
+  else
+    ko "OSS-light default was NOT accepted (exit=$rc3)"
+  fi
+
+  # The REMOTE deploy guard must run the SAME preflight-env.sh over SSH against the VM's .env —
+  # not a second inline copy of the rule. The VM is unreachable from here, so this is a STATIC
+  # assertion about the deploy recipe: exactly ONE implementation of the rule, and it is invoked
+  # on both sides. Count INVOCATIONS ('bash .../preflight-env.sh'), not mentions — the recipe's
+  # own comment names the script too, so a bare 'grep -c preflight-env.sh' would inflate the count.
+  local n_inline n_invoke ssh_guard
+  n_inline=$(grep -c 'for v in OAUTH_ISSUER_URL' Makefile)
+  n_invoke=$(grep -c 'bash infrastructure/scripts/preflight-env.sh' Makefile)
+  ssh_guard=$(grep -E '^	.*\$\(SSH\).*preflight-env\.sh' Makefile | head -1)
+
+  if [[ "$n_inline" -eq 0 ]] && [[ "$n_invoke" -eq 2 ]] && [[ -n "$ssh_guard" ]]; then
+    ok "Makefile: inline 5-var SSH loop gone (0), preflight-env.sh invoked exactly twice (local preflight + remote SSH guard), and the remote guard runs over SSH"
+  else
+    ko "Makefile guard wrong — inline_loop=$n_inline (want 0), preflight_invocations=$n_invoke (want 2), ssh_guard_present=$([[ -n "$ssh_guard" ]] && echo yes || echo no)"
+  fi
+}
+
 test_a_profiles
 test_b_core_by_name
 test_c_deny_list
 test_d_profile_membership
 test_e_edition_and_data_identity
+test_f_live_core_boot
+test_h_preflight_coupling
 
 echo
 echo "=== Summary ==="
