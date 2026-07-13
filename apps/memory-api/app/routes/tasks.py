@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import write_audit
-from app.deps import _user_id_from_principal, get_current_principal, get_session, require_paid_tier
+from app.deps import _user_id_from_principal, get_current_principal, get_session, get_team_scope
 from app.services.notifications import send_task_notification_email
 
 router = APIRouter()
@@ -95,7 +95,7 @@ async def _validate_assignee(
 @router.get("/tasks", response_model=list[TaskOut])
 async def list_tasks(
     session: AsyncSession = Depends(get_session),
-    team_scope: str = Depends(require_paid_tier),
+    team_scope: str = Depends(get_team_scope),
     status: str | None = Query(None, pattern=r"^(todo|in_progress|done|cancelled)$"),
     assigned_to: UUID | None = Query(None),
     project_scope: str | None = Query(None, max_length=64),
@@ -132,7 +132,7 @@ async def list_tasks(
 async def get_task(
     task_id: UUID,
     session: AsyncSession = Depends(get_session),
-    team_scope: str = Depends(require_paid_tier),
+    team_scope: str = Depends(get_team_scope),
 ):
     # Phase 11 (BMO-07) — soft-deleted tasks 404 here. The brain monitor
     # (`/v1/brain/events/task/{id}`) is the only path that surfaces deleted
@@ -154,7 +154,7 @@ async def create_task(
     body: TaskCreateBody,
     principal: dict[str, Any] = Depends(get_current_principal),
     session: AsyncSession = Depends(get_session),
-    team_scope: str = Depends(require_paid_tier),
+    team_scope: str = Depends(get_team_scope),
 ):
     user_id = _user_id_from_principal(principal)
     if user_id is None:
@@ -229,7 +229,7 @@ async def update_task(
     body: TaskPatchBody,
     principal: dict[str, Any] = Depends(get_current_principal),
     session: AsyncSession = Depends(get_session),
-    team_scope: str = Depends(require_paid_tier),
+    team_scope: str = Depends(get_team_scope),
 ):
     fields = body.model_dump(exclude_unset=True)
     if not fields:
@@ -311,7 +311,7 @@ async def delete_task(
     task_id: UUID,
     principal: dict[str, Any] = Depends(get_current_principal),
     session: AsyncSession = Depends(get_session),
-    team_scope: str = Depends(require_paid_tier),
+    team_scope: str = Depends(get_team_scope),
 ):
     result = await session.execute(sa.text(
         "DELETE FROM tasks WHERE id = :id AND team_scope = :ts RETURNING id"

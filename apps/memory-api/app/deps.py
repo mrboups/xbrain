@@ -396,27 +396,6 @@ async def get_team_scope(
     return x_team_scope
 
 
-async def require_paid_tier(
-    session: AsyncSession = Depends(get_session),
-    team_scope: str = Depends(get_team_scope),
-) -> str:
-    """Raises 403 if the team's plan is 'starter'. Used for /v1/crm/* and /v1/tasks/* (D2).
-
-    The dependency chain (require_paid_tier → get_team_scope → get_current_principal)
-    means membership and authentication are already validated. This adds the plan check.
-    """
-    row = (await session.execute(
-        sa.text("SELECT plan FROM teams WHERE slug = :slug"),
-        {"slug": team_scope},
-    )).fetchone()
-    if row is None or row.plan == "starter":
-        raise HTTPException(
-            status_code=403,
-            detail="CRM and task tracking require a Team or Enterprise plan",
-        )
-    return team_scope
-
-
 def _is_admin(principal: dict[str, Any]) -> bool:
     """Return True for bridge service JWTs (kind=service/bridge) or listed admin subs.
 
