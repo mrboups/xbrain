@@ -26,7 +26,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 14: Portability Foundation** - De-hardcode `grooveos.app` / `aibrussels` / `default` team_scope into config; slim fillable OSS `.env.example`
  (completed 2026-07-12)
-- [ ] **Phase 15: Edition Mechanics** - Compose `profiles:` + `EDITION` flag + router gating so one codebase serves oss/saas. (The Ed25519 license + paid `pro` tier was DROPPED by locked decision Q6 — no product feature is paywalled; only the hosted control plane stays closed.)
+- [x] **Phase 15: Edition Mechanics** - Compose `profiles:` + `EDITION` flag + router gating so one codebase serves oss/saas. (The Ed25519 license + paid `pro` tier was DROPPED by locked decision Q6 — no product feature is paywalled; only the hosted control plane stays closed.) (completed 2026-07-13)
 - [ ] **Phase 18: Local Auth (OSS default)** - Native email/password sign-in in memory-api, so a self-hoster needs NO external OAuth setup. **Runs BEFORE Phase 16** — execution order is 14 → 15 → 18 → 16 → 17; it is numbered 18 only to avoid renumbering 16/17.
 - [ ] **Phase 16: OSS Light Packaging** - Light compose + install docs + clean-install test on a fresh VM + standalone hosted web chat UI. (Per Q4 the web group-chat IS the product — and it does not exist yet: today the only working chat frontend is the Chrome extension.)
 - [ ] **Phase 17: CI Lockstep** - One pipeline builds/tests both profiles, publishes the OSS release and deploys SaaS from the same commit
@@ -498,11 +498,11 @@ Plans:
 
 **Plans**: 5 plans in 3 waves
 
-- [ ] 15-01-PLAN.md — Make the compose graph profile-safe: cut the 3 cross-profile `depends_on` edges (memory-api→neo4j, brain-janitor→neo4j, xbrain-backup→librechat-mongo) + promote/rename `langfuse-minio` → core `minio` (wave 1)
-- [ ] 15-02-PLAN.md — `EDITION` flag + explicit router gating in memory-api (33 core / 2 SaaS-only), fail-fast on unknown values, the `EDITION=oss` negative-case tests, and the `neo4j_outbox` guard keyed on the LIVE driver (`get_driver()`), not on static config — which is always truthy (wave 1, parallel)
-- [ ] 15-03-PLAN.md — Apply the profile table to all 32 services (10 untagged core / 14 `integrations` / 7 `saas` / 1 `ops`), asserted BY NAME, + wire `EDITION` through compose (wave 2)
-- [ ] 15-05-PLAN.md — Restore the boot-ordering guarantee that removing `depends_on: neo4j` destroyed: a bounded, non-blocking Neo4j reconnect so a cold `--profile integrations up` does not silently kill graph sync (wave 2, parallel)
-- [ ] 15-04-PLAN.md — `verify-phase15.sh`: the acceptance gate, asserted against real `docker compose` output and real running containers; + `preflight-env.sh` rejects `COMPOSE_PROFILES=saas` with `EDITION=oss` (wave 3)
+- [x] 15-01-PLAN.md — Make the compose graph profile-safe: cut the 3 cross-profile `depends_on` edges (memory-api→neo4j, brain-janitor→neo4j, xbrain-backup→librechat-mongo) + promote/rename `langfuse-minio` → core `minio` (wave 1)
+- [x] 15-02-PLAN.md — `EDITION` flag + explicit router gating in memory-api (33 core / 2 SaaS-only), fail-fast on unknown values, the `EDITION=oss` negative-case tests, and the `neo4j_outbox` guard keyed on the LIVE driver (`get_driver()`), not on static config — which is always truthy (wave 1, parallel)
+- [x] 15-03-PLAN.md — Apply the profile table to all 32 services (10 untagged core / 14 `integrations` / 7 `saas` / 1 `ops`), asserted BY NAME, + wire `EDITION` through compose (wave 2)
+- [x] 15-05-PLAN.md — Restore the boot-ordering guarantee that removing `depends_on: neo4j` destroyed: a bounded, non-blocking Neo4j reconnect so a cold `--profile integrations up` does not silently kill graph sync (wave 2, parallel)
+- [x] 15-04-PLAN.md — `verify-phase15.sh`: the acceptance gate, asserted against real `docker compose` output and real running containers; + `preflight-env.sh` rejects `COMPOSE_PROFILES=saas` with `EDITION=oss` (wave 3)
 
 **UI hint**: no (infra/backend gating — no new user-facing surface; existing frontends unaffected)
 
@@ -583,7 +583,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 11/11 | ✅ LIVE | 2026-05-17 (alembic 0019 head, memory-api rebuilt, verify-phase12.sh PASS 13/13 + 5 SKIP fixture, Firebase teams.js with new client_id Iv23liVnZvIN0Lo6isof live) |
 | 13. Chat → Brain Ingestion + Retrieval Enrichment | 8/8 | Complete   | 2026-05-27 |
 | 14. Portability Foundation | 8/8 | Complete    | 2026-07-12 |
-| 15. Edition Mechanics | 0/TBD | Not started | - |
+| 15. Edition Mechanics | 6/6 | Complete   | 2026-07-13 |
 | 16. OSS Light Packaging | 0/TBD | Not started | - |
 | 17. CI Lockstep | 0/TBD | Not started | - |
 
