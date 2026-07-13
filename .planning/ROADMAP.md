@@ -583,7 +583,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 12. GitHub App Migration — Public-Deployment-Ready Auth | 11/11 | ✅ LIVE | 2026-05-17 (alembic 0019 head, memory-api rebuilt, verify-phase12.sh PASS 13/13 + 5 SKIP fixture, Firebase teams.js with new client_id Iv23liVnZvIN0Lo6isof live) |
 | 13. Chat → Brain Ingestion + Retrieval Enrichment | 8/8 | Complete   | 2026-05-27 |
 | 14. Portability Foundation | 8/8 | Complete    | 2026-07-12 |
-| 15. Edition Mechanics | 6/6 | Complete   | 2026-07-13 |
+| 15. Edition Mechanics | 6/6 | Complete    | 2026-07-13 |
 | 16. OSS Light Packaging | 0/TBD | Not started | - |
 | 17. CI Lockstep | 0/TBD | Not started | - |
 

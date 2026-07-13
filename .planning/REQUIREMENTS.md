@@ -18,8 +18,8 @@ Active scope. One codebase, two runtime shapes (OSS self-host / SaaS hosted); a 
 
 ### Edition Mechanics
 
-- [ ] **EDIT-01**: An operator selects which services run via `COMPOSE_PROFILES` — untagged services are the OSS-light core; `integrations` / `saas` / `ops` are opt-in. (~~`pro`~~ removed 2026-07-12: Q6 dropped the paid tier, so there is nothing for a `pro` profile to unlock; Q5 already makes Neo4j opt-in-but-not-paywalled via `integrations`.)
-- [ ] **EDIT-02**: The same memory-api image serves every edition — an `EDITION` flag (`oss` | `saas`) gates the SaaS-only routers while brain, chat, retrieval, truth-levels, media and the ChatGPT-web connector stay always mounted. (~~`pro`~~ removed 2026-07-12 per Q6 — no product feature is paywalled, so no edition gates features behind payment. The SaaS-only set is `waitlist` + `external_sessions`: routers that are meaningless without the hosted control plane, not routers that are 'premium'.)
+- [x] **EDIT-01**: An operator selects which services run via `COMPOSE_PROFILES` — untagged services are the OSS-light core; `integrations` / `saas` / `ops` are opt-in. (~~`pro`~~ removed 2026-07-12: Q6 dropped the paid tier, so there is nothing for a `pro` profile to unlock; Q5 already makes Neo4j opt-in-but-not-paywalled via `integrations`.)
+- [x] **EDIT-02**: The same memory-api image serves every edition — an `EDITION` flag (`oss` | `saas`) gates the SaaS-only routers while brain, chat, retrieval, truth-levels, media and the ChatGPT-web connector stay always mounted. (~~`pro`~~ removed 2026-07-12 per Q6 — no product feature is paywalled, so no edition gates features behind payment. The SaaS-only set is `waitlist` + `external_sessions`: routers that are meaningless without the hosted control plane, not routers that are 'premium'.)
 - [~] **EDIT-03**: ~~A paying customer unlocks the `pro` profile by installing a signed Ed25519 license verified offline~~ — **DROPPED 2026-07-11** (no paid product tier; monetize hosted only)
 
 ### Local Auth (OSS default)
@@ -53,8 +53,8 @@ Mapping requirement -> phase for milestone v2.0 "Open-Core Edition". Filled by t
 |-------------|-------|--------|
 | PORT-01 | Phase 14 | Done (2026-07-12) |
 | PORT-02 | Phase 14 | Done (2026-07-12) |
-| EDIT-01 | Phase 15 | Pending |
-| EDIT-02 | Phase 15 | Pending |
+| EDIT-01 | Phase 15 | Done (2026-07-13) |
+| EDIT-02 | Phase 15 | Done (2026-07-13) |
 | EDIT-03 | ~~Phase 15~~ | DROPPED (Q6, 2026-07-11) |
 | LAUTH-01 | Phase 18 | Pending |
 | LAUTH-02 | Phase 18 | Pending |

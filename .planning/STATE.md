@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Open-Core Edition
-status: executing
-stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
-last_updated: "2026-07-12T12:58:09.321Z"
+status: in_progress
+stopped_at: Phase 15 SHIPPED. Next: Phase 18 (Local Auth). Execution order 14 -> 15 -> 18 -> 16 -> 17.
+last_updated: 2026-07-13T23:50:30.847Z
 last_activity: 2026-07-12 -- Phase 15 execution started
 progress:
   total_phases: 16
   completed_phases: 14
   total_plans: 124
-  completed_plans: 117
+  completed_plans: 123
   percent: 88
 ---
 
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 15 — edition-mechanics
+**Current focus:** Phase 15 (Edition Mechanics) SHIPPED + verified 5/5. Next: Phase 18 — Local Auth (email/password, OSS default). Milestone v2.0 is NOT complete: phases 18, 16, 17 remain.
 
 ## Current Position
 
-Phase: 15 (edition-mechanics) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 15
-Last activity: 2026-07-12 -- Phase 15 execution started
+Phase: 15
+Plan: Not started
+Status: Milestone complete
+Last activity: 2026-07-13
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 8
+- Total plans completed: 14
 - Average duration: —
 - Total execution time: —
 
