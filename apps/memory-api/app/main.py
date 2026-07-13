@@ -9,7 +9,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.neo4j_client import close_driver, init_driver
+from app.neo4j_client import close_driver, init_driver, reconnect_loop
 from app.outbox_worker import drain_outbox
 from app.qdrant_setup import ensure_collections
 from app.routes import (
@@ -69,20 +69,28 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.warning("qdrant_setup_skipped", err=str(e))
 
-    # Init Neo4j driver (graceful degrade if NEO4J_URI/NEO4J_PASSWORD not set)
+    # Init Neo4j driver (graceful degrade if NEO4J_URI/NEO4J_PASSWORD not set or unreachable)
     await init_driver()
+
+    # Phase 15: keep retrying in the BACKGROUND if that first attempt failed. memory-api no longer
+    # `depends_on` neo4j (Compose forbids an untagged service depending on a profile-tagged one), so on
+    # a cold `--profile integrations up` we can legitimately start before Neo4j is healthy. Bounded and
+    # non-blocking: /v1/healthz answers 200 throughout, and an OSS-light install gives up quietly.
+    _reconnect_task = asyncio.create_task(reconnect_loop())
 
     # Start outbox worker background task (drains neo4j_outbox every 2s)
     _outbox_task = asyncio.create_task(drain_outbox(settings.DATABASE_URL))
 
     yield
 
-    # Clean shutdown: cancel worker, then close Neo4j driver
+    # Clean shutdown: cancel workers, then close the Neo4j driver
+    _reconnect_task.cancel()
     _outbox_task.cancel()
-    try:
-        await _outbox_task
-    except asyncio.CancelledError:
-        pass
+    for _t in (_reconnect_task, _outbox_task):
+        try:
+            await _t
+        except asyncio.CancelledError:
+            pass
     await close_driver()
     log.info("memory_api_shutdown")
 
