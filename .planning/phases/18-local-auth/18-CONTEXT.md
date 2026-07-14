@@ -109,7 +109,7 @@ The "indistinguishable principal" is already imperfect for `xbt_` tokens today, 
 ### The schema
 - `apps/memory-api/alembic/versions/0001_initial.py:26-54` — `users`, `teams`, `team_members`. `users.email` has **no unique constraint** anywhere (confirmed across all migrations).
 - `apps/memory-api/alembic/versions/0009_crm_contacts.py:87-89` — the partial-unique-index pattern to copy if an email uniqueness guard is wanted.
-- Latest migration is 0023 — the new one is **0024** (corrected from an earlier 0021/0022 guess; verified 2026-07-13 by listing the versions dir).
+- Latest migration is 0023 — the new one is **0024_local_credentials**. Its `down_revision` MUST be the head's FULL revision string `"0023_tasks_source_connector"` — NOT `"0023"`. Since migration 0016 the `revision` id is the full filename stem, not the short number (verified 2026-07-13 by reading the `revision =` line inside 0023, not just the file listing — the exact mistake the research made).
 
 ### Boot / config (confirms a no-OAuth install is already clean)
 - `apps/memory-api/app/config.py:15,47-77` — `GOOGLE_CLIENT_ID`/`GITHUB_*` default to `""`/`0`, no validator. `:151-166` — `OAUTH_ISSUER_URL`/`OAUTH_RESOURCE_URL` DO fail-fast, but those are the MCP connector's AS vars, NOT social login. A clean install with no Google/GitHub set boots fine; only those two social-login *endpoints* 503 at request time.
