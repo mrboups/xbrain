@@ -27,7 +27,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 14: Portability Foundation** - De-hardcode `grooveos.app` / `aibrussels` / `default` team_scope into config; slim fillable OSS `.env.example`
  (completed 2026-07-12)
 - [x] **Phase 15: Edition Mechanics** - Compose `profiles:` + `EDITION` flag + router gating so one codebase serves oss/saas. (The Ed25519 license + paid `pro` tier was DROPPED by locked decision Q6 — no product feature is paywalled; only the hosted control plane stays closed.) (completed 2026-07-13)
-- [ ] **Phase 18: Local Auth (OSS default)** - Native email/password sign-in in memory-api, so a self-hoster needs NO external OAuth setup. **Runs BEFORE Phase 16** — execution order is 14 → 15 → 18 → 16 → 17; it is numbered 18 only to avoid renumbering 16/17.
+- [x] **Phase 18: Local Auth (OSS default)** - Native email/password sign-in in memory-api, so a self-hoster needs NO external OAuth setup. **Runs BEFORE Phase 16** — execution order is 14 → 15 → 18 → 16 → 17; it is numbered 18 only to avoid renumbering 16/17. (completed 2026-07-14)
 - [ ] **Phase 16: OSS Light Packaging** - Light compose + install docs + clean-install test on a fresh VM + standalone hosted web chat UI. (Per Q4 the web group-chat IS the product — and it does not exist yet: today the only working chat frontend is the Chrome extension.)
 - [ ] **Phase 17: CI Lockstep** - One pipeline builds/tests both profiles, publishes the OSS release and deploys SaaS from the same commit
 
@@ -531,7 +531,7 @@ Plans:
 - [x] 18-03-PLAN.md — Register + Login routes (single-commit, decoy-timed 401, DB lockout) + wire CORE router
 - [x] 18-04-PLAN.md — Authenticated set-password (convergence, D-18-05) + operator recovery runbook
 - [x] 18-05-PLAN.md — Auth UI: register / login / set-password screens (vanilla, English) + human verify
-- [ ] 18-06-PLAN.md — verify-phase18.sh acceptance gate (real Postgres, SKIP-as-FAIL) + docs/auth.html
+- [x] 18-06-PLAN.md — verify-phase18.sh acceptance gate (real Postgres, SKIP-as-FAIL) + docs/auth.html
 
 **Wave order**: 1 (18-01 + 18-02 parallel — disjoint files) -> 2 (18-03) -> 3 (18-04) -> 4 (18-05) -> 5 (18-06)
 **UI hint**: yes (registration + sign-in + password-change surface — new user-facing screens)
