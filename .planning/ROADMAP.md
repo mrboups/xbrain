@@ -526,11 +526,11 @@ Plans:
 
 **Plans**: 6 plans
 Plans:
-- [ ] 18-01-PLAN.md — Data layer: migration 0024 (local_credentials) + LOCAL_AUTH_* config + repo
-- [ ] 18-02-PLAN.md — Services: argon2-cffi + limits deps, password_hash (decoy) + rate_limit + shared xbt_ mint
-- [ ] 18-03-PLAN.md — Register + Login routes (single-commit, decoy-timed 401, DB lockout) + wire CORE router
-- [ ] 18-04-PLAN.md — Authenticated set-password (convergence, D-18-05) + operator recovery runbook
-- [ ] 18-05-PLAN.md — Auth UI: register / login / set-password screens (vanilla, English) + human verify
+- [x] 18-01-PLAN.md — Data layer: migration 0024 (local_credentials) + LOCAL_AUTH_* config + repo
+- [x] 18-02-PLAN.md — Services: argon2-cffi + limits deps, password_hash (decoy) + rate_limit + shared xbt_ mint
+- [x] 18-03-PLAN.md — Register + Login routes (single-commit, decoy-timed 401, DB lockout) + wire CORE router
+- [x] 18-04-PLAN.md — Authenticated set-password (convergence, D-18-05) + operator recovery runbook
+- [x] 18-05-PLAN.md — Auth UI: register / login / set-password screens (vanilla, English) + human verify
 - [ ] 18-06-PLAN.md — verify-phase18.sh acceptance gate (real Postgres, SKIP-as-FAIL) + docs/auth.html
 
 **Wave order**: 1 (18-01 + 18-02 parallel — disjoint files) -> 2 (18-03) -> 3 (18-04) -> 4 (18-05) -> 5 (18-06)
