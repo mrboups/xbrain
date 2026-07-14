@@ -534,6 +534,12 @@ a migration off something old.
 
 ## Open Questions
 
+> **RESOLVED during planning (2026-07-14).** These were settled by the Phase 18 plans; kept below as a
+> historical record, not open items:
+> - Q1 (locked-but-correct login response shape) -> generic 401 always, never 423 — settled in **18-03**.
+> - Q2 (lockout threshold/cooldown) -> 5 attempts / 15 minutes, env-overridable — settled in **18-01**.
+> - Q3 (set-password one endpoint vs two) -> one endpoint that branches (first-attach vs old-pw change) — settled in **18-04**.
+
 1. **Lockout HTTP status/response shape for a locked-but-correct-password login attempt**
    - What we know: D-18-06 requires "no user-enumeration oracle" and "same generic
      message" for login failures. Pitfall 3's Pattern 2 example applies this by
