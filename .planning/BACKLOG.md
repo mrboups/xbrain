@@ -183,3 +183,23 @@ For a `kind="user_api_token"` principal — which is **every extension user afte
 **Fix:** one line — gate on `principal.get("user")` being truthy rather than strict `kind == "user"`, so `user_api_token` (which has a fully-populated `user`) also gets its `owner_filter`. Then add a regression test: two members of the same team, each `xbt_`-authenticated, must NOT see each other's conversations.
 
 **Adjacent (same class, from the same audit):** several routes strictly gate `principal["kind"] == "user"` and 403 a valid `user_api_token` (`me.py:76-83`, `audit.py:34`, `promotions.py:58-63`). Lower severity (over-restrictive, not a leak), but worth a sweep in the same pass.
+
+---
+
+## test_phase10_auth.py — 6 pre-existing failures from stale Phase-12 fixtures
+
+**Found:** 2026-07-13, by the Phase 18 code review + gate build. NOT Phase 18's — logged for a dedicated pass.
+
+The Phase 18 fix already cleared ONE of the original 7 failures (the real `merge.py`
+`memory_promotions`→`promotions` table-name bug, which WAS a live production 500 on GitHub-signin
+convergence — fixed in commit d2b6621 because Phase 18's local auth made it reachable). The remaining
+**6** failures in `apps/memory-api/tests/test_phase10_auth.py` are test-fixture staleness from the
+Phase 12 GitHub App migration, not product bugs:
+- the fixture sets `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` (the pre-Phase-12 OAuth App vars) instead
+  of the post-Phase-12 `GITHUB_APP_CLIENT_ID`/`GITHUB_APP_CLIENT_SECRET`;
+- that same fixture's mocked token-exchange response body omits the `refresh_token` field the Phase 12
+  rewrite now requires.
+
+Both are in Phase-10/12-vintage test files this session's phases must not touch (scope boundary).
+Fix = update the fixture to the Phase-12 var names + add the refresh_token to the mock. Small, but its
+own pass. They have been part of the "57 failed" pre-existing baseline all along.
