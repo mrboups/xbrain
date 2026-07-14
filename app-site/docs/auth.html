@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="How signing in with GitHub works on GrooveOS — the xbrain GitHub App, installing it on your org, refresh tokens, and auto-joining teams." />
+  <meta name="description" content="How signing in works on GrooveOS — native email/password with zero setup, the xbrain GitHub App, installing it on your org, refresh tokens, and auto-joining teams." />
   <title>Authentication — GrooveOS Docs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -114,6 +114,7 @@
     </div>
     <div class="sidebar__section">
       <div class="sidebar__group-label">On this page</div>
+      <a href="#local-auth" class="sidebar__link">Local (email + password)</a>
       <a href="#sign-in" class="sidebar__link">Sign in with GitHub</a>
       <a href="#install-org" class="sidebar__link">Installing on your org</a>
       <a href="#auto-join" class="sidebar__link">Auto-join via GitHub org</a>
@@ -136,17 +137,138 @@
 
     <div class="docs-meta">
       <span class="docs-meta__badge">Guide</span>
-      <span>6 min read</span>
-      <span>Updated May 2026</span>
+      <span>8 min read</span>
+      <span>Updated July 2026</span>
     </div>
 
     <p>
-      GrooveOS signs you in with <strong>GitHub</strong>. The same "Sign in with
-      GitHub" button works on the web app at
+      GrooveOS supports two ways to sign in: a native
+      <strong>email + password</strong> login that works out of the box with
+      zero setup (see <a href="#local-auth">Local (email + password)</a>
+      below), and <strong>Sign in with GitHub</strong>, which additionally
+      auto-joins you to a team based on your GitHub org membership. The same
+      "Sign in with GitHub" button works on the web app at
       <a href="https://grooveos.app/account/teams/" target="_blank" rel="noopener">grooveos.app</a>,
-      in the Chrome extension popup, and in any other GrooveOS surface — they all
-      share the same identity. There is no password to manage.
+      in the Chrome extension popup, and in any other GrooveOS surface — they
+      all share the same identity, and both sign-in methods produce the
+      identical <code>xbt_</code> session token described in
+      <a href="#tokens">Tokens &amp; refresh</a> below.
     </p>
+
+    <h2 id="local-auth">Local (email + password)</h2>
+
+    <p>
+      You don't have to connect GitHub or Google. GrooveOS ships a native
+      email + password login that works with <strong>zero external OAuth
+      setup</strong> — no Google Cloud project, no GitHub App, no callback
+      URLs. This is what lets a fresh self-hosted install work the moment it
+      boots, before you've configured any identity provider: create the first
+      account straight from the app.
+    </p>
+
+    <ol>
+      <li>Go to <a href="https://grooveos.app/account/register/" target="_blank" rel="noopener">grooveos.app/account/register/</a> (or your own deployment's <code>/account/register/</code>).</li>
+      <li>Enter an email and a password (at least 10 characters).</li>
+      <li>You're signed in immediately — no confirmation email, no consent screen.</li>
+    </ol>
+
+    <p>
+      Already have an account? Sign in at
+      <a href="https://grooveos.app/account/login/" target="_blank" rel="noopener">grooveos.app/account/login/</a>.
+    </p>
+
+    <h3>The three endpoints</h3>
+
+    <table class="docs-table">
+      <thead>
+        <tr><th>Endpoint</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>POST /v1/auth/local/register</code></td>
+          <td>
+            Create a brand-new account from an email + password. Returns
+            <code>409</code> if that email already has an account, by any
+            method — sign in with the existing method instead, then attach a
+            password (below). No new account is ever created on top of an
+            existing email.
+          </td>
+        </tr>
+        <tr>
+          <td><code>POST /v1/auth/local/login</code></td>
+          <td>
+            Exchange email + password for an <code>xbt_</code> session token.
+            Repeated wrong-password attempts lock the account for a short
+            cooldown. A wrong password and a nonexistent email deliberately
+            produce the exact same response, so a failed login never reveals
+            whether an email is registered.
+          </td>
+        </tr>
+        <tr>
+          <td><code>POST /v1/auth/local/set-password</code></td>
+          <td>
+            Authenticated endpoint — attach or change a password on
+            <strong>your own, already signed-in</strong> account. This is how
+            a GitHub or Google user adds a local password to their existing
+            account (see <a href="#converged">One account, two ways in</a>
+            below), and how you change an existing local password.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout--info" data-label="// same session as GitHub">
+      <p class="callout__title">Local sign-in authorizes exactly like GitHub sign-in</p>
+      <p>
+        Local login mints the <strong>same <code>xbt_</code> token</strong>
+        described in <a href="#tokens">Tokens &amp; refresh</a> below — the
+        identical opaque, revocable API token every other GrooveOS sign-in
+        method produces. There is no separate "local session" concept: once
+        you're signed in, a local-auth account is indistinguishable from a
+        GitHub or Google one to every GrooveOS API and surface.
+      </p>
+    </div>
+
+    <h3 id="converged">One account, two ways in</h3>
+
+    <p>
+      If you already sign in with GitHub or Google, you can add a password to
+      that <strong>same account</strong> from your account settings — this is
+      how GrooveOS converges identities. Because attaching a password requires
+      you to already be signed in, it's safe: an attacker who merely knows
+      your email cannot register a competing account and hijack yours — a
+      cold <code>register</code> against an email that already has an account
+      is always rejected with <code>409</code>, no exceptions. Attaching a
+      password is proven by your live session, never by anything sent in the
+      request.
+    </p>
+
+    <h3>Password recovery — no email reset</h3>
+
+    <p>
+      There is <strong>no "forgot password" email link</strong>, and there
+      isn't meant to be: a reset-by-email flow needs an outbound SMTP server,
+      which an out-of-the-box self-hosted install should not require. If
+      you're locked out or forgot your password, recovery is a documented
+      operator action against the database —
+      <a href="https://github.com/mrboups/xbrain/blob/main/docs/local-auth-recovery.md" target="_blank" rel="noopener">the local-auth recovery runbook</a>
+      walks through both cases step by step. If your deployment also has
+      GitHub or Google configured, the fastest recovery is simply to sign in
+      with that instead and re-attach a password from account settings.
+    </p>
+
+    <h3>GitHub and Google remain available — this is a default, not a replacement</h3>
+
+    <p>
+      None of this changes how <a href="#sign-in">Sign in with GitHub</a>
+      (documented next) works, and Google sign-in (used by the Chrome
+      extension) is unaffected too. Local email/password is the
+      zero-configuration default that lets a fresh self-hosted install work
+      before any OAuth App is set up — GitHub and Google stay fully available,
+      unchanged, and <strong>optional</strong> on top of it.
+    </p>
+
+    <h2 id="sign-in">Sign in with GitHub</h2>
 
     <p>
       Behind the scenes GrooveOS uses a <strong>GitHub App</strong> (the modern
@@ -154,8 +276,6 @@
       installed on your GitHub organization once, which then lets any org member
       join your GrooveOS team automatically — no manual invites needed.
     </p>
-
-    <h2 id="sign-in">Sign in with GitHub</h2>
 
     <p>The basic flow is the same everywhere:</p>
 
