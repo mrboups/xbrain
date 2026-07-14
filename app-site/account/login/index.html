@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in — GrooveOS</title>
+  <meta name="description" content="Sign in to your xbrain account with an email and password." />
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --bg:        #0D1117;
+      --bg-2:      #161B22;
+      --bg-3:      #21262D;
+      --text:      #E6EDF3;
+      --muted:     #8B949E;
+      --dim:       #6E7681;
+      --accent:    #22D3EE;
+      --accent-bg: rgba(34, 211, 238, 0.12);
+      --accent-2:  #06B6D4;
+      --green:     #3FB950;
+      --green-bg:  rgba(63, 185, 80, 0.12);
+      --red:       #F85149;
+      --red-bg:    rgba(248, 81, 73, 0.12);
+      --border:    #30363D;
+      --border-2:  #444C56;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13.5px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .wrap {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    .hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+    .hdr__brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .hdr__brand .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(34,211,238,0.2);
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 28px;
+      line-height: 1.55;
+    }
+
+    .card {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 22px;
+      margin-bottom: 16px;
+    }
+
+    .field { margin-bottom: 16px; }
+    .field label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .field input {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border-2);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: 13.5px;
+      outline: none;
+    }
+    .field input:focus { border-color: var(--accent); }
+    .field .hint { font-size: 11px; color: var(--dim); margin-top: 6px; }
+
+    .btn {
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: 1px solid var(--border-2);
+      background: var(--bg-3);
+      color: var(--text);
+    }
+    .btn:hover { background: var(--bg-2); border-color: var(--accent); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg);
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: var(--accent-2); border-color: var(--accent-2); color: var(--bg); }
+    .btn-block { width: 100%; margin-top: 4px; }
+
+    .auth-banner {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-top: 14px;
+      font-size: 12.5px;
+      color: var(--muted);
+      background: var(--bg-3);
+    }
+    .auth-banner.is-ok { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+    .auth-banner.is-error { border-color: var(--red); color: var(--red); background: var(--red-bg); }
+
+    .success-card h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--green);
+    }
+    .success-card p { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+
+    .footnote {
+      font-size: 12.5px;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    .footer {
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--dim);
+      text-align: center;
+    }
+
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hdr">
+      <div class="hdr__brand">
+        <span class="dot" aria-hidden="true"></span>
+        GrooveOS
+      </div>
+    </header>
+
+    <h1>Sign in</h1>
+    <p class="subtitle">
+      Sign in with your email and password.
+    </p>
+
+    <div class="card">
+      <form id="login-form">
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="current-password" required />
+        </div>
+        <button type="submit" id="submit-btn" class="btn btn-primary btn-block">Sign in</button>
+      </form>
+      <div id="form-banner" class="auth-banner" hidden>
+        <span id="form-banner-msg">&mdash;</span>
+      </div>
+    </div>
+
+    <div id="success-card" class="card success-card" hidden>
+      <h3>Signed in</h3>
+      <p>Welcome back, <strong id="success-email">&mdash;</strong>.</p>
+      <a href="/account/teams/" class="btn btn-primary">Go to Teams</a>
+    </div>
+
+    <p class="footnote">
+      No account yet? <a href="/account/register/">Create one</a>
+    </p>
+
+    <footer class="footer">
+      xbrain · memory layer for hybrid teams ·
+      <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener">github</a>
+    </footer>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    // Hardcoded API base — SAME pattern as every other account page
+    // (teams.js:32, admin.js:30, wipe.js:16, brain.js:32). app-site is Firebase
+    // Hosting and memory-api is a different origin, so this must stay absolute.
+    // app-site debranding (grooveos.app hardcode) is a Phase 16-owned item —
+    // NOT touched here (Phase 14 D-01c).
+    const MEMORY_API_BASE = "https://api.grooveos.app";
+
+    // Canonical localStorage keys — SAME keys teams.js / admin.js use.
+    const STORAGE_TOKEN = "xbt_token";
+    const STORAGE_EMAIL = "user_sub";
+
+    // Client-side-only heuristic (18-RESEARCH.md Open Question 1, resolved in
+    // Plan 03): after a few failed attempts, show a soft cooldown hint WITHOUT
+    // the server ever confirming whether the account exists. The server
+    // response itself stays a byte-identical generic 401 in every case.
+    const SOFT_COOLDOWN_THRESHOLD = 3;
+    let failedAttempts = 0;
+
+    const form = document.getElementById("login-form");
+    const emailInput = document.getElementById("email");
+    const passwordInput = document.getElementById("password");
+    const submitBtn = document.getElementById("submit-btn");
+    const banner = document.getElementById("form-banner");
+    const bannerMsg = document.getElementById("form-banner-msg");
+    const successCard = document.getElementById("success-card");
+    const successEmail = document.getElementById("success-email");
+
+    function setBanner(msg, type) {
+      if (!msg) {
+        banner.hidden = true;
+        bannerMsg.textContent = "";
+        return;
+      }
+      bannerMsg.textContent = msg;
+      banner.className = "auth-banner" + (type ? " is-" + type : "");
+      banner.hidden = false;
+    }
+
+    async function readDetail(r) {
+      try {
+        const data = await r.json();
+        if (typeof data.detail === "string") return data.detail;
+        if (Array.isArray(data.detail)) {
+          return data.detail.map(function (d) { return d.msg || JSON.stringify(d); }).join(" ");
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    }
+
+    window.addEventListener("load", function () {
+      if (localStorage.getItem(STORAGE_TOKEN)) {
+        form.hidden = true;
+        successEmail.textContent = localStorage.getItem(STORAGE_EMAIL) || "your account";
+        successCard.hidden = false;
+      }
+    });
+
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      setBanner(null);
+
+      const email = emailInput.value.trim().toLowerCase();
+      const password = passwordInput.value;
+
+      if (!email || !password) {
+        setBanner("Enter your email and password.", "error");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      setBanner("Signing in…");
+
+      try {
+        const r = await fetch(MEMORY_API_BASE + "/v1/auth/local/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email, password: password }),
+        });
+
+        if (r.status === 200) {
+          const data = await r.json();
+          localStorage.setItem(STORAGE_TOKEN, data.xbt_token);
+          const userEmail = (data.user && data.user.email) || email;
+          localStorage.setItem(STORAGE_EMAIL, userEmail);
+          failedAttempts = 0;
+          setBanner(null);
+          form.hidden = true;
+          successEmail.textContent = userEmail;
+          successCard.hidden = false;
+          return;
+        }
+
+        const detail = await readDetail(r);
+        if (r.status === 401) {
+          // Always the server's generic message — never a distinct copy for
+          // "account not found" vs "wrong password" vs "locked" (that would
+          // be a user-enumeration oracle). The cooldown hint below is purely
+          // client-side and never asserts the account exists.
+          failedAttempts += 1;
+          let msg = detail || "Invalid email or password.";
+          if (failedAttempts >= SOFT_COOLDOWN_THRESHOLD) {
+            msg += " If this is your account, wait a few minutes and try again.";
+          }
+          setBanner(msg, "error");
+        } else if (r.status === 429) {
+          setBanner(detail || "Too many attempts — try again shortly.", "error");
+        } else {
+          setBanner(detail || ("Sign-in failed (HTTP " + r.status + ")."), "error");
+        }
+      } catch (err) {
+        setBanner("Network error — could not reach the server. " + (err && err.message ? err.message : ""), "error");
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Change password — GrooveOS</title>
+  <meta name="description" content="Set or change the password on your xbrain account." />
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --bg:        #0D1117;
+      --bg-2:      #161B22;
+      --bg-3:      #21262D;
+      --text:      #E6EDF3;
+      --muted:     #8B949E;
+      --dim:       #6E7681;
+      --accent:    #22D3EE;
+      --accent-bg: rgba(34, 211, 238, 0.12);
+      --accent-2:  #06B6D4;
+      --green:     #3FB950;
+      --green-bg:  rgba(63, 185, 80, 0.12);
+      --red:       #F85149;
+      --red-bg:    rgba(248, 81, 73, 0.12);
+      --border:    #30363D;
+      --border-2:  #444C56;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13.5px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .wrap {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    .hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+    .hdr__brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .hdr__brand .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(34,211,238,0.2);
+    }
+    .hdr__user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 28px;
+      line-height: 1.55;
+    }
+
+    .card {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 22px;
+      margin-bottom: 16px;
+    }
+
+    .field { margin-bottom: 16px; }
+    .field label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .field input {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border-2);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: 13.5px;
+      outline: none;
+    }
+    .field input:focus { border-color: var(--accent); }
+    .field .hint { font-size: 11px; color: var(--dim); margin-top: 6px; }
+
+    .btn {
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: 1px solid var(--border-2);
+      background: var(--bg-3);
+      color: var(--text);
+    }
+    .btn:hover { background: var(--bg-2); border-color: var(--accent); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg);
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: var(--accent-2); border-color: var(--accent-2); color: var(--bg); }
+    .btn-block { width: 100%; margin-top: 4px; }
+
+    .auth-banner {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-top: 14px;
+      font-size: 12.5px;
+      color: var(--muted);
+      background: var(--bg-3);
+    }
+    .auth-banner.is-ok { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+    .auth-banner.is-error { border-color: var(--red); color: var(--red); background: var(--red-bg); }
+
+    .signed-out-card { text-align: center; padding: 32px 24px; }
+    .signed-out-card h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .signed-out-card p { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+
+    .footnote {
+      font-size: 12.5px;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    .footer {
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--dim);
+      text-align: center;
+    }
+
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hdr">
+      <div class="hdr__brand">
+        <span class="dot" aria-hidden="true"></span>
+        GrooveOS
+      </div>
+      <div class="hdr__user" id="hdr-user" hidden>
+        <span id="hdr-email">&mdash;</span>
+      </div>
+    </header>
+
+    <h1>Change password</h1>
+    <p class="subtitle">
+      Set a password on your account, or change your existing one.
+    </p>
+
+    <div id="signed-out-card" class="card signed-out-card" hidden>
+      <h3>You need to sign in first</h3>
+      <p>Changing a password requires an active session.</p>
+      <a href="/account/login/" class="btn btn-primary">Sign in</a>
+    </div>
+
+    <div class="card">
+      <form id="password-form">
+        <div class="field">
+          <label for="old-password">Current password</label>
+          <input type="password" id="old-password" name="old-password" autocomplete="current-password" />
+          <p class="hint">Leave blank only if your account has never had a password (e.g. GitHub/Google-only accounts).</p>
+        </div>
+        <div class="field">
+          <label for="new-password">New password</label>
+          <input type="password" id="new-password" name="new-password" autocomplete="new-password" required />
+          <p class="hint">At least 10 characters.</p>
+        </div>
+        <button type="submit" id="submit-btn" class="btn btn-primary btn-block">Update password</button>
+      </form>
+      <div id="form-banner" class="auth-banner" hidden>
+        <span id="form-banner-msg">&mdash;</span>
+      </div>
+    </div>
+
+    <p class="footnote">
+      <a href="/account/teams/">Back to Teams</a>
+    </p>
+
+    <footer class="footer">
+      xbrain · memory layer for hybrid teams ·
+      <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener">github</a>
+    </footer>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    // Hardcoded API base — SAME pattern as every other account page
+    // (teams.js:32, admin.js:30, wipe.js:16, brain.js:32). app-site is Firebase
+    // Hosting and memory-api is a different origin, so this must stay absolute.
+    // app-site debranding (grooveos.app hardcode) is a Phase 16-owned item —
+    // NOT touched here (Phase 14 D-01c).
+    const MEMORY_API_BASE = "https://api.grooveos.app";
+
+    // Canonical localStorage keys — SAME keys teams.js / admin.js use.
+    const STORAGE_TOKEN = "xbt_token";
+    const STORAGE_EMAIL = "user_sub";
+
+    const MIN_PASSWORD_LENGTH = 10;
+
+    const hdrUser = document.getElementById("hdr-user");
+    const hdrEmail = document.getElementById("hdr-email");
+    const signedOutCard = document.getElementById("signed-out-card");
+    const form = document.getElementById("password-form");
+    const oldPasswordInput = document.getElementById("old-password");
+    const newPasswordInput = document.getElementById("new-password");
+    const submitBtn = document.getElementById("submit-btn");
+    const banner = document.getElementById("form-banner");
+    const bannerMsg = document.getElementById("form-banner-msg");
+
+    function setBanner(msg, type) {
+      if (!msg) {
+        banner.hidden = true;
+        bannerMsg.textContent = "";
+        return;
+      }
+      bannerMsg.textContent = msg;
+      banner.className = "auth-banner" + (type ? " is-" + type : "");
+      banner.hidden = false;
+    }
+
+    function showSignedOut() {
+      form.hidden = true;
+      hdrUser.hidden = true;
+      signedOutCard.hidden = false;
+    }
+
+    async function readDetail(r) {
+      try {
+        const data = await r.json();
+        if (typeof data.detail === "string") return data.detail;
+        if (Array.isArray(data.detail)) {
+          return data.detail.map(function (d) { return d.msg || JSON.stringify(d); }).join(" ");
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    }
+
+    window.addEventListener("load", function () {
+      const token = localStorage.getItem(STORAGE_TOKEN);
+      if (!token) {
+        showSignedOut();
+        return;
+      }
+      hdrUser.hidden = false;
+      hdrEmail.textContent = localStorage.getItem(STORAGE_EMAIL) || "signed in";
+    });
+
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      setBanner(null);
+
+      const token = localStorage.getItem(STORAGE_TOKEN);
+      if (!token) {
+        showSignedOut();
+        return;
+      }
+
+      const newPassword = newPasswordInput.value;
+      const oldPassword = oldPasswordInput.value;
+
+      if (newPassword.length < MIN_PASSWORD_LENGTH) {
+        setBanner("New password must be at least " + MIN_PASSWORD_LENGTH + " characters.", "error");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      setBanner("Updating password…");
+
+      const body = { new_password: newPassword };
+      if (oldPassword) body.old_password = oldPassword;
+
+      try {
+        const r = await fetch(MEMORY_API_BASE + "/v1/auth/local/set-password", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (r.status === 200) {
+          setBanner("Password updated.", "ok");
+          oldPasswordInput.value = "";
+          newPasswordInput.value = "";
+          return;
+        }
+
+        if (r.status === 401) {
+          localStorage.removeItem(STORAGE_TOKEN);
+          setBanner(null);
+          showSignedOut();
+          return;
+        }
+
+        const detail = await readDetail(r);
+        if (r.status === 400) {
+          setBanner(detail || "Current password is incorrect.", "error");
+        } else if (r.status === 422) {
+          setBanner(detail || ("New password must be at least " + MIN_PASSWORD_LENGTH + " characters."), "error");
+        } else if (r.status === 403) {
+          setBanner(detail || "User authentication required.", "error");
+        } else {
+          setBanner(detail || ("Update failed (HTTP " + r.status + ")."), "error");
+        }
+      } catch (err) {
+        setBanner("Network error — could not reach the server. " + (err && err.message ? err.message : ""), "error");
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  })();
+  </script>
+</body>
+</html>
