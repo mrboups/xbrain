@@ -27,6 +27,7 @@ Does NOT touch app/deps.py or app/routes/auth_github.py (SC#4).
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 import structlog
@@ -41,19 +42,25 @@ from app.repos import local_credentials as local_credentials_repo
 from app.repos import teams as teams_repo
 from app.repos import users as users_repo
 from app.services.api_tokens import mint_xbt_for_user
-from app.services.password_hash import hash_password
+from app.services.password_hash import (
+    hash_password,
+    needs_rehash,
+    verify_decoy,
+    verify_password,
+)
 from app.services.rate_limit import enforce_rate_limit
 
 router = APIRouter()
 log = structlog.get_logger(__name__)
 
 # Single literal message reused across absent/locked/wrong-password branches
-# (Task 2, login) — any divergence there is a user-enumeration oracle
+# (login, below) — any divergence there is a user-enumeration oracle
 # (T-18-03-02). Defined here so both routes stay in one shared vocabulary.
 _EXISTING_EMAIL_ERROR = (
     "This email already has an account — sign in with your existing method, "
     "then add a password in settings."
 )
+_GENERIC_LOGIN_ERROR = "Invalid email or password."
 
 
 class RegisterBody(BaseModel):
@@ -61,6 +68,11 @@ class RegisterBody(BaseModel):
     password: str = Field(
         min_length=settings.LOCAL_AUTH_MIN_PASSWORD_LENGTH, max_length=1024
     )
+
+
+class LoginBody(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=1024)
 
 
 class AuthOut(BaseModel):
@@ -71,6 +83,10 @@ class AuthOut(BaseModel):
 
 async def _rl_register(request: Request) -> None:
     await enforce_rate_limit(request, settings.LOCAL_AUTH_RATE_LIMIT, "auth_local_register")
+
+
+async def _rl_login(request: Request) -> None:
+    await enforce_rate_limit(request, settings.LOCAL_AUTH_RATE_LIMIT, "auth_local_login")
 
 
 @router.post(
@@ -130,4 +146,45 @@ async def register(
     )
 
 
-# POST /auth/local/login is added in Task 2 (decoy-timed lockout).
+@router.post(
+    "/auth/local/login",
+    response_model=AuthOut,
+    dependencies=[Depends(_rl_login)],
+)
+async def login(
+    body: LoginBody, session: AsyncSession = Depends(get_session)
+) -> AuthOut:
+    email = body.email.strip().lower()
+    row = await local_credentials_repo.get_by_email(session, email)
+
+    if row is None:
+        # Absent account — decoy verify equalizes timing, then the SAME
+        # generic 401 as every other short-circuit branch below.
+        verify_decoy(body.password)
+        raise HTTPException(401, _GENERIC_LOGIN_ERROR)
+
+    if row["locked_until"] is not None and row["locked_until"] > datetime.now(
+        tz=timezone.utc
+    ):
+        # Locked — MUST return the identical generic 401, never a distinct
+        # "locked" status code or message (that would be a second oracle).
+        verify_decoy(body.password)
+        raise HTTPException(401, _GENERIC_LOGIN_ERROR)
+
+    if not verify_password(row["password_hash"], body.password):
+        await local_credentials_repo.record_failure(session, row["user_id"])
+        await session.commit()
+        raise HTTPException(401, _GENERIC_LOGIN_ERROR)
+
+    await local_credentials_repo.reset_failures(session, row["user_id"])
+    if needs_rehash(row["password_hash"]):
+        await local_credentials_repo.update_hash(
+            session, row["user_id"], hash_password(body.password)
+        )
+
+    user = await users_repo.get_user_by_id(session, row["user_id"])
+    xbt = await mint_xbt_for_user(session, row["user_id"], name="local-login")
+    await session.commit()
+
+    log.info("auth.local.login.ok", user_id=str(row["user_id"]))
+    return AuthOut(xbt_token=xbt, user={"id": str(user.id), "email": user.email})

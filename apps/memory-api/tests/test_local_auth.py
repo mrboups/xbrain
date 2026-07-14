@@ -16,6 +16,7 @@ concurrent-duplicate-credential 409. Task 2 extends this file with login.
 from __future__ import annotations
 
 import subprocess
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import sqlalchemy as sa
@@ -27,6 +28,21 @@ pytestmark = pytest.mark.integration
 # module-level `pytestmark` because the file also has a plain sync test
 # (test_deps_and_auth_github_untouched) that would otherwise trip pytest-
 # asyncio's "marked with asyncio but not an async function" warning.
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """`app.services.rate_limit` uses a module-level, process-wide
+    MemoryStorage (by design — see its docstring) so every test in this
+    process shares ONE budget. Several tests here (lockout, e2e loop) issue
+    many register/login calls in a row and would otherwise trip
+    LOCAL_AUTH_RATE_LIMIT purely from test-suite cross-talk, not from the
+    scenario under test. Reset the bucket before each test so rate-limit
+    exhaustion is never an artifact of test ordering."""
+    from app.services import rate_limit as rate_limit_module
+
+    rate_limit_module._storage.reset()
+    yield
 
 
 # ── 1. register ───────────────────────────────────────────────────────
@@ -180,6 +196,151 @@ async def test_register_short_password_422(client, session):
         )
     ).scalar_one()
     assert row == 0
+
+
+# ── 2. login ───────────────────────────────────────────────────────────
+
+async def test_login_success(client):
+    reg = await client.post(
+        "/v1/auth/local/register",
+        json={"email": "logintest@x.io", "password": "correcthorse9"},
+    )
+    assert reg.status_code == 200, reg.text
+
+    r = await client.post(
+        "/v1/auth/local/login",
+        json={"email": "logintest@x.io", "password": "correcthorse9"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["xbt_token"].startswith("xbt_")
+
+
+async def test_no_enumeration_oracle(client):
+    """login(absent email) and login(wrong password) must be byte-identical
+    (T-18-03-02) — a locked account must ALSO return this same generic 401,
+    checked separately in test_lockout_then_recovery."""
+    await client.post(
+        "/v1/auth/local/register",
+        json={"email": "enumtarget@x.io", "password": "correcthorse9"},
+    )
+
+    resp_absent = await client.post(
+        "/v1/auth/local/login",
+        json={"email": "absent-nobody@x.io", "password": "whatever123"},
+    )
+    resp_wrongpw = await client.post(
+        "/v1/auth/local/login",
+        json={"email": "enumtarget@x.io", "password": "wrongpassword1"},
+    )
+
+    assert resp_absent.status_code == 401
+    assert resp_wrongpw.status_code == 401
+    assert resp_absent.status_code == resp_wrongpw.status_code
+    assert resp_absent.json() == resp_wrongpw.json()
+
+
+async def test_lockout_then_recovery(client, session):
+    """SC#6 — N consecutive failures lock the account; the correct password
+    is refused (SAME generic 401, not a distinct 'locked' response) while
+    locked; after locked_until passes, the correct password works again and
+    failed_attempts resets to 0."""
+    from app.config import settings
+
+    reg = await client.post(
+        "/v1/auth/local/register",
+        json={"email": "lockout@x.io", "password": "correcthorse9"},
+    )
+    assert reg.status_code == 200, reg.text
+    user_id = reg.json()["user"]["id"]
+
+    last_resp = None
+    for _ in range(settings.LOCAL_AUTH_MAX_FAILED_ATTEMPTS):
+        last_resp = await client.post(
+            "/v1/auth/local/login",
+            json={"email": "lockout@x.io", "password": "wrongpassword1"},
+        )
+        assert last_resp.status_code == 401, last_resp.text
+
+    row = (
+        await session.execute(
+            sa.text(
+                "SELECT locked_until, failed_attempts FROM local_credentials "
+                "WHERE user_id = :uid"
+            ),
+            {"uid": user_id},
+        )
+    ).mappings().first()
+    assert row["locked_until"] is not None
+    assert row["locked_until"] > datetime.now(tz=timezone.utc)
+
+    # Correct password still refused while locked — SAME generic 401 (never a
+    # distinct "locked" status/message — that would be a second oracle).
+    still_locked = await client.post(
+        "/v1/auth/local/login",
+        json={"email": "lockout@x.io", "password": "correcthorse9"},
+    )
+    assert still_locked.status_code == 401
+    assert still_locked.json() == last_resp.json()
+
+    # Force the lock window into the past.
+    await session.execute(
+        sa.text(
+            "UPDATE local_credentials SET locked_until = :past WHERE user_id = :uid"
+        ),
+        {"past": datetime.now(tz=timezone.utc) - timedelta(minutes=1), "uid": user_id},
+    )
+    await session.commit()
+
+    recovered = await client.post(
+        "/v1/auth/local/login",
+        json={"email": "lockout@x.io", "password": "correcthorse9"},
+    )
+    assert recovered.status_code == 200, recovered.text
+
+    row_after = (
+        await session.execute(
+            sa.text("SELECT failed_attempts FROM local_credentials WHERE user_id = :uid"),
+            {"uid": user_id},
+        )
+    ).mappings().first()
+    assert row_after["failed_attempts"] == 0
+
+
+# ── 3. SC#1 end-to-end (zero social OAuth) ──────────────────────────────
+
+async def test_clean_boot_no_oauth_e2e(client, monkeypatch):
+    """The whole point of the phase: register -> login -> authorized request
+    succeeds with GOOGLE_CLIENT_ID / GITHUB_APP_CLIENT_ID / GITHUB_CLIENT_ID
+    all blanked (no social OAuth configured). OAUTH_ISSUER_URL/
+    OAUTH_RESOURCE_URL are the unrelated MCP-connector AS vars and are left
+    alone — SC#1 is about social login, not the connector."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "")
+    monkeypatch.setattr(settings, "GITHUB_APP_CLIENT_ID", "")
+    monkeypatch.setattr(settings, "GITHUB_CLIENT_ID", "")
+
+    reg = await client.post(
+        "/v1/auth/local/register",
+        json={"email": "cleanboot@x.io", "password": "correcthorse9"},
+    )
+    assert reg.status_code == 200, reg.text
+
+    login_r = await client.post(
+        "/v1/auth/local/login",
+        json={"email": "cleanboot@x.io", "password": "correcthorse9"},
+    )
+    assert login_r.status_code == 200, login_r.text
+    body = login_r.json()
+
+    tasks_r = await client.get(
+        "/v1/tasks",
+        headers={
+            "Authorization": f"Bearer {body['xbt_token']}",
+            "X-Team-Scope": reg.json()["team_scope"],
+        },
+    )
+    assert tasks_r.status_code == 200, tasks_r.text
 
 
 # ── 4. SC#4 safety — untouched files ────────────────────────────────────
