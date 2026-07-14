@@ -294,3 +294,55 @@ async def test_set_password_requires_authentication(client):
     # entirely absent (not a 401) — either way, no set-password succeeded
     # unauthenticated. Assert explicitly it did NOT succeed.
     assert r.status_code != 200
+
+
+# ── 6. set-password honors the DB lockout (code-review CR-1) ─────────────
+async def test_set_password_wrong_old_engages_lockout(client, session):
+    """The change branch's old-password check is a password-guessing oracle for
+    anyone holding a stolen xbt_. It MUST engage the same DB-backed lockout as
+    login — otherwise set-password is an unthrottled brute-force bypass of the
+    5-attempt lockout the phase built. Proven against the real table."""
+    import sqlalchemy as sa
+    from datetime import datetime, timezone
+    from app.config import settings
+
+    reg = await client.post(
+        "/v1/auth/local/register",
+        json={"email": "splock@x.io", "password": "correcthorse9"},
+    )
+    assert reg.status_code == 200, reg.text
+    xbt = reg.json()["xbt_token"]
+    user_id = reg.json()["user"]["id"]
+
+    # Burn exactly MAX failed old-password attempts on set-password (not login).
+    for _ in range(settings.LOCAL_AUTH_MAX_FAILED_ATTEMPTS):
+        r = await client.post(
+            "/v1/auth/local/set-password",
+            json={"old_password": "wrongpw", "new_password": "newhorse99"},
+            headers={"Authorization": f"Bearer {xbt}"},
+        )
+        assert r.status_code == 400, r.text  # each wrong attempt -> 400
+
+    # The account is now locked purely via set-password failures — proving
+    # record_failure was actually called on this route (it was not, pre-fix).
+    row = (
+        await session.execute(
+            sa.text(
+                "SELECT locked_until, failed_attempts FROM local_credentials "
+                "WHERE user_id = :uid"
+            ),
+            {"uid": user_id},
+        )
+    ).mappings().one()
+    assert row["failed_attempts"] >= settings.LOCAL_AUTH_MAX_FAILED_ATTEMPTS
+    assert row["locked_until"] is not None
+    assert row["locked_until"] > datetime.now(tz=timezone.utc)
+
+    # A further attempt — even with the CORRECT current password — is refused
+    # while locked (429), so the lockout genuinely throttles this route.
+    r = await client.post(
+        "/v1/auth/local/set-password",
+        json={"old_password": "correcthorse9", "new_password": "newhorse99"},
+        headers={"Authorization": f"Bearer {xbt}"},
+    )
+    assert r.status_code == 429, r.text

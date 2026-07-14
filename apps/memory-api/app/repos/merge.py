@@ -30,7 +30,7 @@ async def merge_user_rows(
       5. UPDATE granola_user_connections.user_id
       6. UPDATE team_join_requests.user_id
       7. UPDATE tasks.created_by (set-null on delete but still re-parent)
-      8. UPDATE memory_promotions (proposed_by / approved_by_1 / approved_by_2)
+      8. UPDATE promotions (proposed_by / approved_by_1 / approved_by_2)
       9. UPDATE agent_definitions.created_by
      10. audit_log + team_messages: LEFT AS-IS (immutable history)
      11. Set orphan.merged_into_user_id = survivor_id.
@@ -79,10 +79,10 @@ async def merge_user_rows(
         "UPDATE granola_user_connections SET user_id = :survivor WHERE user_id = :orphan",
         "UPDATE team_join_requests SET user_id = :survivor WHERE user_id = :orphan",
         "UPDATE tasks SET created_by = :survivor WHERE created_by = :orphan",
-        # memory_promotions has 3 user FK columns; re-parent all three.
-        "UPDATE memory_promotions SET proposed_by = :survivor WHERE proposed_by = :orphan",
-        "UPDATE memory_promotions SET approved_by_1 = :survivor WHERE approved_by_1 = :orphan",
-        "UPDATE memory_promotions SET approved_by_2 = :survivor WHERE approved_by_2 = :orphan",
+        # promotions has 3 user FK columns; re-parent all three.
+        "UPDATE promotions SET proposed_by = :survivor WHERE proposed_by = :orphan",
+        "UPDATE promotions SET approved_by_1 = :survivor WHERE approved_by_1 = :orphan",
+        "UPDATE promotions SET approved_by_2 = :survivor WHERE approved_by_2 = :orphan",
         # agent_definitions has created_by (SET NULL on delete but re-parent for accuracy).
         "UPDATE agent_definitions SET created_by = :survivor WHERE created_by = :orphan",
     ]:

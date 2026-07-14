@@ -111,6 +111,10 @@ async def _rl_login(request: Request) -> None:
     await enforce_rate_limit(request, settings.LOCAL_AUTH_RATE_LIMIT, "auth_local_login")
 
 
+async def _rl_set_password(request: Request) -> None:
+    await enforce_rate_limit(request, settings.LOCAL_AUTH_RATE_LIMIT, "auth_local_set_password")
+
+
 @router.post(
     "/auth/local/register",
     response_model=AuthOut,
@@ -180,9 +184,17 @@ async def login(
     row = await local_credentials_repo.get_by_email(session, email)
 
     if row is None:
-        # Absent account — decoy verify equalizes timing, then the SAME
-        # generic 401 as every other short-circuit branch below.
+        # Absent account — decoy verify equalizes the (dominant) argon2 cost, then
+        # the SAME generic 401 as every other short-circuit branch below.
         verify_decoy(body.password)
+        # Timing equalization (code-review WR-1): the wrong-password branch ends its
+        # transaction with a COMMIT; end this read-only transaction too so an attacker
+        # can't distinguish "email absent" (no commit round-trip) from "email exists,
+        # wrong password" (commit round-trip). Residual: the wrong-password branch also
+        # runs one record_failure UPDATE that this path cannot mirror (no row to write) —
+        # a small delta against the ~50ms argon2 baseline + network jitter; a fully
+        # constant-time DB path is backlogged, not built here.
+        await session.commit()
         raise HTTPException(401, _GENERIC_LOGIN_ERROR)
 
     if row["locked_until"] is not None and row["locked_until"] > datetime.now(
@@ -191,6 +203,7 @@ async def login(
         # Locked — MUST return the identical generic 401, never a distinct
         # "locked" status code or message (that would be a second oracle).
         verify_decoy(body.password)
+        await session.commit()  # same timing-equalization commit as the absent-email path
         raise HTTPException(401, _GENERIC_LOGIN_ERROR)
 
     if not verify_password(row["password_hash"], body.password):
@@ -230,7 +243,10 @@ def _require_user_any(principal: dict[str, Any]) -> Any:
     return user
 
 
-@router.post("/auth/local/set-password")
+@router.post(
+    "/auth/local/set-password",
+    dependencies=[Depends(_rl_set_password)],
+)
 async def set_password(
     body: SetPasswordBody,
     principal: dict[str, Any] = Depends(get_current_principal),
@@ -257,10 +273,24 @@ async def set_password(
         )
     else:
         # CHANGE — the current password must be proven, not just a live session.
+        # The old-password check IS a password-guessing oracle for anyone holding a
+        # stolen `xbt_` (stored in plaintext localStorage), so it MUST honor the same
+        # DB-backed lockout as login — otherwise this route is an unthrottled brute-force
+        # bypass of the 5-attempt lockout the phase built (code-review CR-1). Rate limit
+        # is on the decorator (`_rl_set_password`); per-account lockout is here.
+        if row["locked_until"] is not None and row["locked_until"] > datetime.now(
+            tz=timezone.utc
+        ):
+            # Locked from too many failed guesses (here or on login — same counter).
+            raise HTTPException(429, "Too many failed attempts. Try again later.")
         if not body.old_password or not verify_password(
             row["password_hash"], body.old_password
         ):
+            await local_credentials_repo.record_failure(session, user.id)
+            await session.commit()
             raise HTTPException(400, "Current password is incorrect.")
+        # Correct current password — clear the failed-attempt counter, same as login.
+        await local_credentials_repo.reset_failures(session, user.id)
         await local_credentials_repo.update_hash(
             session, user.id, hash_password(body.new_password)
         )
