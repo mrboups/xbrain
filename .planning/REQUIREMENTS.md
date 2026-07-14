@@ -28,8 +28,8 @@ Active scope. One codebase, two runtime shapes (OSS self-host / SaaS hosted); a 
 >
 > **Why this is not a duplicate of the v1 `AUTH-02` below (which is ticked [x] Done).** v1 `AUTH-02` ("sign in with email/password as fallback") was satisfied by **LibreChat's own built-in local auth**, not by memory-api — LibreChat ships password login backed by its Mongo store. Locked decision **Q4 removes LibreChat from the default OSS install**. So removing LibreChat silently removes the product's only password login, while `AUTH-02` still reads as "Done". `LAUTH-01/02` re-establish that capability **natively in memory-api**, where it survives LibreChat's removal and serves the standalone web group-chat (the actual product per Q4).
 
-- [ ] **LAUTH-01**: A user registers and signs in with email + password on an install that has NO Google OAuth and NO GitHub App configured — zero third-party setup required to reach your own deployment. Passwords stored only as a salted memory-hard KDF hash (argon2id/bcrypt).
-- [ ] **LAUTH-02**: The local-auth principal is indistinguishable downstream — `get_current_principal` returns the same shape and every team-scoped route authorizes it identically, with no per-route special case. Google OAuth and the GitHub App keep working unchanged when configured; the local path is a default, not a replacement.
+- [x] **LAUTH-01**: A user registers and signs in with email + password on an install that has NO Google OAuth and NO GitHub App configured — zero third-party setup required to reach your own deployment. Passwords stored only as a salted memory-hard KDF hash (argon2id/bcrypt).
+- [x] **LAUTH-02**: The local-auth principal is indistinguishable downstream — `get_current_principal` returns the same shape and every team-scoped route authorizes it identically, with no per-route special case. Google OAuth and the GitHub App keep working unchanged when configured; the local path is a default, not a replacement.
 
 ### OSS Packaging
 
@@ -56,8 +56,8 @@ Mapping requirement -> phase for milestone v2.0 "Open-Core Edition". Filled by t
 | EDIT-01 | Phase 15 | Done (2026-07-13) |
 | EDIT-02 | Phase 15 | Done (2026-07-13) |
 | EDIT-03 | ~~Phase 15~~ | DROPPED (Q6, 2026-07-11) |
-| LAUTH-01 | Phase 18 | Pending |
-| LAUTH-02 | Phase 18 | Pending |
+| LAUTH-01 | Phase 18 | Done (2026-07-13, UI browser-UAT deferred to P16) |
+| LAUTH-02 | Phase 18 | Done (2026-07-13) |
 | PKG-01 | Phase 16 | Pending |
 | PKG-02 | Phase 16 | Pending |
 | REL-01 | Phase 17 | Pending |

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Open-Core Edition
 status: in_progress
-stopped_at: Phase 15 SHIPPED. Next: Phase 18 (Local Auth). Execution order 14 -> 15 -> 18 -> 16 -> 17.
-last_updated: 2026-07-13T23:50:30.847Z
+stopped_at: Phase 18 SHIPPED (browser-UAT of the auth UI deferred to P16). Next: Phase 16 (OSS Light Packaging). Order 14->15->18 done; 16->17 remain.
+last_updated: 2026-07-14T08:28:40.998Z
 last_activity: 2026-07-12 -- Phase 15 execution started
 progress:
   total_phases: 16
   completed_phases: 14
   total_plans: 124
-  completed_plans: 123
+  completed_plans: 129
   percent: 88
 ---
 
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 15 (Edition Mechanics) SHIPPED + verified 5/5. Next: Phase 18 — Local Auth (email/password, OSS default). Milestone v2.0 is NOT complete: phases 18, 16, 17 remain.
+**Current focus:** Phase 18 (Local Auth) SHIPPED + verified 12/12 (1 deferred human-UAT). Next: Phase 16 — OSS Light Packaging. Milestone v2.0 NOT complete: phases 16, 17 remain.
 
 ## Current Position
 
-Phase: 15
+Phase: 18
 Plan: Not started
 Status: Milestone complete
-Last activity: 2026-07-13
+Last activity: 2026-07-14
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 14
+- Total plans completed: 20
 - Average duration: —
 - Total execution time: —
 
