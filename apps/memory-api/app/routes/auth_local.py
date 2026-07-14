@@ -22,6 +22,18 @@ comparable argon2 CPU time on every short-circuit branch so the response is
 also timing-comparable. Never a distinct status/message for "locked"
 (that would be a second enumeration oracle).
 
+set_password() (Plan 04, D-18-05) is the ONLY safe convergence path: an
+AUTHENTICATED caller (Google, GitHub, or an existing local session — any
+`kind` that resolves a real `principal["user"]`) attaches or changes a
+password on THEIR OWN row. Identity comes exclusively from the resolved
+principal, never from the request body (T-18-04-01 — accepting a target
+user_id/email would be a horizontal-privilege-escalation hole). First-attach
+(no existing `local_credentials` row) needs no old password; changing an
+existing row REQUIRES the correct current password (T-18-04-02) so a
+hijacked session cannot silently lock out the real owner. Uses a local
+`_require_user_any()` — NOT `me.py::_require_user`, which 403s
+`kind="user_api_token"` (T-18-04-03).
+
 Does NOT touch app/deps.py or app/routes/auth_github.py (SC#4).
 """
 
@@ -37,7 +49,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.deps import get_session
+from app.deps import get_current_principal, get_session
 from app.repos import local_credentials as local_credentials_repo
 from app.repos import teams as teams_repo
 from app.repos import users as users_repo
@@ -79,6 +91,16 @@ class AuthOut(BaseModel):
     xbt_token: str
     user: dict[str, Any]
     team_scope: str | None = None
+
+
+class SetPasswordBody(BaseModel):
+    new_password: str = Field(
+        min_length=settings.LOCAL_AUTH_MIN_PASSWORD_LENGTH, max_length=1024
+    )
+    # Required only when the caller already has a `local_credentials` row
+    # (CHANGE branch, below) — optional at the schema level so first-attach
+    # callers (no row yet) can omit it entirely.
+    old_password: str | None = Field(default=None, max_length=1024)
 
 
 async def _rl_register(request: Request) -> None:
@@ -188,3 +210,65 @@ async def login(
 
     log.info("auth.local.login.ok", user_id=str(row["user_id"]))
     return AuthOut(xbt_token=xbt, user={"id": str(user.id), "email": user.email})
+
+
+def _require_user_any(principal: dict[str, Any]) -> Any:
+    """Accept BOTH real-user principal kinds (D-18-05, T-18-04-03).
+
+    Deliberately NOT `me.py::_require_user`, which 403s `kind="user_api_token"`
+    — that would lock out exactly the caller set-password most needs to serve:
+    someone already authenticated via a local-auth `xbt_` (register/login) or
+    any other `xbt_`-minted session. Both `kind="user"` (Google ID token,
+    Google access token, GitHub `gho_`/`ghu_`) and `kind="user_api_token"`
+    (any `xbt_`) carry a real `principal["user"]` row (deps.py:46-272).
+    """
+    if principal.get("kind") not in ("user", "user_api_token"):
+        raise HTTPException(403, "User authentication required")
+    user = principal.get("user")
+    if user is None:
+        raise HTTPException(403, "User authentication required")
+    return user
+
+
+@router.post("/auth/local/set-password")
+async def set_password(
+    body: SetPasswordBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, str]:
+    """Authenticated attach-or-change — the ONLY safe convergence path (D-18-05).
+
+    Identity comes SOLELY from the resolved `principal` — the request body
+    carries no user_id/email target, so there is no way for principal A to
+    address principal B's row (T-18-04-01). First-attach (no existing
+    `local_credentials` row — e.g. a GitHub/Google user, or a local-register
+    user who somehow lacks one) skips the old-password check entirely;
+    changing an EXISTING row requires the correct current password
+    (T-18-04-02) — an authenticated session alone must not silently
+    overwrite a password a hijacked session doesn't actually know.
+    """
+    user = _require_user_any(principal)
+    row = await local_credentials_repo.get_by_user_id(session, user.id)
+
+    if row is None:
+        # FIRST ATTACH — no existing credential, no old password required.
+        await local_credentials_repo.upsert(
+            session, user_id=user.id, password_hash=hash_password(body.new_password)
+        )
+    else:
+        # CHANGE — the current password must be proven, not just a live session.
+        if not body.old_password or not verify_password(
+            row["password_hash"], body.old_password
+        ):
+            raise HTTPException(400, "Current password is incorrect.")
+        await local_credentials_repo.update_hash(
+            session, user.id, hash_password(body.new_password)
+        )
+
+    await session.commit()
+    log.info(
+        "auth.local.set_password.ok",
+        user_id=str(user.id),
+        first_attach=row is None,
+    )
+    return {"status": "ok"}
