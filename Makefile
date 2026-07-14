@@ -114,3 +114,7 @@ preflight:  ## Pre-deploy crashloop guard — same 5 vars as env-check, actionab
 .PHONY: verify-phase15
 verify-phase15:  ## Phase 15 acceptance gate — compose-layer + live-boot (EDIT-01 + EDIT-02)
 	@bash infrastructure/scripts/verify-phase15.sh
+
+.PHONY: verify-phase18
+verify-phase18:  ## Phase 18 acceptance gate — local auth real-Postgres + live zero-OAuth boot (LAUTH-01 + LAUTH-02)
+	@bash infrastructure/scripts/verify-phase18.sh
