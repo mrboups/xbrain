@@ -167,3 +167,19 @@ differentiator ends at the Telegram boundary. Two candidate positions:
   included. Useful, but the operator owns the leak risk and it must be explicit and consented.
 
 Sizing: modest phase, dominated by the identity-pairing work — but blocked on the decision above.
+
+---
+
+## Cross-user conversation leak — `conversations.py:92` (LIVE prod bug)
+
+**Found:** 2026-07-13, by the Phase 18 auth-architecture audit. Surfaced to the user. NOT folded into Phase 18 (kept auth-focused); logged here for a dedicated fix.
+
+**The bug:** `apps/memory-api/app/routes/conversations.py:92` —
+`owner_filter = principal["user"].id if principal["kind"] == "user" else None`.
+For a `kind="user_api_token"` principal — which is **every extension user after onboarding**, since both Google and GitHub sign-in end by minting an `xbt_` token — `owner_filter` becomes `None`, and `list_conversations` treats `None` as "no filter". So **every team member sees every other member's conversations**, contradicting the code's own comment ("Users see only their own conversations within the team").
+
+**Severity:** real cross-user privacy leak, affecting production now, not a future risk. Team-scope isolation still holds (you only see *your team's* data) — but within a team, per-user conversation privacy is gone for `xbt_` sessions.
+
+**Fix:** one line — gate on `principal.get("user")` being truthy rather than strict `kind == "user"`, so `user_api_token` (which has a fully-populated `user`) also gets its `owner_filter`. Then add a regression test: two members of the same team, each `xbt_`-authenticated, must NOT see each other's conversations.
+
+**Adjacent (same class, from the same audit):** several routes strictly gate `principal["kind"] == "user"` and 403 a valid `user_api_token` (`me.py:76-83`, `audit.py:34`, `promotions.py:58-63`). Lower severity (over-restrictive, not a leak), but worth a sweep in the same pass.
