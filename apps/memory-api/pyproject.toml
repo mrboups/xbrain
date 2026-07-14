@@ -26,6 +26,8 @@ dependencies = [
   "boto3>=1.35",  # Phase 11 plan 11-10: MinIO/S3 client for superadmin storage metrics (lazy-imported)
   "motor>=3.6",   # superadmin wipe-database: drop LibreChat Mongo DB (lazy-imported)
   "minio>=7.2",   # superadmin wipe-database: clear MinIO xbrain-decks bucket (lazy-imported)
+  "argon2-cffi>=25.1.0",  # Phase 18 plan 18-02: argon2id local-auth password hashing (D-18-04)
+  "limits>=5.8.0",  # Phase 18 plan 18-02: in-process rate limiting for local-auth routes (D-18-06)
   "xbrain-memory @ file:///app/packages/memory-models",  # path mounted in compose build
 ]
 
