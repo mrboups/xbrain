@@ -66,7 +66,7 @@ SC#2 names argon2id first, and it is the modern default. Add `argon2-cffi` to `a
 
 The user chose "converge — one account, two ways in" over "reject". Delivered as follows, because cold-register convergence without email verification is an account-takeover vector (anyone knowing a victim's GitHub email could set a password on their account):
 
-- `register(email, password)` with a **brand-new** email → create user (`get_or_create_user`, `source_user_id=email:<addr>`) + `local_credentials` row + mint `xbt_` + bootstrap the first team via `POST /v1/teams/self-solo` in-process. Done.
+- `register(email, password)` with a **brand-new** email → create user (`get_or_create_user`, `source_user_id=email:<addr>`) + `local_credentials` row + bootstrap the first team + mint `xbt_`, all in ONE transaction with ONE commit at the end. **CORRECTION (research, 2026-07-13): call `teams_repo.create_team` DIRECTLY, not the `POST /v1/teams/self-solo` route — that route commits internally (`teams.py:485`), which would break the atomic boundary.** `create_team` only `flush()`es (`repos/teams.py`), leaving the transaction open for the caller, which is exactly what a single-commit register needs.
 - `register` with an email that **already has an account** (GitHub/Google/local) → **409, does NOT grant access.** Message: "This email already has an account — sign in with your existing method, then add a password in settings." This is the only cold-path behavior that is safe without email verification.
 - `set-password` — an **authenticated** endpoint (part of SC#5's change-password surface). A user already signed in (via GitHub, Google, or an existing local password) attaches/updates a password on **their own** row. THIS is the convergence: a GitHub user ends up with both login methods on one unified account, proven by their existing session — no takeover window.
 
@@ -109,7 +109,7 @@ The "indistinguishable principal" is already imperfect for `xbt_` tokens today, 
 ### The schema
 - `apps/memory-api/alembic/versions/0001_initial.py:26-54` — `users`, `teams`, `team_members`. `users.email` has **no unique constraint** anywhere (confirmed across all migrations).
 - `apps/memory-api/alembic/versions/0009_crm_contacts.py:87-89` — the partial-unique-index pattern to copy if an email uniqueness guard is wanted.
-- Latest migration is 0021 — the new one is 0022.
+- Latest migration is 0023 — the new one is **0024** (corrected from an earlier 0021/0022 guess; verified 2026-07-13 by listing the versions dir).
 
 ### Boot / config (confirms a no-OAuth install is already clean)
 - `apps/memory-api/app/config.py:15,47-77` — `GOOGLE_CLIENT_ID`/`GITHUB_*` default to `""`/`0`, no validator. `:151-166` — `OAUTH_ISSUER_URL`/`OAUTH_RESOURCE_URL` DO fail-fast, but those are the MCP connector's AS vars, NOT social login. A clean install with no Google/GitHub set boots fine; only those two social-login *endpoints* 503 at request time.
