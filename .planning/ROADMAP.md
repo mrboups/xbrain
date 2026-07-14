@@ -524,7 +524,16 @@ Plans:
   5. The account surface is complete enough to be usable and safe: registration, sign-in, sign-out, and password change. (Email-based password RESET is explicitly OUT of scope — it needs outbound SMTP, which an OSS-light install has no reason to require. Document the recovery story instead.)
   6. Basic abuse resistance on the credential endpoints — rate limiting / lockout on repeated failures — so a default install is not trivially brute-forceable.
 
-**Plans**: TBD (populated by `/gsd:plan-phase 18`)
+**Plans**: 6 plans
+Plans:
+- [ ] 18-01-PLAN.md — Data layer: migration 0024 (local_credentials) + LOCAL_AUTH_* config + repo
+- [ ] 18-02-PLAN.md — Services: argon2-cffi + limits deps, password_hash (decoy) + rate_limit + shared xbt_ mint
+- [ ] 18-03-PLAN.md — Register + Login routes (single-commit, decoy-timed 401, DB lockout) + wire CORE router
+- [ ] 18-04-PLAN.md — Authenticated set-password (convergence, D-18-05) + operator recovery runbook
+- [ ] 18-05-PLAN.md — Auth UI: register / login / set-password screens (vanilla, English) + human verify
+- [ ] 18-06-PLAN.md — verify-phase18.sh acceptance gate (real Postgres, SKIP-as-FAIL) + docs/auth.html
+
+**Wave order**: 1 (18-01 + 18-02 parallel — disjoint files) -> 2 (18-03) -> 3 (18-04) -> 4 (18-05) -> 5 (18-06)
 **UI hint**: yes (registration + sign-in + password-change surface — new user-facing screens)
 
 ### Phase 16: OSS Light Packaging
