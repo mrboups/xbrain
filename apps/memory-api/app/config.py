@@ -242,6 +242,15 @@ class Settings(BaseSettings):
     # xbrain prod overrides this in .env to preserve today's triggers.
     AGENT_MENTION_ALIASES: str = "agent"
 
+    # === Phase 18 (LAUTH-01/02) — native email/password auth ===
+    # Safe defaults, deliberately NO field_validator: a zero-OAuth install must
+    # still boot cleanly (SC#1). Per D-18-06 research OQ2 the 5/15 defaults are
+    # settled and env-overridable — not an open question at runtime.
+    LOCAL_AUTH_MAX_FAILED_ATTEMPTS: int = 5
+    LOCAL_AUTH_LOCKOUT_MINUTES: int = 15
+    LOCAL_AUTH_RATE_LIMIT: str = "10/minute"      # per-IP, in-process (NOT durable across uvicorn --workers 2 — Plan 02 rate_limit.py documents this)
+    LOCAL_AUTH_MIN_PASSWORD_LENGTH: int = 10
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}
