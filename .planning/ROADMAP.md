@@ -28,7 +28,9 @@ Decimal phases appear between their surrounding integers in numeric order.
  (completed 2026-07-12)
 - [x] **Phase 15: Edition Mechanics** - Compose `profiles:` + `EDITION` flag + router gating so one codebase serves oss/saas. (The Ed25519 license + paid `pro` tier was DROPPED by locked decision Q6 — no product feature is paywalled; only the hosted control plane stays closed.) (completed 2026-07-13)
 - [x] **Phase 18: Local Auth (OSS default)** - Native email/password sign-in in memory-api, so a self-hoster needs NO external OAuth setup. **Runs BEFORE Phase 16** — execution order is 14 → 15 → 18 → 16 → 17; it is numbered 18 only to avoid renumbering 16/17. (completed 2026-07-14)
-- [ ] **Phase 16: OSS Light Packaging** - Light compose + install docs + clean-install test on a fresh VM + standalone hosted web chat UI. (Per Q4 the web group-chat IS the product — and it does not exist yet: today the only working chat frontend is the Chrome extension.)
+- [ ] **Phase 19: Local Embeddings (OSS default)** - In-container keyless embedder so semantic retrieval works with NO OpenAI key (OpenAI stays selectable). **Runs BEFORE Phase 16** — order 14 → 15 → 18 → 19 → 16 → 20 → 17. Today `embedders.py` hard-raises without `OPENAI_API_KEY`, so a zero-key OSS install cannot do the "retrieved" half of Phase 16's own SC#3; locked decision Q3 wanted local-by-default. Numbered 19 to avoid renumbering 16/17.
+- [ ] **Phase 16: OSS Light Packaging** - Light compose + install docs + clean-install test on a fresh VM. The stack boots and the brain works end-to-end (chat via the existing surfaces + ChatGPT-web connector + doc analysis + retrieval + clip) with zero external keys. **The standalone web chat frontend moved to Phase 20** (it is a phase-sized build, not a packaging criterion).
+- [ ] **Phase 20: Standalone Web Chat** - Extract the team group-chat from the Chrome extension (~1125-line popup.js) into a browser-extension-independent web app — THE product per Q4. Wires in Phase 18 auth + clip-to-memory. **Runs AFTER Phase 16** (needs the packaged stack to serve it) and before 17. Numbered 20 to avoid renumbering.
 - [ ] **Phase 17: CI Lockstep** - One pipeline builds/tests both profiles, publishes the OSS release and deploys SaaS from the same commit
 
 ## Phase Details
@@ -536,28 +538,66 @@ Plans:
 **Wave order**: 1 (18-01 + 18-02 parallel — disjoint files) -> 2 (18-03) -> 3 (18-04) -> 4 (18-05) -> 5 (18-06)
 **UI hint**: yes (registration + sign-in + password-change surface — new user-facing screens)
 
+### Phase 19: Local Embeddings (OSS default)
+
+> **Execution order: 14 → 15 → 18 → 19 → 16 → 20 → 17.** Runs BEFORE Phase 16. Numbered 19 to avoid renumbering 16/17.
+
+**Goal**: A fresh OSS-light install performs semantic ingest + retrieval with **no OpenAI key** — embeddings run in-container, keyless. OpenAI embeddings remain selectable via config. Locked decision **Q3**.
+**Depends on**: Phase 15 (the OSS-light service set is defined; the embedder ships inside memory-api or as an untagged-core sidecar).
+**Entry gate**: Phase 15 SHIPPED.
+**Requirements**: EMBED-01
+**Why it blocks Phase 16**: Phase 16 SC#3 promises a zero-key install can "ingest and **retrieve**". Today `apps/memory-api/app/embedders.py:13` hard-raises `RuntimeError("OPENAI_API_KEY not configured for embeddings")`, so semantic `memory_search` is impossible without an OpenAI key — and the "one key: Anthropic OR OpenAI OR Grok" promise is broken because embeddings force OpenAI specifically. Phase 16 cannot honestly claim SC#3 until this lands.
+**Success Criteria** (what must be TRUE):
+
+  1. On an install with NO `OPENAI_API_KEY` (and no other embeddings key), a document/message is ingested, embedded locally, written to Qdrant, and retrieved by semantic `memory_search` — end to end, proven live.
+  2. The local embedder runs in-container with no external network call and no API key — a self-hoster adds zero credentials for retrieval to work.
+  3. The embedder is pluggable: setting `OPENAI_API_KEY` (or the configured provider) switches to that provider without code changes; the provider abstraction in `packages/memory-models` / `embedders.py` is respected.
+  4. The chosen local model has BOTH arm64 and amd64 wheels/artifacts (dev host is arm64, prod amd64) and fits the OSS-light RAM budget (must not OOM an e2-medium) — stated with the measured footprint.
+  5. Existing OpenAI-embedded vectors and the OpenAI path do not regress when a key IS configured; the Qdrant collection's vector dimensions are handled correctly if the local model's dimension differs from OpenAI's 1536 (migration/re-embed story documented, not silently broken).
+
+**Plans**: TBD (populated by `/gsd:plan-phase 19`)
+**UI hint**: no (backend embedding engine — no user-facing surface)
+
 ### Phase 16: OSS Light Packaging
 
-**Goal**: A team with no prior knowledge of the xbrain source code can stand up the OSS-light edition (chat + full brain — doc analysis, ingest, retrieval, truth-levels, ChatGPT-web connector, clip) on a fresh VM from the install docs alone, and users can chat with their team brain from a standalone hosted web app without installing a browser extension.
-**Depends on**: Phase 14 (portability), Phase 15 (edition mechanics — profiles + EDITION flag must exist for the light compose to reference), **Phase 18 (local auth — without it, SC#1's "install docs alone" and SC#4's standalone web app both require the operator to register a third-party OAuth app first)**
-**Entry gate**: Phase 14 + Phase 15 + Phase 18 SHIPPED. OSS-light service set defined and boot-tested individually in Phase 15.
-**Requirements**: PKG-01, PKG-02
+**Goal**: A team with no prior knowledge of the xbrain source can stand up the OSS-light edition on a fresh VM from the install docs alone, and the brain works end-to-end (chat via the existing surfaces + ChatGPT-web connector + doc analysis + ingest + **retrieval, now keyless thanks to Phase 19** + truth-levels + clip) with **zero external keys**. **This phase is real packaging — the standalone web chat frontend is Phase 20, not here.**
+**Depends on**: Phase 14 (portability), Phase 15 (edition mechanics — profiles + EDITION flag), Phase 18 (local auth — so "install docs alone" needs no third-party OAuth app), **Phase 19 (local embeddings — so SC#3's keyless retrieval is actually deliverable)**.
+**Entry gate**: Phase 14 + 15 + 18 + 19 SHIPPED. OSS-light service set defined and boot-tested individually in Phase 15.
+**Requirements**: PKG-01
 **Success Criteria** (what must be TRUE):
 
   1. Following only the published install docs (no source reading, no tribal knowledge), an operator provisions a fresh VM and reaches a running OSS-light stack — a clean-install test passes end-to-end.
   2. The OSS-light compose profile (`COMPOSE_PROFILES` unset) boots ~10 services with all healthchecks green, matching the Phase 15 profile table.
-  3. A user on the fresh install can chat, upload/analyze a document, have it ingested and retrieved with truth-levels visible, connect via the ChatGPT-web connector, and clip a web page into memory — all without any `integrations`, `pro`, or `saas` profile enabled.
-  4. A user opens a standalone hosted web app (not the Chrome extension popup) and chats with their team brain with equivalent core functionality to the extension's chat surface — the chat UI is extracted from the extension into a shared, browser-extension-independent frontend.
-  5. Clip-to-memory (a headline OSS feature) is reachable from the standalone web app, not only from the browser extension.
+  3. On the fresh install, with **no external keys set** (no OpenAI, no Google, no GitHub App), a user registers via local auth (Phase 18), uploads/analyzes a document, has it **ingested and semantically retrieved** (Phase 19, keyless) with truth-levels visible, connects via the ChatGPT-web connector, and clips a web page into memory — all with `COMPOSE_PROFILES` unset (no `integrations`/`saas`; there is no `pro` profile). Chat is exercised via the existing surfaces (the Chrome extension against the install, and/or the ChatGPT connector) — the standalone web app is Phase 20.
+  4. The published OSS release artifact shape exists and is reproducible: tagged multi-arch images (or a documented build-on-VM path), the light compose file, and the install docs — the same bundle Phase 17 will later automate.
 
 **Plans**: TBD (populated by `/gsd:plan-phase 16`)
-**UI hint**: yes (standalone web chat app is new user-facing surface — install docs + web app UI)
+**UI hint**: partial (install docs; no new app UI — the web app is Phase 20)
+
+### Phase 20: Standalone Web Chat (the product per Q4)
+
+> **Execution order: after Phase 16, before Phase 17.**
+
+**Goal**: A user opens a standalone hosted web app — not the Chrome extension popup — and chats with their team brain with functionality equivalent to the extension's chat surface. The chat UI is extracted from the extension (`chrome-extension/popup.js`, ~1125 lines: Centrifugo realtime, message list, composer, `@`-mention agent, streaming replies) into a shared, browser-extension-independent frontend, wiring in Phase 18 auth and clip-to-memory. This is THE product per locked decision Q4.
+**Depends on**: Phase 16 (needs the packaged, installable OSS-light stack to run against + serve the app), Phase 18 (auth screens the web app signs in with).
+**Entry gate**: Phase 16 SHIPPED.
+**Requirements**: PKG-02
+**Success Criteria** (what must be TRUE):
+
+  1. A user opens the standalone web app (no browser extension installed) and completes register/sign-in via Phase 18 local auth, then sees their team chat.
+  2. Realtime chat works: the message list loads history, the composer posts, Centrifugo delivers incoming messages live, and `@agent`/`@chad` mentions stream the agent's reply back into the chat — functional parity with the extension's chat surface (the same `team_chat.py` REST/WS contract; no backend changes needed, it is already multi-frontend).
+  3. Clip-to-memory (a headline OSS feature) is reachable from the standalone web app, not only from the browser extension.
+  4. The web app is served by the OSS-light stack (Phase 16) and needs no third-party keys to run; app-site is debranded here or references `XBRAIN_BASE_DOMAIN` (closing the D-01c app-site portability deferral).
+  5. A human UAT confirms the register → chat → mention → clip loop in a real browser (this is the browser-UAT deferred from Phase 18's UI checkpoint — it lands here where a running stack + real frontend exist).
+
+**Plans**: TBD (populated by `/gsd:plan-phase 20`)
+**UI hint**: yes (the standalone web chat app is the major new user-facing surface of the whole milestone)
 
 ### Phase 17: CI Lockstep
 
 **Goal**: One CI pipeline per commit builds images once, tests both the OSS subset and the full profile, then — from that same commit — publishes the OSS release and deploys the SaaS full profile. Editions can never drift apart because they are built, tested, and shipped together by construction; self-host installs upgrade via forward-only, edition-agnostic migrations.
-**Depends on**: Phase 15 (edition mechanics — profiles/flags must exist for CI to test "both profiles"), Phase 16 (OSS packaging — install docs + light compose must exist for CI to publish an OSS release)
-**Entry gate**: Phase 15 + Phase 16 SHIPPED. OSS release artifact shape (tagged images + light compose + install docs) already exists (produced manually in Phase 16); CI now automates producing and publishing it.
+**Depends on**: Phase 15 (edition mechanics — profiles/flags must exist for CI to test "both profiles"), Phase 16 (OSS packaging — install docs + light compose must exist for CI to publish an OSS release), Phase 20 (standalone web chat — the shipped frontend CI builds/publishes as part of the OSS release)
+**Entry gate**: Phase 15 + Phase 16 + Phase 20 SHIPPED. OSS release artifact shape (tagged images + light compose + install docs + web app) already exists (produced manually in Phases 16/20); CI now automates producing and publishing it.
 **Requirements**: REL-01, REL-02, REL-03
 **Success Criteria** (what must be TRUE):
 

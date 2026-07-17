@@ -31,10 +31,16 @@ Active scope. One codebase, two runtime shapes (OSS self-host / SaaS hosted); a 
 - [x] **LAUTH-01**: A user registers and signs in with email + password on an install that has NO Google OAuth and NO GitHub App configured — zero third-party setup required to reach your own deployment. Passwords stored only as a salted memory-hard KDF hash (argon2id/bcrypt).
 - [x] **LAUTH-02**: The local-auth principal is indistinguishable downstream — `get_current_principal` returns the same shape and every team-scoped route authorizes it identically, with no per-route special case. Google OAuth and the GitHub App keep working unchanged when configured; the local path is a default, not a replacement.
 
+### Local Embeddings (OSS default)
+
+> Added 2026-07-13. Locked decision **Q3** ("local embeddings by default — in-container, no API key, no external call; OpenAI selectable"). Found unmapped repeatedly; forced by Phase 16 SC#3, which promises a zero-key install can *retrieve*. `apps/memory-api/app/embedders.py:13` hard-raises `RuntimeError` without `OPENAI_API_KEY`, so semantic `memory_search` is impossible keyless today — and the "one key: Anthropic OR OpenAI OR Grok" promise breaks (embeddings force OpenAI specifically). Executes as Phase 19, BEFORE Phase 16.
+
+- [ ] **EMBED-01**: A fresh install with NO embeddings API key ingests and semantically retrieves memory — embeddings run in-container, keyless, no external call. OpenAI (or another provider) remains selectable via config without code changes; the local model ships for both arm64 and amd64 and fits the OSS-light RAM budget.
+
 ### OSS Packaging
 
-- [ ] **PKG-01**: A team can stand up the OSS-light edition (chat + full brain: doc analysis, ingest, retrieval, truth-levels, ChatGPT connector, clip) on a fresh VM from the install docs alone
-- [ ] **PKG-02**: A user can chat and query their team brain from a standalone hosted web app, without installing a browser extension
+- [ ] **PKG-01** (Phase 16): A team can stand up the OSS-light edition (chat + full brain: doc analysis, ingest, **keyless semantic retrieval via Phase 19**, truth-levels, ChatGPT connector, clip) on a fresh VM from the install docs alone, with zero external keys
+- [ ] **PKG-02** (Phase 20): A user can chat and query their team brain from a standalone hosted web app extracted from the extension, without installing a browser extension
 
 ### Release / CI Lockstep
 
@@ -58,24 +64,29 @@ Mapping requirement -> phase for milestone v2.0 "Open-Core Edition". Filled by t
 | EDIT-03 | ~~Phase 15~~ | DROPPED (Q6, 2026-07-11) |
 | LAUTH-01 | Phase 18 | Done (2026-07-13, UI browser-UAT deferred to P16) |
 | LAUTH-02 | Phase 18 | Done (2026-07-13) |
+| EMBED-01 | Phase 19 | Pending |
 | PKG-01 | Phase 16 | Pending |
-| PKG-02 | Phase 16 | Pending |
+| PKG-02 | Phase 20 | Pending |
 | REL-01 | Phase 17 | Pending |
 | REL-02 | Phase 17 | Pending |
 | REL-03 | Phase 17 | Pending |
 
-**Coverage:** (re-synced 2026-07-12 — EDIT-03 dropped per Q6, LAUTH added per Q2)
-- v2.0 requirements: 12 declared, 11 active (PORT x2, EDIT x3 **of which EDIT-03 is DROPPED**, LAUTH x2, PKG x2, REL x3)
-- Mapped to phases: 11/11 active
-- Phase 14 (Portability Foundation): 2 requirements
-- Phase 15 (Edition Mechanics): 2 active requirements (EDIT-01, EDIT-02 — EDIT-03 dropped)
-- Phase 18 (Local Auth): 2 requirements — **runs BEFORE Phase 16** (execution order 14 → 15 → 18 → 16 → 17)
-- Phase 16 (OSS Light Packaging): 2 requirements
-- Phase 17 (CI Lockstep): 3 requirements
+**Coverage:** (re-synced 2026-07-13 — EMBED-01 mapped per Q3, PKG-02 moved to its own phase, SC#4/web-chat split out)
+- **Execution order: 14 → 15 → 18 → 19 → 16 → 20 → 17.** (Numeric order ≠ execution order — 18/19/20 were numbered to avoid renumbering 16/17.)
+- v2.0 requirements: 13 declared, 12 active (PORT x2, EDIT x3 **of which EDIT-03 is DROPPED**, LAUTH x2, EMBED x1, PKG x2, REL x3)
+- Mapped to phases: 12/12 active
+- Phase 14 (Portability Foundation): 2 (PORT-01, PORT-02) — Done
+- Phase 15 (Edition Mechanics): 2 active (EDIT-01, EDIT-02; EDIT-03 dropped) — Done
+- Phase 18 (Local Auth): 2 (LAUTH-01, LAUTH-02) — Done
+- Phase 19 (Local Embeddings): 1 (EMBED-01) — runs BEFORE Phase 16
+- Phase 16 (OSS Light Packaging): 1 (PKG-01) — the standalone web app moved to Phase 20
+- Phase 20 (Standalone Web Chat): 1 (PKG-02) — runs AFTER Phase 16
+- Phase 17 (CI Lockstep): 3 (REL-01..03) — last; now also depends on Phase 20
 - Unmapped: 0
 
-**Still unmapped from the locked decisions — NOT yet a requirement (flagged 2026-07-12):**
-- **Q3 — local embeddings by default** (in-container, no API key, no external call; OpenAI embeddings remain selectable). The design doc's own model-shift note (line 12 above) calls for "new requirements needed for local email/password auth **and local embeddings**". The auth half is now covered by LAUTH-01/02; **the embeddings half is still missing.** A self-hoster today needs an embeddings API key for the brain to work at all, which contradicts the "one key — Anthropic OR OpenAI OR Grok" single-key promise. Needs a requirement + a phase.
+**Still unmapped from the locked decisions — NOT yet a requirement:**
+- ~~**Q3 — local embeddings by default**~~ — NOW MAPPED (2026-07-13) as EMBED-01 / Phase 19. Prior note retained for history:
+  **Q3 — local embeddings by default** (in-container, no API key, no external call; OpenAI embeddings remain selectable). The design doc's own model-shift note (line 12 above) calls for "new requirements needed for local email/password auth **and local embeddings**". The auth half is now covered by LAUTH-01/02; **the embeddings half is still missing.** A self-hoster today needs an embeddings API key for the brain to work at all, which contradicts the "one key — Anthropic OR OpenAI OR Grok" single-key promise. Needs a requirement + a phase.
 - Out of scope for v2.0 (separate tracks, not phase-mapped): Email feature; Grok API-key fallback + per-message trial cap
 
 ---
