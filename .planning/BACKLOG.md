@@ -203,3 +203,32 @@ Phase 12 GitHub App migration, not product bugs:
 Both are in Phase-10/12-vintage test files this session's phases must not touch (scope boundary).
 Fix = update the fixture to the Phase-12 var names + add the refresh_token to the mock. Small, but its
 own pass. They have been part of the "57 failed" pre-existing baseline all along.
+
+---
+
+## Team join-by-code (Slack/Discord-style invite link)
+
+**Requested:** 2026-07-13. Checked against live code — genuinely net-new (no code/token concept exists on teams).
+
+**What the user wants:** on creating a team, generate a code; anyone who submits that code joins the
+team chat, without an individual invite. The current model has NO such concept — only:
+- `POST /teams/{id}/join` (direct self-join, `open` teams only — gate is knowing team_id, not a secret)
+- `POST /teams/{id}/join-request` (closed teams, admin-approved)
+- `POST /teams/{id}/invite` (invite-by-email an ALREADY-existing xbrain user)
+`teams` has `visibility ('open'|'closed')` and no code/token column.
+
+**Shape (small, plugs into existing `add_member`):**
+- New table `team_invite_codes(id, code UNIQUE, team_id FK, role, expires_at, max_uses/uses_remaining,
+  created_by, revoked_at)`. A table, not a column — supports multiple codes, expiry, revocation, per-code role.
+- `POST /teams/{id}/invite-codes` (admin) → mint a random code, return once.
+- `POST /teams/join-by-code {code}` → resolve → `add_member(caller)`. No individual invite needed.
+- `DELETE /teams/{id}/invite-codes/{code_id}` → revoke.
+- UI: a "create invite link" action in the team-admin surface (extension Settings + app-site/account/teams).
+
+**SECURITY — must be built in, not bolted on:** a join-code is a BEARER SECRET — whoever holds it gets
+inside the team brain (team-scoped memory, the product's sensitive core). So the code MUST be
+random/unguessable, REVOCABLE, and EXPIRING (and ideally max-uses-limited). A leaked permanent code is a
+standing open door — the same team_scope-leak class flagged for the Telegram bridge. The redeemer still
+needs an xbrain account (sign in once) — frictionless now that Phase 18 ships email/password.
+
+Sizing: small phase / slice. Blocked on nothing; schedule after v2.0 (16, 17) or as a standalone.
