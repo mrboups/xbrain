@@ -1,0 +1,400 @@
+# ci-lockstep.yml — the single build -> test -> gated publish/deploy pipeline (Phase 17).
+#
+# WHY THIS FILE EXISTS (REL-01 + REL-02)
+#   One commit on `main` must produce ONE image set, prove it with THREE independent test
+#   gates, and only then ship it BOTH ways: the public OSS release AND the SaaS deploy.
+#
+# LOCKSTEP IS STRUCTURAL, NOT DISCIPLINE (D-17-01 / SC3)
+#   `publish-oss-release` and `deploy-saas` each declare
+#       needs: [test-oss-subset, test-full-profile, test-migrations]
+#   GitHub Actions SKIPS a job outright when any job in its `needs:` failed or was skipped.
+#   So a single red test blocks BOTH ships by construction — there is no `if:` to get wrong,
+#   no reviewer to forget. Those `needs:` lists ARE the SC3 proof and are machine-checkable
+#   by parsing this YAML (Plan 17-04 does exactly that).
+#
+# BUILD ONCE, USE MANY (D-17-02)
+#   `build` bakes every `build:` service ONCE and pushes it to GHCR. Every downstream job
+#   PULLS `:${{ github.sha }}`. No job below ever passes a rebuild flag, and none calls the
+#   `make` deploy target (whose remote `up -d` rebuilds ON the VM — a second, untested
+#   build). What CI tested is byte-for-byte what publish ships and deploy runs.
+#
+# HONEST STATUS AT AUTHORING TIME (do not read a green lint as a green run)
+#   This workflow has never executed: it lands with the commit that creates it, and the
+#   SaaS deploy is gated OFF because the prod VM is stopped. Proven locally: actionlint
+#   is clean and the needs-graph is correct. NOT proven: a live run, the GHCR push, the
+#   first-push package-visibility flip, and the VM deploy. See docs/ci-lockstep.md.
+
+name: CI Lockstep
+
+# No `pull_request` / `pull_request_target` trigger, deliberately: fork PRs would then run
+# with access to repo secrets (GHCR push rights, the VM SSH key). Keep this workflow on
+# trusted refs only. `workflow_dispatch` allows the documented full-boot dry-run follow-up.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege by default; jobs escalate explicitly and only as far as they need.
+permissions:
+  contents: read
+
+# Queue, never cancel: `cancel-in-progress: true` could kill an in-flight `deploy-saas`
+# mid `up -d` and leave the VM half-updated.
+concurrency:
+  group: ci-lockstep-${{ github.ref }}
+  cancel-in-progress: false
+
+# Consumed by infrastructure/docker-compose.ci-images.yml's ${GHCR_OWNER}/${XBRAIN_IMAGE_TAG}
+# interpolation — the SINGLE source of truth for CI image names, shared by build, both image
+# consumers, publish and deploy, so those four can never drift onto different names.
+# The SHA tag is immutable: one commit = one image set (D-17-06).
+env:
+  GHCR_OWNER: ${{ github.repository_owner }}
+  XBRAIN_IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  # ---------------------------------------------------------------------------------------
+  # BUILD — every `build:` service, exactly once, on the prod architecture.
+  # ---------------------------------------------------------------------------------------
+  # This is the only place in the whole toolchain that natively produces amd64: the dev
+  # machine is arm64, and building there for prod has burned this project before.
+  build:
+    name: build once -> GHCR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io/<owner>/xbrain-*
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - uses: docker/setup-buildx-action@v4.2.0
+
+      # GHCR needs NO new secret: the built-in GITHUB_TOKEN can push to this repo's own
+      # package namespace once `packages: write` is declared above.
+      - name: Log in to GHCR
+        uses: docker/login-action@v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Bake reads the compose files directly, so the build target list cannot drift from
+      # docker-compose.yml — add a service there and CI builds it with no edit here.
+      #
+      # The tags come from docker-compose.ci-images.yml's `image:` keys (compose -> bake maps
+      # `image:` to the target's tags), NOT from a `*.tags=` override: a `set:` wildcard is
+      # only expanded on the LEFT of the `=`, so `*.tags=ghcr.io/o/xbrain-*:sha` would assign
+      # every target one literal tag containing a `*`. Letting the override file carry the
+      # names keeps build/test/publish/deploy on identical strings by construction.
+      #
+      # amd64-only, on purpose. `xbrain-backup`'s base (google/cloud-sdk:slim) publishes no
+      # arm64 manifest, so a uniform multi-platform build would fail on exactly that service.
+      # amd64 IS the prod architecture REL-01 needs, and it is what this runner builds
+      # natively (no QEMU). True multi-arch — via the now-GA arm64 hosted runners rather than
+      # emulation — is a documented future upgrade, not a Phase 17 requirement.
+      - name: "Build every build: service once and push SHA-tagged images"
+        uses: docker/bake-action@v7.3.0
+        with:
+          # Repo-root-relative paths. NOTE: v7 has no `workdir` input (it was replaced by
+          # `source`); an unknown input is silently IGNORED by Actions, so a stale
+          # `workdir: infrastructure` would leave these paths unresolved. Compose still
+          # resolves each service's relative build context against the compose file's own
+          # directory, so `context: ../apps/...` works unchanged from repo root.
+          files: |
+            infrastructure/docker-compose.yml
+            infrastructure/docker-compose.ci-images.yml
+          push: true
+          set: |
+            *.platform=linux/amd64
+
+  # ---------------------------------------------------------------------------------------
+  # TEST 1/3 — OSS subset: the 10-service core actually BOOTS, from the CI-built images.
+  # ---------------------------------------------------------------------------------------
+  # Reuses Phase 16's already-proven gate rather than inventing a second testing philosophy.
+  # The critical part is the no-build mode: without it the script would rebuild locally and
+  # the thing tested would not be the thing published — precisely the defect this gate exists
+  # to catch.
+  test-oss-subset:
+    name: "test: OSS subset (real 10-core boot, no rebuild)"
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read # pull the images build just pushed
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Hosted runners give ~14 GB of disk; the preinstalled image cache eats a chunk of it
+      # before we pull anything. Reclaim it first so a boot never dies on "no space left on
+      # device" and gets misread as a product failure.
+      - name: Reclaim runner disk
+        run: docker system prune -af
+
+      # Explicit pull so a GHCR auth/visibility problem fails HERE with an obvious message,
+      # instead of surfacing later as a confusing boot failure inside the verify script.
+      - name: Pull the CI-built images
+        run: |
+          docker compose \
+            -f infrastructure/docker-compose.yml \
+            -f infrastructure/docker-compose.ci-images.yml \
+            pull
+
+      # VERIFY16_NO_BUILD=1 swaps the script's build-and-boot for `pull` + `up -d`, and
+      # VERIFY16_EXTRA_COMPOSE layers the GHCR override onto the live boot — the opt-in CI
+      # hooks Plan 17-02 added for exactly this call. GHCR_OWNER/XBRAIN_IMAGE_TAG come from
+      # the workflow env and resolve the override's image names to this commit's SHA tag.
+      - name: Verify OSS subset boots and passes the SC#3 walk
+        run: |
+          VERIFY16_NO_BUILD=1 \
+          VERIFY16_EXTRA_COMPOSE=infrastructure/docker-compose.ci-images.yml \
+            bash infrastructure/scripts/verify-phase16.sh
+
+  # ---------------------------------------------------------------------------------------
+  # TEST 2/3 — full profile: graph + override completeness, and the suite under EDITION=saas.
+  # ---------------------------------------------------------------------------------------
+  # Deliberately NOT a 32-container boot (D-17-03): the full profile does not reliably fit a
+  # hosted runner's disk. This gate is a daemon-free `docker compose config` resolve (a pure
+  # parse, so it can always run — which is what makes a SKIP here dishonest) plus the real
+  # memory-api suite executed under the saas edition. Measuring whether a live 32-container
+  # boot fits the runner is the documented `workflow_dispatch` follow-up, not a gate.
+  test-full-profile:
+    name: "test: full profile (graph + override + saas suite)"
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Asserts the full service graph resolves, its size is DERIVED (not hardcoded), and
+      # EVERY build: service carries a ghcr.io/<owner>/xbrain-* image in the override — the
+      # check that catches a service missing from the override, which is what would let a
+      # downstream job silently rebuild one service instead of pulling what CI tested.
+      - name: Verify full-profile graph and GHCR override completeness
+        run: bash infrastructure/scripts/verify-phase17-full.sh
+
+      # memory-api declares `xbrain-memory @ file:///app/packages/memory-models` — an absolute
+      # path that only exists inside the Docker build context. Mirror the container layout so
+      # a plain pip install resolves it on the runner. (Making that dependency path-relative
+      # is a memory-api packaging change, out of scope for a CI plan.)
+      - name: Install memory-api with dev extras
+        run: |
+          sudo mkdir -p /app/packages
+          sudo cp -r packages/memory-models /app/packages/memory-models
+          python -m pip install --upgrade pip
+          pip install -e "apps/memory-api[dev]"
+
+      # EDITION is read by Settings() at import, so setting it in the process env genuinely
+      # switches the edition under test (unlike mutating it after import, which is inert
+      # against the already-frozen config singleton).
+      - name: Run the memory-api integration suite under EDITION=saas
+        working-directory: apps/memory-api
+        env:
+          EDITION: saas
+        run: pytest -m integration -q
+
+  # ---------------------------------------------------------------------------------------
+  # TEST 3/3 — migrations apply forward-only and identically under both editions (REL-03).
+  # ---------------------------------------------------------------------------------------
+  # No `needs:`: this proves the migration chain, not the images, so it needs nothing from
+  # the build job and starts immediately in parallel. It still gates publish AND deploy.
+  test-migrations:
+    name: "test: migrations, both editions (REL-03)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install memory-api with dev extras
+        run: |
+          sudo mkdir -p /app/packages
+          sudo cp -r packages/memory-models /app/packages/memory-models
+          python -m pip install --upgrade pip
+          pip install -e "apps/memory-api[dev]"
+
+      # Real Postgres 17 via testcontainers, `alembic upgrade head` once per edition.
+      #
+      # SKIP == FAIL here. The test skips itself when Docker is absent, which is right for a
+      # laptop but a lie in CI: ubuntu-latest always has Docker, so a skip can only mean the
+      # gate was dodged. Without this check the release's single most load-bearing proof
+      # could report green having executed nothing.
+      - name: Verify alembic upgrade head under EDITION=oss and EDITION=saas
+        working-directory: apps/memory-api
+        run: |
+          set -o pipefail
+          pytest -m integration tests/test_migration_editions.py -q -rs 2>&1 | tee migration-gate.log
+          if grep -qiE '[0-9]+ skipped' migration-gate.log; then
+            echo "::error::Migration gate SKIPPED. Docker is always present on ubuntu-latest, so a skip means the REL-03 gate did not run. SKIP != PASS."
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------------------
+  # SHIP 1/2 — the public OSS release.
+  # ---------------------------------------------------------------------------------------
+  # The `needs:` list below is half of the SC3 proof: if ANY of the three test jobs fails or
+  # is skipped, this job never starts. Do not add `if: needs.*.result == 'success'` — that is
+  # redundant with `needs:` and only creates a way to get it wrong.
+  publish-oss-release:
+    name: "ship: publish OSS release"
+    needs: [test-oss-subset, test-full-profile, test-migrations]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the Release and upload its assets
+      packages: write # move the :latest pointer
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `imagetools create` copies the MANIFEST — it adds a second tag to the digest that was
+      # already built and tested. No rebuild, so `:latest` and this commit's `:<sha>` are
+      # guaranteed to be the same bytes; `:latest` stays a traceable pointer at an exact
+      # commit rather than a fresh, unverified build.
+      #
+      # The image list is DERIVED from the override file (with every profile enabled so all
+      # 18 appear), never hardcoded here: a service added to the override is retagged
+      # automatically, and one removed cannot leave a stale entry behind.
+      - name: Move the :latest pointer to this commit's tested images
+        env:
+          COMPOSE_PROFILES: integrations,saas,ops
+        run: |
+          set -euo pipefail
+          docker compose \
+            -f infrastructure/docker-compose.yml \
+            -f infrastructure/docker-compose.ci-images.yml \
+            config --images \
+            | grep "^ghcr.io/${GHCR_OWNER}/xbrain-" \
+            | sort -u > ci-images.txt
+          echo "Retagging $(wc -l < ci-images.txt) images to :latest"
+          while read -r img; do
+            echo "  ${img} -> ${img%:*}:latest"
+            docker buildx imagetools create --tag "${img%:*}:latest" "${img}"
+          done < ci-images.txt
+
+      # The self-host bundle: install docs, the light compose (profiles unset = the 10-service
+      # core), the override so operators PULL the published images instead of building, the
+      # extension, and the repo's license file shipped verbatim.
+      #
+      # On the license file: it is attached exactly as it exists on disk and this workflow
+      # never asserts which license that is. Reconciling the intended terms is a user
+      # decision recorded in docs/ci-lockstep.md — and because nothing here encodes it,
+      # changing that file later needs no edit to this pipeline.
+      - name: Publish the GitHub Release with the OSS bundle
+        uses: softprops/action-gh-release@v3.0.2
+        with:
+          tag_name: release-${{ github.sha }}
+          name: xbrain OSS ${{ github.sha }}
+          body: |
+            Automated OSS release for commit ${{ github.sha }}.
+
+            Images: `ghcr.io/${{ github.repository_owner }}/xbrain-<service>:${{ github.sha }}`
+            (also tagged `:latest`). Pull them with the bundled compose files — no local build:
+
+                docker compose -f docker-compose.yml -f docker-compose.ci-images.yml pull
+                docker compose -f docker-compose.yml -f docker-compose.ci-images.yml up -d
+
+            See INSTALL.md. Published only after the OSS-subset boot, full-profile and
+            both-edition migration gates passed on this commit.
+          files: |
+            docs/INSTALL.md
+            infrastructure/docker-compose.yml
+            infrastructure/docker-compose.ci-images.yml
+            chrome-extension.zip
+            LICENSE
+
+  # ---------------------------------------------------------------------------------------
+  # SHIP 2/2 — the SaaS deploy. AUTHORED FOR REAL, ARMED BY THE OPERATOR ONLY.
+  # ---------------------------------------------------------------------------------------
+  # STATUS: this job has never run. The prod VM is stopped (cost measure), so
+  # `vars.SAAS_DEPLOY_ENABLED` is unset and GitHub evaluates the `if:` to false — the job is
+  # skipped on every run. It is wired into the lockstep graph and lint-clean, but nothing
+  # below is proven against a live host. Do not read a green pipeline as a green deploy.
+  #
+  # TO ARM IT (documented in full in docs/ci-lockstep.md):
+  #   1. Start the VM and confirm its .env is current (project history: VM .env vars go missing).
+  #   2. Ensure the deploy directory holds this commit's compose files.
+  #   3. Add repo SECRETS (never variables): VM_SSH_HOST, VM_SSH_USER, VM_SSH_KEY.
+  #   4. Set repo VARIABLE SAAS_DEPLOY_ENABLED=true.
+  # Unsetting the variable disarms deploys again without touching this file.
+  #
+  # The `if:` covers the SEPARATE question of whether a deploy is armed. It is NOT a
+  # test-conclusion check — `needs:` already guarantees the tests passed.
+  deploy-saas:
+    name: "ship: deploy SaaS (gated)"
+    needs: [test-oss-subset, test-full-profile, test-migrations]
+    if: vars.SAAS_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # PULL, never rebuild. The `make` deploy target ends in an `up -d` that rebuilds ON the
+      # VM — a second build, on different toolchain state, of images nothing has tested. That
+      # would defeat build-once even on a fully green pipeline, so this job deliberately does
+      # not reuse it and pulls the immutable SHA tags instead.
+      #
+      # Secrets reach the VM through `envs:` (forwarded as environment variables) and the
+      # registry token is read from stdin — never interpolated into a command line or echoed.
+      - name: Pull the tested images on the VM and restart the stack
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          DEPLOY_DIR: /home/${{ secrets.VM_SSH_USER }}/xbrain
+          GHCR_OWNER: ${{ github.repository_owner }}
+          XBRAIN_IMAGE_TAG: ${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.VM_SSH_HOST }}
+          username: ${{ secrets.VM_SSH_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          envs: DEPLOY_DIR,GHCR_OWNER,XBRAIN_IMAGE_TAG,GHCR_USER,GHCR_TOKEN
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            cd "$DEPLOY_DIR"
+
+            # The override is what points compose at the registry. Without it, `up -d` would
+            # fall back to the base file's `build:` keys and rebuild on the VM — fail loudly
+            # instead of silently shipping something CI never saw.
+            if [ ! -f infrastructure/docker-compose.ci-images.yml ]; then
+              echo "FATAL: infrastructure/docker-compose.ci-images.yml missing in $DEPLOY_DIR."
+              echo "Sync the repo to this commit before deploying; without the override the stack would rebuild locally."
+              exit 1
+            fi
+
+            # The VM's own .env is what actually boots the containers, and it has drifted
+            # before. Reuse the same preflight the manual deploy path runs.
+            bash infrastructure/scripts/preflight-env.sh .env
+
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+
+            export GHCR_OWNER XBRAIN_IMAGE_TAG
+            COMPOSE_FILES="-f infrastructure/docker-compose.yml -f infrastructure/docker-compose.ci-images.yml"
+
+            # shellcheck disable=SC2086
+            docker compose $COMPOSE_FILES --env-file .env pull
+            # shellcheck disable=SC2086
+            docker compose $COMPOSE_FILES --env-file .env up -d
+            # shellcheck disable=SC2086
+            docker compose $COMPOSE_FILES --env-file .env ps
