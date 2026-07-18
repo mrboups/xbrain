@@ -624,7 +624,11 @@ Plans:
   4. An operator running a self-hosted install applies a released migration and upgrades cleanly with a single command — the migration path is forward-only (no down-migrations required) and edition-agnostic (the same migration applies whether the install runs oss, saas, or pro).
   5. Migrations are validated in CI against both profiles before release — a migration that would break one edition never reaches release.
 
-**Plans**: TBD (populated by `/gsd:plan-phase 17`)
+**Plans**: 4 plans
+- [ ] 17-01-PLAN.md — Migration lockstep test: alembic upgrade head under EDITION=oss/saas/pro on real testcontainers (REL-03, SC4/SC5)
+- [ ] 17-02-PLAN.md — CI test harness: GHCR image override + full-profile 33-graph gate + verify-phase16 no-build hook (REL-01)
+- [ ] 17-03-PLAN.md — The lockstep workflow: build-once to GHCR then 3 test jobs gate publish-oss-release + gated deploy-saas via needs: (REL-01, REL-02)
+- [ ] 17-04-PLAN.md — SC3 structural proof (parse the needs-graph) + actionlint gate + Make targets + honest residual doc (REL-01/02/03)
 **UI hint**: no (CI/release infrastructure — no user-facing surface)
 
 ## Progress
@@ -651,7 +655,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 14. Portability Foundation | 8/8 | Complete    | 2026-07-12 |
 | 15. Edition Mechanics | 6/6 | Complete    | 2026-07-13 |
 | 16. OSS Light Packaging | 4/4 | Complete   | 2026-07-18 |
-| 17. CI Lockstep | 0/TBD | Not started | - |
+| 17. CI Lockstep | 0/4 | Planned | - |
 
 ---
 
