@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
  (completed 2026-07-14)
 - [x] **Phase 19: Local Embeddings (OSS default)** - In-container keyless embedder so semantic retrieval works with NO OpenAI key (OpenAI stays selectable). **Runs BEFORE Phase 16** — order 14 → 15 → 18 → 19 → 16 → 20 → 17. Today `embedders.py` hard-raises without `OPENAI_API_KEY`, so a zero-key OSS install cannot do the "retrieved" half of Phase 16's own SC#3; locked decision Q3 wanted local-by-default. Numbered 19 to avoid renumbering 16/17. (completed 2026-07-18)
 - [x] **Phase 16: OSS Light Packaging** - Light compose + install docs + clean-install test on a fresh VM. The stack boots and the brain works end-to-end (chat via the existing surfaces + ChatGPT-web connector + doc analysis + retrieval + clip) with zero external keys. **The standalone web chat frontend moved to Phase 20** (it is a phase-sized build, not a packaging criterion). (completed 2026-07-18)
-- [ ] **Phase 20: Standalone Web Chat** - Extract the team group-chat from the Chrome extension (~1125-line popup.js) into a browser-extension-independent web app — THE product per Q4. Wires in Phase 18 auth + clip-to-memory. **Runs AFTER Phase 16** (needs the packaged stack to serve it) and before 17. Numbered 20 to avoid renumbering.
+- [ ] **Phase 20: Extension Chat UI Polish (shadcn Neutral)** - RESCOPED 2026-07-18 (Option B): the team chat stays a single group chat inside the Chrome extension (no navigation) and its popup UI is restyled to shadcn Neutral (monochrome, radius 0, Geist, persisted light/dark toggle), preserving all existing behavior. The standalone-web-app extraction is DROPPED. **Runs AFTER Phase 16** and before 17. Numbered 20 to avoid renumbering.
 - [ ] **Phase 17: CI Lockstep** - One pipeline builds/tests both profiles, publishes the OSS release and deploys SaaS from the same commit
 
 ## Phase Details
@@ -603,7 +603,11 @@ Plans:
   4. The change is scoped to `chrome-extension/popup.html` / `popup.css` (+ minimal `popup.js` only for the theme toggle / behavior parity); no product English-string regressions (migrate any legacy French popup strings to English on touch, per CLAUDE.md).
   5. A human UAT (or a driven-browser check) confirms the load → chat → `@agent` mention → clip loop renders correctly in the restyled popup in a real browser (this also lands the browser-UAT deferred from Phase 18's UI checkpoint).
 
-**Plans**: TBD (populated by `/gsd:plan-phase 20`)
+**Plans**: 4 plans (waves 1 -> 2 -> 3 -> 4)
+- [ ] 20-01-PLAN.md — Design tokens (shadcn Neutral, radius 0, Geist) + persisted light/dark toggle + selector-contract guardrail
+- [ ] 20-02-PLAN.md — Restyle app chrome: header (square group avatar), team selector, composer, connection card, clip overlay
+- [ ] 20-03-PLAN.md — Restyle message thread: own/others/agent bubbles, mono meta, agent from-your-brain block, saved-to-brain + truth-level chips, day separators (real data only)
+- [ ] 20-04-PLAN.md — Verification: automated gate (tokens/selectors/a11y, SKIP=FAIL) + real-browser UAT (closes Phase-18 browser check)
 **UI hint**: yes (the extension chat popup restyle is the milestone's headline user-facing polish)
 
 ### Phase 17: CI Lockstep
