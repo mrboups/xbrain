@@ -101,6 +101,10 @@ restore-test:  ## Test restore sur env clean (cf. plan 01-06, success criterion 
 	bash infrastructure/scripts/restore-test.sh
 
 # === Utilities ===
+.PHONY: oss-init
+oss-init:  ## Generate a zero-external-key .env for the OSS-light core
+	@bash infrastructure/scripts/oss-init.sh $(ARGS)
+
 .PHONY: env-check
 env-check:  ## Vérifie que toutes les vars critiques sont dans .env
 	@bash -c 'source .env 2>/dev/null && for v in POSTGRES_PASSWORD GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET BRIDGE_SHARED_SECRET MEILI_MASTER_KEY OPENWEBUI_SECRET_KEY OAUTH_ISSUER_URL OAUTH_RESOURCE_URL CORS_ALLOWED_ORIGIN_REGEX XBRAIN_BASE_DOMAIN AGENT_MENTION_ALIASES; do \
