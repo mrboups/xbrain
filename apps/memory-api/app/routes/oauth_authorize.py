@@ -26,6 +26,7 @@ resolved user_id. The GitHub leg uses memory-api's OWN callback
 from __future__ import annotations
 
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -39,11 +40,20 @@ from app.auth import oauth_store
 from app.auth.oauth_tokens import normalize_resource
 from app.config import settings
 from app.deps import get_session
+from app.repos import local_credentials as local_credentials_repo
+from app.services.password_hash import verify_decoy, verify_password
+from app.services.rate_limit import enforce_rate_limit
 
 router = APIRouter()
 log = structlog.get_logger(__name__)
 
 _CONSENT_TEMPLATE = Path(__file__).parent.parent / "templates" / "oauth_consent.html"
+_LOCAL_LOGIN_TEMPLATE = Path(__file__).parent.parent / "templates" / "oauth_local_login.html"
+
+# Single literal message reused across the absent / locked / wrong-password
+# branches of POST /oauth/authorize/local — any divergence is a user-enumeration
+# oracle (T-16-01-02, mirrors auth_local.login's _GENERIC_LOGIN_ERROR).
+_GENERIC_LOGIN_ERROR = "Invalid email or password."
 
 # In-flight state TTL — the browser leg (GitHub sign-in + consent) is interactive.
 _STATE_TTL = 600  # 10 minutes
@@ -75,6 +85,36 @@ def _error_page(message: str, status: int = 400) -> HTMLResponse:
         "<title>Authorization error</title></head><body style='font-family:system-ui;"
         "background:#0f1115;color:#e7e9ee;padding:40px'>"
         f"<h1>Authorization error</h1><p>{message}</p></body></html>"
+    )
+    return HTMLResponse(content=html, status_code=status)
+
+
+async def _render_local_login(
+    session: AsyncSession,
+    *,
+    client_id: str,
+    state: str,
+    error: str = "",
+    status: int = 200,
+) -> HTMLResponse:
+    """Render the English-only local email/password login form (zero-key install).
+
+    The hidden ``state`` is the SAME signed pre_github token GET /oauth/authorize
+    issued — POST /oauth/authorize/local re-verifies it, so redirect_uri / client
+    are never taken from the form body. ``error`` is injected as a self-contained
+    HTML block (empty on first view); on a failed credential proof the SAME
+    generic message is used every time (no enumeration oracle, T-16-01-02).
+    """
+    client = await oauth_store.get_client(session, client_id)
+    client_name = (client or {}).get("client_name") or "this application"
+    error_html = (
+        f'<div class="error">{error}</div>' if error else ""
+    )
+    html = (
+        _LOCAL_LOGIN_TEMPLATE.read_text(encoding="utf-8")
+        .replace("{{client_name}}", str(client_name))
+        .replace("{{state}}", state)
+        .replace("{{error}}", error_html)
     )
     return HTMLResponse(content=html, status_code=status)
 
@@ -124,6 +164,15 @@ async def authorize(
             "stage": "pre_github",
         }
     )
+
+    # Zero-key OSS-light install (no GitHub App configured): authenticate the
+    # connector's sign-in leg via Phase-18 local auth instead of 302-ing into a
+    # client_id-empty GitHub URL that GitHub rejects (D-16-02). Additive branch —
+    # the GitHub path below is byte-unchanged when a GitHub App IS configured.
+    if not settings.GITHUB_APP_CLIENT_ID:
+        return await _render_local_login(
+            session, client_id=client_id, state=state_token
+        )
 
     # Redirect into GitHub sign-in using memory-api's OWN callback (never the
     # Claude.ai redirect_uri). Reuse the xbrain GitHub App client id.
@@ -213,6 +262,123 @@ async def github_callback(
         .replace("{{state}}", post_state)
         .replace("{{team_options}}", options_html)
     )
+    return HTMLResponse(content=html)
+
+
+async def _rl_authorize_local(request: Request) -> None:
+    # Reuse the same in-process per-IP limiter + budget as auth_local.login.
+    await enforce_rate_limit(
+        request, settings.LOCAL_AUTH_RATE_LIMIT, "oauth_authorize_local"
+    )
+
+
+@router.post("/oauth/authorize/local", response_model=None, dependencies=[Depends(_rl_authorize_local)])
+async def authorize_local_submit(
+    email: str = Form(...),
+    password: str = Form(...),
+    state: str = Form(...),
+    session: AsyncSession = Depends(get_session),
+) -> HTMLResponse | RedirectResponse:
+    """Zero-key connector sign-in: prove local credentials, converge into consent.
+
+    The GitHub-less counterpart to github_callback (D-16-02). Verifies the
+    email/password against the SAME Phase-18 argon2id store
+    (verify_password / verify_decoy) and the SAME per-account lockout
+    auth_local.login honors, then re-signs a post_github state and converges into
+    the SAME _finalize_consent (single team) or the SAME reused consent page
+    (multi team). No new crypto, no auth bypass: identity is the credential-lookup
+    user_id (never the form), redirect_uri comes ONLY from the signed state.
+    """
+    # CSRF / open-redirect defense: the state MUST be our own signed pre_github
+    # token — reject absent / expired / foreign / wrong-stage before anything else.
+    st = _verify_state(state)
+    if st is None or st.get("stage") != "pre_github":
+        return _error_page("Authorization state is invalid or has expired.", 400)
+
+    row = await local_credentials_repo.get_by_email(session, email.strip().lower())
+
+    # Absent email — decoy-verify equalizes the (dominant) argon2 timing, then the
+    # SAME generic 401 as every short-circuit branch below (no enumeration oracle).
+    if row is None:
+        verify_decoy(password)
+        await session.commit()  # timing-equalization commit (mirrors auth_local.login)
+        return await _render_local_login(
+            session, client_id=st["client_id"], state=state,
+            error=_GENERIC_LOGIN_ERROR, status=401,
+        )
+
+    # Locked account — identical generic 401, never a distinct 'locked' oracle.
+    if row["locked_until"] is not None and row["locked_until"] > datetime.now(
+        tz=timezone.utc
+    ):
+        verify_decoy(password)
+        await session.commit()
+        return await _render_local_login(
+            session, client_id=st["client_id"], state=state,
+            error=_GENERIC_LOGIN_ERROR, status=401,
+        )
+
+    # Wrong password — record the failure (durable per-account lockout) then 401.
+    if not verify_password(row["password_hash"], password):
+        await local_credentials_repo.record_failure(session, row["user_id"])
+        await session.commit()
+        return await _render_local_login(
+            session, client_id=st["client_id"], state=state,
+            error=_GENERIC_LOGIN_ERROR, status=401,
+        )
+
+    # Credential proven — clear the failed-attempt counter (same as login).
+    await local_credentials_repo.reset_failures(session, row["user_id"])
+
+    from app.repos.teams import list_teams_for_user
+
+    teams = await list_teams_for_user(session, user_id=row["user_id"])
+    if not teams:
+        await session.commit()
+        return _error_page("Your account is not a member of any team yet.")
+
+    # Re-sign the SAME keys github_callback carries + the resolved user identity.
+    post_state = _sign_state(
+        {
+            "client_id": st["client_id"],
+            "redirect_uri": st["redirect_uri"],
+            "code_challenge": st["code_challenge"],
+            "resource": st["resource"],
+            "scope": st["scope"],
+            "claude_state": st.get("claude_state", ""),
+            "user_id": str(row["user_id"]),
+            "stage": "post_github",
+        }
+    )
+
+    # Single team → skip selection, mint the code immediately (converge into the
+    # SAME _finalize_consent the GitHub leg uses; it commits reset_failures too).
+    if len(teams) == 1:
+        return await _finalize_consent(
+            session, state=post_state, team_scope=teams[0].slug
+        )
+
+    # Multiple teams → render the EXISTING consent page (reuse github_callback's
+    # options_html block); the POST /oauth/authorize consent submit mints the code.
+    # NO code is minted here — do NOT duplicate consent/team-selection logic.
+    client = await oauth_store.get_client(session, st["client_id"])
+    client_name = (client or {}).get("client_name") or "this application"
+    options_html = "\n".join(
+        f'<div class="team"><input type="radio" id="t_{t.slug}" name="team_scope" '
+        f'value="{t.slug}"{" checked" if i == 0 else ""}>'
+        f'<label for="t_{t.slug}">{t.display_name} ({t.slug})</label></div>'
+        for i, t in enumerate(teams)
+    )
+    html = (
+        _CONSENT_TEMPLATE.read_text(encoding="utf-8")
+        .replace("{{client_name}}", str(client_name))
+        .replace("{{scopes}}", str(st["scope"]))
+        .replace("{{state}}", post_state)
+        .replace("{{team_options}}", options_html)
+    )
+    # Persist reset_failures from the successful proof — the consent submit runs in
+    # a separate request/transaction and would otherwise roll it back.
+    await session.commit()
     return HTMLResponse(content=html)
 
 

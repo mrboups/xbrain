@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Open-Core Edition
 status: executing
-stopped_at: "Phase 19 (Local Embeddings) COMPLETE — 3 plans, 2 waves, verifier PASS 6/6 (independently reproduced), code-review 1 BLOCKER (CR-01 compose --workers) + 2 warnings fixed + re-verified (12 passed). EMBED-01 delivered: keyless local fastembed embeddings, provider-pluggable, dimension-safe, both-arch. Next action: `/gsd:execute-phase 16` (OSS Light Packaging)."
-last_updated: "2026-07-18T01:29:05.671Z"
-last_activity: 2026-07-18 -- Phase 19 execution started
+stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
+last_updated: "2026-07-18T09:40:33.540Z"
+last_activity: 2026-07-18 -- Phase 16 execution started
 progress:
-  total_phases: 18
-  completed_phases: 16
-  total_plans: 134
-  completed_plans: 129
+  total_phases: 19
+  completed_phases: 17
+  total_plans: 138
+  completed_plans: 132
   percent: 89
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 19 (Local Embeddings) COMPLETE + verified + code-review fixed. Next: Phase 16 (OSS Light Packaging), then 20 (Standalone Web Chat — reconcile to Option B: polish existing extension chat UI), then 17 (CI Lockstep).
+**Current focus:** Phase 16 — OSS Light Packaging
 
 ## Current Position
 
-Phase: 19 (local-embeddings) — COMPLETE. Next: Phase 16 (OSS Light Packaging)
-Plan: 1 of 3
-Status: Phase 19 complete — next Phase 16 (OSS Light Packaging)
-Last activity: 2026-07-18 -- Phase 19 execution started
+Phase: 16 (OSS Light Packaging) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 16
+Last activity: 2026-07-18 -- Phase 16 execution started
 
 ## Performance Metrics
 
