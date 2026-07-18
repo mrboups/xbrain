@@ -121,6 +121,17 @@ services:
       MEMORY_BACKEND: ${MEMORY_BACKEND:-native}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      # Phase 19 (EMBED-01) — local keyless embeddings. Default `local`: a zero-key install embeds +
+      # retrieves in-container (BAAI/bge-small-en-v1.5, 384-dim) with no external call. Set `openai` +
+      # OPENAI_API_KEY to restore the 1536-dim OpenAI path. An unknown value silently falls back to
+      # local (never crash-boots — app/config.py deliberately has no field_validator here).
+      # OSS-light deployments set EMBEDDINGS_PROVIDER=local + UVICORN_WORKERS=1 in their .env.
+      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-local}
+      LOCAL_EMBEDDING_MODEL: ${LOCAL_EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+      # uvicorn workers. Default 2 (SaaS concurrency). OSS-light sets 1 so the local model is loaded
+      # ONCE: under --workers 2 the model is duplicated (~2x RSS, spawn-based, no copy-on-write) and
+      # can OOM e2-medium. The Dockerfile CMD reads this env (ENV UVICORN_WORKERS=2 default).
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
@@ -223,8 +234,13 @@ services:
     # 384m was the Phase 1 (e2-medium 4GB) budget. The signin path (PyJWT
     # RS256 + GitHub token exchange + profile fetch + DB writes) pushed RSS
     # past the cap → uvicorn worker OOM-killed mid-request → 502 at the edge.
-    # VM is now 8GB with headroom; 768m removes the OOM churn.
-    mem_limit: 768m
+    # VM is now 8GB with headroom; 768m removed the OOM churn.
+    # Phase 19 (EMBED-01): OSS-light (EMBEDDINGS_PROVIDER=local, UVICORN_WORKERS=1) lazily loads
+    # BAAI/bge-small-en-v1.5 IN-PROCESS on first embed — measured warm RSS ~256 MB arm64-native,
+    # ~366 MB under amd64-QEMU (RESEARCH §6 / Assumption A2 — re-measure once on the real amd64 VM).
+    # Bumped 768m → 896m to give that single-worker model load headroom without OOM churn. SaaS keeps
+    # UVICORN_WORKERS=2 + EMBEDDINGS_PROVIDER=openai, so the in-process model never loads there.
+    mem_limit: 896m
     depends_on:
       postgres: { condition: service_healthy }
       qdrant: { condition: service_healthy }
