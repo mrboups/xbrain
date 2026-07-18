@@ -133,6 +133,32 @@ async def test_zero_key_get_authorize_renders_local_form(client, session):
     assert "github.com/login/oauth/authorize" not in r.text
 
 
+async def test_malicious_client_name_is_escaped_on_login_form(client, session):
+    """CR-01 regression: client_name is attacker-controlled (POST /oauth/register
+    is public + unauthenticated per RFC 7591 DCR). This is the CREDENTIAL-ENTRY
+    page, so an unescaped interpolation is stored-XSS -> password theft. The
+    payload MUST come back HTML-escaped, never as live markup."""
+    from app.auth import oauth_store
+
+    payload = '<script>alert("xss")</script>'
+    reg = await oauth_store.register_client(
+        session, client_name=payload, redirect_uris=[_REDIRECT]
+    )
+    await session.commit()
+
+    r = await client.get(
+        "/oauth/authorize",
+        params=_authorize_params(reg["client_id"]),
+        follow_redirects=False,
+    )
+    assert r.status_code == 200, r.text
+    # The raw script tag must NOT survive into the response...
+    assert "<script>alert(" not in r.text
+    # ...and the payload must be present in escaped form (proving it was rendered,
+    # not merely dropped — a silently-empty page would also pass the check above).
+    assert "&lt;script&gt;" in r.text
+
+
 async def test_github_configured_get_authorize_still_redirects_to_github(
     client, session, monkeypatch
 ):

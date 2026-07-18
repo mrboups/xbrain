@@ -39,7 +39,7 @@ Active scope. One codebase, two runtime shapes (OSS self-host / SaaS hosted); a 
 
 ### OSS Packaging
 
-- [ ] **PKG-01** (Phase 16): A team can stand up the OSS-light edition (chat + full brain: doc analysis, ingest, **keyless semantic retrieval via Phase 19**, truth-levels, ChatGPT connector, clip) on a fresh VM from the install docs alone, with zero external keys
+- [x] **PKG-01** (Phase 16): A team can stand up the OSS-light edition (chat + full brain: doc analysis, ingest, **keyless semantic retrieval via Phase 19**, truth-levels, ChatGPT connector, clip) on a fresh VM from the install docs alone, with zero external keys
 - [ ] **PKG-02** (Phase 20): A user can chat and query their team brain from a standalone hosted web app extracted from the extension, without installing a browser extension
 
 ### Release / CI Lockstep
@@ -65,7 +65,7 @@ Mapping requirement -> phase for milestone v2.0 "Open-Core Edition". Filled by t
 | LAUTH-01 | Phase 18 | Done (2026-07-13, UI browser-UAT deferred to P16) |
 | LAUTH-02 | Phase 18 | Done (2026-07-13) |
 | EMBED-01 | Phase 19 | Complete |
-| PKG-01 | Phase 16 | Pending |
+| PKG-01 | Phase 16 | Complete |
 | PKG-02 | Phase 20 | Pending |
 | REL-01 | Phase 17 | Pending |
 | REL-02 | Phase 17 | Pending |

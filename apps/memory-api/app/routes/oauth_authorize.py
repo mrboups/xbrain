@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
+from html import escape  # NOT `import html` — a local var named `html` shadows it below
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -108,12 +109,16 @@ async def _render_local_login(
     client = await oauth_store.get_client(session, client_id)
     client_name = (client or {}).get("client_name") or "this application"
     error_html = (
-        f'<div class="error">{error}</div>' if error else ""
+        f'<div class="error">{escape(error)}</div>' if error else ""
     )
+    # SECURITY (CR-01): client_name is attacker-controlled — POST /oauth/register
+    # (RFC 7591 DCR) is public and unauthenticated, so anyone can register a client
+    # whose name carries markup. This is the CREDENTIAL-ENTRY page, so an unescaped
+    # interpolation here is stored-XSS -> password theft. Escape every substitution.
     html = (
         _LOCAL_LOGIN_TEMPLATE.read_text(encoding="utf-8")
-        .replace("{{client_name}}", str(client_name))
-        .replace("{{state}}", state)
+        .replace("{{client_name}}", escape(str(client_name)))
+        .replace("{{state}}", escape(state))
         .replace("{{error}}", error_html)
     )
     return HTMLResponse(content=html, status_code=status)
@@ -250,16 +255,16 @@ async def github_callback(
     client = await oauth_store.get_client(session, st["client_id"])
     client_name = (client or {}).get("client_name") or "this application"
     options_html = "\n".join(
-        f'<div class="team"><input type="radio" id="t_{t.slug}" name="team_scope" '
-        f'value="{t.slug}"{" checked" if i == 0 else ""}>'
-        f'<label for="t_{t.slug}">{t.display_name} ({t.slug})</label></div>'
+        f'<div class="team"><input type="radio" id="t_{escape(t.slug)}" name="team_scope" '
+        f'value="{escape(t.slug)}"{" checked" if i == 0 else ""}>'
+        f'<label for="t_{escape(t.slug)}">{escape(t.display_name)} ({escape(t.slug)})</label></div>'
         for i, t in enumerate(teams)
     )
     html = (
         _CONSENT_TEMPLATE.read_text(encoding="utf-8")
-        .replace("{{client_name}}", str(client_name))
-        .replace("{{scopes}}", str(st["scope"]))
-        .replace("{{state}}", post_state)
+        .replace("{{client_name}}", escape(str(client_name)))
+        .replace("{{scopes}}", escape(str(st["scope"])))
+        .replace("{{state}}", escape(post_state))
         .replace("{{team_options}}", options_html)
     )
     return HTMLResponse(content=html)
@@ -364,16 +369,16 @@ async def authorize_local_submit(
     client = await oauth_store.get_client(session, st["client_id"])
     client_name = (client or {}).get("client_name") or "this application"
     options_html = "\n".join(
-        f'<div class="team"><input type="radio" id="t_{t.slug}" name="team_scope" '
-        f'value="{t.slug}"{" checked" if i == 0 else ""}>'
-        f'<label for="t_{t.slug}">{t.display_name} ({t.slug})</label></div>'
+        f'<div class="team"><input type="radio" id="t_{escape(t.slug)}" name="team_scope" '
+        f'value="{escape(t.slug)}"{" checked" if i == 0 else ""}>'
+        f'<label for="t_{escape(t.slug)}">{escape(t.display_name)} ({escape(t.slug)})</label></div>'
         for i, t in enumerate(teams)
     )
     html = (
         _CONSENT_TEMPLATE.read_text(encoding="utf-8")
-        .replace("{{client_name}}", str(client_name))
-        .replace("{{scopes}}", str(st["scope"]))
-        .replace("{{state}}", post_state)
+        .replace("{{client_name}}", escape(str(client_name)))
+        .replace("{{scopes}}", escape(str(st["scope"])))
+        .replace("{{state}}", escape(post_state))
         .replace("{{team_options}}", options_html)
     )
     # Persist reset_failures from the successful proof — the consent submit runs in
