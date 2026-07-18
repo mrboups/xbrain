@@ -21,6 +21,10 @@ import {
   authorLabel,
   bubbleClass,
   provenanceLabel,
+  brainSummaryLabel,
+  savedToBrainLabel,
+  sameDay,
+  dayLabel,
 } from "./chat_stream.js";
 import { loadSettings, saveSettings } from "./settings.js";
 import {
@@ -418,6 +422,7 @@ async function loadInitialHistory() {
   }
   $("chat-empty").hidden = true;
   for (const m of msgs) renderMessage(m, { prepend: false });
+  syncDaySeparators();
   state.oldestLoadedTs = msgs[0].created_at;
   // Initial load: pin to the latest message regardless of scrollTop.
   scrollToBottom({ force: true });
@@ -441,6 +446,7 @@ async function loadOlderPage() {
     for (const m of olderMsgs) {
       renderMessage(m, { prepend: true });
     }
+    syncDaySeparators();
     if (olderMsgs.length > 0) {
       state.oldestLoadedTs = olderMsgs[0].created_at;
     }
@@ -458,6 +464,7 @@ function handlePublication(data) {
   if (!data || !data.type) return;
   if (data.type === "message") {
     renderMessage(data.message, { prepend: false });
+    syncDaySeparators();
     scrollToBottom();
     $("chat-empty").hidden = true;
     return;
@@ -476,11 +483,9 @@ function handlePublication(data) {
   }
   if (data.type === "agent_stream_chunk") {
     state.streamBuffer.append(data.message_id, data.delta);
-    const bodyEl = document.querySelector(
-      `[data-msg-id="${data.message_id}"] .xb-msg-bubble`,
-    );
-    if (bodyEl) {
-      bodyEl.textContent = state.streamBuffer.get(data.message_id);
+    const textEl = streamTextTarget(data.message_id);
+    if (textEl) {
+      textEl.textContent = state.streamBuffer.get(data.message_id);
       scrollToBottom();
     }
     return;
@@ -497,12 +502,32 @@ function handlePublication(data) {
     const bodyEl = document.querySelector(
       `[data-msg-id="${data.message_id}"] .xb-msg-bubble`,
     );
-    if (bodyEl) {
-      bodyEl.classList.remove("streaming");
-      bodyEl.textContent += `\n\n(error: ${data.error || "unknown"})`;
+    const textEl = streamTextTarget(data.message_id);
+    if (bodyEl) bodyEl.classList.remove("streaming");
+    if (textEl) {
+      textEl.textContent += `\n\n(error: ${data.error || "unknown"})`;
     }
     return;
   }
+}
+
+/**
+ * Resolve where an agent stream should write its text.
+ *
+ * The bubble now also holds the agent label and the sources disclosure, so the
+ * stream writes into the dedicated .xb-msg-text span instead of replacing the
+ * whole bubble's textContent (which would wipe them). Falls back to the bubble
+ * itself for any row built before the span existed.
+ *
+ * @param {string} messageId
+ * @returns {HTMLElement|null}
+ */
+function streamTextTarget(messageId) {
+  const bubble = document.querySelector(
+    `[data-msg-id="${messageId}"] .xb-msg-bubble`,
+  );
+  if (!bubble) return null;
+  return bubble.querySelector(".xb-msg-text") || bubble;
 }
 
 // ---------- Render messages ----------
@@ -533,6 +558,7 @@ function renderAgentBubble({ id, agent_name, routed_via, streaming }) {
     wrapper.querySelector(".xb-msg-bubble").classList.add("streaming");
   }
   $("message-list").appendChild(wrapper);
+  syncDaySeparators();
 }
 
 function buildBubbleNode(msg) {
@@ -541,6 +567,8 @@ function buildBubbleNode(msg) {
   const wrapper = document.createElement("div");
   wrapper.className = `xb-msg ${rowClass}`;
   wrapper.dataset.msgId = msg.id;
+  // Day-separator input (syncDaySeparators reads this off the DOM).
+  if (msg.created_at) wrapper.dataset.createdAt = msg.created_at;
 
   // Avatar — letter for users, 🤖 for agents
   const avatar = document.createElement("div");
@@ -586,9 +614,19 @@ function buildBubbleNode(msg) {
   }
   wrapper.appendChild(meta);
 
-  // Body (no bubble — flat text per LibreChat)
+  // Body — the bubble (own = --primary, others = --muted, agent = --card).
   const body = document.createElement("div");
   body.className = "xb-msg-bubble";
+
+  // Agent block label (mockup .agent-bubble .who) — mono uppercase, styled by
+  // CSS. Lives inside the bubble but OUTSIDE .xb-msg-text so the streaming
+  // writer can replace the text without wiping the label.
+  if (msg.kind === "agent") {
+    const who = document.createElement("div");
+    who.className = "xb-msg-agent-label";
+    who.textContent = "agent · from your brain";
+    body.appendChild(who);
+  }
 
   // BL-003 Slice 4 — render media inline when the message carries a media
   // attachment. The URL is a server-minted signed path (/v1/media/{id}/img?t=...)
@@ -603,12 +641,108 @@ function buildBubbleNode(msg) {
       body.appendChild(caption);
     }
   } else {
-    body.textContent = msg.content || "";
+    // Text lives in its own span — the target the agent stream writes into.
+    const text = document.createElement("span");
+    text.className = "xb-msg-text";
+    text.textContent = msg.content || "";
+    body.appendChild(text);
+  }
+
+  // Sources disclosure — driven by the REAL memory_items count the agent
+  // pipeline persisted. Renders nothing when the agent used no brain items.
+  if (msg.kind === "agent") {
+    const summaryLabel = brainSummaryLabel(msg.metadata);
+    if (summaryLabel) {
+      body.appendChild(buildSourcesNode(summaryLabel, msg.metadata.sources));
+    }
   }
 
   wrapper.appendChild(body);
 
+  // Saved-to-brain badge — only on a genuine indexed-attachment signal.
+  const savedLabel = savedToBrainLabel(msg);
+  if (savedLabel) {
+    const tag = document.createElement("span");
+    tag.className = "xb-msg-savetag";
+    tag.textContent = savedLabel;
+    wrapper.appendChild(tag);
+  }
+
   return wrapper;
+}
+
+/**
+ * Build the agent's `<details>` sources disclosure.
+ *
+ * The summary line is the real memory_items count. Individual source rows are
+ * rendered ONLY when the server actually sends `metadata.sources` — the backend
+ * does not emit it today, so this stays future-proof and fabricates nothing
+ * (threat T-20-03-02). Truth levels come from the payload; the chip styling is
+ * selected by data-level, never hardcoded.
+ *
+ * @param {string} summaryLabel - e.g. "2 sources from the brain"
+ * @param {Array<object>|undefined} sources - server-sent rows, if any
+ * @returns {HTMLDetailsElement}
+ */
+function buildSourcesNode(summaryLabel, sources) {
+  const details = document.createElement("details");
+  details.className = "xb-msg-sources";
+
+  const summary = document.createElement("summary");
+  summary.textContent = summaryLabel;
+  details.appendChild(summary);
+
+  if (Array.isArray(sources)) {
+    for (const s of sources) {
+      const row = document.createElement("div");
+      row.className = "xb-msg-src";
+
+      const level =
+        s && typeof s.truth_level === "string" ? s.truth_level.toLowerCase() : null;
+      if (level) {
+        const chip = document.createElement("span");
+        chip.className = "xb-msg-chip";
+        chip.dataset.level = level;
+        chip.textContent = level;
+        row.appendChild(chip);
+      }
+
+      const label = document.createElement("span");
+      label.textContent = (s && (s.text || s.title)) || "";
+      row.appendChild(label);
+
+      details.appendChild(row);
+    }
+  }
+
+  return details;
+}
+
+/**
+ * Reconcile day separators across the whole thread.
+ *
+ * Recomputed from the rows currently in the DOM (rather than tracked
+ * incrementally) so it stays correct for the append path, the prepend
+ * pagination path, and live inserts alike. Separators carry no data-msg-id, so
+ * the de-dupe lookup in renderMessage never sees them.
+ */
+function syncDaySeparators() {
+  const list = $("message-list");
+  for (const sep of Array.from(list.querySelectorAll(".xb-msg-daysep"))) {
+    sep.remove();
+  }
+  let prevIso = null;
+  for (const row of Array.from(list.children)) {
+    const iso = row.dataset ? row.dataset.createdAt : null;
+    if (!iso) continue;
+    if (!prevIso || !sameDay(prevIso, iso)) {
+      const sep = document.createElement("div");
+      sep.className = "xb-msg-daysep";
+      sep.textContent = dayLabel(iso);
+      list.insertBefore(sep, row);
+    }
+    prevIso = iso;
+  }
 }
 
 /**

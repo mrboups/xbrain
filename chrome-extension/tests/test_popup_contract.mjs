@@ -91,6 +91,7 @@ const FROZEN_CLASSES = [
   "xb-msg-file-chip",
   "connect-btn",
   // Plan 20-03 — message-thread additions (mockup .who/.sources/.src/.savetag/.daysep).
+  "xb-msg-text",
   "xb-msg-agent-label",
   "xb-msg-sources",
   "xb-msg-src",
