@@ -319,5 +319,235 @@ test("english-only: no accented Latin chars in popup.html + popup.js", () => {
   }
 });
 
+// ===========================================================================
+// 5. Plan 20-04 — final mechanical gate: accessibility + token RESOLUTION +
+//    CSP-safe fonts + radius-0 avatars.
+//
+// SKIP = FAIL. Every assertion below runs unconditionally against the file
+// bytes; there is no environment in which one silently no-ops. The only
+// conditional block in this file is the jsdom DOM smoke at the very bottom,
+// which is an explicit ENHANCEMENT on top of the gate, not part of it.
+// ===========================================================================
+
+const CSS = popupCss.replace(/\/\*[\s\S]*?\*\//g, ""); // comments stripped
+const HTML = popupHtml.replace(/<!--[\s\S]*?-->/g, "");
+
+/** Body of the brace block opening at/after `from`. Handles nesting (@media). */
+function braceBlock(src, from) {
+  const open = src.indexOf("{", from);
+  if (open === -1) return null;
+  let depth = 0;
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === "{") depth++;
+    else if (src[i] === "}" && --depth === 0) return src.slice(open + 1, i);
+  }
+  return null;
+}
+
+/** Body of the first rule whose selector is exactly `sel`. */
+function selectorBlock(src, sel) {
+  const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ +/g, "\\s+");
+  const m = new RegExp(`(^|[};])\\s*${esc}\\s*\\{`, "m").exec(src);
+  return m ? braceBlock(src, m.index) : null;
+}
+
+/** `--token: value` pairs declared directly in a block body. */
+function decls(block) {
+  const out = {};
+  for (const chunk of block.split(";")) {
+    const m = /^\s*(--[\w-]+)\s*:\s*(.+?)\s*$/.exec(chunk);
+    if (m) out[m[1]] = m[2];
+  }
+  return out;
+}
+
+// ---- 5a. Token RESOLUTION per theme block (exact CONTEXT hex) ----
+//
+// The existing section 3 proves a token string appears *somewhere*. This proves
+// each of the four theme blocks resolves the whole palette to the right value,
+// so a drifted dark override cannot hide behind a correct light one.
+
+const TOKENS_DARK = {
+  "--bg": "#0A0A0A",
+  "--fg": "#FAFAFA",
+  "--card": "#171717",
+  "--card-fg": "#FAFAFA",
+  "--muted": "#262626",
+  "--muted-fg": "#A3A3A3",
+  "--secondary": "#262626",
+  "--primary": "#FAFAFA",
+  "--primary-fg": "#171717",
+  "--border": "rgba(255,255,255,.10)",
+  "--input": "rgba(255,255,255,.15)",
+  "--ring": "#787878",
+  "--destructive": "#FB5A57",
+};
+const TOKENS_LIGHT_FULL = { ...TOKENS_LIGHT, "--card-fg": "#0A0A0A" };
+
+const mediaDark = (() => {
+  const m = /@media\s*\(\s*prefers-color-scheme\s*:\s*dark\s*\)/.exec(CSS);
+  if (!m) return null;
+  const body = braceBlock(CSS, m.index);
+  return body === null ? null : selectorBlock(body, ":root");
+})();
+
+const THEME_BLOCKS = [
+  [":root (base / light)", selectorBlock(CSS, ":root"), TOKENS_LIGHT_FULL],
+  ['@media (prefers-color-scheme: dark) :root', mediaDark, TOKENS_DARK],
+  [':root[data-theme="dark"]', selectorBlock(CSS, ':root[data-theme="dark"]'), TOKENS_DARK],
+  [':root[data-theme="light"]', selectorBlock(CSS, ':root[data-theme="light"]'), TOKENS_LIGHT_FULL],
+];
+
+for (const [label, block, expected] of THEME_BLOCKS) {
+  test(`token resolution: ${label} resolves the full CONTEXT palette`, () => {
+    assert.ok(block, `popup.css has no ${label} block — theme would not resolve`);
+    const got = decls(block);
+    const bad = [];
+    for (const [tok, want] of Object.entries(expected)) {
+      const have = got[tok];
+      if (have === undefined) bad.push(`${tok} MISSING (want ${want})`);
+      else if (have.replace(/\s+/g, "") !== want.replace(/\s+/g, "")) {
+        bad.push(`${tok}=${have} (want ${want})`);
+      }
+    }
+    assert.equal(bad.length, 0, `${label} palette drift: ${bad.join("; ")}`);
+  });
+}
+
+// ---- 5b. Accessibility: focus-visible on every interactive control ----
+//
+// Keyboard users must see where they are. Each control listed here is reachable
+// by Tab in the popup; each needs a visible outline, not just a defined rule.
+
+const FOCUSABLE = [
+  [".seg button", "theme toggle"],
+  [".xb-icon-btn", "header icon buttons"],
+  [".xb-send-btn", "send button"],
+  [".xb-clip-btn", "clip / attach button"],
+  [".xb-msg-file-chip", "file chip"],
+  [".xb-team-select", "team selector"],
+];
+
+for (const [sel, what] of FOCUSABLE) {
+  test(`a11y: ${sel}:focus-visible draws a visible outline (${what})`, () => {
+    const body = selectorBlock(CSS, `${sel}:focus-visible`);
+    assert.ok(body, `popup.css has no ${sel}:focus-visible rule — ${what} has no keyboard focus state`);
+    assert.ok(
+      /outline\s*:/.test(body) && !/outline\s*:\s*none/.test(body),
+      `${sel}:focus-visible must draw an outline (got: ${body.trim().replace(/\s+/g, " ")})`,
+    );
+    assert.ok(
+      body.includes("var(--ring)"),
+      `${sel}:focus-visible must use the --ring token`,
+    );
+  });
+}
+
+// ---- 5c. Accessibility: reduced motion actually suppresses motion ----
+
+test("a11y: @media (prefers-reduced-motion: reduce) suppresses animation", () => {
+  const m = /@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)/.exec(CSS);
+  assert.ok(m, "popup.css has no @media (prefers-reduced-motion: reduce) block");
+  const body = braceBlock(CSS, m.index);
+  assert.ok(body && body.trim().length > 0, "reduced-motion block is empty — it suppresses nothing");
+  assert.ok(
+    /animation\s*:\s*none/.test(body),
+    "reduced-motion block must set `animation: none` on the animated elements",
+  );
+});
+
+// ---- 5d. CSP-safe fonts: zero webfont fetches across css + html ----
+
+test("font safety: zero webfont fetches in popup.css + popup.html", () => {
+  const PATTERNS = [
+    [/@font-face/gi, "@font-face"],
+    [/fonts\.googleapis/gi, "fonts.googleapis"],
+    [/fonts\.gstatic/gi, "fonts.gstatic"],
+    [/@import\s+url\(/gi, "@import url("],
+    [/https?:\/\/[^\s"')]+\.(?:woff2?|ttf|otf|eot)/gi, "remote font file URL"],
+  ];
+  const hits = [];
+  for (const [name, src] of [["popup.css", CSS], ["popup.html", HTML]]) {
+    for (const [re, label] of PATTERNS) {
+      const found = src.match(re) || [];
+      if (found.length) hits.push(`${name}: ${label} x${found.length}`);
+    }
+  }
+  assert.equal(hits.length, 0, `webfont fetch count must be 0 (CSP-safe) — found: ${hits.join("; ")}`);
+});
+
+test("font safety: Geist named first with a system fallback (no fetch needed)", () => {
+  const root = selectorBlock(CSS, ":root");
+  assert.ok(root, "no :root block");
+  const d = decls(root);
+  assert.ok(/^'Geist'/.test(d["--sans"] || ""), `--sans must name 'Geist' first (got ${d["--sans"]})`);
+  assert.ok(
+    /system-ui|-apple-system|sans-serif/.test(d["--sans"] || ""),
+    "--sans needs a system fallback — Geist is not fetched, so it may be absent",
+  );
+  assert.ok(
+    /^'Geist Mono'/.test(d["--mono"] || ""),
+    `--mono must name 'Geist Mono' first (got ${d["--mono"]})`,
+  );
+  assert.ok(
+    /ui-monospace|monospace/.test(d["--mono"] || ""),
+    "--mono needs a system monospace fallback",
+  );
+});
+
+// ---- 5e. Radius 0: avatars are square (the Neutral signal) ----
+
+for (const sel of [".xb-msg-avatar", ".xb-group-avatar"]) {
+  test(`radius 0: ${sel} is square (no border-radius: 50%)`, () => {
+    const body = selectorBlock(CSS, sel);
+    assert.ok(body, `popup.css has no ${sel} rule`);
+    const m = /border-radius\s*:\s*([^;]+)/.exec(body);
+    assert.ok(m, `${sel} must declare border-radius`);
+    assert.ok(
+      !/50%/.test(m[1]),
+      `${sel} must not be a circle — border-radius: ${m[1].trim()} (Neutral avatars are square)`,
+    );
+    assert.ok(
+      m[1].includes("var(--radius)"),
+      `${sel} must use var(--radius) so radius 0 is token-driven (got ${m[1].trim()})`,
+    );
+  });
+}
+
+// ---------------------------------------------------------------------------
+// ENHANCEMENT (not part of the gate): richer DOM smoke when jsdom is present.
+//
+// The gate above is the fs/regex contract and always runs. jsdom is not a repo
+// dependency; when it is absent we say so plainly and the gate result stands.
+// This block can only ADD failures, never mask them, and never skips a gate
+// assertion.
+// ---------------------------------------------------------------------------
+
+let jsdomAvailable = false;
+try {
+  await import("jsdom");
+  jsdomAvailable = true;
+} catch {
+  jsdomAvailable = false;
+}
+
+if (jsdomAvailable) {
+  const { JSDOM } = await import("jsdom");
+  const dom = new JSDOM(popupHtml);
+  const doc = dom.window.document;
+  const missing = FROZEN_IDS.filter((id) => !doc.getElementById(id));
+  if (missing.length) {
+    console.error(`  FAIL: dom smoke: ids absent from parsed DOM: ${missing.join(", ")}`);
+    failed++;
+  } else {
+    console.log(`  PASS: dom smoke (jsdom): all ${FROZEN_IDS.length} frozen ids resolve in the parsed DOM`);
+  }
+} else {
+  console.log(
+    "  NOTE: jsdom not installed — optional DOM smoke unavailable. " +
+      "This is an ENHANCEMENT, not a gate assertion; the fs/regex contract above ran in full.",
+  );
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
