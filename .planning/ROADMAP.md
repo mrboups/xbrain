@@ -621,11 +621,11 @@ Plans:
   1. A single CI run, triggered by one commit to `main`, builds images exactly once and runs the test suite against both the OSS subset and the full profile before any publish or deploy step executes.
   2. That same commit's CI run produces the published OSS release (tagged images + light compose + install docs) AND deploys the SaaS full profile to production — one commit SHA, both editions shipped, never a manual second push.
   3. If either the OSS-subset tests or the full-profile tests fail, neither the OSS release nor the SaaS deploy proceeds — lockstep is enforced by the pipeline, not by developer discipline.
-  4. An operator running a self-hosted install applies a released migration and upgrades cleanly with a single command — the migration path is forward-only (no down-migrations required) and edition-agnostic (the same migration applies whether the install runs oss, saas, or pro).
+  4. An operator running a self-hosted install applies a released migration and upgrades cleanly with a single command — the migration path is forward-only (no down-migrations required) and edition-agnostic (the same migration applies whether the install runs oss or saas — there is no `pro` edition; the paid self-host tier was dropped in Phase 15 / EDIT-03).
   5. Migrations are validated in CI against both profiles before release — a migration that would break one edition never reaches release.
 
 **Plans**: 4 plans
-- [ ] 17-01-PLAN.md — Migration lockstep test: alembic upgrade head under EDITION=oss/saas/pro on real testcontainers (REL-03, SC4/SC5)
+- [ ] 17-01-PLAN.md — Migration lockstep test: alembic upgrade head under EDITION=oss/saas on real testcontainers (REL-03, SC4/SC5)
 - [ ] 17-02-PLAN.md — CI test harness: GHCR image override + full-profile 33-graph gate + verify-phase16 no-build hook (REL-01)
 - [ ] 17-03-PLAN.md — The lockstep workflow: build-once to GHCR then 3 test jobs gate publish-oss-release + gated deploy-saas via needs: (REL-01, REL-02)
 - [ ] 17-04-PLAN.md — SC3 structural proof (parse the needs-graph) + actionlint gate + Make targets + honest residual doc (REL-01/02/03)
