@@ -130,3 +130,7 @@ verify-phase15:  ## Phase 15 acceptance gate — compose-layer + live-boot (EDIT
 .PHONY: verify-phase18
 verify-phase18:  ## Phase 18 acceptance gate — local auth real-Postgres + live zero-OAuth boot (LAUTH-01 + LAUTH-02)
 	@bash infrastructure/scripts/verify-phase18.sh
+
+.PHONY: verify-phase16
+verify-phase16:  ## Phase 16 acceptance gate — clean-install: real core boot + SC#3 HTTP walk
+	@bash infrastructure/scripts/verify-phase16.sh
