@@ -9,6 +9,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.embedders import EmbeddingDimensionMismatch
 from app.neo4j_client import close_driver, init_driver, reconnect_loop
 from app.outbox_worker import drain_outbox
 from app.qdrant_setup import ensure_collections
@@ -67,6 +68,8 @@ async def lifespan(app: FastAPI):
     log.info("memory_api_startup")
     try:
         await ensure_collections()
+    except EmbeddingDimensionMismatch:
+        raise  # boot-fatal, loud, actionable (D-19-03) — do NOT downgrade to a warning
     except Exception as e:
         log.warning("qdrant_setup_skipped", err=str(e))
 

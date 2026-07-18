@@ -46,6 +46,7 @@ from app.deps import (
     get_current_principal,
     get_session,
 )
+from app.embedders import get_embedding_dimension
 
 # Import assert_is_superadmin lazily — older codebases (worktree base) only
 # expose _is_admin(). When the dep exists we use it as the FastAPI gate so the
@@ -239,7 +240,7 @@ async def _wipe_qdrant_full() -> dict[str, Any]:
                 log.info("admin_wipe.qdrant_delete_collection_missing", error=str(exc))
             await client.create_collection(
                 collection_name=settings.QDRANT_COLLECTION,
-                vectors_config=VectorParams(size=1536, distance=Distance.COSINE),
+                vectors_config=VectorParams(size=get_embedding_dimension(), distance=Distance.COSINE),
             )
             await client.create_payload_index(
                 collection_name=settings.QDRANT_COLLECTION,
