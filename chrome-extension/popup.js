@@ -562,7 +562,8 @@ function renderAgentBubble({ id, agent_name, routed_via, streaming }) {
 }
 
 function buildBubbleNode(msg) {
-  // Row layout — LibreChat-style flat grid: avatar | (meta + body).
+  // Row layout (mockup .row) — 2-col grid: avatar | (meta + bubble [+ savetag]).
+  // .is-self mirrors the columns so the avatar/bubble sit on the right.
   const rowClass = bubbleClass(msg, state.me?.id); // is-self / is-user / is-agent
   const wrapper = document.createElement("div");
   wrapper.className = `xb-msg ${rowClass}`;
