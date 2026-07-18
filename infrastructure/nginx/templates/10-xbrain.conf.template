@@ -179,5 +179,21 @@ server {
 server {
   listen 80 default_server;
   server_name _;
-  return 302 https://chat.$XBRAIN_BASE_DOMAIN$request_uri;
+
+  # The container healthcheck (docker-compose.yml) probes http://127.0.0.1/nginx-health, whose Host
+  # header matches NO server_name — so it lands HERE, in the default_server, not in 00-health.conf
+  # (that block declares `server_name _` without `default_server`, which matches nothing literally
+  # and is therefore unreachable for the probe).
+  #
+  # This location MUST exist here, and the redirect below MUST stay inside `location /`. A
+  # SERVER-level `return 302` executes in the NGX_HTTP_SERVER_REWRITE_PHASE, which runs BEFORE
+  # NGX_HTTP_FIND_CONFIG_PHASE picks a location — so it would preempt every location in this block,
+  # including this one. That is precisely the bug verify-phase16.sh caught: the probe got 302, the
+  # healthcheck greps for "ok", and xbrain-nginx sat `unhealthy` FOREVER in every install (not just
+  # OSS-light), poisoning `up --wait` and any health-gated deploy.
+  location /nginx-health { return 200 "ok\n"; access_log off; }
+
+  location / {
+    return 302 https://chat.$XBRAIN_BASE_DOMAIN$request_uri;
+  }
 }
