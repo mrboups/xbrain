@@ -32,7 +32,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 19: Local Embeddings (OSS default)** - In-container keyless embedder so semantic retrieval works with NO OpenAI key (OpenAI stays selectable). **Runs BEFORE Phase 16** — order 14 → 15 → 18 → 19 → 16 → 20 → 17. Today `embedders.py` hard-raises without `OPENAI_API_KEY`, so a zero-key OSS install cannot do the "retrieved" half of Phase 16's own SC#3; locked decision Q3 wanted local-by-default. Numbered 19 to avoid renumbering 16/17. (completed 2026-07-18)
 - [x] **Phase 16: OSS Light Packaging** - Light compose + install docs + clean-install test on a fresh VM. The stack boots and the brain works end-to-end (chat via the existing surfaces + ChatGPT-web connector + doc analysis + retrieval + clip) with zero external keys. **The standalone web chat frontend moved to Phase 20** (it is a phase-sized build, not a packaging criterion). (completed 2026-07-18)
 - [x] **Phase 20: Extension Chat UI Polish (shadcn Neutral)** - RESCOPED 2026-07-18 (Option B): the team chat stays a single group chat inside the Chrome extension (no navigation) and its popup UI is restyled to shadcn Neutral (monochrome, radius 0, Geist, persisted light/dark toggle), preserving all existing behavior. The standalone-web-app extraction is DROPPED. **Runs AFTER Phase 16** and before 17. Numbered 20 to avoid renumbering. (completed 2026-07-18)
-- [ ] **Phase 17: CI Lockstep** - One pipeline builds/tests both profiles, publishes the OSS release and deploys SaaS from the same commit
+- [x] **Phase 17: CI Lockstep** - One pipeline builds/tests both profiles, publishes the OSS release and deploys SaaS from the same commit (completed 2026-07-18)
 
 ## Phase Details
 
@@ -625,10 +625,10 @@ Plans:
   5. Migrations are validated in CI against both profiles before release — a migration that would break one edition never reaches release.
 
 **Plans**: 4 plans
-- [ ] 17-01-PLAN.md — Migration lockstep test: alembic upgrade head under EDITION=oss/saas on real testcontainers (REL-03, SC4/SC5)
-- [ ] 17-02-PLAN.md — CI test harness: GHCR image override + full-profile 33-graph gate + verify-phase16 no-build hook (REL-01)
-- [ ] 17-03-PLAN.md — The lockstep workflow: build-once to GHCR then 3 test jobs gate publish-oss-release + gated deploy-saas via needs: (REL-01, REL-02)
-- [ ] 17-04-PLAN.md — SC3 structural proof (parse the needs-graph) + actionlint gate + Make targets + honest residual doc (REL-01/02/03)
+- [x] 17-01-PLAN.md — Migration lockstep test: alembic upgrade head under EDITION=oss/saas on real testcontainers (REL-03, SC4/SC5)
+- [x] 17-02-PLAN.md — CI test harness: GHCR image override + full-profile 33-graph gate + verify-phase16 no-build hook (REL-01)
+- [x] 17-03-PLAN.md — The lockstep workflow: build-once to GHCR then 3 test jobs gate publish-oss-release + gated deploy-saas via needs: (REL-01, REL-02)
+- [x] 17-04-PLAN.md — SC3 structural proof (parse the needs-graph) + actionlint gate + Make targets + honest residual doc (REL-01/02/03)
 **UI hint**: no (CI/release infrastructure — no user-facing surface)
 
 ## Progress
@@ -655,7 +655,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 14. Portability Foundation | 8/8 | Complete    | 2026-07-12 |
 | 15. Edition Mechanics | 6/6 | Complete    | 2026-07-13 |
 | 16. OSS Light Packaging | 4/4 | Complete   | 2026-07-18 |
-| 17. CI Lockstep | 0/4 | Planned | - |
+| 17. CI Lockstep | 4/4 | Complete   | 2026-07-18 |
 
 ---
 

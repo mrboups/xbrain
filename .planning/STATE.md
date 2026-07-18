@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 17 — CI Lockstep
+**Current focus:** MILESTONE v2.0 COMPLETE (14,15,18,19,16,20,17 all shipped + verified). Residuals are documented, not hidden: no live GitHub-Actions run / GHCR publish / SaaS deploy (VM stopped, deploy disarmed), the Phase-20 live-backend UAT, the amd64-VM clean install, and the LICENSE MIT-vs-AGPLv3+CLA decision (user's call). Next: backlog features.
 
 ## Current Position
 
-Phase: 17 (CI Lockstep) — EXECUTING
+Phase: 17 (CI Lockstep) — COMPLETE. MILESTONE v2.0 (Open-Core Edition) COMPLETE.
 Plan: 1 of 4
-Status: Executing Phase 17
+Status: Phase 17 complete — milestone v2.0 complete. Next: backlog features.
 Last activity: 2026-07-18 -- Phase 17 execution started
 
 ## Performance Metrics

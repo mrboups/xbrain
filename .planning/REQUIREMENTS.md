@@ -44,9 +44,9 @@ Active scope. One codebase, two runtime shapes (OSS self-host / SaaS hosted); a 
 
 ### Release / CI Lockstep
 
-- [ ] **REL-01**: A single CI run per commit builds images once and tests both the OSS subset and the full profile before any release
-- [ ] **REL-02**: One commit produces both the published OSS release (tagged images + light compose + install docs) and the deployed SaaS full profile
-- [ ] **REL-03**: An operator upgrades a running self-host install through a forward-only, edition-agnostic migration path
+- [x] **REL-01**: A single CI run per commit builds images once and tests both the OSS subset and the full profile before any release
+- [x] **REL-02**: One commit produces both the published OSS release (tagged images + light compose + install docs) and the deployed SaaS full profile
+- [x] **REL-03**: An operator upgrades a running self-host install through a forward-only, edition-agnostic migration path
 
 **Out of scope for v2.0 (separate tracks):** Email feature (send + Gmail read/search/ingest — absent today); Grok API-key fallback + per-message trial cap (SaaS trial).
 
@@ -67,9 +67,9 @@ Mapping requirement -> phase for milestone v2.0 "Open-Core Edition". Filled by t
 | EMBED-01 | Phase 19 | Complete |
 | PKG-01 | Phase 16 | Complete |
 | PKG-02 | Phase 20 | Pending |
-| REL-01 | Phase 17 | Pending |
-| REL-02 | Phase 17 | Pending |
-| REL-03 | Phase 17 | Pending |
+| REL-01 | Phase 17 | Complete |
+| REL-02 | Phase 17 | Complete |
+| REL-03 | Phase 17 | Complete |
 
 **Coverage:** (re-synced 2026-07-13 — EMBED-01 mapped per Q3, PKG-02 moved to its own phase, SC#4/web-chat split out)
 - **Execution order: 14 → 15 → 18 → 19 → 16 → 20 → 17.** (Numeric order ≠ execution order — 18/19/20 were numbered to avoid renumbering 16/17.)
