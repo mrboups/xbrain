@@ -123,6 +123,41 @@ async def pg_url() -> AsyncGenerator[str, None]:
     pg.stop()
 
 
+@pytest_asyncio.fixture(scope="session")
+async def qdrant_url() -> AsyncGenerator[str, None]:
+    """Spin a real Qdrant container, yield its REST URL, point settings.QDRANT_URL at it.
+
+    Mirrors `pg_url` above: session-scoped, Docker-gated (skips cleanly when Docker is
+    unavailable so restricted CI does not error rather than run). Phase 19 (EMBED-01)
+    uses this to prove the keyless local-embed -> Qdrant -> semantic-search path against
+    a REAL Qdrant (the "gate lesson": a mocked vector store cannot fail a ranking
+    assertion even when the integration is broken).
+    """
+    if not _docker_available():
+        pytest.skip("Docker not available — skipping integration fixture")
+    from testcontainers.qdrant import QdrantContainer
+
+    # Pin the image to the stack version (matches infrastructure/docker-compose.yml),
+    # not testcontainers' older built-in default.
+    q = QdrantContainer("qdrant/qdrant:v1.17.1")
+    q.start()
+    # REST port is 6333; get_exposed_port maps it to the host-published port.
+    url = f"http://{q.get_container_host_ip()}:{q.get_exposed_port(6333)}"
+    os.environ["QDRANT_URL"] = url
+
+    # `app.config.settings` is a module-level singleton frozen at first import (the same
+    # reasoning the pg_url fixture documents for DATABASE_URL). Setting os.environ alone
+    # is not enough once app.config was imported earlier this session — patch the
+    # singleton directly so `ensure_collections()` and NativeProvider both target THIS
+    # container rather than the frozen localhost default.
+    import app.config as app_config
+
+    app_config.settings.QDRANT_URL = url
+
+    yield url
+    q.stop()
+
+
 @pytest_asyncio.fixture
 async def session(pg_url: str):
     """Per-test AsyncSession wrapped in a transaction that rolls back at teardown."""
