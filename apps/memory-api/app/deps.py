@@ -433,7 +433,7 @@ def _build_provider() -> MemoryProvider:
         )
     if backend == "native":
         from xbrain_memory.providers.native_provider import NativeProvider
-        from app.embedders import openai_embedder
+        from app.embedders import get_embedder
         # asyncpg DSN format (no SQLAlchemy driver prefix)
         pg_dsn = settings.DATABASE_URL.replace(
             "postgresql+asyncpg://", "postgresql://"
@@ -441,7 +441,7 @@ def _build_provider() -> MemoryProvider:
         return NativeProvider(
             pg_dsn=pg_dsn,
             qdrant_url=settings.QDRANT_URL,
-            embedder=openai_embedder,
+            embedder=get_embedder(),
             qdrant_api_key=settings.QDRANT_API_KEY,
         )
     # Default: stub (no external deps, in-process)
