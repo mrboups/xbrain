@@ -575,7 +575,15 @@ Plans:
   3. On the fresh install, with **no external keys set** (no OpenAI, no Google, no GitHub App), a user registers via local auth (Phase 18), uploads/analyzes a document, has it **ingested and semantically retrieved** (Phase 19, keyless) with truth-levels visible, connects via the ChatGPT-web connector, and clips a web page into memory — all with `COMPOSE_PROFILES` unset (no `integrations`/`saas`; there is no `pro` profile). Chat is exercised via the existing surfaces (the Chrome extension against the install, and/or the ChatGPT connector) — the standalone web app is Phase 20.
   4. The published OSS release artifact shape exists and is reproducible: tagged multi-arch images (or a documented build-on-VM path), the light compose file, and the install docs — the same bundle Phase 17 will later automate.
 
-**Plans**: TBD (populated by `/gsd:plan-phase 16`)
+**Plans**: 4 plans
+Plans:
+
+- [ ] 16-01-PLAN.md — OAuth-AS local-auth branch (D-16-02): zero-key ChatGPT-web connector sign-in via Phase-18 local auth + threat model
+- [ ] 16-02-PLAN.md — .env.example restructure (D-16-05: MinIO required/≥8-char + saas de-conflation) + `make oss-init` zero-key secret generator
+- [ ] 16-03-PLAN.md — Install docs (docs/INSTALL.md, docs-alone) + README Quickstart rewrite + SC#4 build-on-VM release-artifact shape (D-16-06)
+- [ ] 16-04-PLAN.md — Clean-install gate verify-phase16.sh: REAL core boot + SC#3 HTTP walk (register → keyless doc ingest/retrieval → connector local-auth → clip)
+
+**Wave order**: 1 (16-01 + 16-02 parallel — disjoint files) → 2 (16-03 depends on 16-02; 16-04 depends on 16-01 + 16-02; 16-03 + 16-04 parallel — disjoint files, Makefile edited sequentially after wave 1)
 **UI hint**: partial (install docs; no new app UI — the web app is Phase 20)
 
 ### Phase 20: Standalone Web Chat (the product per Q4)
