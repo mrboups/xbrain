@@ -4,14 +4,14 @@ milestone: v2.0
 milestone_name: Open-Core Edition
 status: executing
 stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
-last_updated: "2026-07-18T09:40:33.540Z"
-last_activity: 2026-07-18 -- Phase 16 execution started
+last_updated: "2026-07-18T14:11:14.465Z"
+last_activity: 2026-07-18 -- Phase 20 execution started
 progress:
-  total_phases: 19
-  completed_phases: 17
-  total_plans: 138
-  completed_plans: 132
-  percent: 89
+  total_phases: 20
+  completed_phases: 18
+  total_plans: 142
+  completed_plans: 136
+  percent: 90
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 16 COMPLETE (4/4 SC verified, gate 23/23 live, code-review XSS blocker fixed). Next: Phase 20 (rescope to Option B: polish the existing extension chat UI in shadcn Neutral radius-0, NOT a standalone extraction), then Phase 17 (CI Lockstep), then the backlog features.
+**Current focus:** Phase 20 — Extension Chat UI Polish (shadcn)
 
 ## Current Position
 
-Phase: 16 (OSS Light Packaging) — COMPLETE. Next: Phase 20 (rescope to Option B — polish extension chat UI, shadcn)
+Phase: 20 (Extension Chat UI Polish (shadcn)) — EXECUTING
 Plan: 1 of 4
-Status: Phase 16 complete — next Phase 20 (needs rescope to Option B), then 17
-Last activity: 2026-07-18 -- Phase 16 execution started
+Status: Executing Phase 20
+Last activity: 2026-07-18 -- Phase 20 execution started
 
 ## Performance Metrics
 
