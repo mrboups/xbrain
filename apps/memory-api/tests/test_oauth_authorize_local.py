@@ -154,3 +154,234 @@ async def test_github_configured_get_authorize_still_redirects_to_github(
     assert loc.startswith("https://github.com/login/oauth/authorize")
     assert "oauth%2Fgithub-callback" in loc or "/oauth/github-callback" in loc
     assert "claude.ai%2Fapi%2Fmcp" not in loc
+
+
+# ── Task 2: POST /oauth/authorize/local — credential proof + convergence ────
+
+
+async def test_valid_single_team_mints_code(client, session):
+    """Valid creds for a SINGLE-team local user + a valid pre_github state ->
+    302 to the registered Claude.ai redirect_uri with ?code=<minted>, and the
+    auth code row is bound to that user_id + that team_scope (converged into
+    _finalize_consent, code minted via oauth_store.create_auth_code)."""
+    reg = await _register_local_user(client, "single@x.io")
+    user_id = reg["user"]["id"]
+    team_scope = reg["team_scope"]
+    client_id = await _seed_client(session)
+    state = await _get_pre_github_state(client, client_id)
+
+    r = await client.post(
+        "/oauth/authorize/local",
+        data={"email": "single@x.io", "password": _PASSWORD, "state": state},
+        follow_redirects=False,
+    )
+    assert r.status_code == 302, r.text
+    loc = r.headers["location"]
+    assert loc.startswith(_REDIRECT)
+    assert "code=" in loc
+
+    row = (
+        await session.execute(
+            sa.text(
+                "SELECT user_id, team_scope FROM oauth_authorization_codes"
+            )
+        )
+    ).mappings().first()
+    assert row is not None, "no authorization code was minted"
+    assert str(row["user_id"]) == user_id
+    assert row["team_scope"] == team_scope
+
+
+async def test_valid_multi_team_reaches_consent_page(client, session):
+    """Valid creds for a MULTI-team local user (2+ teams) + valid pre_github
+    state -> HTTP 200 that IS the reused oauth_consent.html team-selection page,
+    carrying a re-signed state with stage=post_github, and NO code minted yet
+    (the existing POST /oauth/authorize consent submit finishes it). This is the
+    multi-team fork now reachable from the new entry point."""
+    from uuid import UUID
+
+    from app.repos import teams as teams_repo
+    from app.routes.oauth_authorize import _verify_state
+
+    reg = await _register_local_user(client, "multi@x.io")
+    user_id = reg["user"]["id"]
+    # Give the user a SECOND team so list_teams_for_user returns 2+.
+    await teams_repo.create_team(
+        session,
+        slug=f"extra-{UUID(user_id).hex[:12]}",
+        display_name="Extra Team",
+        creator_user_id=UUID(user_id),
+    )
+    await session.commit()
+
+    client_id = await _seed_client(session)
+    state = await _get_pre_github_state(client, client_id)
+
+    r = await client.post(
+        "/oauth/authorize/local",
+        data={"email": "multi@x.io", "password": _PASSWORD, "state": state},
+        follow_redirects=False,
+    )
+    assert r.status_code == 200, r.text
+    # It IS the reused consent page (unique marker + the team-selection form).
+    assert "Authorize for the selected team" in r.text
+    assert 'name="team_scope"' in r.text
+    assert 'action="/oauth/authorize"' in r.text
+
+    # The carried state is re-signed to stage=post_github (ready for consent submit).
+    post_state = _scrape_hidden_state(r.text)
+    assert post_state, "no hidden state in the consent page"
+    claims = _verify_state(post_state)
+    assert claims is not None
+    assert claims["stage"] == "post_github"
+    assert claims["user_id"] == user_id
+
+    # NO code minted yet — the multi-team fork defers issuance to the consent submit.
+    count = (
+        await session.execute(
+            sa.text("SELECT count(*) FROM oauth_authorization_codes")
+        )
+    ).scalar_one()
+    assert count == 0
+
+
+async def test_wrong_password_401_and_records_failure(client, session):
+    """Wrong password -> HTTP 401 with the generic message AND record_failure
+    called (failed_attempts incremented) — the same durable per-account lockout
+    counter login uses (T-16-01-06)."""
+    reg = await _register_local_user(client, "wrongpw@x.io")
+    user_id = reg["user"]["id"]
+    client_id = await _seed_client(session)
+    state = await _get_pre_github_state(client, client_id)
+
+    r = await client.post(
+        "/oauth/authorize/local",
+        data={"email": "wrongpw@x.io", "password": "totallywrong1", "state": state},
+        follow_redirects=False,
+    )
+    assert r.status_code == 401, r.text
+    assert "Invalid email or password." in r.text
+
+    failed = (
+        await session.execute(
+            sa.text(
+                "SELECT failed_attempts FROM local_credentials WHERE user_id = :uid"
+            ),
+            {"uid": user_id},
+        )
+    ).scalar_one()
+    assert failed == 1
+
+
+async def test_absent_email_401_identical_to_wrong_password(client, session):
+    """Absent email and wrong password must be byte-identical (same status, same
+    body) so there is no user-enumeration oracle (T-16-01-02). Both re-render the
+    SAME login form (SAME state, SAME generic error, email never echoed back)."""
+    await _register_local_user(client, "enumtarget@x.io")
+    client_id = await _seed_client(session)
+    state = await _get_pre_github_state(client, client_id)
+
+    resp_absent = await client.post(
+        "/oauth/authorize/local",
+        data={"email": "nobody-absent@x.io", "password": "whatever123", "state": state},
+        follow_redirects=False,
+    )
+    resp_wrong = await client.post(
+        "/oauth/authorize/local",
+        data={"email": "enumtarget@x.io", "password": "totallywrong1", "state": state},
+        follow_redirects=False,
+    )
+    assert resp_absent.status_code == 401
+    assert resp_wrong.status_code == 401
+    assert resp_absent.status_code == resp_wrong.status_code
+    assert resp_absent.text == resp_wrong.text
+    assert "Invalid email or password." in resp_absent.text
+
+
+async def test_locked_account_401_identical(client, session):
+    """A locked account (locked_until in the future) returns the SAME generic
+    401 as an absent email — no distinct 'locked' status/message (that would be
+    a second enumeration oracle). No code is minted."""
+    reg = await _register_local_user(client, "locked@x.io")
+    user_id = reg["user"]["id"]
+    # Force the account into a live lockout window.
+    await session.execute(
+        sa.text(
+            "UPDATE local_credentials SET locked_until = now() + interval '15 minutes' "
+            "WHERE user_id = :uid"
+        ),
+        {"uid": user_id},
+    )
+    await session.commit()
+
+    client_id = await _seed_client(session)
+    state = await _get_pre_github_state(client, client_id)
+
+    # Correct password, but locked → generic 401 (no 'locked' oracle).
+    resp_locked = await client.post(
+        "/oauth/authorize/local",
+        data={"email": "locked@x.io", "password": _PASSWORD, "state": state},
+        follow_redirects=False,
+    )
+    resp_absent = await client.post(
+        "/oauth/authorize/local",
+        data={"email": "nobody-absent@x.io", "password": "whatever123", "state": state},
+        follow_redirects=False,
+    )
+    assert resp_locked.status_code == 401, resp_locked.text
+    assert resp_locked.text == resp_absent.text  # indistinguishable from absent
+    assert "Invalid email or password." in resp_locked.text
+
+    count = (
+        await session.execute(
+            sa.text("SELECT count(*) FROM oauth_authorization_codes")
+        )
+    ).scalar_one()
+    assert count == 0
+
+
+async def test_bad_state_no_code_minted(client, session):
+    """Missing/expired/foreign state (bad signature or stage != pre_github) ->
+    an error page, NO code minted. redirect_uri/identity are only ever taken
+    from a VALID signed state (T-16-01-03/04)."""
+    from app.routes.oauth_authorize import _sign_state
+
+    await _register_local_user(client, "badstate@x.io")
+
+    # (a) Garbage / unsigned state -> rejected.
+    r_garbage = await client.post(
+        "/oauth/authorize/local",
+        data={"email": "badstate@x.io", "password": _PASSWORD, "state": "not-a-jwt"},
+        follow_redirects=False,
+    )
+    assert r_garbage.status_code in (400, 401), r_garbage.text
+    assert "location" not in {k.lower() for k in r_garbage.headers}
+
+    # (b) A validly-SIGNED token but with the WRONG stage (post_github) -> rejected;
+    #     only a pre_github token from GET /oauth/authorize is accepted here.
+    foreign = _sign_state(
+        {
+            "client_id": "oac_whatever",
+            "redirect_uri": _REDIRECT,
+            "code_challenge": _CHALLENGE,
+            "resource": _RESOURCE,
+            "scope": "brain:read",
+            "claude_state": "",
+            "user_id": "00000000-0000-0000-0000-000000000001",
+            "stage": "post_github",
+        }
+    )
+    r_foreign = await client.post(
+        "/oauth/authorize/local",
+        data={"email": "badstate@x.io", "password": _PASSWORD, "state": foreign},
+        follow_redirects=False,
+    )
+    assert r_foreign.status_code in (400, 401), r_foreign.text
+    assert "location" not in {k.lower() for k in r_foreign.headers}
+
+    count = (
+        await session.execute(
+            sa.text("SELECT count(*) FROM oauth_authorization_codes")
+        )
+    ).scalar_one()
+    assert count == 0
