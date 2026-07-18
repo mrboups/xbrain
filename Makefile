@@ -106,10 +106,18 @@ oss-init:  ## Generate a zero-external-key .env for the OSS-light core
 	@bash infrastructure/scripts/oss-init.sh $(ARGS)
 
 .PHONY: env-check
-env-check:  ## Vérifie que toutes les vars critiques sont dans .env
-	@bash -c 'source .env 2>/dev/null && for v in POSTGRES_PASSWORD GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET BRIDGE_SHARED_SECRET MEILI_MASTER_KEY OPENWEBUI_SECRET_KEY OAUTH_ISSUER_URL OAUTH_RESOURCE_URL CORS_ALLOWED_ORIGIN_REGEX XBRAIN_BASE_DOMAIN AGENT_MENTION_ALIASES; do \
-		if [ -z "$${!v}" ]; then echo "MISSING: $$v — see .planning/phases/14-portability-foundation/14-06-SUMMARY.md (DEPLOY-PREREQ)"; exit 1; fi; \
-	done && echo "All required env vars present."'
+env-check:  ## Vérifie que toutes les vars critiques sont dans .env (saas creds gated behind COMPOSE_PROFILES=saas)
+	@# CORE = always required (boot-fatal). SAAS creds (GOOGLE_*/MEILI_MASTER_KEY/OPENWEBUI_SECRET_KEY)
+	@# are required ONLY when COMPOSE_PROFILES contains `saas`, so a zero-external-key install passes
+	@# `make deploy` (D-16-01 / SC#4). Uses make's own $(COMPOSE_PROFILES) for deterministic precedence
+	@# (command-line `COMPOSE_PROFILES=saas make env-check` beats the -include .env value).
+	@bash -c 'source .env 2>/dev/null; \
+		REQ="POSTGRES_PASSWORD BRIDGE_SHARED_SECRET OAUTH_ISSUER_URL OAUTH_RESOURCE_URL CORS_ALLOWED_ORIGIN_REGEX XBRAIN_BASE_DOMAIN AGENT_MENTION_ALIASES"; \
+		case ",$(COMPOSE_PROFILES)," in *,saas,*) REQ="$$REQ GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET MEILI_MASTER_KEY OPENWEBUI_SECRET_KEY";; esac; \
+		for v in $$REQ; do \
+			if [ -z "$${!v}" ]; then echo "MISSING: $$v (required for profile [$(COMPOSE_PROFILES)]; GOOGLE_*/MEILI_MASTER_KEY/OPENWEBUI_SECRET_KEY are needed only under the saas profile)"; exit 1; fi; \
+		done; \
+		echo "All required env vars present (profile: [$(COMPOSE_PROFILES)])."'
 
 .PHONY: preflight
 preflight:  ## Pre-deploy crashloop guard — same 5 vars as env-check, actionable messages (B3)

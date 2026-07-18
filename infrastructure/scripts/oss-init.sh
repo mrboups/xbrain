@@ -110,7 +110,7 @@ UVICORN_WORKERS=1
 XBRAIN_BASE_DOMAIN=localhost
 OAUTH_ISSUER_URL=http://localhost:8000
 OAUTH_RESOURCE_URL=http://localhost:8000/mcp
-CORS_ALLOWED_ORIGIN_REGEX=(chrome-extension://.*|http://localhost(:\d+)?)
+CORS_ALLOWED_ORIGIN_REGEX='(chrome-extension://.*|http://localhost(:\d+)?)'
 AGENT_MENTION_ALIASES=agent
 OAUTH_CREDENTIALS_ENCRYPTION_KEY=${FERNET_KEY_VAL}
 
