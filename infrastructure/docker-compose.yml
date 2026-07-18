@@ -1202,6 +1202,15 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       qdrant: { condition: service_healthy }
+      # memory-api OWNS the schema: its command runs `alembic upgrade head` before uvicorn binds,
+      # so it only reports healthy once `memory_items` exists. Without this edge the janitor wins
+      # the race against the migration on a CLEAN install, its boot sweep dies with
+      # `relation "memory_items" does not exist`, and — because the alive-file is only touched
+      # after a SUCCESSFUL cycle — it then sleeps until the next 03:00 UTC while its healthcheck
+      # (interval 1h) reports unhealthy for up to ~15h. Caught by verify-phase16.sh on a genuinely
+      # clean Docker; invisible on any host that already had the tables. memory-api is untagged
+      # core, so unlike the neo4j edge below this one is profile-safe.
+      memory-api: { condition: service_healthy }
       # NO neo4j edge (Phase 15 / D-15-03). Neo4j is opt-in (`integrations` profile), and Compose
       # forbids an untagged service from depending on a tagged one — that edge made the whole
       # compose file unparseable with profiles applied. memory-api already degrades cleanly with
