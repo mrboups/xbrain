@@ -151,9 +151,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 12px;
-  background: var(--xb-bg);
-  border-bottom: 1px solid var(--xb-border);
+  padding: 11px 13px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -164,18 +164,30 @@
   gap: 8px;
 }
 
-.xb-logo {
-  font-size: 16px;
+/* Square group avatar (mockup .grp-av) — the Neutral signal, radius 0. The
+   emoji logo was dropped for a --primary square; popup.js MAY later stamp
+   initials via textContent, so it is left empty here. */
+.xb-group-avatar {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: var(--primary-fg);
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: 13px;
 }
 
 .xb-team-select {
-  background: var(--xb-surface);
-  color: var(--xb-text);
-  border: 1px solid var(--xb-border-2);
-  border-radius: 6px;
-  padding: 4px 8px;
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 8px;
   font-size: 12px;
-  font-family: inherit;
+  font-family: var(--sans);
   outline: none;
   cursor: pointer;
   max-width: 180px;
@@ -183,42 +195,51 @@
   white-space: nowrap;
   overflow: hidden;
 }
-.xb-team-select:focus { border-color: var(--xb-accent); }
+.xb-team-select:focus { border-color: var(--ring); }
+.xb-team-select:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .xb-team-select option {
-  background: var(--xb-surface);
-  color: var(--xb-text);
+  background: var(--card);
+  color: var(--fg);
 }
 
 .xb-presence {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  font-family: var(--mono);
   font-size: 11px;
-  color: var(--xb-text-mute);
+  color: var(--muted-fg);
 }
 .xb-presence-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--xb-success);
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  background: currentColor;
 }
 
 .xb-icon-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  padding: 4px 7px;
+  border: none;
+  border-radius: var(--radius);
+  padding: 0;
   cursor: pointer;
   font-size: 14px;
-  color: var(--xb-text-mute);
-  transition: all 0.15s;
+  color: var(--muted-fg);
+  transition: background 0.14s, color 0.14s;
   line-height: 1;
 }
 .xb-icon-btn:hover {
-  background: var(--xb-surface-2);
-  color: var(--xb-text);
-  border-color: var(--xb-border-2);
+  background: var(--muted);
+  color: var(--fg);
+}
+.xb-icon-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
 }
 
 /* Segmented light/dark theme toggle (shadcn style, radius 0). The pressed
@@ -806,18 +827,19 @@
  * ====================================================================== */
 
 .xb-icon-btn.xb-text-btn {
+  width: auto;
+  height: 32px;
   font-size: 11px;
   font-weight: 500;
-  padding: 4px 8px;
-  color: var(--xb-text-mute);
+  padding: 0 8px;
+  color: var(--muted-fg);
   letter-spacing: 0.01em;
   white-space: nowrap;
   line-height: 1.2;
 }
 .xb-icon-btn.xb-text-btn:hover {
-  background: var(--xb-surface-2);
-  color: var(--xb-text);
-  border-color: var(--xb-border-2);
+  background: var(--muted);
+  color: var(--fg);
 }
 
 /* ========================================================================
