@@ -416,38 +416,40 @@
   color: var(--xb-text);
 }
 
-/* === Message rows — LibreChat-style flat layout ===
+/* === Message rows — shadcn Neutral (Plan 20-03) ===
  *
- * No bubbles. Each message is a vertical row with:
- *   [avatar circle]  Sender · time · [provenance]
- *                    Message body (full width, generous padding)
+ * Mirrors the mockup's .row / .avatar / .stack / .bubble / .meta structure on
+ * the DOM popup.js already emits (avatar | meta | bubble in a 2-col grid):
  *
- * User and assistant rows alternate subtle background tints to give
- * visual separation without borders. Hover lifts the row slightly.
+ *   [avatar square]  Sender · time · [provenance]
+ *                    [bubble]
+ *
+ * Bubble palette is fully monochrome:
+ *   own    (.is-self)  -> --primary fill        (mockup .row.mine .bubble)
+ *   others (.is-user)  -> --muted + --border    (mockup .bubble)
+ *   agent  (.is-agent) -> --card  + --border    (mockup .agent-bubble)
+ * Radius 0 everywhere — the Neutral signal. Avatars are SQUARE.
  */
 
 .xb-msg {
   display: grid;
-  grid-template-columns: 28px 1fr;
+  grid-template-columns: 26px 1fr;
   grid-template-rows: auto auto;
-  column-gap: 10px;
+  column-gap: 8px;
   row-gap: 2px;
-  padding: 12px 14px;
-  border-radius: 0;
-  transition: background 0.1s;
-}
-.xb-msg:hover { background: rgba(255, 255, 255, 0.02); }
-
-/* Row tinting — user / agent stay LibreChat-flat, self gets WhatsApp/Telegram
-   treatment: avatar on the right, body in a right-aligned blue bubble. */
-.xb-msg.is-user { background: transparent; }
-.xb-msg.is-agent {
-  background: rgba(196, 181, 253, 0.04); /* lavender wash for agent rows */
+  padding: 0 13px;
+  margin-top: 9px;
+  border-radius: var(--radius);
+  background: transparent;
 }
 
-/* === Self messages — WhatsApp/Telegram style === */
+/* Agent rows get a touch more air (mockup .agent-row margin-top). */
+.xb-msg.is-user  { background: transparent; }
+.xb-msg.is-agent { background: transparent; margin-top: 11px; }
+
+/* === Own messages — mockup .row.mine: avatar right, bubble right-aligned === */
 .xb-msg.is-self {
-  grid-template-columns: 1fr 28px;
+  grid-template-columns: 1fr 26px;
   background: transparent;
 }
 .xb-msg.is-self .xb-msg-avatar {
@@ -461,70 +463,105 @@
 .xb-msg.is-self .xb-msg-bubble {
   grid-column: 1;
   justify-self: end;
-  max-width: 80%;
-  padding: 8px 12px;
-  background: var(--xb-accent-bg);
-  border: 1px solid rgba(59, 130, 246, 0.25);
-  border-radius: 14px 14px 4px 14px;
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
   text-align: left;
 }
 
+/* Square avatar (mockup .avatar) — --secondary chip with a --border hairline.
+   The agent variant flips to --primary (mockup .agent-av). */
 .xb-msg-avatar {
   grid-row: 1 / span 2;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
   font-weight: 600;
-  color: #fff;
-  background: var(--xb-surface-2);
+  background: var(--secondary);
+  color: var(--secondary-fg);
+  border: 1px solid var(--border);
   flex-shrink: 0;
   user-select: none;
+  line-height: 1;
 }
-.xb-msg.is-self .xb-msg-avatar    { background: var(--xb-accent); }
-.xb-msg.is-user .xb-msg-avatar    { background: #4b5563; }
-.xb-msg.is-agent .xb-msg-avatar   { background: #7c3aed; font-size: 14px; }
+.xb-msg.is-agent .xb-msg-avatar {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-color: var(--primary);
+}
 
+/* Meta row (mockup .name + .meta) — mono micro-text on --muted-fg. */
 .xb-msg-meta {
   grid-column: 2;
   display: flex;
   align-items: baseline;
   gap: 6px;
-  font-size: 12px;
-  line-height: 1;
-  margin-bottom: 2px;
-}
-.xb-msg-author { color: var(--xb-text); font-weight: 600; font-size: 13px; }
-.xb-msg-author.is-agent { color: #c4b5fd; }
-.xb-msg-time { color: var(--xb-text-dim); font-size: 11px; }
-
-.xb-msg-provenance {
+  font-family: var(--mono);
   font-size: 10px;
-  color: var(--xb-text-dim);
-  padding: 1px 6px;
-  border-radius: 9999px;
-  background: var(--xb-surface-2);
+  line-height: 1;
+  color: var(--muted-fg);
+  margin-bottom: 3px;
 }
-.xb-msg-provenance.via-promax {
-  color: var(--xb-success);
-  background: var(--xb-success-bg);
+.xb-msg-author {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.xb-msg-author.is-agent { color: var(--fg); }
+.xb-msg-time {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted-fg);
 }
 
-/* Body — no bubble, just flowing text. */
+/* Provenance (via Pro/Max · via team API) — mono micro badge, no green/blue. */
+.xb-msg-provenance {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: -0.01em;
+  padding: 1px 5px;
+  border-radius: var(--radius);
+  background: var(--secondary);
+  color: var(--secondary-fg);
+  border: 1px solid var(--border);
+}
+.xb-msg-provenance.via-promax,
+.xb-msg-provenance.via-api {
+  background: var(--secondary);
+  color: var(--secondary-fg);
+}
+
+/* Bubble body (mockup .bubble) — others' default; own/agent override below. */
 .xb-msg-bubble {
   grid-column: 2;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 0;
+  justify-self: start;
+  max-width: 78%;
+  padding: 7px 10px;
+  background: var(--muted);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   white-space: pre-wrap;
   word-wrap: break-word;
-  line-height: 1.6;
-  font-size: 14px;
-  color: var(--xb-text);
+  overflow-wrap: anywhere;
+  line-height: 1.46;
+  font-size: 13px;
+  animation: xb-msg-rise 0.16s ease both;
+}
+.xb-msg.is-user .xb-msg-bubble {
+  background: var(--muted);
+  color: var(--fg);
+  border: 1px solid var(--border);
+}
+
+@keyframes xb-msg-rise {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
 }
 
 /* Streaming cursor — pulsing block at the end of an in-flight agent message. */
@@ -532,13 +569,19 @@
   content: "▍";
   display: inline-block;
   margin-left: 2px;
-  color: var(--xb-accent);
+  color: var(--primary);
   animation: xb-caret-blink 1s infinite;
 }
 
 @keyframes xb-caret-blink {
   0%, 50%   { opacity: 1; }
   51%, 100% { opacity: 0.15; }
+}
+
+/* Motion is decorative only — kill it when the OS asks. */
+@media (prefers-reduced-motion: reduce) {
+  .xb-msg-bubble { animation: none; }
+  .xb-msg-bubble.streaming::after { animation: none; }
 }
 
 /* ========================================================================
@@ -892,49 +935,53 @@
  * Inline media attachments in chat bubbles (BL-003 Slice 4)
  * ====================================================================== */
 
-/* Image thumbnail — clicking opens full image in a new tab. */
+/* Image thumbnail (mockup .att-img) — radius 0, --border hairline, --muted
+   placeholder while the signed URL loads. Click opens the full image. */
 .xb-msg-thumb {
   display: block;
-  max-width: 180px;
-  max-height: 120px;
-  border-radius: 6px;
+  max-width: 210px;
+  max-height: 132px;
+  border-radius: var(--radius);
   object-fit: cover;
   cursor: pointer;
-  border: 1px solid var(--xb-border-2);
+  background: var(--muted);
+  border: 1px solid var(--border);
   transition: opacity 0.15s;
   margin-top: 4px;
 }
 .xb-msg-thumb:hover { opacity: 0.85; }
+.xb-msg-thumb:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
-/* Document chip — shown for PDFs, Office files, text files, etc. */
+/* Document chip (mockup .file) — --card surface, --border, radius 0, mono meta. */
 .xb-msg-file-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   margin-top: 4px;
-  padding: 5px 10px;
-  background: var(--xb-surface);
-  border: 1px solid var(--xb-border-2);
-  border-radius: 6px;
+  padding: 7px 9px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   font-size: 12px;
-  color: var(--xb-text);
+  color: var(--card-fg);
   text-decoration: none;
-  max-width: 220px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   transition: background 0.12s;
 }
 .xb-msg-file-chip:hover {
-  background: var(--xb-surface-2);
-  color: var(--xb-text);
+  background: var(--muted);
+  color: var(--fg);
 }
+.xb-msg-file-chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* Small caption text rendered below the attachment when content is non-empty. */
 .xb-msg-caption {
   margin-top: 4px;
   font-size: 12px;
-  color: var(--xb-text-mute);
+  color: var(--muted-fg);
   line-height: 1.4;
 }
 
