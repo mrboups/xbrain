@@ -14,9 +14,9 @@
 #
 # BUILD ONCE, USE MANY (D-17-02)
 #   `build` bakes every `build:` service ONCE and pushes it to GHCR. Every downstream job
-#   PULLS `:${{ github.sha }}`. No job below ever passes `--build`, and none calls
-#   `make deploy` (whose `up -d --build` would silently rebuild ON the VM — a second,
-#   untested build). What CI tested is byte-for-byte what publish ships and deploy runs.
+#   PULLS `:${{ github.sha }}`. No job below ever passes a rebuild flag, and none calls the
+#   `make` deploy target (whose remote `up -d` rebuilds ON the VM — a second, untested
+#   build). What CI tested is byte-for-byte what publish ships and deploy runs.
 #
 # HONEST STATUS AT AUTHORING TIME (do not read a green lint as a green run)
 #   This workflow has never executed: it lands with the commit that creates it, and the
@@ -146,7 +146,7 @@ jobs:
             -f infrastructure/docker-compose.ci-images.yml \
             pull
 
-      # VERIFY16_NO_BUILD=1 swaps the script's `up -d --build` for `pull` + `up -d`, and
+      # VERIFY16_NO_BUILD=1 swaps the script's build-and-boot for `pull` + `up -d`, and
       # VERIFY16_EXTRA_COMPOSE layers the GHCR override onto the live boot — the opt-in CI
       # hooks Plan 17-02 added for exactly this call. GHCR_OWNER/XBRAIN_IMAGE_TAG come from
       # the workflow env and resolve the override's image names to this commit's SHA tag.
@@ -180,7 +180,7 @@ jobs:
       # Asserts the full service graph resolves, its size is DERIVED (not hardcoded), and
       # EVERY build: service carries a ghcr.io/<owner>/xbrain-* image in the override — the
       # check that catches a service missing from the override, which is what would let a
-      # downstream job silently --build one service instead of pulling what CI tested.
+      # downstream job silently rebuild one service instead of pulling what CI tested.
       - name: Verify full-profile graph and GHCR override completeness
         run: bash infrastructure/scripts/verify-phase17-full.sh
 
@@ -243,3 +243,158 @@ jobs:
             echo "::error::Migration gate SKIPPED. Docker is always present on ubuntu-latest, so a skip means the REL-03 gate did not run. SKIP != PASS."
             exit 1
           fi
+
+  # ---------------------------------------------------------------------------------------
+  # SHIP 1/2 — the public OSS release.
+  # ---------------------------------------------------------------------------------------
+  # The `needs:` list below is half of the SC3 proof: if ANY of the three test jobs fails or
+  # is skipped, this job never starts. Do not add `if: needs.*.result == 'success'` — that is
+  # redundant with `needs:` and only creates a way to get it wrong.
+  publish-oss-release:
+    name: "ship: publish OSS release"
+    needs: [test-oss-subset, test-full-profile, test-migrations]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the Release and upload its assets
+      packages: write # move the :latest pointer
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `imagetools create` copies the MANIFEST — it adds a second tag to the digest that was
+      # already built and tested. No rebuild, so `:latest` and this commit's `:<sha>` are
+      # guaranteed to be the same bytes; `:latest` stays a traceable pointer at an exact
+      # commit rather than a fresh, unverified build.
+      #
+      # The image list is DERIVED from the override file (with every profile enabled so all
+      # 18 appear), never hardcoded here: a service added to the override is retagged
+      # automatically, and one removed cannot leave a stale entry behind.
+      - name: Move the :latest pointer to this commit's tested images
+        env:
+          COMPOSE_PROFILES: integrations,saas,ops
+        run: |
+          set -euo pipefail
+          docker compose \
+            -f infrastructure/docker-compose.yml \
+            -f infrastructure/docker-compose.ci-images.yml \
+            config --images \
+            | grep "^ghcr.io/${GHCR_OWNER}/xbrain-" \
+            | sort -u > ci-images.txt
+          echo "Retagging $(wc -l < ci-images.txt) images to :latest"
+          while read -r img; do
+            echo "  ${img} -> ${img%:*}:latest"
+            docker buildx imagetools create --tag "${img%:*}:latest" "${img}"
+          done < ci-images.txt
+
+      # The self-host bundle: install docs, the light compose (profiles unset = the 10-service
+      # core), the override so operators PULL the published images instead of building, the
+      # extension, and the repo's license file shipped verbatim.
+      #
+      # On the license file: it is attached exactly as it exists on disk and this workflow
+      # never asserts which license that is. Reconciling the intended terms is a user
+      # decision recorded in docs/ci-lockstep.md — and because nothing here encodes it,
+      # changing that file later needs no edit to this pipeline.
+      - name: Publish the GitHub Release with the OSS bundle
+        uses: softprops/action-gh-release@v3.0.2
+        with:
+          tag_name: release-${{ github.sha }}
+          name: xbrain OSS ${{ github.sha }}
+          body: |
+            Automated OSS release for commit ${{ github.sha }}.
+
+            Images: `ghcr.io/${{ github.repository_owner }}/xbrain-<service>:${{ github.sha }}`
+            (also tagged `:latest`). Pull them with the bundled compose files — no local build:
+
+                docker compose -f docker-compose.yml -f docker-compose.ci-images.yml pull
+                docker compose -f docker-compose.yml -f docker-compose.ci-images.yml up -d
+
+            See INSTALL.md. Published only after the OSS-subset boot, full-profile and
+            both-edition migration gates passed on this commit.
+          files: |
+            docs/INSTALL.md
+            infrastructure/docker-compose.yml
+            infrastructure/docker-compose.ci-images.yml
+            chrome-extension.zip
+            LICENSE
+
+  # ---------------------------------------------------------------------------------------
+  # SHIP 2/2 — the SaaS deploy. AUTHORED FOR REAL, ARMED BY THE OPERATOR ONLY.
+  # ---------------------------------------------------------------------------------------
+  # STATUS: this job has never run. The prod VM is stopped (cost measure), so
+  # `vars.SAAS_DEPLOY_ENABLED` is unset and GitHub evaluates the `if:` to false — the job is
+  # skipped on every run. It is wired into the lockstep graph and lint-clean, but nothing
+  # below is proven against a live host. Do not read a green pipeline as a green deploy.
+  #
+  # TO ARM IT (documented in full in docs/ci-lockstep.md):
+  #   1. Start the VM and confirm its .env is current (project history: VM .env vars go missing).
+  #   2. Ensure the deploy directory holds this commit's compose files.
+  #   3. Add repo SECRETS (never variables): VM_SSH_HOST, VM_SSH_USER, VM_SSH_KEY.
+  #   4. Set repo VARIABLE SAAS_DEPLOY_ENABLED=true.
+  # Unsetting the variable disarms deploys again without touching this file.
+  #
+  # The `if:` covers the SEPARATE question of whether a deploy is armed. It is NOT a
+  # test-conclusion check — `needs:` already guarantees the tests passed.
+  deploy-saas:
+    name: "ship: deploy SaaS (gated)"
+    needs: [test-oss-subset, test-full-profile, test-migrations]
+    if: vars.SAAS_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # PULL, never rebuild. The `make` deploy target ends in an `up -d` that rebuilds ON the
+      # VM — a second build, on different toolchain state, of images nothing has tested. That
+      # would defeat build-once even on a fully green pipeline, so this job deliberately does
+      # not reuse it and pulls the immutable SHA tags instead.
+      #
+      # Secrets reach the VM through `envs:` (forwarded as environment variables) and the
+      # registry token is read from stdin — never interpolated into a command line or echoed.
+      - name: Pull the tested images on the VM and restart the stack
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          DEPLOY_DIR: /home/${{ secrets.VM_SSH_USER }}/xbrain
+          GHCR_OWNER: ${{ github.repository_owner }}
+          XBRAIN_IMAGE_TAG: ${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.VM_SSH_HOST }}
+          username: ${{ secrets.VM_SSH_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          envs: DEPLOY_DIR,GHCR_OWNER,XBRAIN_IMAGE_TAG,GHCR_USER,GHCR_TOKEN
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            cd "$DEPLOY_DIR"
+
+            # The override is what points compose at the registry. Without it, `up -d` would
+            # fall back to the base file's `build:` keys and rebuild on the VM — fail loudly
+            # instead of silently shipping something CI never saw.
+            if [ ! -f infrastructure/docker-compose.ci-images.yml ]; then
+              echo "FATAL: infrastructure/docker-compose.ci-images.yml missing in $DEPLOY_DIR."
+              echo "Sync the repo to this commit before deploying; without the override the stack would rebuild locally."
+              exit 1
+            fi
+
+            # The VM's own .env is what actually boots the containers, and it has drifted
+            # before. Reuse the same preflight the manual deploy path runs.
+            bash infrastructure/scripts/preflight-env.sh .env
+
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+
+            export GHCR_OWNER XBRAIN_IMAGE_TAG
+            COMPOSE_FILES="-f infrastructure/docker-compose.yml -f infrastructure/docker-compose.ci-images.yml"
+
+            # shellcheck disable=SC2086
+            docker compose $COMPOSE_FILES --env-file .env pull
+            # shellcheck disable=SC2086
+            docker compose $COMPOSE_FILES --env-file .env up -d
+            # shellcheck disable=SC2086
+            docker compose $COMPOSE_FILES --env-file .env ps
