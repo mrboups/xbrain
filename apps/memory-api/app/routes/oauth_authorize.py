@@ -44,6 +44,12 @@ router = APIRouter()
 log = structlog.get_logger(__name__)
 
 _CONSENT_TEMPLATE = Path(__file__).parent.parent / "templates" / "oauth_consent.html"
+_LOCAL_LOGIN_TEMPLATE = Path(__file__).parent.parent / "templates" / "oauth_local_login.html"
+
+# Single literal message reused across the absent / locked / wrong-password
+# branches of POST /oauth/authorize/local — any divergence is a user-enumeration
+# oracle (T-16-01-02, mirrors auth_local.login's _GENERIC_LOGIN_ERROR).
+_GENERIC_LOGIN_ERROR = "Invalid email or password."
 
 # In-flight state TTL — the browser leg (GitHub sign-in + consent) is interactive.
 _STATE_TTL = 600  # 10 minutes
@@ -75,6 +81,36 @@ def _error_page(message: str, status: int = 400) -> HTMLResponse:
         "<title>Authorization error</title></head><body style='font-family:system-ui;"
         "background:#0f1115;color:#e7e9ee;padding:40px'>"
         f"<h1>Authorization error</h1><p>{message}</p></body></html>"
+    )
+    return HTMLResponse(content=html, status_code=status)
+
+
+async def _render_local_login(
+    session: AsyncSession,
+    *,
+    client_id: str,
+    state: str,
+    error: str = "",
+    status: int = 200,
+) -> HTMLResponse:
+    """Render the English-only local email/password login form (zero-key install).
+
+    The hidden ``state`` is the SAME signed pre_github token GET /oauth/authorize
+    issued — POST /oauth/authorize/local re-verifies it, so redirect_uri / client
+    are never taken from the form body. ``error`` is injected as a self-contained
+    HTML block (empty on first view); on a failed credential proof the SAME
+    generic message is used every time (no enumeration oracle, T-16-01-02).
+    """
+    client = await oauth_store.get_client(session, client_id)
+    client_name = (client or {}).get("client_name") or "this application"
+    error_html = (
+        f'<div class="error">{error}</div>' if error else ""
+    )
+    html = (
+        _LOCAL_LOGIN_TEMPLATE.read_text(encoding="utf-8")
+        .replace("{{client_name}}", str(client_name))
+        .replace("{{state}}", state)
+        .replace("{{error}}", error_html)
     )
     return HTMLResponse(content=html, status_code=status)
 
@@ -124,6 +160,15 @@ async def authorize(
             "stage": "pre_github",
         }
     )
+
+    # Zero-key OSS-light install (no GitHub App configured): authenticate the
+    # connector's sign-in leg via Phase-18 local auth instead of 302-ing into a
+    # client_id-empty GitHub URL that GitHub rejects (D-16-02). Additive branch —
+    # the GitHub path below is byte-unchanged when a GitHub App IS configured.
+    if not settings.GITHUB_APP_CLIENT_ID:
+        return await _render_local_login(
+            session, client_id=client_id, state=state_token
+        )
 
     # Redirect into GitHub sign-in using memory-api's OWN callback (never the
     # Claude.ai redirect_uri). Reuse the xbrain GitHub App client id.
