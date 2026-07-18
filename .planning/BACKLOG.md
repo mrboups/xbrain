@@ -330,3 +330,20 @@ executor flagged this rather than writing a check that silently proved nothing.
 - Update the 16-04 gate check to assert on the extracted BODY once this lands.
 
 **Sizing:** medium (a real ingestion feature, not a fix). Blocked on nothing.
+
+---
+
+## Client/server agent-mention desync — the extension detects `@grooveos`, the server answers `@agent`/`@chad`
+
+**Found:** 2026-07-18, by the Phase 20 restyle (20-03) while root-causing 3 long-standing "pre-existing" test failures.
+
+**The desync — three different vocabularies for the same feature:**
+- **Client:** `chrome-extension/chat_stream.js:22` — `MENTION_RE = /@(grooveos|groove|gr|g)/i` (stale grooveos-era branding).
+- **Server:** `AGENT_MENTION_ALIASES` (`.env.example:122`, default `agent`; deployed `agent,chad`) — `mention_detector.detect()` runs SERVER-side on the message content and is what actually summons the agent.
+- **Tests:** `chrome-extension/tests/test_chat_stream.mjs` still asserts `@claude` — which matches neither.
+
+**Impact (real, not cosmetic):** the server is the source of truth, so `@agent`/`@chad` DO summon the agent — but any client-side affordance driven by `detectMentionClient` (optimistic "the agent will reply" UI) does **not** fire for the aliases users are actually told to use, and *does* fire for `@g`/`@gr`, which the server ignores. The 3 failing `detectMentionClient` tests are the symptom that kept getting waved off as "stale fixtures".
+
+**Fix shape:** make the client stop hardcoding aliases — have it read the alias list the server already exposes (or ship it via the existing config/`/v1/me`-style surface) so one source of truth drives both, then update `test_chat_stream.mjs` to the real aliases. Relates to the "Agent mention alias — settable from the Settings UI" backlog item above: both want the alias list to stop being hardcoded in two places.
+
+**Sizing:** small. Blocked on nothing.
