@@ -1,0 +1,108 @@
+# ci-lockstep.yml — the single build -> test -> gated publish/deploy pipeline (Phase 17).
+#
+# WHY THIS FILE EXISTS (REL-01 + REL-02)
+#   One commit on `main` must produce ONE image set, prove it with THREE independent test
+#   gates, and only then ship it BOTH ways: the public OSS release AND the SaaS deploy.
+#
+# LOCKSTEP IS STRUCTURAL, NOT DISCIPLINE (D-17-01 / SC3)
+#   `publish-oss-release` and `deploy-saas` each declare
+#       needs: [test-oss-subset, test-full-profile, test-migrations]
+#   GitHub Actions SKIPS a job outright when any job in its `needs:` failed or was skipped.
+#   So a single red test blocks BOTH ships by construction — there is no `if:` to get wrong,
+#   no reviewer to forget. Those `needs:` lists ARE the SC3 proof and are machine-checkable
+#   by parsing this YAML (Plan 17-04 does exactly that).
+#
+# BUILD ONCE, USE MANY (D-17-02)
+#   `build` bakes every `build:` service ONCE and pushes it to GHCR. Every downstream job
+#   PULLS `:${{ github.sha }}`. No job below ever passes `--build`, and none calls
+#   `make deploy` (whose `up -d --build` would silently rebuild ON the VM — a second,
+#   untested build). What CI tested is byte-for-byte what publish ships and deploy runs.
+#
+# HONEST STATUS AT AUTHORING TIME (do not read a green lint as a green run)
+#   This workflow has never executed: it lands with the commit that creates it, and the
+#   SaaS deploy is gated OFF because the prod VM is stopped. Proven locally: actionlint
+#   is clean and the needs-graph is correct. NOT proven: a live run, the GHCR push, the
+#   first-push package-visibility flip, and the VM deploy. See docs/ci-lockstep.md.
+
+name: CI Lockstep
+
+# No `pull_request` / `pull_request_target` trigger, deliberately: fork PRs would then run
+# with access to repo secrets (GHCR push rights, the VM SSH key). Keep this workflow on
+# trusted refs only. `workflow_dispatch` allows the documented full-boot dry-run follow-up.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege by default; jobs escalate explicitly and only as far as they need.
+permissions:
+  contents: read
+
+# Queue, never cancel: `cancel-in-progress: true` could kill an in-flight `deploy-saas`
+# mid `up -d` and leave the VM half-updated.
+concurrency:
+  group: ci-lockstep-${{ github.ref }}
+  cancel-in-progress: false
+
+# Consumed by infrastructure/docker-compose.ci-images.yml's ${GHCR_OWNER}/${XBRAIN_IMAGE_TAG}
+# interpolation — the SINGLE source of truth for CI image names, shared by build, both image
+# consumers, publish and deploy, so those four can never drift onto different names.
+# The SHA tag is immutable: one commit = one image set (D-17-06).
+env:
+  GHCR_OWNER: ${{ github.repository_owner }}
+  XBRAIN_IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  # ---------------------------------------------------------------------------------------
+  # BUILD — every `build:` service, exactly once, on the prod architecture.
+  # ---------------------------------------------------------------------------------------
+  # This is the only place in the whole toolchain that natively produces amd64: the dev
+  # machine is arm64, and building there for prod has burned this project before.
+  build:
+    name: build once -> GHCR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io/<owner>/xbrain-*
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - uses: docker/setup-buildx-action@v4.2.0
+
+      # GHCR needs NO new secret: the built-in GITHUB_TOKEN can push to this repo's own
+      # package namespace once `packages: write` is declared above.
+      - name: Log in to GHCR
+        uses: docker/login-action@v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Bake reads the compose files directly, so the build target list cannot drift from
+      # docker-compose.yml — add a service there and CI builds it with no edit here.
+      #
+      # The tags come from docker-compose.ci-images.yml's `image:` keys (compose -> bake maps
+      # `image:` to the target's tags), NOT from a `*.tags=` override: a `set:` wildcard is
+      # only expanded on the LEFT of the `=`, so `*.tags=ghcr.io/o/xbrain-*:sha` would assign
+      # every target one literal tag containing a `*`. Letting the override file carry the
+      # names keeps build/test/publish/deploy on identical strings by construction.
+      #
+      # amd64-only, on purpose. `xbrain-backup`'s base (google/cloud-sdk:slim) publishes no
+      # arm64 manifest, so a uniform multi-platform build would fail on exactly that service.
+      # amd64 IS the prod architecture REL-01 needs, and it is what this runner builds
+      # natively (no QEMU). True multi-arch — via the now-GA arm64 hosted runners rather than
+      # emulation — is a documented future upgrade, not a Phase 17 requirement.
+      - name: "Build every build: service once and push SHA-tagged images"
+        uses: docker/bake-action@v7.3.0
+        with:
+          # Repo-root-relative paths. NOTE: v7 has no `workdir` input (it was replaced by
+          # `source`); an unknown input is silently IGNORED by Actions, so a stale
+          # `workdir: infrastructure` would leave these paths unresolved. Compose still
+          # resolves each service's relative build context against the compose file's own
+          # directory, so `context: ../apps/...` works unchanged from repo root.
+          files: |
+            infrastructure/docker-compose.yml
+            infrastructure/docker-compose.ci-images.yml
+          push: true
+          set: |
+            *.platform=linux/amd64
