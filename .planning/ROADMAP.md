@@ -27,7 +27,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 14: Portability Foundation** - De-hardcode `grooveos.app` / `aibrussels` / `default` team_scope into config; slim fillable OSS `.env.example`
  (completed 2026-07-12)
 - [x] **Phase 15: Edition Mechanics** - Compose `profiles:` + `EDITION` flag + router gating so one codebase serves oss/saas. (The Ed25519 license + paid `pro` tier was DROPPED by locked decision Q6 — no product feature is paywalled; only the hosted control plane stays closed.) (completed 2026-07-13)
-- [x] **Phase 18: Local Auth (OSS default)** - Native email/password sign-in in memory-api, so a self-hoster needs NO external OAuth setup. **Runs BEFORE Phase 16** — execution order is 14 → 15 → 18 → 16 → 17; it is numbered 18 only to avoid renumbering 16/17. (completed 2026-07-14)
+- [x] **Phase 18: Local Auth (OSS default)** - Native email/password sign-in in memory-api, so a self-hoster needs NO external OAuth setup. **Runs BEFORE Phase 16** — execution order is 14 → 15 → 18 → 16 → 17; it is numbered 18 only to avoid renumbering 16/17.
+ (completed 2026-07-14)
 - [ ] **Phase 19: Local Embeddings (OSS default)** - In-container keyless embedder so semantic retrieval works with NO OpenAI key (OpenAI stays selectable). **Runs BEFORE Phase 16** — order 14 → 15 → 18 → 19 → 16 → 20 → 17. Today `embedders.py` hard-raises without `OPENAI_API_KEY`, so a zero-key OSS install cannot do the "retrieved" half of Phase 16's own SC#3; locked decision Q3 wanted local-by-default. Numbered 19 to avoid renumbering 16/17.
 - [ ] **Phase 16: OSS Light Packaging** - Light compose + install docs + clean-install test on a fresh VM. The stack boots and the brain works end-to-end (chat via the existing surfaces + ChatGPT-web connector + doc analysis + retrieval + clip) with zero external keys. **The standalone web chat frontend moved to Phase 20** (it is a phase-sized build, not a packaging criterion).
 - [ ] **Phase 20: Standalone Web Chat** - Extract the team group-chat from the Chrome extension (~1125-line popup.js) into a browser-extension-independent web app — THE product per Q4. Wires in Phase 18 auth + clip-to-memory. **Runs AFTER Phase 16** (needs the packaged stack to serve it) and before 17. Numbered 20 to avoid renumbering.
@@ -555,7 +556,10 @@ Plans:
   4. The chosen local model has BOTH arm64 and amd64 wheels/artifacts (dev host is arm64, prod amd64) and fits the OSS-light RAM budget (must not OOM an e2-medium) — stated with the measured footprint.
   5. Existing OpenAI-embedded vectors and the OpenAI path do not regress when a key IS configured; the Qdrant collection's vector dimensions are handled correctly if the local model's dimension differs from OpenAI's 1536 (migration/re-embed story documented, not silently broken).
 
-**Plans**: TBD (populated by `/gsd:plan-phase 19`)
+**Plans**: 3 plans
+- [ ] 19-01-PLAN.md — Local embedder engine: provider selector (local default), fastembed/bge-small-en-v1.5, provider-derived Qdrant dimension across all 3 sites + fail-loud mismatch (Wave 1)
+- [ ] 19-02-PLAN.md — Offline model bake (HF_HUB_OFFLINE, --network none proof), configurable uvicorn workers, both-arch build, compose + .env.example wiring (Wave 2)
+- [ ] 19-03-PLAN.md — Gate-lesson proof: real Postgres + real Qdrant keyless semantic-retrieval test, OpenAI regression, re-embed migration doc (Wave 2)
 **UI hint**: no (backend embedding engine — no user-facing surface)
 
 ### Phase 16: OSS Light Packaging
