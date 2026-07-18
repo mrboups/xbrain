@@ -347,24 +347,24 @@ EOF
 
 **Planning implication:** None of these block planning. A1 and A3 are both cheaply re-verifiable in Wave 0 (a single `docker run` for A1, a single `ssh`/`gcloud` check for A3). A2 should become its own explicit task in the plan, not be treated as "just docs."
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does "zero external keys" in SC#3 include `ANTHROPIC_API_KEY`, or only the OAuth-identity/embeddings keys (Google, GitHub App, OpenAI)?**
+1. **Does "zero external keys" in SC#3 include `ANTHROPIC_API_KEY`, or only the OAuth-identity/embeddings keys (Google, GitHub App, OpenAI)?** (RESOLVED: see D-16-01)
    - What we know: SC#3's own parenthetical explicitly names only *"no OpenAI, no Google, no GitHub App"* — it does not name Anthropic. The design doc's locked "Single-key operation" decision states *"One key — Anthropic OR OpenAI OR Grok — drives the whole system. Chat uses whichever key is set; embeddings run locally (keyless)... relevance filter falls back to heuristic when no Anthropic key"* — i.e., a chat-model key was never meant to be eliminated, only auth and embeddings keys.
    - What's unclear: whether the phase's own GOAL text ("chat via the existing surfaces... with ZERO external keys") is stricter than SC#3's own parenthetical, and whether "chat" in that context means the message-transport (team_chat post/receive via Centrifugo, provably zero-key — confirmed no LLM call in that path) or an actual `@agent`-generated reply (which needs one LLM key by design).
    - Recommendation: Design the SC#1 clean-install/zero-key test to exercise "chat" as plain message post/receive (proving the transport is zero-key, which it genuinely is), NOT the `@agent` mention (which by the project's own locked design intentionally still needs one LLM key). Get this confirmed explicitly in CONTEXT.md rather than assumed.
 
-2. **Should Phase 16 itself fix the two SC#3 code gaps (oauth_authorize.py, chrome-extension), or descope them with a documented substitute proof?**
+2. **Should Phase 16 itself fix the two SC#3 code gaps (oauth_authorize.py, chrome-extension), or descope them with a documented substitute proof?** (RESOLVED: see D-16-02 and D-16-03)
    - What we know: both gaps are real, verified, and block a literal reading of SC#3. Fixing the OAuth-AS gap is a contained, well-scoped task (Pattern 1). Fixing the extension gap is larger (new UI, new connect flow, extension re-packaging/reload for testers) and arguably overlaps Phase 20's explicit charter ("clip reachable from the standalone web app, not only the browser extension").
    - What's unclear: whether the user considers "prove clip works via a documented API call, defer the polished extension UI to Phase 20" an acceptable interpretation of SC#3, given Phase 20's own SC#3 language already signals awareness that today's clip is extension-only.
    - Recommendation: Surface this explicitly in CONTEXT.md/discuss-phase as a locked decision, not something the plan should silently resolve either way. This directly changes plan scope and wave structure.
 
-3. **What is the actual, current state of the production VM (`VM_HOST`) — stopped, running, or replaced?**
+3. **What is the actual, current state of the production VM (`VM_HOST`) — stopped, running, or replaced?** (RESOLVED: see D-16-04)
    - What we know: project memory (2026-06-18) says the VM was terminated to cut cost during a pivot. `Makefile`'s `VM_HOST ?= __VM_HOST__` placeholder and `.env`'s `VM_HOST=__VM_HOST__` in `.env.example` suggest it may not even be configured in the checked-out `.env` right now.
    - What's unclear: whether SC#1's "fresh VM" clean-install test should target a newly-provisioned VM (closest to the literal SC#1 language: "provisions a fresh VM"), or accept the arm64-local-`docker compose up` proxy as sufficient for Phase 16, with a real-VM run as a documented follow-up (mirroring Phase 19's amd64-RSS deferral pattern).
    - Recommendation: Confirm VM state with the user before planning; if restarting a VM for this test is out of budget, explicitly document the arm64-local-boot-as-proxy decision in CONTEXT.md so the plan's acceptance criteria are honest about what was actually tested.
 
-4. **Should `.env.example` be split into two files (e.g., `.env.oss-light.example` + `.env.example`) or reorganized in place?**
+4. **Should `.env.example` be split into two files (e.g., `.env.oss-light.example` + `.env.example`) or reorganized in place?** (RESOLVED: see D-16-05)
    - What we know: the existing single-file structure with corrected section headers/tags (recommended fix for Pitfalls 3-4) is the smaller, lower-risk change and matches PORT-02's original "slim, documented OSS `.env.example`" framing.
    - What's unclear: whether a SEPARATE, even-slimmer OSS-light-only file would better serve SC#1's "no source reading" test (an operator literally cannot get confused by seeing `saas`-only vars at all) versus the maintenance cost of keeping two files in sync.
    - Recommendation: Reorganize in place with clear section headers (lower risk, single source of truth) unless the planner/CONTEXT-phase has a strong reason to fork the file.
