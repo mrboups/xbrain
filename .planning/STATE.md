@@ -4,13 +4,13 @@ milestone: v2.0
 milestone_name: Open-Core Edition
 status: executing
 stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
-last_updated: "2026-07-18T14:11:14.465Z"
-last_activity: 2026-07-18 -- Phase 20 execution started
+last_updated: "2026-07-18T19:47:03.118Z"
+last_activity: 2026-07-18 -- Phase 17 execution started
 progress:
-  total_phases: 20
-  completed_phases: 18
-  total_plans: 142
-  completed_plans: 136
+  total_phases: 21
+  completed_phases: 19
+  total_plans: 146
+  completed_plans: 140
   percent: 90
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 20 COMPLETE — shadcn Neutral restyle of the extension chat, verified in a real browser (tokens resolve, light/dark flips both ways, contract 90/90). Residual: the live-backend UAT (send / @agent stream / clip) needs the extension loaded unpacked against a running stack. Next: Phase 17 (CI Lockstep), then the backlog features.
+**Current focus:** Phase 17 — CI Lockstep
 
 ## Current Position
 
-Phase: 20 (Extension Chat UI Polish, shadcn) — COMPLETE (SC#5 live-backend UAT is the one documented residual). Next: Phase 17 (CI Lockstep)
+Phase: 17 (CI Lockstep) — EXECUTING
 Plan: 1 of 4
-Status: Phase 20 complete — next Phase 17 (CI Lockstep), then backlog features
-Last activity: 2026-07-18 -- Phase 20 execution started
+Status: Executing Phase 17
+Last activity: 2026-07-18 -- Phase 17 execution started
 
 ## Performance Metrics
 
