@@ -232,3 +232,76 @@ standing open door — the same team_scope-leak class flagged for the Telegram b
 needs an xbrain account (sign in once) — frictionless now that Phase 18 ships email/password.
 
 Sizing: small phase / slice. Blocked on nothing; schedule after v2.0 (16, 17) or as a standalone.
+
+---
+
+## Push-a-link — nudge a specific member to open a page in their browser
+
+**Requested:** 2026-07-18. Fits the existing architecture (Centrifugo + the extension) — no new infra.
+
+**What the user wants:** from the chat, target a specific member with a URL. That member gets a
+notification ("someone wants to open a page"), and on their confirmation it opens as a new tab in
+their browser.
+
+**Shape (small — 1 endpoint + 1 targeted event + 1 extension handler + a consent UI):**
+- `POST /v1/teams/{id}/nudge-open` (or `/v1/users/{id}/nudge-open`) → validates sender is a team
+  member and target is a team member → publishes a **targeted Centrifugo event** to the target's
+  personal channel (`user:#<id>`): `{ type:'open_url', url, from, team_id }`. Reuse the existing
+  Centrifugo publish path from `team_chat.py`.
+- Extension (already subscribed to the user channel) receives the event → **native OS notification**
+  via `chrome.notifications.create` showing the **sender + full destination URL**.
+- On the user clicking **Open**, the extension calls `chrome.tabs.create({ url })`. Tab opens.
+
+**SECURITY — build in, do not bolt on (this is the whole risk of the feature):**
+- **Consent-gated, never silent auto-open.** Opening a tab on someone's machine from another user's
+  message is a phishing/abuse vector. Always show sender + the real, un-shortened URL and require an
+  explicit click. (Browsers also block programmatic tab-open without a user gesture — the consent
+  click doubles as that gesture.)
+- Restrict to team members; rate-limit per sender; show the true destination (expand/redirect-resolve
+  shortened URLs, or reject them); a recipient-side setting to disable "allow open-link requests".
+- Same `team_scope`-boundary discipline as the Telegram bridge and join-by-code items.
+
+**Offline delivery:** if the target's extension is closed, Centrifugo won't deliver live. Options:
+persist a "pending nudge" fetched on reconnect, OR Web Push via the extension service worker (fires
+with the popup closed). Delivery when the browser is fully closed is limited — document, don't promise.
+
+**Sizing:** small. Blocked on nothing.
+
+---
+
+## Catch me up — "summary since your last visit" on entering a busy chat
+
+**Requested:** 2026-07-18. Checked against live code — half the machinery already exists.
+
+**What the user wants:** when a member opens the team chat and a lot has happened since they were
+last here, offer them a summary of the important things since their last visit.
+
+**What already exists (do not rebuild):**
+- **Summarization is basically free.** `team_chat_agent.py:handle_claude_mention` already builds a
+  context bundle and calls Claude; `get_agent_context_bundle` (`team_chat.py:265`) already assembles
+  recent messages for the agent. A "catch me up" is a specialized agent invocation scoped to
+  "messages since last visit."
+- **Brain-grounded importance (the differentiator).** Every message is already ingested as a WORKING
+  memory_item + vector (`team_chat.py:221`). So the summary can prioritize what's *important*
+  (decisions, validated facts, questions/@-mentions directed at the returning user) via the brain —
+  not just replay the last N messages by recency.
+
+**What is missing (the net-new work):**
+1. **A read cursor — there is none today.** `TeamMember` (`models/team.py:34`) has `joined_at`,
+   `blocked_at`, `role` but **no `last_read_at`**. (The only `last_seen_at` in the codebase is on
+   `user_external_sessions` — a 90s presence heartbeat used at `team_chat_agent.py:343-359`, NOT a
+   chat read cursor.) Add `team_members.last_read_at` (simplest — one row per membership) + a
+   `POST /teams/{id}/mark-read` the client calls on focus / scroll-to-bottom.
+2. **A `since` query — list only supports `before`.** `list_team_messages` (`team_chat.py:149`) does
+   `before` (older-than) pagination but not `after`. Add `after_created_at` to `tm_repo.list_messages`
+   (mirrors the existing `before_created_at`) to fetch "messages since last_read_at" + a count.
+3. **Trigger + UX.** On open, compute unread count since `last_read_at`; only surface a **non-intrusive
+   opt-in** "Catch me up" affordance when volume is meaningful (e.g. ≥10 new messages, or first visit
+   in >X hours). On click → the agent summarizes messages since `last_read_at`, brain-grounded, with
+   the same truth-level source chips as other agent replies.
+
+**Guardrails:** never auto-run (LLM cost) — opt-in click only, rate-limited. Don't nag (threshold-gated).
+Team-scoped, so no new privacy surface (the team chat is already shared among members). Keep the summary
+ephemeral (a reply in-thread or a dismissible banner), not a persisted message everyone sees.
+
+**Sizing:** small-to-medium. Blocked on nothing. Natural companion to the in-chat agent work.
