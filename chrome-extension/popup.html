@@ -27,40 +27,44 @@
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: var(--xb-bg); }
     ::-webkit-scrollbar-thumb { background: var(--xb-border-2); border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #4a4a4a; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted-fg); }
 
-    /* Phase 10 GHA-07 — GitHub-primary sign-in. The GitHub button is the
-       dark/filled primary action; Google is downgraded to a small secondary
-       fallback under an "or" divider. */
+    /* Phase 10 GHA-07 — GitHub-primary sign-in. Restyled to shadcn Neutral
+       (Plan 20-02): the GitHub button is the --primary (monochrome) filled
+       action; Google is the --secondary outline fallback under an "or"
+       divider. No hardcoded brand hex — everything resolves through tokens. */
     .connect-btn-github {
-      background: #24292f;
-      color: #fff;
-      border: 1px solid #1f2328;
+      background: var(--primary);
+      color: var(--primary-fg);
+      border: 1px solid var(--primary);
       font-weight: 600;
       width: 100%;
       padding: 12px 14px;
-      border-radius: var(--xb-radius);
+      border-radius: var(--radius);
       cursor: pointer;
       font-size: 13.5px;
-      transition: background 0.15s ease;
+      transition: opacity 0.15s ease;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
     }
-    .connect-btn-github:hover { background: #2f363d; }
+    .connect-btn-github:hover { opacity: 0.9; }
+    .connect-btn-github:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
     .connect-btn-github:disabled { opacity: 0.5; cursor: not-allowed; }
     .connect-btn-secondary {
-      background: var(--xb-surface-2);
-      color: var(--xb-text-mute);
-      border: 1px solid var(--xb-border);
+      background: var(--secondary);
+      color: var(--secondary-fg);
+      border: 1px solid var(--border);
       width: 100%;
       font-size: 12.5px;
       padding: 9px 14px;
-      border-radius: var(--xb-radius);
+      border-radius: var(--radius);
       cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
     }
-    .connect-btn-secondary:hover { background: #333; color: var(--xb-text); }
+    .connect-btn-secondary:hover { background: var(--muted); color: var(--fg); }
+    .connect-btn-secondary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
     .connect-btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
     .xb-signin-divider {
       margin: 10px 0;
