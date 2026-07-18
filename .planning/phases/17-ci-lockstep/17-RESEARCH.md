@@ -516,9 +516,12 @@ carry `[VERIFIED: ...]` or `[CITED: ...]` tags at their point of use (repo reads
 live `docker compose config` runs, `gh api` version checks, and WebFetch/WebSearch
 citations for external facts).
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Will the full-profile (33-service) live boot actually fit in 14 GB of runner disk?**
+> All four questions below were resolved during phase discussion (see 17-CONTEXT.md).
+> Resolution map: OQ1 -> D-17-03, OQ2 -> documented residual, OQ3 -> D-17-06, OQ4 -> D-17-07.
+
+1. **Will the full-profile (32-service) live boot actually fit in 14 GB of runner disk?** — RESOLVED: see D-17-03. The full-profile CI gate is a daemon-free graph + override-completeness parse, NOT a live 32-container boot; measuring a live boot's disk headroom is a documented `workflow_dispatch` dry-run residual (docs/ci-lockstep.md), not a Phase-17 gate.
    - What we know: `ubuntu-latest` public-repo runners are 4 vCPU/16 GB RAM/14 GB SSD
      (verified via GitHub's own docs this session). The full profile includes
      ClickHouse, Neo4j, 3 Mongo/Meili-backed LibreChat services, and pulls/builds 18
@@ -535,7 +538,7 @@ citations for external facts).
      prune the `integrations` set tested (e.g., defer Langfuse's own UI reachability
      to a separate, non-blocking job).
 
-2. **Is the production VM actually still stopped, and if restarted, what is its current `.env` drift risk?**
+2. **Is the production VM actually still stopped, and if restarted, what is its current `.env` drift risk?** — RESOLVED: documented residual. `deploy-saas` is authored but gated OFF (D-17-04); confirming live VM state + `.env` currency is an operator enable-step recorded in docs/ci-lockstep.md, never inferred by CI.
    - What we know: Operator memory (dated 2026-06-18) says the VM was terminated to
      cut cost from ~50 to ~9 EUR/month during a product pivot. STATE.md's own commit
      history does not independently confirm a restart since.
@@ -547,7 +550,7 @@ citations for external facts).
      (`gcloud compute instances describe xbrain-phase1` or equivalent) — this is
      explicitly an operator action, not something CI can safely infer.
 
-3. **Should the OSS release be tagged with a semver scheme, or is `:<sha>` sufficient for v2.0?**
+3. **Should the OSS release be tagged with a semver scheme, or is `:<sha>` sufficient for v2.0?** — RESOLVED: see D-17-06. Images carry the immutable `:${{ github.sha }}` (what deploy pulls) plus a moving `:latest` pointer retagged by `publish-oss-release`; a full semver scheme is deferred to v2.1+.
    - What we know: Local dev images use phase-numbered tags today
      (`xbrain/memory-api:phase2`) — confirmed via Phase 16's own research grep, not
      semver. `README.md`'s "Status" section and the `.planning/` traceability tables
@@ -561,7 +564,7 @@ citations for external facts).
      projects (Immich, Nextcloud) let operators track "current stable" without
      memorizing a SHA. A full semver scheme can be deferred as a v2.1+ decision.
 
-4. **Does the repo's LICENSE file (currently MIT) match the "AGPLv3 + CLA" locked decision recorded in REQUIREMENTS.md?**
+4. **Does the repo's LICENSE file (currently MIT) match the "AGPLv3 + CLA" locked decision recorded in REQUIREMENTS.md?** — RESOLVED: see D-17-07. `publish-oss-release` ships whatever `LICENSE` file exists as-is and asserts NO license string; the MIT->AGPLv3+CLA reconciliation is a documented user follow-up (docs/ci-lockstep.md), and swapping the file later needs no workflow change.
    - What we know: `.planning/REQUIREMENTS.md`'s Milestone v2.0 header states "Code
      license = AGPLv3 + CLA" as a 2026-07-11 locked decision. `LICENSE` at the repo
      root, read directly in this session, is still the plain MIT template
