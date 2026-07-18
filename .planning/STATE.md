@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 20 — Extension Chat UI Polish (shadcn)
+**Current focus:** Phase 20 COMPLETE — shadcn Neutral restyle of the extension chat, verified in a real browser (tokens resolve, light/dark flips both ways, contract 90/90). Residual: the live-backend UAT (send / @agent stream / clip) needs the extension loaded unpacked against a running stack. Next: Phase 17 (CI Lockstep), then the backlog features.
 
 ## Current Position
 
-Phase: 20 (Extension Chat UI Polish (shadcn)) — EXECUTING
+Phase: 20 (Extension Chat UI Polish, shadcn) — COMPLETE (SC#5 live-backend UAT is the one documented residual). Next: Phase 17 (CI Lockstep)
 Plan: 1 of 4
-Status: Executing Phase 20
+Status: Phase 20 complete — next Phase 17 (CI Lockstep), then backlog features
 Last activity: 2026-07-18 -- Phase 20 execution started
 
 ## Performance Metrics
