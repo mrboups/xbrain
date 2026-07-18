@@ -256,9 +256,14 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    # Phase 19 (EMBED-01 / CR-01): honor UVICORN_WORKERS — the whole point of the knob.
+    # This `command:` OVERRIDES the Dockerfile CMD, so it must read ${UVICORN_WORKERS}
+    # (default 2 = SaaS parity). OSS-light sets UVICORN_WORKERS=1 in .env so the in-process
+    # local embedding model loads ONCE (a hardcoded --workers 2 loaded it twice → ~2x RSS →
+    # OOM risk on the e2-medium mem_limit: 896m this phase was sized for).
     command: >
       sh -c "python -m alembic upgrade head &&
-             python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+             python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS:-2}"
 
   # === agent-runtime (plan 02-06) — LangGraph host with PostgresSaver + HITL ===
   agent-runtime:

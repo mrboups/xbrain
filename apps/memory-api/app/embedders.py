@@ -53,10 +53,11 @@ def _get_local_model():
 
 async def local_embedder(text: str) -> list[float]:
     """Embed text via the in-container fastembed model (keyless, offline)."""
-    model = _get_local_model()
-    # fastembed's .embed() is a synchronous generator — offload to a thread so it
-    # doesn't block the event loop (RESEARCH Pitfall 4).
-    vecs = await asyncio.to_thread(lambda: list(model.embed([text])))
+    # Offload BOTH the first-call model construction AND the embed to a thread (WR-01):
+    # TextEmbedding(...) does a blocking disk/model load on first use, which — if left on
+    # the event loop — stalls every concurrent request until the model finishes loading.
+    # fastembed's .embed() is likewise a synchronous generator (RESEARCH Pitfall 4).
+    vecs = await asyncio.to_thread(lambda: list(_get_local_model().embed([text])))
     return vecs[0].tolist()
 
 
@@ -71,12 +72,19 @@ def get_embedder():
     return local_embedder
 
 
-_EMBEDDING_DIMENSIONS = {"local": 384, "openai": 1536}
+# Local dims are keyed off the ACTUAL model (WR-02) so changing LOCAL_EMBEDDING_MODEL to
+# another known model keeps the write (ingest) and read (search) dimensions in sync. An
+# unknown local model falls back to bge-small's 384 — add new models HERE rather than letting
+# the collection dim silently desync from what local_embedder actually produces.
+_LOCAL_MODEL_DIMENSIONS = {"BAAI/bge-small-en-v1.5": 384}
+_DEFAULT_LOCAL_DIM = 384
 
 
 def get_embedding_dimension() -> int:
     """Single source of truth for the Qdrant vector dimension of the active provider."""
-    return _EMBEDDING_DIMENSIONS.get(settings.EMBEDDINGS_PROVIDER.lower(), 384)
+    if settings.EMBEDDINGS_PROVIDER.lower() == "openai":
+        return 1536
+    return _LOCAL_MODEL_DIMENSIONS.get(settings.LOCAL_EMBEDDING_MODEL, _DEFAULT_LOCAL_DIM)
 
 
 class EmbeddingDimensionMismatch(Exception):
