@@ -30,7 +30,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 18: Local Auth (OSS default)** - Native email/password sign-in in memory-api, so a self-hoster needs NO external OAuth setup. **Runs BEFORE Phase 16** — execution order is 14 → 15 → 18 → 16 → 17; it is numbered 18 only to avoid renumbering 16/17.
  (completed 2026-07-14)
 - [x] **Phase 19: Local Embeddings (OSS default)** - In-container keyless embedder so semantic retrieval works with NO OpenAI key (OpenAI stays selectable). **Runs BEFORE Phase 16** — order 14 → 15 → 18 → 19 → 16 → 20 → 17. Today `embedders.py` hard-raises without `OPENAI_API_KEY`, so a zero-key OSS install cannot do the "retrieved" half of Phase 16's own SC#3; locked decision Q3 wanted local-by-default. Numbered 19 to avoid renumbering 16/17. (completed 2026-07-18)
-- [ ] **Phase 16: OSS Light Packaging** - Light compose + install docs + clean-install test on a fresh VM. The stack boots and the brain works end-to-end (chat via the existing surfaces + ChatGPT-web connector + doc analysis + retrieval + clip) with zero external keys. **The standalone web chat frontend moved to Phase 20** (it is a phase-sized build, not a packaging criterion).
+- [x] **Phase 16: OSS Light Packaging** - Light compose + install docs + clean-install test on a fresh VM. The stack boots and the brain works end-to-end (chat via the existing surfaces + ChatGPT-web connector + doc analysis + retrieval + clip) with zero external keys. **The standalone web chat frontend moved to Phase 20** (it is a phase-sized build, not a packaging criterion). (completed 2026-07-18)
 - [ ] **Phase 20: Standalone Web Chat** - Extract the team group-chat from the Chrome extension (~1125-line popup.js) into a browser-extension-independent web app — THE product per Q4. Wires in Phase 18 auth + clip-to-memory. **Runs AFTER Phase 16** (needs the packaged stack to serve it) and before 17. Numbered 20 to avoid renumbering.
 - [ ] **Phase 17: CI Lockstep** - One pipeline builds/tests both profiles, publishes the OSS release and deploys SaaS from the same commit
 
@@ -578,10 +578,10 @@ Plans:
 **Plans**: 4 plans
 Plans:
 
-- [ ] 16-01-PLAN.md — OAuth-AS local-auth branch (D-16-02): zero-key ChatGPT-web connector sign-in via Phase-18 local auth + threat model
-- [ ] 16-02-PLAN.md — .env.example restructure (D-16-05: MinIO required/≥8-char + saas de-conflation) + `make oss-init` zero-key secret generator
-- [ ] 16-03-PLAN.md — Install docs (docs/INSTALL.md, docs-alone) + README Quickstart rewrite + SC#4 build-on-VM release-artifact shape (D-16-06)
-- [ ] 16-04-PLAN.md — Clean-install gate verify-phase16.sh: REAL core boot + SC#3 HTTP walk (register → keyless doc ingest/retrieval → connector local-auth → clip)
+- [x] 16-01-PLAN.md — OAuth-AS local-auth branch (D-16-02): zero-key ChatGPT-web connector sign-in via Phase-18 local auth + threat model
+- [x] 16-02-PLAN.md — .env.example restructure (D-16-05: MinIO required/≥8-char + saas de-conflation) + `make oss-init` zero-key secret generator
+- [x] 16-03-PLAN.md — Install docs (docs/INSTALL.md, docs-alone) + README Quickstart rewrite + SC#4 build-on-VM release-artifact shape (D-16-06)
+- [x] 16-04-PLAN.md — Clean-install gate verify-phase16.sh: REAL core boot + SC#3 HTTP walk (register → keyless doc ingest/retrieval → connector local-auth → clip)
 
 **Wave order**: 1 (16-01 + 16-02 parallel — disjoint files) → 2 (16-03 depends on 16-02; 16-04 depends on 16-01 + 16-02; 16-03 + 16-04 parallel — disjoint files, Makefile edited sequentially after wave 1)
 **UI hint**: partial (install docs; no new app UI — the web app is Phase 20)
@@ -645,7 +645,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 13. Chat → Brain Ingestion + Retrieval Enrichment | 8/8 | Complete   | 2026-05-27 |
 | 14. Portability Foundation | 8/8 | Complete    | 2026-07-12 |
 | 15. Edition Mechanics | 6/6 | Complete    | 2026-07-13 |
-| 16. OSS Light Packaging | 0/TBD | Not started | - |
+| 16. OSS Light Packaging | 4/4 | Complete   | 2026-07-18 |
 | 17. CI Lockstep | 0/TBD | Not started | - |
 
 ---

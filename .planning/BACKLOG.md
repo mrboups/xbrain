@@ -305,3 +305,28 @@ Team-scoped, so no new privacy surface (the team chat is already shared among me
 ephemeral (a reply in-thread or a dismissible banner), not a persisted message everyone sees.
 
 **Sizing:** small-to-medium. Blocked on nothing. Natural companion to the in-chat agent work.
+
+---
+
+## Document body extraction on upload — `media.py` embeds only the caption, not the file content
+
+**Found:** 2026-07-18, by the Phase 16 clean-install gate (16-04). Real gap, surfaced by the SC#3 walk.
+
+**The gap:** `apps/memory-api/app/routes/media.py:111` builds the embedded text from `caption or filename`.
+The uploaded **bytes go to MinIO and are never extracted or embedded**. So "upload a document and have it
+semantically retrievable" only works to the extent the user typed a caption — the document's actual body
+(PDF/DOCX/MD text) is NOT in the brain and cannot be retrieved semantically.
+
+**Why it matters:** it partially hollows out the Phase-16 SC#3 promise ("uploads/analyzes a document, has it
+ingested and semantically retrieved"). The 16-04 gate had to assert against the caption to be truthful — the
+executor flagged this rather than writing a check that silently proved nothing.
+
+**Shape (its own plan):**
+- A text-extraction step on the media-upload path: PDF (pypdf/pdfminer), DOCX, plain text/markdown → text.
+- Chunk + embed the extracted body (the local keyless embedder from Phase 19 already handles the vectors),
+  carrying the full 7-field tagging contract, linked back to the MinIO object.
+- Size/type guards (skip or truncate huge files; skip binaries with no text layer) + a clear "no text layer"
+  outcome for scanned PDFs rather than a silent empty embed.
+- Update the 16-04 gate check to assert on the extracted BODY once this lands.
+
+**Sizing:** medium (a real ingestion feature, not a fix). Blocked on nothing.

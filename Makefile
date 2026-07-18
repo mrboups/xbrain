@@ -110,7 +110,10 @@ env-check:  ## Vérifie que toutes les vars critiques sont dans .env (saas creds
 	@# CORE = always required (boot-fatal). SAAS creds (GOOGLE_*/MEILI_MASTER_KEY/OPENWEBUI_SECRET_KEY)
 	@# are required ONLY when COMPOSE_PROFILES contains `saas`, so a zero-external-key install passes
 	@# `make deploy` (D-16-01 / SC#4). Uses make's own $(COMPOSE_PROFILES) for deterministic precedence
-	@# (command-line `COMPOSE_PROFILES=saas make env-check` beats the -include .env value).
+	@# Use `make env-check COMPOSE_PROFILES=saas` — a command-line VARIABLE ASSIGNMENT, which is the
+	@# only form that beats the `-include .env` value. The env-var form (`COMPOSE_PROFILES=saas make
+	@# env-check`) does NOT: a makefile assignment overrides the environment, so .env's empty value
+	@# would win and the saas branch would silently not fire.
 	@bash -c 'source .env 2>/dev/null; \
 		REQ="POSTGRES_PASSWORD BRIDGE_SHARED_SECRET OAUTH_ISSUER_URL OAUTH_RESOURCE_URL CORS_ALLOWED_ORIGIN_REGEX XBRAIN_BASE_DOMAIN AGENT_MENTION_ALIASES"; \
 		case ",$(COMPOSE_PROFILES)," in *,saas,*) REQ="$$REQ GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET MEILI_MASTER_KEY OPENWEBUI_SECRET_KEY";; esac; \
