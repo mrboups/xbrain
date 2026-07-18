@@ -281,53 +281,59 @@
 .xb-card {
   margin: 12px;
   padding: 14px;
-  background: var(--xb-surface);
-  border: 1px solid var(--xb-border);
-  border-radius: var(--xb-radius);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   flex-shrink: 0;
 }
 .xb-card h3 {
   margin: 0 0 4px 0;
   font-size: 13px;
   font-weight: 600;
-  color: var(--xb-text);
+  color: var(--fg);
 }
 
 .xb-hint {
   font-size: 11px;
-  color: var(--xb-text-mute);
+  color: var(--muted-fg);
   margin: 0 0 10px 0;
   line-height: 1.4;
 }
 
+/* Primary CTA (renderEmptyTeams "create solo workspace"). Monochrome --primary
+   fill, radius 0; hover dims via opacity like the mockup .send treatment. */
 .connect-btn {
   width: 100%;
   padding: 9px;
-  background: var(--xb-accent);
-  color: #fff;
-  border: none;
-  border-radius: var(--xb-radius);
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: opacity 0.15s;
 }
-.connect-btn:hover { background: var(--xb-accent-2); }
+.connect-btn:hover { opacity: 0.9; }
+.connect-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .connect-btn:disabled {
-  background: var(--xb-border-2);
-  color: var(--xb-text-dim);
+  background: var(--muted);
+  color: var(--muted-fg);
+  border-color: var(--border);
   cursor: not-allowed;
 }
 
+/* Status pill — monochrome: loading sits on --muted, success on --secondary;
+   only error keeps the --destructive accent (no blue/green). Radius 0. */
 #connect-status {
   margin-top: 8px;
   padding: 7px 9px;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 12px;
 }
-#connect-status.loading { background: var(--xb-accent-bg);  color: var(--xb-accent);  border: 1px solid rgba(59, 130, 246, 0.4); }
-#connect-status.success { background: var(--xb-success-bg); color: var(--xb-success); border: 1px solid rgba(16, 185, 129, 0.4); }
-#connect-status.error   { background: var(--xb-error-bg);   color: var(--xb-error);   border: 1px solid rgba(239, 68, 68, 0.4); }
+#connect-status.loading { background: var(--muted);     color: var(--muted-fg);     border: 1px solid var(--border); }
+#connect-status.success { background: var(--secondary); color: var(--secondary-fg); border: 1px solid var(--border); }
+#connect-status.error   { background: transparent;      color: var(--destructive);  border: 1px solid var(--destructive); }
 
 .xb-subcard {
   display: flex;
@@ -335,23 +341,25 @@
   gap: 10px;
   margin-top: 10px;
   padding: 10px;
-  background: var(--xb-bg);
-  border: 1px solid var(--xb-border);
-  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
-.xb-subcard strong { color: var(--xb-text); font-size: 12px; flex-shrink: 0; }
-.xb-subcard small  { color: var(--xb-text-mute); font-size: 11px; flex: 1; }
+.xb-subcard strong { color: var(--fg); font-size: 12px; flex-shrink: 0; }
+.xb-subcard small  { color: var(--muted-fg); font-size: 11px; flex: 1; }
 .link-btn {
-  background: var(--xb-accent);
-  color: #fff;
-  border: 1px solid var(--xb-accent);
-  border-radius: 6px;
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
   padding: 3px 12px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  transition: opacity 0.15s;
 }
-.link-btn:hover { background: var(--xb-accent-2); border-color: var(--xb-accent-2); }
+.link-btn:hover { opacity: 0.9; }
+.link-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* ========================================================================
  * Chat body
@@ -544,35 +552,39 @@
 .xb-composer {
   display: flex;
   align-items: flex-end;
-  gap: 6px;
+  gap: 8px;
   padding: 10px 12px 14px;
-  background: var(--xb-bg);
+  background: var(--bg);
+  border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
 
+/* Bordered input surface (mockup .composer .field). Radius 0, --input border;
+   :focus-within lifts the border to --ring and draws a soft 3px ring. */
 .xb-composer-pill {
   flex: 1;
   display: flex;
   align-items: flex-end;
   gap: 4px;
-  background: var(--xb-surface);
-  border: 1px solid var(--xb-border-2);
-  border-radius: 18px;
+  background: var(--bg);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
   padding: 4px 4px 4px 6px;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .xb-composer-pill:focus-within {
-  border-color: var(--xb-border-2);
-  background: var(--xb-surface-2);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 30%, transparent);
 }
 
-.xb-clip-btn,
-.xb-send-btn {
+/* Clip button — ghost token button (like .iconbtn / mockup .field .iconbtn),
+   radius 0. #btn-clip / #file-picker wiring is unchanged. */
+.xb-clip-btn {
   flex-shrink: 0;
   background: transparent;
-  color: var(--xb-text-mute);
+  color: var(--muted-fg);
   border: none;
-  border-radius: 50%;
+  border-radius: var(--radius);
   width: 32px;
   height: 32px;
   display: inline-flex;
@@ -580,32 +592,54 @@
   justify-content: center;
   font-size: 15px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.15s, color 0.15s;
   line-height: 1;
   padding: 0;
 }
 .xb-clip-btn:hover {
-  background: rgba(255,255,255,0.08);
-  color: var(--xb-text);
+  background: var(--muted);
+  color: var(--fg);
 }
-.xb-send-btn {
-  background: var(--xb-text);
-  color: var(--xb-bg);
-  width: 32px;
-  height: 32px;
-  font-weight: 700;
-}
-.xb-send-btn:hover {
-  background: #fff;
-}
-.xb-send-btn:disabled {
-  background: var(--xb-border-2);
-  color: var(--xb-text-dim);
-  cursor: not-allowed;
+.xb-clip-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
 }
 .xb-clip-btn:disabled {
-  color: var(--xb-text-dim);
+  color: var(--muted-fg);
   background: transparent;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Send button — mockup .send: --primary fill, radius 0, 1px --primary border,
+   opacity-dim on hover, --ring focus outline. Disabled falls back to --muted. */
+.xb-send-btn {
+  flex-shrink: 0;
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  line-height: 1;
+  padding: 0;
+}
+.xb-send-btn:hover { opacity: 0.9; }
+.xb-send-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.xb-send-btn:disabled {
+  background: var(--muted);
+  color: var(--muted-fg);
+  border-color: var(--border);
   cursor: not-allowed;
 }
 
@@ -613,12 +647,12 @@
   flex: 1;
   min-width: 0;
   background: transparent;
-  color: var(--xb-text);
+  color: var(--fg);
   border: none;
   border-radius: 0;
   padding: 8px 4px;
   font-size: 14px;
-  font-family: inherit;
+  font-family: var(--sans);
   outline: none;
   resize: none;
   /* 2 rows tall by default. font-size 14px × line-height 1.5 = 21px per row,
@@ -632,7 +666,7 @@
   overflow-y: hidden;
 }
 #composer-input.is-overflowing { overflow-y: auto; }
-#composer-input::placeholder { color: var(--xb-text-dim); }
+#composer-input::placeholder { color: var(--muted-fg); }
 
 /* ========================================================================
  * Clip overlay modal
@@ -652,9 +686,9 @@
 .xb-overlay-card {
   width: 100%;
   max-width: 420px;
-  background: var(--xb-surface);
-  border: 1px solid var(--xb-border-2);
-  border-radius: var(--xb-radius);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   max-height: calc(100vh - 32px);
   display: flex;
   flex-direction: column;
@@ -665,13 +699,13 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 14px;
-  border-bottom: 1px solid var(--xb-border);
+  border-bottom: 1px solid var(--border);
 }
 .xb-overlay-header h3 {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
-  color: var(--xb-text);
+  color: var(--fg);
 }
 
 .xb-overlay-body {
@@ -686,25 +720,25 @@
 .xb-field > label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--xb-text-mute);
+  color: var(--muted-fg);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .xb-source-preview {
   font-size: 11px;
-  color: var(--xb-text-dim);
+  color: var(--muted-fg);
   padding: 4px 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Clip overlay — auto-detected "what will be sent" panel */
+/* Clip overlay — auto-detected "what will be sent" panel (--muted surface). */
 .xb-clip-preview {
-  background: var(--xb-bg);
-  border: 1px solid var(--xb-border-2);
-  border-radius: 6px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
@@ -713,11 +747,11 @@
 .xb-clip-preview-mode {
   font-size: 12px;
   font-weight: 600;
-  color: var(--xb-text);
+  color: var(--fg);
 }
 .xb-clip-preview-detail {
   font-size: 11px;
-  color: var(--xb-text-mute);
+  color: var(--muted-fg);
   line-height: 1.4;
   word-break: break-word;
   /* Multi-line ellipsis at 3 lines for selection previews. */
@@ -728,17 +762,21 @@
 }
 
 .xb-field input[type="text"] {
-  background: var(--xb-bg);
-  color: var(--xb-text);
-  border: 1px solid var(--xb-border-2);
-  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
   padding: 7px 9px;
   font-size: 13px;
-  font-family: inherit;
+  font-family: var(--sans);
   outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.xb-field input[type="text"]:focus { border-color: var(--xb-accent); }
-.xb-field input::placeholder { color: var(--xb-text-dim); }
+.xb-field input[type="text"]:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 30%, transparent);
+}
+.xb-field input::placeholder { color: var(--muted-fg); }
 
 .xb-radio-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .xb-radio-pill {
@@ -746,24 +784,29 @@
   align-items: center;
   gap: 6px;
   padding: 5px 10px;
-  border: 1px solid var(--xb-border-2);
-  border-radius: 6px;
-  background: var(--xb-bg);
-  color: var(--xb-text-mute);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--muted-fg);
   cursor: pointer;
   font-size: 12px;
   font-weight: 400;
-  transition: all 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .xb-radio-pill input[type="radio"] {
-  accent-color: var(--xb-accent);
+  accent-color: var(--primary);
   margin: 0;
 }
+/* Monochrome selection — checked pill fills with --primary (mockup .chip.validated). */
 .xb-radio-pill:has(input:checked) {
-  border-color: var(--xb-accent);
-  background: var(--xb-accent-bg);
-  color: var(--xb-text);
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-fg);
   font-weight: 500;
+}
+.xb-radio-pill:focus-within {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
 }
 
 .xb-checkbox-row {
@@ -771,56 +814,59 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: var(--xb-text-mute);
+  color: var(--muted-fg);
   cursor: pointer;
 }
-.xb-checkbox-row input[type="checkbox"] { accent-color: var(--xb-accent); }
+.xb-checkbox-row input[type="checkbox"] { accent-color: var(--primary); }
 
+/* Status pill — monochrome, mirrors #connect-status. */
 #clip-status {
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 12px;
 }
-#clip-status.loading { background: var(--xb-accent-bg);  color: var(--xb-accent);  border: 1px solid rgba(59, 130, 246, 0.4); }
-#clip-status.success { background: var(--xb-success-bg); color: var(--xb-success); border: 1px solid rgba(16, 185, 129, 0.4); }
-#clip-status.error   { background: var(--xb-error-bg);   color: var(--xb-error);   border: 1px solid rgba(239, 68, 68, 0.4); }
+#clip-status.loading { background: var(--muted);     color: var(--muted-fg);     border: 1px solid var(--border); }
+#clip-status.success { background: var(--secondary); color: var(--secondary-fg); border: 1px solid var(--border); }
+#clip-status.error   { background: transparent;      color: var(--destructive);  border: 1px solid var(--destructive); }
 
 .xb-overlay-footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 14px;
-  border-top: 1px solid var(--xb-border);
+  border-top: 1px solid var(--border);
 }
 
 .xb-btn-primary,
 .xb-btn-secondary {
   padding: 6px 14px;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: all 0.15s;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
 .xb-btn-primary {
-  background: var(--xb-accent);
-  color: #fff;
-  border-color: var(--xb-accent);
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-color: var(--primary);
 }
-.xb-btn-primary:hover { background: var(--xb-accent-2); border-color: var(--xb-accent-2); }
+.xb-btn-primary:hover { opacity: 0.9; }
+.xb-btn-primary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .xb-btn-primary:disabled {
-  background: var(--xb-border-2);
-  color: var(--xb-text-dim);
-  border-color: var(--xb-border-2);
+  background: var(--muted);
+  color: var(--muted-fg);
+  border-color: var(--border);
   cursor: not-allowed;
 }
 .xb-btn-secondary {
   background: transparent;
-  color: var(--xb-text-mute);
-  border-color: var(--xb-border-2);
+  color: var(--muted-fg);
+  border-color: var(--input);
 }
-.xb-btn-secondary:hover { background: var(--xb-surface-2); color: var(--xb-text); }
+.xb-btn-secondary:hover { background: var(--muted); color: var(--fg); }
+.xb-btn-secondary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* ========================================================================
  * Header text button — "add to memory" (BL-003 Slice 3)
@@ -892,12 +938,13 @@
   line-height: 1.4;
 }
 
-/* Inline error shown in composer area during file upload (BL-003 Slice 3). */
+/* Inline error shown in composer area during file upload (BL-003 Slice 3).
+   Monochrome + --destructive accent (Plan 20-02) — no hardcoded rgba red. */
 .xb-upload-error {
   padding: 4px 12px;
   font-size: 11px;
-  color: var(--xb-error);
-  background: var(--xb-error-bg);
-  border-top: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--destructive);
+  background: var(--secondary);
+  border-top: 1px solid var(--destructive);
   text-align: center;
 }
