@@ -106,3 +106,140 @@ jobs:
           push: true
           set: |
             *.platform=linux/amd64
+
+  # ---------------------------------------------------------------------------------------
+  # TEST 1/3 — OSS subset: the 10-service core actually BOOTS, from the CI-built images.
+  # ---------------------------------------------------------------------------------------
+  # Reuses Phase 16's already-proven gate rather than inventing a second testing philosophy.
+  # The critical part is the no-build mode: without it the script would rebuild locally and
+  # the thing tested would not be the thing published — precisely the defect this gate exists
+  # to catch.
+  test-oss-subset:
+    name: "test: OSS subset (real 10-core boot, no rebuild)"
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read # pull the images build just pushed
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Hosted runners give ~14 GB of disk; the preinstalled image cache eats a chunk of it
+      # before we pull anything. Reclaim it first so a boot never dies on "no space left on
+      # device" and gets misread as a product failure.
+      - name: Reclaim runner disk
+        run: docker system prune -af
+
+      # Explicit pull so a GHCR auth/visibility problem fails HERE with an obvious message,
+      # instead of surfacing later as a confusing boot failure inside the verify script.
+      - name: Pull the CI-built images
+        run: |
+          docker compose \
+            -f infrastructure/docker-compose.yml \
+            -f infrastructure/docker-compose.ci-images.yml \
+            pull
+
+      # VERIFY16_NO_BUILD=1 swaps the script's `up -d --build` for `pull` + `up -d`, and
+      # VERIFY16_EXTRA_COMPOSE layers the GHCR override onto the live boot — the opt-in CI
+      # hooks Plan 17-02 added for exactly this call. GHCR_OWNER/XBRAIN_IMAGE_TAG come from
+      # the workflow env and resolve the override's image names to this commit's SHA tag.
+      - name: Verify OSS subset boots and passes the SC#3 walk
+        run: |
+          VERIFY16_NO_BUILD=1 \
+          VERIFY16_EXTRA_COMPOSE=infrastructure/docker-compose.ci-images.yml \
+            bash infrastructure/scripts/verify-phase16.sh
+
+  # ---------------------------------------------------------------------------------------
+  # TEST 2/3 — full profile: graph + override completeness, and the suite under EDITION=saas.
+  # ---------------------------------------------------------------------------------------
+  # Deliberately NOT a 32-container boot (D-17-03): the full profile does not reliably fit a
+  # hosted runner's disk. This gate is a daemon-free `docker compose config` resolve (a pure
+  # parse, so it can always run — which is what makes a SKIP here dishonest) plus the real
+  # memory-api suite executed under the saas edition. Measuring whether a live 32-container
+  # boot fits the runner is the documented `workflow_dispatch` follow-up, not a gate.
+  test-full-profile:
+    name: "test: full profile (graph + override + saas suite)"
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Asserts the full service graph resolves, its size is DERIVED (not hardcoded), and
+      # EVERY build: service carries a ghcr.io/<owner>/xbrain-* image in the override — the
+      # check that catches a service missing from the override, which is what would let a
+      # downstream job silently --build one service instead of pulling what CI tested.
+      - name: Verify full-profile graph and GHCR override completeness
+        run: bash infrastructure/scripts/verify-phase17-full.sh
+
+      # memory-api declares `xbrain-memory @ file:///app/packages/memory-models` — an absolute
+      # path that only exists inside the Docker build context. Mirror the container layout so
+      # a plain pip install resolves it on the runner. (Making that dependency path-relative
+      # is a memory-api packaging change, out of scope for a CI plan.)
+      - name: Install memory-api with dev extras
+        run: |
+          sudo mkdir -p /app/packages
+          sudo cp -r packages/memory-models /app/packages/memory-models
+          python -m pip install --upgrade pip
+          pip install -e "apps/memory-api[dev]"
+
+      # EDITION is read by Settings() at import, so setting it in the process env genuinely
+      # switches the edition under test (unlike mutating it after import, which is inert
+      # against the already-frozen config singleton).
+      - name: Run the memory-api integration suite under EDITION=saas
+        working-directory: apps/memory-api
+        env:
+          EDITION: saas
+        run: pytest -m integration -q
+
+  # ---------------------------------------------------------------------------------------
+  # TEST 3/3 — migrations apply forward-only and identically under both editions (REL-03).
+  # ---------------------------------------------------------------------------------------
+  # No `needs:`: this proves the migration chain, not the images, so it needs nothing from
+  # the build job and starts immediately in parallel. It still gates publish AND deploy.
+  test-migrations:
+    name: "test: migrations, both editions (REL-03)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install memory-api with dev extras
+        run: |
+          sudo mkdir -p /app/packages
+          sudo cp -r packages/memory-models /app/packages/memory-models
+          python -m pip install --upgrade pip
+          pip install -e "apps/memory-api[dev]"
+
+      # Real Postgres 17 via testcontainers, `alembic upgrade head` once per edition.
+      #
+      # SKIP == FAIL here. The test skips itself when Docker is absent, which is right for a
+      # laptop but a lie in CI: ubuntu-latest always has Docker, so a skip can only mean the
+      # gate was dodged. Without this check the release's single most load-bearing proof
+      # could report green having executed nothing.
+      - name: Verify alembic upgrade head under EDITION=oss and EDITION=saas
+        working-directory: apps/memory-api
+        run: |
+          set -o pipefail
+          pytest -m integration tests/test_migration_editions.py -q -rs 2>&1 | tee migration-gate.log
+          if grep -qiE '[0-9]+ skipped' migration-gate.log; then
+            echo "::error::Migration gate SKIPPED. Docker is always present on ubuntu-latest, so a skip means the REL-03 gate did not run. SKIP != PASS."
+            exit 1
+          fi
