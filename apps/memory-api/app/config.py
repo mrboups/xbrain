@@ -251,6 +251,12 @@ class Settings(BaseSettings):
     LOCAL_AUTH_RATE_LIMIT: str = "10/minute"      # per-IP, in-process (NOT durable across uvicorn --workers 2 — Plan 02 rate_limit.py documents this)
     LOCAL_AUTH_MIN_PASSWORD_LENGTH: int = 10
 
+    # === Phase 19 (EMBED-01) — deliberately NO field_validator: a zero-key
+    # OSS install must boot; get_embedder() falls back to local on any unknown value ===
+    EMBEDDINGS_PROVIDER: str = "local"
+    LOCAL_EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
+    EMBEDDING_CACHE_DIR: str = "/app/model_cache"
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}

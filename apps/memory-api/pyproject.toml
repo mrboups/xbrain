@@ -28,6 +28,7 @@ dependencies = [
   "minio>=7.2",   # superadmin wipe-database: clear MinIO xbrain-decks bucket (lazy-imported)
   "argon2-cffi>=25.1.0",  # Phase 18 plan 18-02: argon2id local-auth password hashing (D-18-04)
   "limits>=5.8.0",  # Phase 18 plan 18-02: in-process rate limiting for local-auth routes (D-18-06)
+  "fastembed>=0.8.0",  # Phase 19: local keyless embeddings (ONNX via onnxruntime, no torch)
   "xbrain-memory @ file:///app/packages/memory-models",  # path mounted in compose build
 ]
 
@@ -37,7 +38,7 @@ dev = [
   "pytest-asyncio>=0.25",
   "ruff>=0.8",
   "mypy>=1.13",
-  "testcontainers[postgres]>=4.8",
+  "testcontainers[postgres,qdrant]>=4.8",
   "respx>=0.21",
 ]
 
