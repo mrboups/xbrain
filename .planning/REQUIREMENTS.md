@@ -40,7 +40,7 @@ Active scope. One codebase, two runtime shapes (OSS self-host / SaaS hosted); a 
 ### OSS Packaging
 
 - [x] **PKG-01** (Phase 16): A team can stand up the OSS-light edition (chat + full brain: doc analysis, ingest, **keyless semantic retrieval via Phase 19**, truth-levels, ChatGPT connector, clip) on a fresh VM from the install docs alone, with zero external keys
-- [ ] **PKG-02** (Phase 20): A user can chat and query their team brain from a standalone hosted web app extracted from the extension, without installing a browser extension
+- [ ] **PKG-02** (Phase 20): The team chat stays a single group chat inside the Chrome extension (no navigation) and its UI is polished to the shadcn "Neutral" system (monochrome, radius 0, in-popup light/dark toggle), preserving all existing chat functionality — realtime, `@agent` streaming, saved-to-brain, truth-level chips, clip. **RESCOPED 2026-07-18 (Option B): supersedes the original "standalone hosted web app extracted from the extension" — that extraction is dropped per the user's finalize-on-existing decision.**
 
 ### Release / CI Lockstep
 

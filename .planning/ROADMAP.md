@@ -586,24 +586,25 @@ Plans:
 **Wave order**: 1 (16-01 + 16-02 parallel — disjoint files) → 2 (16-03 depends on 16-02; 16-04 depends on 16-01 + 16-02; 16-03 + 16-04 parallel — disjoint files, Makefile edited sequentially after wave 1)
 **UI hint**: partial (install docs; no new app UI — the web app is Phase 20)
 
-### Phase 20: Standalone Web Chat (the product per Q4)
+### Phase 20: Extension Chat UI Polish (shadcn Neutral)
 
 > **Execution order: after Phase 16, before Phase 17.**
+> **RESCOPED 2026-07-18 (Option B).** The original scope — "extract the chat into a standalone browser-extension-independent web app" (Q4) — is **superseded** by the user's decision to *finalize the product on the existing app and just improve the UI*, keeping the chat **a single group chat inside the Chrome extension, with no navigation**. The standalone-web-app extraction is DROPPED (not built); if a hosted web surface is ever wanted it returns as a separate future phase. PKG-02 is reframed accordingly (see REQUIREMENTS.md). The app-site debrand/`XBRAIN_BASE_DOMAIN` deferral (old SC#4 / D-01c) is NOT closed here — it stays a documented follow-up.
 
-**Goal**: A user opens a standalone hosted web app — not the Chrome extension popup — and chats with their team brain with functionality equivalent to the extension's chat surface. The chat UI is extracted from the extension (`chrome-extension/popup.js`, ~1125 lines: Centrifugo realtime, message list, composer, `@`-mention agent, streaming replies) into a shared, browser-extension-independent frontend, wiring in Phase 18 auth and clip-to-memory. This is THE product per locked decision Q4.
-**Depends on**: Phase 16 (needs the packaged, installable OSS-light stack to run against + serve the app), Phase 18 (auth screens the web app signs in with).
+**Goal**: The team group chat stays a **single group chat inside the Chrome extension** (no navigation, everything in one thread) and its existing popup UI is restyled to the **shadcn "Neutral" design system** — monochrome (pure black/white + grey scales), **radius 0**, system-font "Geist" stack, with an **in-popup light/dark toggle** that flips the whole surface — while preserving ALL current functionality (Centrifugo realtime, message list + history pagination, composer with optimistic send, `@agent`/`@chad` mention → streamed agent reply, saved-to-brain tags, truth-level source chips, media/clip attachments). This is a **CSS/markup + minimal-JS restyle** of `chrome-extension/popup.{html,css,js}` — NOT a rewrite, NOT a new screen, NOT a standalone app. The concrete design target is the published shadcn-Neutral mockup.
+**Depends on**: Phase 16 SHIPPED (a running OSS-light stack to exercise the chat against); Phase 18 (local-auth is the sign-in the extension uses). No backend change — `team_chat.py` is already multi-frontend.
 **Entry gate**: Phase 16 SHIPPED.
-**Requirements**: PKG-02
+**Requirements**: PKG-02 (reframed — polished extension chat, not a standalone web app).
 **Success Criteria** (what must be TRUE):
 
-  1. A user opens the standalone web app (no browser extension installed) and completes register/sign-in via Phase 18 local auth, then sees their team chat.
-  2. Realtime chat works: the message list loads history, the composer posts, Centrifugo delivers incoming messages live, and `@agent`/`@chad` mentions stream the agent's reply back into the chat — functional parity with the extension's chat surface (the same `team_chat.py` REST/WS contract; no backend changes needed, it is already multi-frontend).
-  3. Clip-to-memory (a headline OSS feature) is reachable from the standalone web app, not only from the browser extension.
-  4. The web app is served by the OSS-light stack (Phase 16) and needs no third-party keys to run; app-site is debranded here or references `XBRAIN_BASE_DOMAIN` (closing the D-01c app-site portability deferral).
-  5. A human UAT confirms the register → chat → mention → clip loop in a real browser (this is the browser-UAT deferred from Phase 18's UI checkpoint — it lands here where a running stack + real frontend exist).
+  1. The extension chat popup renders in the shadcn Neutral system (monochrome tokens, radius 0, the mockup's palette/typography) with an in-popup light/dark toggle that flips the entire surface — and the single-group-chat, no-navigation structure is preserved (no second screen, no nav added).
+  2. Every existing chat behavior still works against the REAL `team_chat.py` REST/WS contract (no backend change): history loads + paginates, the composer posts optimistically, Centrifugo delivers incoming messages live, `@agent`/`@chad` mentions stream the agent reply, saved-to-brain tags + truth-level source chips + media/clip attachments render.
+  3. The message rows match the mockup's structure — own vs others' bubbles, the agent-with-sources block, day separators, presence, mono meta/timestamps, saved-to-brain badges — and are accessible: visible focus states, `prefers-reduced-motion` respected, theme honors both `prefers-color-scheme` and the in-popup toggle.
+  4. The change is scoped to `chrome-extension/popup.html` / `popup.css` (+ minimal `popup.js` only for the theme toggle / behavior parity); no product English-string regressions (migrate any legacy French popup strings to English on touch, per CLAUDE.md).
+  5. A human UAT (or a driven-browser check) confirms the load → chat → `@agent` mention → clip loop renders correctly in the restyled popup in a real browser (this also lands the browser-UAT deferred from Phase 18's UI checkpoint).
 
 **Plans**: TBD (populated by `/gsd:plan-phase 20`)
-**UI hint**: yes (the standalone web chat app is the major new user-facing surface of the whole milestone)
+**UI hint**: yes (the extension chat popup restyle is the milestone's headline user-facing polish)
 
 ### Phase 17: CI Lockstep
 
