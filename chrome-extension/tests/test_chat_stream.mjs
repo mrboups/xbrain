@@ -9,6 +9,9 @@
  *   authorLabel         — agent / self / teammate
  *   bubbleClass         — CSS class assignment
  *   provenanceLabel     — Pro/Max vs API vs none
+ *   brainSummaryLabel   — agent "N sources from the brain" (Plan 20-03)
+ *   savedToBrainLabel   — saved-to-brain badge text  (Plan 20-03)
+ *   sameDay             — day-separator boundary     (Plan 20-03)
  */
 
 import assert from "node:assert/strict";
@@ -20,6 +23,9 @@ import {
   authorLabel,
   bubbleClass,
   provenanceLabel,
+  brainSummaryLabel,
+  savedToBrainLabel,
+  sameDay,
 } from "../chat_stream.js";
 
 let passed = 0;
@@ -233,6 +239,81 @@ test("provenanceLabel: Pro/Max vs API vs null", () => {
   assert.equal(p2.cls, "via-api");
   assert.equal(provenanceLabel(null), null);
   assert.equal(provenanceLabel(undefined), null);
+});
+
+// ---------- brainSummaryLabel (Plan 20-03) ----------
+//
+// Sourced ONLY from the real `memory_items` count the agent pipeline already
+// persists (team_chat_agent.py). Never fabricated.
+
+test("brainSummaryLabel: pluralizes a real memory_items count", () => {
+  assert.equal(brainSummaryLabel({ memory_items: 2 }), "2 sources from the brain");
+  assert.equal(brainSummaryLabel({ memory_items: 1 }), "1 source from the brain");
+  assert.equal(brainSummaryLabel({ memory_items: 7 }), "7 sources from the brain");
+});
+
+test("brainSummaryLabel: zero / missing / malformed → null (no empty details)", () => {
+  assert.equal(brainSummaryLabel({ memory_items: 0 }), null);
+  assert.equal(brainSummaryLabel({}), null);
+  assert.equal(brainSummaryLabel(null), null);
+  assert.equal(brainSummaryLabel(undefined), null);
+  assert.equal(brainSummaryLabel({ memory_items: "lots" }), null);
+  assert.equal(brainSummaryLabel({ memory_items: -3 }), null);
+});
+
+// ---------- savedToBrainLabel (Plan 20-03) ----------
+//
+// Derived from the real metadata.media attachment signal — an attachment IS the
+// indexed-into-the-brain event. Plain text messages get NO badge (no spoofing).
+
+test("savedToBrainLabel: document attachment → document indexed", () => {
+  assert.equal(
+    savedToBrainLabel({ metadata: { media: { mime: "application/pdf" } } }),
+    "saved to brain · document indexed",
+  );
+});
+
+test("savedToBrainLabel: image attachment → image indexed", () => {
+  assert.equal(
+    savedToBrainLabel({ metadata: { media: { mime: "image/png" } } }),
+    "saved to brain · image indexed",
+  );
+});
+
+test("savedToBrainLabel: no media → null (never fabricate provenance)", () => {
+  assert.equal(savedToBrainLabel({ metadata: {} }), null);
+  assert.equal(savedToBrainLabel({}), null);
+  assert.equal(savedToBrainLabel(null), null);
+});
+
+test("savedToBrainLabel: media without mime still counts as a document", () => {
+  assert.equal(
+    savedToBrainLabel({ metadata: { media: { item_id: "abc" } } }),
+    "saved to brain · document indexed",
+  );
+});
+
+// ---------- sameDay (Plan 20-03) ----------
+//
+// UTC-calendar comparison so the result is deterministic regardless of the
+// machine's timezone (the separator label is rendered from UTC too, so the
+// grouping and the label always agree).
+
+test("sameDay: same UTC calendar day → true", () => {
+  assert.equal(sameDay("2026-07-18T09:00:00Z", "2026-07-18T23:00:00Z"), true);
+  assert.equal(sameDay("2026-07-18T00:00:00Z", "2026-07-18T23:59:59Z"), true);
+});
+
+test("sameDay: different UTC calendar day → false", () => {
+  assert.equal(sameDay("2026-07-18T09:00:00Z", "2026-07-19T09:00:00Z"), false);
+  assert.equal(sameDay("2026-07-18T23:59:59Z", "2026-07-19T00:00:01Z"), false);
+  assert.equal(sameDay("2025-07-18T09:00:00Z", "2026-07-18T09:00:00Z"), false);
+});
+
+test("sameDay: missing / invalid input → false (forces a separator, never throws)", () => {
+  assert.equal(sameDay(null, "2026-07-18T09:00:00Z"), false);
+  assert.equal(sameDay("2026-07-18T09:00:00Z", undefined), false);
+  assert.equal(sameDay("not-a-date", "2026-07-18T09:00:00Z"), false);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

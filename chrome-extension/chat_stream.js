@@ -144,3 +144,94 @@ export function provenanceLabel(routed_via) {
   if (routed_via === "team_api") return { text: "via team API", cls: "via-api" };
   return null;
 }
+
+// ---------- Brain-aware labels (Plan 20-03) ----------
+//
+// HARD RULE: these read ONLY fields the backend already sends. They never
+// invent provenance. If the server said nothing, they return null and the UI
+// renders nothing — an absent badge is correct, a fake badge is a spoof.
+
+/**
+ * Summary line for the agent's `<details>` sources disclosure.
+ *
+ * Source of truth: `metadata.memory_items` — the real count of brain items the
+ * agent pipeline retrieved for this reply (team_chat_agent.py bundle
+ * item_count). Returns null when nothing was retrieved so we don't render an
+ * empty disclosure.
+ *
+ * @param {{memory_items?: number}|null|undefined} agentMsgMeta
+ * @returns {string|null}
+ */
+export function brainSummaryLabel(agentMsgMeta) {
+  if (!agentMsgMeta) return null;
+  const n = agentMsgMeta.memory_items;
+  if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) return null;
+  return `${n} source${n === 1 ? "" : "s"} from the brain`;
+}
+
+/**
+ * Badge text for a message whose attachment genuinely landed in the brain.
+ *
+ * Source of truth: `metadata.media` — the backend only writes it once the
+ * attachment has been ingested as a memory item, so its presence IS the
+ * indexed signal. Plain text messages get no badge (the backend emits no
+ * per-message saved flag, and we will not invent one).
+ *
+ * @param {{metadata?: {media?: {mime?: string}}}|null|undefined} msg
+ * @returns {string|null}
+ */
+export function savedToBrainLabel(msg) {
+  const media = msg && msg.metadata && msg.metadata.media;
+  if (!media) return null;
+  const isImage = typeof media.mime === "string" && media.mime.startsWith("image/");
+  return `saved to brain · ${isImage ? "image" : "document"} indexed`;
+}
+
+/**
+ * True when two ISO timestamps fall on the same UTC calendar day.
+ *
+ * UTC (not local) so the result is deterministic regardless of the machine's
+ * timezone; the day-separator label is rendered from UTC too, so the grouping
+ * and the label always agree. Invalid/missing input returns false — the caller
+ * then emits a separator, which is the safe, non-throwing default.
+ *
+ * @param {string} isoA
+ * @param {string} isoB
+ * @returns {boolean}
+ */
+export function sameDay(isoA, isoB) {
+  if (!isoA || !isoB) return false;
+  const a = new Date(isoA);
+  const b = new Date(isoB);
+  if (isNaN(a.getTime()) || isNaN(b.getTime())) return false;
+  return (
+    a.getUTCFullYear() === b.getUTCFullYear() &&
+    a.getUTCMonth() === b.getUTCMonth() &&
+    a.getUTCDate() === b.getUTCDate()
+  );
+}
+
+/**
+ * Label for a day separator ("TODAY" / "JUL 18, 2026"), formatted in UTC to
+ * stay consistent with sameDay's grouping.
+ *
+ * @param {string} iso
+ * @param {number} [now]
+ * @returns {string}
+ */
+export function dayLabel(iso, now = Date.now()) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  if (sameDay(iso, new Date(now).toISOString())) return "Today";
+  try {
+    return d.toLocaleDateString(undefined, {
+      timeZone: "UTC",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return iso.slice(0, 10);
+  }
+}

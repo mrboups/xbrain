@@ -90,6 +90,14 @@ const FROZEN_CLASSES = [
   "xb-msg-thumb",
   "xb-msg-file-chip",
   "connect-btn",
+  // Plan 20-03 — message-thread additions (mockup .who/.sources/.src/.savetag/.daysep).
+  "xb-msg-text",
+  "xb-msg-agent-label",
+  "xb-msg-sources",
+  "xb-msg-src",
+  "xb-msg-chip",
+  "xb-msg-savetag",
+  "xb-msg-daysep",
 ];
 
 // shadcn Neutral tokens — exact CONTEXT light-palette hex.
@@ -220,6 +228,77 @@ test("font safety: no @font-face / googleapis / gstatic (comments stripped)", ()
       `popup.css must not reference ${bad} — CSP-safe, no external font fetch`,
     );
   }
+});
+
+// ---- 3c. Truth-level chip spec (Plan 20-03) — monochrome, mockup-exact ----
+//
+// The mockup ships .chip.validated as a FILLED --primary badge and .chip.working
+// as an OUTLINE badge. popup.js selects them via data-level, so the styling must
+// hang off the attribute selectors.
+
+test('chip spec: [data-level="validated"] is a filled --primary badge', () => {
+  const m = popupCss.match(
+    /\.xb-msg-chip\[data-level="validated"\][^{]*\{([^}]*)\}/,
+  );
+  assert.ok(m, 'popup.css must define .xb-msg-chip[data-level="validated"]');
+  assert.ok(
+    m[1].includes("var(--primary)") && m[1].includes("var(--primary-fg)"),
+    "validated chip must be filled --primary / --primary-fg (mockup .chip.validated)",
+  );
+});
+
+test('chip spec: [data-level="working"] is an outline badge', () => {
+  const m = popupCss.match(
+    /\.xb-msg-chip\[data-level="working"\][^{]*\{([^}]*)\}/,
+  );
+  assert.ok(m, 'popup.css must define .xb-msg-chip[data-level="working"]');
+  assert.ok(
+    m[1].includes("var(--border)") && m[1].includes("var(--muted-fg)"),
+    "working chip must be an outline --border / --muted-fg badge (mockup .chip.working)",
+  );
+  assert.ok(
+    !m[1].includes("background: var(--primary)"),
+    "working chip must NOT be filled — outline only",
+  );
+});
+
+// ---- 3d. XSS guard (T-20-03-01) ----
+//
+// Message content, agent stream deltas, and (future) source text are untrusted.
+// They must reach the DOM via textContent only — never through innerHTML.
+
+test("xss guard: no innerHTML assignment carries message/stream/source data", () => {
+  const offenders = [];
+  const re = /innerHTML\s*=\s*([^;]+);/g;
+  let m;
+  while ((m = re.exec(popupJs)) !== null) {
+    const rhs = m[1];
+    if (/msg\.|\.content|delta|source|src\.|label|textContent/.test(rhs)) {
+      offenders.push(rhs.trim().slice(0, 80));
+    }
+  }
+  assert.equal(
+    offenders.length,
+    0,
+    `innerHTML must never carry untrusted data — found: ${JSON.stringify(offenders)}`,
+  );
+});
+
+// ---- 3e. No fabricated provenance (T-20-03-02) ----
+//
+// Source rows and truth levels must come from the server. A hardcoded source
+// array in popup.js would be invented provenance — a spoofing bug, not a stub.
+
+test("no fabricated data: popup.js hardcodes no source array / truth level", () => {
+  assert.ok(
+    !/sources\s*=\s*\[\s*\{/.test(popupJs),
+    "popup.js must not hardcode a sources array — render only server-sent metadata.sources",
+  );
+  assert.ok(
+    !/data-level["'\s]*[:=]\s*["'](validated|working)["']/.test(popupJs) &&
+      !/dataset\.level\s*=\s*["'](validated|working)["']/.test(popupJs),
+    "popup.js must not hardcode a truth level — it comes from the source payload",
+  );
 });
 
 // ---- 4. English-only guard ----
