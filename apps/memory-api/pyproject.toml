@@ -40,6 +40,10 @@ dev = [
   "mypy>=1.13",
   "testcontainers[postgres,qdrant]>=4.8",
   "respx>=0.21",
+  # IN-01: test_ci_lockstep_graph.py parses the CI workflow with PyYAML. It resolved only by
+  # accident until now (fastembed -> huggingface_hub -> pyyaml); declare it so the SC3 graph
+  # proof cannot silently stop collecting if that transitive chain ever changes.
+  "pyyaml>=6.0",
 ]
 
 [tool.pytest.ini_options]

@@ -308,3 +308,27 @@ def test_assertions_detect_a_removed_edge(jobs: dict) -> None:
             )
         # And the intact graph must still pass, so the check is not simply always-failing.
         assert not _missing_test_gates(deepcopy(jobs), ship)
+
+
+# ---------------------------------------------------------------------------------------
+# CR-01 regression guard: GHCR-touching jobs must declare the `packages` scope.
+# ---------------------------------------------------------------------------------------
+# Job-level `permissions:` REPLACE the workflow default rather than merging with it, so a
+# job that logs into ghcr.io while declaring only `contents: read` gets a token with zero
+# packages scope. `deploy-saas` shipped exactly that bug: disarmed, so it never failed —
+# it would have blown up on its own `docker login` the first time it was armed. Nothing in
+# the graph proof covered `permissions:`, so this class had no regression net at all.
+def test_ghcr_jobs_declare_packages_scope(jobs: dict) -> None:
+    offenders: list[str] = []
+    for name, job in jobs.items():
+        blob = yaml.safe_dump(job)  # whole job: `run:` steps AND ssh-action `script:` bodies
+        if "ghcr.io" not in blob:
+            continue
+        perms = job.get("permissions") or {}
+        if not isinstance(perms, dict) or "packages" not in perms:
+            offenders.append(name)
+    assert not offenders, (
+        f"jobs {sorted(offenders)} reference ghcr.io but declare no `packages:` permission. "
+        "Job-level permissions REPLACE the workflow default, so their GITHUB_TOKEN cannot "
+        "authenticate to GHCR and `docker login`/`pull` will fail."
+    )

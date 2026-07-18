@@ -67,6 +67,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.0
 
+      # WR-02: GHCR image references MUST be lowercase, but GitHub account names preserve
+      # case and Actions expressions have no lowercase function. Today's owner happens to be
+      # lowercase — which is exactly why a mixed-case fork/transfer would break far from here
+      # with a confusing "invalid reference format". Fail loudly and early instead.
+      - name: Assert GHCR owner is lowercase
+        run: |
+          if [ "$GHCR_OWNER" != "$(printf '%s' "$GHCR_OWNER" | tr '[:upper:]' '[:lower:]')" ]; then
+            echo "FAIL: GHCR_OWNER='$GHCR_OWNER' contains uppercase; GHCR image names must be lowercase."
+            echo "Fix: lowercase it into GITHUB_ENV before the image refs are resolved."
+            exit 1
+          fi
+          echo "GHCR owner '$GHCR_OWNER' is lowercase — image refs are valid."
+
       - uses: docker/setup-buildx-action@v4.2.0
 
       # GHCR needs NO new secret: the built-in GITHUB_TOKEN can push to this repo's own
@@ -202,7 +215,17 @@ jobs:
         working-directory: apps/memory-api
         env:
           EDITION: saas
-        run: pytest -m integration -q
+        # WR-01: SKIP=FAIL. A blanket `pytest -m integration` that silently skips (no Docker,
+        # a missing fixture) still exits 0 — and this job gates BOTH ship jobs, so a skipped
+        # suite would green-light publish+deploy while proving nothing. Fail on any skip,
+        # matching test-migrations and the verify-phase17-* scripts.
+        run: |
+          set -o pipefail
+          pytest -m integration -q 2>&1 | tee /tmp/full-profile.txt
+          if grep -qiE '[0-9]+ skipped' /tmp/full-profile.txt; then
+            echo "FAIL: the full-profile integration suite skipped tests — SKIP=FAIL (this job gates publish AND deploy)."
+            exit 1
+          fi
 
   # ---------------------------------------------------------------------------------------
   # TEST 3/3 — migrations apply forward-only and identically under both editions (REL-03).
@@ -347,6 +370,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # CR-01: job-level `permissions:` REPLACE the workflow default — they do not merge.
+      # This job's ssh script runs `docker login ghcr.io` + `docker compose pull` with
+      # GITHUB_TOKEN, so without `packages: read` the token carries zero packages scope and
+      # the login fails the moment SAAS_DEPLOY_ENABLED is armed. test-oss-subset (which does
+      # the identical pull) already declares it; this job was missing it.
+      packages: read # pull the SHA-tagged images build pushed
     steps:
       # PULL, never rebuild. The `make` deploy target ends in an `up -d` that rebuilds ON the
       # VM — a second build, on different toolchain state, of images nothing has tested. That
