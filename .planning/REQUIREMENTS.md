@@ -35,7 +35,7 @@ Active scope. One codebase, two runtime shapes (OSS self-host / SaaS hosted); a 
 
 > Added 2026-07-13. Locked decision **Q3** ("local embeddings by default — in-container, no API key, no external call; OpenAI selectable"). Found unmapped repeatedly; forced by Phase 16 SC#3, which promises a zero-key install can *retrieve*. `apps/memory-api/app/embedders.py:13` hard-raises `RuntimeError` without `OPENAI_API_KEY`, so semantic `memory_search` is impossible keyless today — and the "one key: Anthropic OR OpenAI OR Grok" promise breaks (embeddings force OpenAI specifically). Executes as Phase 19, BEFORE Phase 16.
 
-- [ ] **EMBED-01**: A fresh install with NO embeddings API key ingests and semantically retrieves memory — embeddings run in-container, keyless, no external call. OpenAI (or another provider) remains selectable via config without code changes; the local model ships for both arm64 and amd64 and fits the OSS-light RAM budget.
+- [x] **EMBED-01**: A fresh install with NO embeddings API key ingests and semantically retrieves memory — embeddings run in-container, keyless, no external call. OpenAI (or another provider) remains selectable via config without code changes; the local model ships for both arm64 and amd64 and fits the OSS-light RAM budget.
 
 ### OSS Packaging
 
@@ -64,7 +64,7 @@ Mapping requirement -> phase for milestone v2.0 "Open-Core Edition". Filled by t
 | EDIT-03 | ~~Phase 15~~ | DROPPED (Q6, 2026-07-11) |
 | LAUTH-01 | Phase 18 | Done (2026-07-13, UI browser-UAT deferred to P16) |
 | LAUTH-02 | Phase 18 | Done (2026-07-13) |
-| EMBED-01 | Phase 19 | Pending |
+| EMBED-01 | Phase 19 | Complete |
 | PKG-01 | Phase 16 | Pending |
 | PKG-02 | Phase 20 | Pending |
 | REL-01 | Phase 17 | Pending |
