@@ -137,3 +137,24 @@ verify-phase18:  ## Phase 18 acceptance gate — local auth real-Postgres + live
 .PHONY: verify-phase16
 verify-phase16:  ## Phase 16 acceptance gate — clean-install: real core boot + SC#3 HTTP walk
 	@bash infrastructure/scripts/verify-phase16.sh
+
+# Phase 17 (CI lockstep). These cover what is provable WITHOUT a GitHub-Actions run: the
+# pipeline is well-formed and correctly wired, and migrations apply under both editions.
+# They do NOT prove the workflow runs — see docs/ci-lockstep.md for the residual.
+.PHONY: verify-phase17-workflow
+verify-phase17-workflow:  ## Phase 17 gate — actionlint (SKIP=FAIL) + the SC3 needs-graph proof
+	@bash infrastructure/scripts/verify-phase17-workflow.sh
+
+.PHONY: verify-phase17-full
+verify-phase17-full:  ## Phase 17 gate — full-profile graph + GHCR override completeness (daemon-free)
+	@bash infrastructure/scripts/verify-phase17-full.sh
+
+.PHONY: verify-phase17-migrations
+verify-phase17-migrations:  ## Phase 17 gate — alembic upgrade head under EDITION=oss AND saas (needs Docker)
+	@cd apps/memory-api && pytest -m integration tests/test_migration_editions.py -v
+
+.PHONY: verify-phase17
+verify-phase17:  ## Phase 17 acceptance gate — the locally-verifiable set: workflow + full + migrations
+	@$(MAKE) verify-phase17-workflow
+	@$(MAKE) verify-phase17-full
+	@$(MAKE) verify-phase17-migrations

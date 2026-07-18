@@ -42,3 +42,27 @@ The durable fix is a packaging change in `memory-api` (a relative path dependenc
 `[tool.uv.sources]` / editable-install entry), which is out of scope for a CI-authoring plan
 and would need the Docker build re-verified. Until then, every non-container consumer must
 repeat the mirror step.
+
+## From Plan 17-04 (graph proof + residual doc)
+
+### 3. `docs/ci-lockstep.md` is not in the `publish-oss-release` bundle
+
+The release bundle in `ci-lockstep.yml` attaches `docs/INSTALL.md`, both compose files,
+`chrome-extension.zip` and `LICENSE` — but not `docs/ci-lockstep.md`, which is where the
+honest status of the pipeline lives. A self-hoster downloading a release therefore does not
+get the note explaining that GHCR packages are private until an operator flips them, which is
+the single most likely thing to confuse them (`docker pull` returns `unauthorized`).
+
+Fix = add `docs/ci-lockstep.md` to that job's `files:` list (one line).
+
+Out of scope: Plan 17-04 declares only the graph test, the workflow verify script, `Makefile`
+and `docs/ci-lockstep.md` as modified — `ci-lockstep.yml` belongs to Plan 17-03. Deferred
+rather than taken silently. Worth folding into whichever plan next touches the workflow.
+
+### 4. `verify-phase16.sh` was not re-run by Plan 17-04
+
+`docs/ci-lockstep.md` cites the 23/23 OSS-subset boot from **Plan 17-02's** run, not a fresh
+one. Re-running it needs a full 10-container build+boot, and this dev machine is arm64 while
+the gate's value is in the amd64 path CI exercises. The citation is attributed in the doc so
+the provenance is not lost; a re-run belongs to the first real CI run, which runs it anyway
+as `test-oss-subset`.
