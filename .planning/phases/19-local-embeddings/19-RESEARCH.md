@@ -339,7 +339,9 @@ docker run --rm --network none xbrain-embed-test
 
 **Planning implication:** neither assumption blocks the phase from being planned — A1 doesn't change the model recommendation, and A2 only affects the precision of one mem_limit number, which should be a Wave-0-style "measure once on the real target" verification step regardless.
 
-## Open Questions
+## Open Questions (RESOLVED at planning, 2026-07-18)
+
+> **Resolution (planner, 19-01/02):** In-process (single-worker) chosen over sidecar — it is the truest respect of the existing `NativeProvider(embedder=...)` async-callable seam (D-19-02: don't fork the abstraction, no HTTP hop), avoids an 11th untagged-core service rippling into Phase 16's packaging narrative, and neutralizes the RAM concern because the model loads lazily ONLY when `EMBEDDINGS_PROVIDER=local` while OSS-light runs `UVICORN_WORKERS=1`. Q2 (exact `mem_limit`) is pinned to 768m|896m with a comment citing the ~256-366 MB RSS (19-02 Task 2 acceptance); the real-amd64 measurement stays a "measure once on the prod VM" follow-up (Assumption A2), not a blocker.
 
 1. **Sidecar vs single-worker in-process — final call belongs to the planner, but the arithmetic favors sidecar.**
    - What we know: OSS-light's 10 untagged-core services already reserve ~2944 MB of `mem_limit` ceiling on a 4 GB e2-medium target (VERIFIED by summing `mem_limit:` lines in `infrastructure/docker-compose.yml` for `nginx`, `postgres`, `qdrant`, `memory-api`, `minio`, `mcp-gateway`, `mcp-scraper`, `mcp-brain`, `centrifugo`, `brain-janitor`), leaving roughly ~550 MB of headroom after OS/Docker overhead (per the CLAUDE.md Phase-1 sizing table's own ~600 MB overhead estimate). A single model load costs ~256-280 MB (measured); duplicated under `--workers 2` it costs ~540-550 MB (measured) — consuming essentially all remaining headroom.
