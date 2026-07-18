@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 16 — OSS Light Packaging
+**Current focus:** Phase 16 COMPLETE (4/4 SC verified, gate 23/23 live, code-review XSS blocker fixed). Next: Phase 20 (rescope to Option B: polish the existing extension chat UI in shadcn Neutral radius-0, NOT a standalone extraction), then Phase 17 (CI Lockstep), then the backlog features.
 
 ## Current Position
 
-Phase: 16 (OSS Light Packaging) — EXECUTING
+Phase: 16 (OSS Light Packaging) — COMPLETE. Next: Phase 20 (rescope to Option B — polish extension chat UI, shadcn)
 Plan: 1 of 4
-Status: Executing Phase 16
+Status: Phase 16 complete — next Phase 20 (needs rescope to Option B), then 17
 Last activity: 2026-07-18 -- Phase 16 execution started
 
 ## Performance Metrics
