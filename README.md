@@ -72,28 +72,77 @@ MCP gateway + sidecars · session-bridge · Centrifugo (realtime) · Langfuse
 
 ## Quickstart (self-host)
 
-Requirements: an Ubuntu VM with Docker + Docker Compose, a Google OAuth client, and a
-GitHub App (for auth). Everything runs from one `docker compose`.
+Requirements: an Ubuntu VM with Docker + Docker Compose, and **one optional LLM key**
+(Anthropic OR OpenAI OR Grok) for chat. **No Google OAuth client and no GitHub App are
+required** — local email/password auth is the default (Phase 18) and embeddings run
+locally, keyless (Phase 19). A zero-external-key install boots the full brain.
 
 ```bash
 git clone https://github.com/mrboups/xbrain.git
 cd xbrain
-cp .env.example .env
-# Fill every __FILL__ placeholder (secrets, OAuth, GitHub App). Generate randoms with:
-#   openssl rand -base64 48   # 64-char secrets
-#   openssl rand -hex 32      # 64-hex secrets
-make env-check                # verify no critical secret is missing
+make oss-init   # writes a bootable zero-external-key .env (CSPRNG secrets, no key to paste)
+docker compose -f infrastructure/docker-compose.yml --env-file .env up -d --build
+make ps         # confirm all core services are healthy
 ```
 
-Deploy:
+Register the first account — no OAuth needed (reach memory-api through the nginx
+`api.<XBRAIN_BASE_DOMAIN>` vhost; with the `localhost` default that is `api.localhost`):
 
 ```bash
-make deploy     # build + docker compose up -d on the VM
-make vm-ps      # confirm all containers are healthy
-make vm-logs    # tail logs if something fails to start
+curl -X POST http://api.localhost/v1/auth/local/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"a-strong-passphrase"}'
 ```
 
-Develop & verify:
+See [`docs/INSTALL.md`](./docs/INSTALL.md) for the full walkthrough (prereqs → provision
+→ generate secrets → boot → register → verify → real-deploy notes), all with zero
+external keys.
+
+### Deploy
+
+- **OSS-light (single host, zero external keys) — the default.** Build and run the core
+  directly on the target host; this matches `docs/INSTALL.md` and works with the
+  `make oss-init` zero-key `.env`:
+  ```bash
+  docker compose -f infrastructure/docker-compose.yml --env-file .env up -d --build
+  make ps         # confirm all core services are healthy
+  ```
+- **`make deploy` — the SaaS/hosted-team remote path.** Rsyncs the repo to a separate
+  `VM_HOST` over SSH and runs `docker compose build && up` **on that VM**
+  (build-on-VM), gated by `make env-check` + `make preflight`. `env-check` requires the
+  saas credentials only under `COMPOSE_PROFILES=saas`, so it passes a zero-key core
+  deploy but still guards a saas one. Use it only when deploying to a remote VM:
+  ```bash
+  make deploy     # env-check + preflight + rsync + build-on-VM + up
+  make vm-ps      # confirm containers on the VM are healthy
+  make vm-logs    # tail VM logs
+  ```
+
+### Release artifacts (OSS-light)
+
+The reproducible OSS-light release artifact is a **bundle, not a registry image**
+(SC#4 / D-16-06):
+
+- the light compose file `infrastructure/docker-compose.yml` (`COMPOSE_PROFILES` unset =
+  the 10-service core);
+- the corrected `.env.example` + the `make oss-init` zero-key secret generator;
+- [`docs/INSTALL.md`](./docs/INSTALL.md);
+- the zero-key-safe deploy path — `docker compose --env-file .env up -d --build` on the
+  target host, so images are **built on the correct architecture** — with `make deploy`
+  as the SaaS/hosted-team remote variant.
+
+Explicitly deferred:
+
+- **Registry-hosted multi-arch image publishing + CI → Phase 17.** The intended future
+  path (not built here) is
+  `docker buildx build --platform linux/amd64,linux/arm64 --push`.
+- **The standalone web app + in-extension zero-key sign-in UI → Phase 20.**
+- **A fresh amd64-VM clean-install run → a documented follow-up.** The dev host is
+  arm64, so the automated proof is the local arm64 `docker compose up` proxy (D-16-04).
+  **Never build a local image on arm64 and deploy it cross-arch to an amd64 VM** — build
+  on the target host (or via `buildx`) instead.
+
+### Develop & verify
 
 ```bash
 make test       # memory-api tests (pytest + testcontainers)
@@ -138,3 +187,7 @@ Claude.ai app** as an OAuth 2.1 Custom Connector — see the
 ## License
 
 MIT.
+
+> Note (open item): the code license is under review for the open-core edition —
+> the locked open-core design records AGPLv3 + CLA, which the `LICENSE` file above
+> does not yet reflect. This is flagged for the maintainer, not resolved here.
