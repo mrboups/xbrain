@@ -3,32 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="dark" />
+  <meta name="color-scheme" content="light dark" />
   <title>xbrain — team chat</title>
   <link rel="stylesheet" href="popup.css" />
   <style>
-    /* Design tokens — dark theme aligned with LibreChat.
-       Kept here in addition to popup.css so the inline elements (button
-       resets, scrollbars) get the same palette without an external load. */
-    :root {
-      color-scheme: dark;
-      --xb-bg:        #171717;
-      --xb-surface:   #212121;
-      --xb-surface-2: #2a2a2a;
-      --xb-border:    #2f2f2f;
-      --xb-border-2: #3a3a3a;
-      --xb-text:      #ececec;
-      --xb-text-mute: #a0a0a0;
-      --xb-text-dim:  #6b6b6b;
-      --xb-accent:    #3b82f6;
-      --xb-accent-2:  #2563eb;
-      --xb-accent-bg: rgba(59, 130, 246, 0.16);
-      --xb-success:   #10b981;
-      --xb-success-bg:rgba(16, 185, 129, 0.14);
-      --xb-error:     #ef4444;
-      --xb-error-bg:  rgba(239, 68, 68, 0.14);
-      --xb-radius:    8px;
-    }
+    /* Design tokens now live in popup.css (Plan 20-01 - shadcn "Neutral",
+       single source of truth). These inline rules only reset box-sizing and
+       style the scrollbars + GitHub sign-in buttons; they consume the same
+       var(--xb-*) names, which popup.css aliases to the new shadcn tokens. */
     *, *::before, *::after { box-sizing: border-box; }
     html, body {
       margin: 0;

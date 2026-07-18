@@ -1,8 +1,9 @@
 /* xbrain extension — popup.css
  *
- * Chat-first dark theme (quick task 260512-tcr Wave 3.4). All color tokens
- * are defined in the inline :root block of popup.html so this file just
- * consumes var(--xb-*). Layout strategy:
+ * Chat-first UI. As of Plan 20-01 this file owns the shadcn "Neutral" design
+ * tokens (see the :root block below); popup.html no longer defines them. Rules
+ * still consume var(--xb-*), which are aliased to the new tokens. Layout
+ * strategy:
  *
  *   #app  — flex column, fills 100% of body (which is fixed to 100vh).
  *           header (auto)  +  chat-body (1fr scrollable)  +  composer (auto)
@@ -15,6 +16,119 @@
    silently override it. Force-hide hidden elements at the top so
    our flex/grid layouts can't accidentally show them. */
 [hidden] { display: none !important; }
+
+/* ========================================================================
+ * Design tokens — shadcn "Neutral" (monochrome, radius 0, Geist stack).
+ *
+ * Plan 20-01: popup.css is the single source of truth for tokens (the inline
+ * :root block was removed from popup.html). Values are the CONTEXT canonical
+ * hex set. The in-popup theme toggle stamps data-theme on :root; because the
+ * [data-theme] selectors out-specify the plain :root and the
+ * prefers-color-scheme media block, the toggle wins in BOTH directions.
+ *
+ * Fonts name the real faces first with a system fallback — CSP-safe: no
+ * embedded font-face rule and no external webfont fetch.
+ *
+ * Legacy --xb-* names are aliased to the new tokens so existing rules keep
+ * resolving while Plans 02/03 restyle components. --xb-accent -> --primary is
+ * the deliberate monochrome shift (blue -> black/white).
+ * ====================================================================== */
+
+:root {
+  /* shadcn Neutral — light palette (CONTEXT canonical hex) */
+  --bg:#FFFFFF;
+  --fg:#0A0A0A;
+  --card:#FFFFFF;
+  --card-fg:#0A0A0A;
+  --muted:#F5F5F5;
+  --muted-fg:#737373;
+  --secondary:#F5F5F5;
+  --secondary-fg:#171717;
+  --primary:#0A0A0A;
+  --primary-fg:#FAFAFA;
+  --border:#E5E5E5;
+  --input:#E5E5E5;
+  --ring:#A3A3A3;
+  --destructive:#E5322D;
+  --radius:0px;
+  --sans:'Geist','Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'Geist Mono',ui-monospace,'Cascadia Code',Consolas,monospace;
+
+  /* Legacy --xb-* aliases -> new tokens. They reference the tokens above,
+     which flip per theme, so they are NOT repeated in the dark blocks. */
+  --xb-bg:var(--bg);
+  --xb-surface:var(--card);
+  --xb-surface-2:var(--muted);
+  --xb-border:var(--border);
+  --xb-border-2:var(--input);
+  --xb-text:var(--fg);
+  --xb-text-mute:var(--muted-fg);
+  --xb-text-dim:var(--muted-fg);
+  --xb-accent:var(--primary);
+  --xb-accent-2:var(--primary);
+  --xb-accent-bg:var(--secondary);
+  --xb-success:var(--muted-fg);
+  --xb-success-bg:var(--secondary);
+  --xb-error:var(--destructive);
+  --xb-error-bg:var(--secondary);
+  --xb-radius:var(--radius);
+}
+
+/* Dark palette applied TWICE so the toggle wins both directions:
+   1. prefers-color-scheme: dark  -> default when no explicit choice stored.
+   2. :root[data-theme="dark"]     -> explicit toggle choice; out-specifies
+      the media block, so it also overrides a light OS preference. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#0A0A0A;
+    --fg:#FAFAFA;
+    --card:#171717;
+    --card-fg:#FAFAFA;
+    --muted:#262626;
+    --muted-fg:#A3A3A3;
+    --secondary:#262626;
+    --secondary-fg:#FAFAFA;
+    --primary:#FAFAFA;
+    --primary-fg:#171717;
+    --border:rgba(255,255,255,.10);
+    --input:rgba(255,255,255,.15);
+    --ring:#787878;
+    --destructive:#FB5A57;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#0A0A0A;
+  --fg:#FAFAFA;
+  --card:#171717;
+  --card-fg:#FAFAFA;
+  --muted:#262626;
+  --muted-fg:#A3A3A3;
+  --secondary:#262626;
+  --secondary-fg:#FAFAFA;
+  --primary:#FAFAFA;
+  --primary-fg:#171717;
+  --border:rgba(255,255,255,.10);
+  --input:rgba(255,255,255,.15);
+  --ring:#787878;
+  --destructive:#FB5A57;
+}
+/* Explicit light choice overrides a dark OS when the toggle picks light. */
+:root[data-theme="light"] {
+  --bg:#FFFFFF;
+  --fg:#0A0A0A;
+  --card:#FFFFFF;
+  --card-fg:#0A0A0A;
+  --muted:#F5F5F5;
+  --muted-fg:#737373;
+  --secondary:#F5F5F5;
+  --secondary-fg:#171717;
+  --primary:#0A0A0A;
+  --primary-fg:#FAFAFA;
+  --border:#E5E5E5;
+  --input:#E5E5E5;
+  --ring:#A3A3A3;
+  --destructive:#E5322D;
+}
 
 /* ========================================================================
  * App shell
