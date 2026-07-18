@@ -22,10 +22,10 @@ One workflow, jobs roughly: `build` (once) → { `test-oss-subset`, `test-full-p
 ### D-17-02 — Build ONCE, use many; CI is where the real amd64 build lands (REL-01).
 The `build` job builds the repo's `build:` images ONCE (multi-arch via `docker/build-push-action` + buildx) and pushes them to **GHCR** (`ghcr.io/<owner>/xbrain-<svc>:${{ github.sha }}`). Downstream test/deploy jobs `pull` that SHA tag — they NEVER `--build`. `make deploy` (which rebuilds on the VM over SSH) MUST NOT be reused verbatim as the deploy step — that would silently rebuild and break "build once". CI runners are amd64, so this is where the real amd64 image (deferred from Phases 16/19) is actually produced. `xbrain-backup` stays amd64-only (its base has no arm64 manifest) — build it single-arch, document why.
 
-### D-17-03 — "Test the full profile" ≠ boot all 33 containers (runner-disk reality).
-The 33-service full profile may not fit GitHub's ~14 GB hosted-runner disk. So:
+### D-17-03 — "Test the full profile" ≠ boot all 32 containers (runner-disk reality).
+The 32-service full profile (live-measured: 10 core + 22 profile-tagged) may not fit GitHub's ~14 GB hosted-runner disk. So:
 - **OSS-subset test** = `infrastructure/scripts/verify-phase16.sh` (the proven real 10-core boot + SC#3 HTTP walk) run in CI against the CI-built images.
-- **Full-profile test** = the memory-api test suite run under the full/`saas` config + `docker compose config` validation of the full profile (all 33 resolve) + the migration test under saas — NOT a full 33-container boot. A `workflow_dispatch` dry-run to MEASURE whether a full boot fits the runner is a documented follow-up, not a blocking gate.
+- **Full-profile test** = the memory-api test suite run under the full/`saas` config + `docker compose config` validation of the full profile (all 32 resolve — derived live as core+tagged, never a hardcoded literal) + the migration test under saas — NOT a full 32-container boot. A `workflow_dispatch` dry-run to MEASURE whether a full boot fits the runner is a documented follow-up, not a blocking gate.
 
 ### D-17-04 — SaaS deploy job authored for real, GATED OFF while the VM is down (honest SC2).
 Author a real `deploy-saas` job (SSH to the VM, `docker compose pull` the SHA-tagged images, `up -d` — NEVER `--build`), but guard it behind a repo variable (e.g. `vars.SAAS_DEPLOY_ENABLED`) that DEFAULTS OFF, because the prod VM is stopped and CI cannot SSH a stopped host. The job exists, is lint-clean, and is wired into the lockstep graph; it no-ops (or is skipped) until the operator restarts the VM, sets the variable, and provides SSH secrets. Do NOT fake a live deploy. Document the exact "to enable" steps.
@@ -48,7 +48,7 @@ Publish `ghcr.io/<owner>/xbrain-<svc>:${{ github.sha }}` (immutable, what deploy
 <canonical_refs>
 ## Canonical References — read before planning/executing
 - `.github/workflows/deploy-dashboard.yml` — the existing GH Actions conventions + secrets/vars in use (GH_API_PAT, FIREBASE_TOKEN, XBRAIN_BRIDGE_JWT, project xbrain-495115).
-- `infrastructure/docker-compose.yml` — the 18 `build:` services + core/integrations/saas/ops profiles (10 core / 33 full).
+- `infrastructure/docker-compose.yml` — the 18 `build:` services + core/integrations/saas/ops profiles (10 core / 32 full — live-measured).
 - `Makefile` — build / test / lint / `deploy`=env-check+preflight+sync (the VM-SSH path CI must NOT reuse verbatim); `oss-init` / `env-check` / `preflight`.
 - `infrastructure/scripts/verify-phase16.sh` — the OSS-subset test CI reuses (real 10-core boot + SC#3 walk).
 - `apps/memory-api/tests/conftest.py` (pg_url) + `apps/memory-api/alembic/` — the migration chain + the testcontainer `alembic upgrade head` pattern to extend for REL-03.
@@ -59,7 +59,7 @@ Publish `ghcr.io/<owner>/xbrain-<svc>:${{ github.sha }}` (immutable, what deploy
 <specifics>
 ## The gate lesson applies — and its CI-specific honest boundary
 A check that never traverses the real deployment path proves nothing. For CI the *real* path is a push + GitHub-hosted runners + secrets + a live deploy target — which cannot be fully exercised autonomously (no push, VM stopped). So the plan MUST split proof honestly:
-- **Locally/really verifiable now (do these, SKIP=FAIL):** `actionlint` passes on every authored workflow; the `needs:` graph is parsed and asserted so lockstep (SC3) is proven structural; the migration-both-editions test RUNS against a real Postgres testcontainer under EDITION=oss AND saas; the OSS-subset `verify-phase16.sh` still passes; `docker compose config` resolves the full 33-service profile.
+- **Locally/really verifiable now (do these, SKIP=FAIL):** `actionlint` passes on every authored workflow; the `needs:` graph is parsed and asserted so lockstep (SC3) is proven structural; the migration-both-editions test RUNS against a real Postgres testcontainer under EDITION=oss AND saas; the OSS-subset `verify-phase16.sh` still passes; `docker compose config` resolves the full 32-service profile.
 - **Documented residual (NOT claimed green):** the actual end-to-end GitHub Actions run, the GHCR publish, and the live SaaS deploy — these need a push + secrets + a restarted VM. Document the exact enable steps; do NOT fabricate a green run. Same deferral discipline as Phase-16's amd64-VM run and Phase-20's live-backend UAT.
 </specifics>
 
