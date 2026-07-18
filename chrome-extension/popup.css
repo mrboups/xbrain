@@ -221,6 +221,38 @@
   border-color: var(--xb-border-2);
 }
 
+/* Segmented light/dark theme toggle (shadcn style, radius 0). The pressed
+   segment uses --primary/--primary-fg; focus-visible draws the --ring. */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.seg button {
+  border: none;
+  background: transparent;
+  color: var(--muted-fg);
+  font-family: var(--sans);
+  padding: 4px 7px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background 0.14s, color 0.14s;
+}
+.seg button svg { width: 14px; height: 14px; display: block; }
+.seg button[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--primary-fg);
+}
+.seg button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
 /* ========================================================================
  * Connection card (first-launch onboarding)
  * ====================================================================== */

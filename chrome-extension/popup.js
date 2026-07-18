@@ -23,6 +23,11 @@ import {
   provenanceLabel,
 } from "./chat_stream.js";
 import { loadSettings, saveSettings } from "./settings.js";
+import {
+  THEME_STORAGE_KEY,
+  resolveInitialTheme,
+  applyTheme,
+} from "./theme.js";
 
 const MEMORY_API_BASE = "https://api.grooveos.app";
 
@@ -49,6 +54,8 @@ const $ = (id) => document.getElementById(id);
 // ---------- Boot ----------
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Apply the theme before anything paints so there is no light/dark flash.
+  await wireTheme();
   wireHeader();
   wireConnectionCard();
   wireComposer();
@@ -130,6 +137,53 @@ function wireHeader() {
   if (btnAddToMemory) {
     btnAddToMemory.addEventListener("click", openClipOverlay);
   }
+}
+
+// ---------- Theme (in-popup light/dark toggle) ----------
+
+/**
+ * Wire the header light/dark segmented toggle. Theme logic lives in the pure
+ * theme.js module; this function owns the impure parts: reading/writing
+ * chrome.storage.local and stamping the DOM. The stored choice wins over the
+ * OS preference and persists across popup opens (Plan 20-01).
+ */
+async function wireTheme() {
+  const root = document.documentElement;
+  const lightBtn = $("btn-theme-light");
+  const darkBtn = $("btn-theme-dark");
+
+  // Reflect the active mode on the segmented control (aria-pressed).
+  const reflect = (mode) => {
+    if (lightBtn) lightBtn.setAttribute("aria-pressed", String(mode === "light"));
+    if (darkBtn) darkBtn.setAttribute("aria-pressed", String(mode === "dark"));
+  };
+
+  // Apply a mode to the DOM + control; optionally persist the explicit choice.
+  const set = async (mode, persist) => {
+    applyTheme(root, mode);
+    reflect(mode);
+    if (persist) {
+      try {
+        await chrome.storage.local.set({ [THEME_STORAGE_KEY]: mode });
+      } catch (e) {
+        console.warn("[xbrain] theme persist failed:", e);
+      }
+    }
+  };
+
+  // Boot: stored choice wins; first-ever open falls back to prefers-color-scheme.
+  let storedTheme = null;
+  try {
+    const got = await chrome.storage.local.get([THEME_STORAGE_KEY]);
+    storedTheme = got ? got[THEME_STORAGE_KEY] : null;
+  } catch (e) {
+    console.warn("[xbrain] theme read failed:", e);
+  }
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  await set(resolveInitialTheme({ storedTheme, prefersDark }), false);
+
+  if (lightBtn) lightBtn.addEventListener("click", () => set("light", true));
+  if (darkBtn) darkBtn.addEventListener("click", () => set("dark", true));
 }
 
 function renderTeamSelector() {
