@@ -1,0 +1,87 @@
+# docker-compose.ci-images.yml — GHCR image override for the CI lockstep pipeline (Phase 17).
+#
+# WHAT THIS IS
+#   The SINGLE source of truth for the CI-built image names. Layered ON TOP of
+#   infrastructure/docker-compose.yml, it replaces each `build:` service's `image:` with its
+#   GHCR reference so downstream jobs PULL exactly what the build job produced — they never
+#   `--build` again (D-17-02, "build once, use many").
+#
+#       docker compose -f infrastructure/docker-compose.yml \
+#                      -f infrastructure/docker-compose.ci-images.yml pull   # fetch CI images
+#       docker compose -f ... -f ... up -d                                   # run them (NO --build)
+#
+# WHY ONE FILE, FOUR CONSUMERS
+#   The same image-name scheme is needed by:
+#     1. the BUILD job   — bakes/pushes ghcr.io/<owner>/xbrain-<svc>:<tag>
+#     2. the two TEST jobs — pull the CI images (test-oss-subset via verify-phase16.sh's
+#                            VERIFY16_* hooks; test-full-profile via verify-phase17-full.sh)
+#     3. the PUBLISH job — retags the SHA image to :latest / :oss
+#     4. the DEPLOY job  — pulls the SHA-tagged images on the VM (never rebuilds)
+#   Keeping the names in ONE override file means build and deploy can never drift onto
+#   different image names — the exact failure that would let a service silently `--build`.
+#
+# INTERPOLATION CONTRACT (compose-native ${VAR:-default}, resolved daemon-free by `config`)
+#   GHCR_OWNER        → github.repository_owner in CI; defaults to `mrboups` locally.
+#   XBRAIN_IMAGE_TAG  → github.sha in CI (immutable — one commit = one image set,
+#                       what the deploy job pulls); defaults to `latest` locally.
+#
+# NOTES
+#   - Exactly the 18 `build:` services from docker-compose.yml appear here — no core-only
+#     pulled images (postgres/qdrant/minio/nginx/centrifugo) and no third-party images
+#     (openwebui, mongo, meili, langfuse*, neo4j, searxng) are remapped: those already ship
+#     as public registry images and are pulled as-is.
+#   - No `build:` keys here. The base file already carries them; this override only points
+#     `image:` at the registry so `pull` fetches instead of triggering a local build.
+#   - The `xbrain-backup` service maps to `xbrain-backup` (its service name already carries
+#     the `xbrain-` prefix — do NOT double-prefix to `xbrain-xbrain-backup`). Its base image
+#     has no arm64 manifest, so CI builds it amd64-only (documented in the build job); the
+#     image reference itself is arch-agnostic.
+#   - The base file's own `image:` values (xbrain/memory-api:phase2, …) are the LOCAL dev
+#     tags and are left untouched — this override is additive and only takes effect when both
+#     `-f` files are passed, so `make build` / `make up` for developers is unchanged.
+
+services:
+
+  # --- Core (COMPOSE_PROFILES unset) — 5 build: services ---
+  memory-api:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-memory-api:${XBRAIN_IMAGE_TAG:-latest}
+  mcp-gateway:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-mcp-gateway:${XBRAIN_IMAGE_TAG:-latest}
+  mcp-scraper:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-mcp-scraper:${XBRAIN_IMAGE_TAG:-latest}
+  mcp-brain:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-mcp-brain:${XBRAIN_IMAGE_TAG:-latest}
+  brain-janitor:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-brain-janitor:${XBRAIN_IMAGE_TAG:-latest}
+
+  # --- integrations profile — 8 build: services ---
+  agent-runtime:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-agent-runtime:${XBRAIN_IMAGE_TAG:-latest}
+  mcp-drive-read:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-mcp-drive-read:${XBRAIN_IMAGE_TAG:-latest}
+  mcp-calendar:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-mcp-calendar:${XBRAIN_IMAGE_TAG:-latest}
+  mcp-deck:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-mcp-deck:${XBRAIN_IMAGE_TAG:-latest}
+  mcp-github:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-mcp-github:${XBRAIN_IMAGE_TAG:-latest}
+  graphiti-service:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-graphiti-service:${XBRAIN_IMAGE_TAG:-latest}
+  drive-sync:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-drive-sync:${XBRAIN_IMAGE_TAG:-latest}
+  granola-sync:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-granola-sync:${XBRAIN_IMAGE_TAG:-latest}
+
+  # --- saas profile — 4 build: services ---
+  librechat-bridge:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-librechat-bridge:${XBRAIN_IMAGE_TAG:-latest}
+  openwebui-pipeline:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-openwebui-pipeline:${XBRAIN_IMAGE_TAG:-latest}
+  librechat:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-librechat:${XBRAIN_IMAGE_TAG:-latest}
+  session-bridge:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-session-bridge:${XBRAIN_IMAGE_TAG:-latest}
+
+  # --- ops profile — 1 build: service (amd64-only base; NO double prefix) ---
+  xbrain-backup:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-backup:${XBRAIN_IMAGE_TAG:-latest}
