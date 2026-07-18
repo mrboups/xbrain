@@ -45,6 +45,11 @@
 #   make verify-phase16
 # Run from anywhere inside the repo (the script cd's to the repo root itself).
 #
+# Opt-in CI hooks (Phase 17 — both UNSET by default; default behavior is unchanged):
+#   VERIFY16_EXTRA_COMPOSE=<file>  extra `-f` layered onto the LIVE boot (not the config check)
+#   VERIFY16_NO_BUILD=1            boot via `pull` + `up -d` instead of `up -d --build`
+# See the "CI REUSE CONTRACT" block below for the rationale and the exact CI invocation.
+#
 # Requires: bash, docker, docker compose v2+, python3 (or python), openssl. Does NOT require jq
 # (python does the JSON assertions) and does NOT require make (if `make` is absent the env-check
 # recipe body is run directly, byte-equivalently).
@@ -98,6 +103,43 @@ DOCFILE="$(mktemp).txt"        # the small doc uploaded in check (f)
 ENV_BACKED_UP=0
 ENV_INSTALLED=0
 
+# --- CI REUSE CONTRACT (Phase 17, opt-in — both vars UNSET by default) ------------------------
+#
+# WHY: Phase 17's pipeline builds every image ONCE and downstream jobs PULL it (D-17-02). If the
+# CI OSS-subset job ran this gate as-is it would `up -d --build` and silently re-build the images
+# on the runner — so the thing that got tested would NOT be the thing that gets deployed, which
+# is precisely the defect class this gate exists to catch. These two hooks let CI point the SAME
+# proven boot at the CI-built GHCR images instead.
+#
+#   VERIFY16_EXTRA_COMPOSE — path to an extra `-f` compose file layered onto the LIVE boot only
+#                            (Phase 17 passes infrastructure/docker-compose.ci-images.yml, which
+#                            remaps every build: service to ghcr.io/<owner>/xbrain-<svc>:<tag>).
+#   VERIFY16_NO_BUILD=1    — boot with `pull` + `up -d` instead of `up -d --build`.
+#
+#   CI usage:
+#     VERIFY16_EXTRA_COMPOSE=infrastructure/docker-compose.ci-images.yml \
+#     VERIFY16_NO_BUILD=1 GHCR_OWNER=... XBRAIN_IMAGE_TAG=<sha> \
+#       bash infrastructure/scripts/verify-phase16.sh
+#
+# BACKWARD COMPATIBILITY IS THE POINT: with both vars unset, DC_LIVE expands to exactly the
+# invocation this script used before (docker compose -p $PROJECT -f infrastructure/docker-compose.yml
+# --env-file $OSS_ENV) and the boot takes the `up -d --build` branch — the Phase 16 gate is
+# unchanged. The hooks are additive and guarded; they add no behavior to the default path.
+#
+# SCOPE: the LIVE-BOOT block only (up/pull/ps/logs/down). The config-layer check (a) deliberately
+# keeps its own hermetic-env invocation — it asserts what the BASE compose file declares and must
+# never see an image override.
+#
+# Declared here (before the EXIT trap is installed) so cleanup() can always tear down with the
+# same file set it booted with, even on an early exit.
+DC_LIVE=(docker compose -p "$PROJECT" -f infrastructure/docker-compose.yml)
+if [[ -n "${VERIFY16_EXTRA_COMPOSE:-}" ]]; then
+  # Appended as two separate array elements (never an unquoted ${VAR:+...} expansion) so a path
+  # containing spaces survives — the same host-path care the rest of this script takes.
+  DC_LIVE+=(-f "$VERIFY16_EXTRA_COMPOSE")
+fi
+DC_LIVE+=(--env-file "$OSS_ENV")
+
 # host_path <posix-path> — echo a Windows path for a bind-mount/@upload on Git-Bash, else the path
 # unchanged. Callers that pass it into `docker` prefix the command with MSYS_NO_PATHCONV=1 so the
 # in-container target path is not rewritten by MSYS either (the Git-Bash host-mount trap).
@@ -121,8 +163,7 @@ cleanup() {
   # with "couldn't find env file" — a teardown that silently no-ops and LEAKS the whole stack,
   # because the failure is swallowed by the >/dev/null redirect. MSYS_NO_PATHCONV=1 is only ever
   # correct for IN-CONTAINER paths (see the docker exec in check (h)).
-  docker compose -p "$PROJECT" -f infrastructure/docker-compose.yml \
-    --env-file "$OSS_ENV" down -v --remove-orphans >/dev/null 2>&1
+  "${DC_LIVE[@]}" down -v --remove-orphans >/dev/null 2>&1
   restore_env
   rm -f "$HERMETIC_ENV" "$OSS_ENV" "$ENV_BACKUP" "$BOOT_LOG" \
         "$JSON_HELPER" "$STATE_HELPER" "$SEARCH_HELPER" "$DOCFILE"
@@ -447,7 +488,15 @@ test_d0_deploy_env_check() {
 # =============================================================================================
 test_d_real_boot() {
   echo
-  echo "(d) REAL BOOT — up -d --build the 10 core from the zero-key env; assert ACTUAL health state"
+  # boot_desc/boot_kind are declared HERE so the section header names the mode that will actually
+  # run. With the hooks unset they hold the original strings, so the DEFAULT output is unchanged.
+  local boot_desc="up -d --build"
+  local boot_kind="build+boot"
+  if [[ "${VERIFY16_NO_BUILD:-}" == "1" ]]; then
+    boot_desc="pull + up -d (no --build)"
+    boot_kind="pull+boot"
+  fi
+  echo "(d) REAL BOOT — $boot_desc the 10 core from the zero-key env; assert ACTUAL health state"
 
   # container_name: is GLOBAL and fixed (xbrain-postgres etc.), NOT namespaced by -p. Booting on
   # top of a live stack would collide on those names and tear down the operator's work (T-16-04-04).
@@ -465,13 +514,29 @@ test_d_real_boot() {
 
   BOOTED=1
   # NOTE: no MSYS_NO_PATHCONV here — -f/--env-file are HOST paths and MUST be MSYS-converted.
-  if ! env -u COMPOSE_PROFILES docker compose -p "$PROJECT" -f infrastructure/docker-compose.yml \
-        --env-file "$OSS_ENV" up -d --build >"$BOOT_LOG" 2>&1; then
+  #
+  # Two boot modes, same assertions afterwards. DEFAULT (VERIFY16_NO_BUILD unset) is the original
+  # `up -d --build`, byte-for-byte including the PASS/FAIL wording below. The opt-in CI mode
+  # pulls the pre-built GHCR images and boots them WITHOUT --build, so CI tests exactly the
+  # artifact it will deploy (D-17-02).
+  if [[ "${VERIFY16_NO_BUILD:-}" == "1" ]]; then
+    echo "      boot mode: NO-BUILD (VERIFY16_NO_BUILD=1) — pulling pre-built images${VERIFY16_EXTRA_COMPOSE:+ via $VERIFY16_EXTRA_COMPOSE}"
+    if ! env -u COMPOSE_PROFILES "${DC_LIVE[@]}" pull >"$BOOT_LOG" 2>&1; then
+      ko "(d) '$boot_desc' failed at the pull step. Tail:
+$(tail -25 "$BOOT_LOG")"
+      return 1
+    fi
+    if ! env -u COMPOSE_PROFILES "${DC_LIVE[@]}" up -d >>"$BOOT_LOG" 2>&1; then
+      ko "(d) '$boot_desc' failed. Tail:
+$(tail -25 "$BOOT_LOG")"
+      return 1
+    fi
+  elif ! env -u COMPOSE_PROFILES "${DC_LIVE[@]}" up -d --build >"$BOOT_LOG" 2>&1; then
     ko "(d) 'up -d --build' failed. Tail:
 $(tail -25 "$BOOT_LOG")"
     return 1
   fi
-  ok "(d) 'up -d --build' returned 0 (all 10 core services created from the zero-key env)"
+  ok "(d) '$boot_desc' returned 0 (all 10 core services created from the zero-key env)"
 
   # Poll ACTUAL health. A ~8.5s Neo4j DNS timeout during memory-api startup is EXPECTED here —
   # Neo4j is NOT part of core; the driver simply resolves to nothing and the app carries on.
@@ -480,8 +545,7 @@ $(tail -25 "$BOOT_LOG")"
   while :; do
     pending=""
     for svc in $CORE; do
-      cid="$(docker compose -p "$PROJECT" -f infrastructure/docker-compose.yml \
-              --env-file "$OSS_ENV" ps -q "$svc" 2>/dev/null | head -1)"
+      cid="$("${DC_LIVE[@]}" ps -q "$svc" 2>/dev/null | head -1)"
       if [[ -z "$cid" ]]; then pending="$pending $svc(no-container)"; continue; fi
       state="$(docker inspect --format \
         '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$cid" 2>/dev/null)"
@@ -497,8 +561,7 @@ $(tail -25 "$BOOT_LOG")"
 
   local failed="" line
   for svc in $CORE; do
-    cid="$(docker compose -p "$PROJECT" -f infrastructure/docker-compose.yml \
-            --env-file "$OSS_ENV" ps -q "$svc" 2>/dev/null | head -1)"
+    cid="$("${DC_LIVE[@]}" ps -q "$svc" 2>/dev/null | head -1)"
     if [[ -z "$cid" ]]; then failed="$failed $svc=absent"; continue; fi
     state="$(docker inspect --format \
       '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$cid" 2>/dev/null)"
@@ -511,15 +574,14 @@ $(tail -25 "$BOOT_LOG")"
   done
 
   if [[ -z "$failed" ]]; then
-    ok "(d) all 10 core services reached healthy/running from a REAL build+boot (incl. the four build: services)"
+    ok "(d) all 10 core services reached healthy/running from a REAL $boot_kind (incl. the four build: services)"
     return 0
   fi
   ko "(d) core services not healthy:$failed"
   for svc in $failed; do
     svc="${svc%%=*}"
     echo "      --- logs $svc (tail 15) ---"
-    docker compose -p "$PROJECT" -f infrastructure/docker-compose.yml --env-file "$OSS_ENV" \
-      logs --tail=15 "$svc" 2>&1 | sed 's/^/        /'
+    "${DC_LIVE[@]}" logs --tail=15 "$svc" 2>&1 | sed 's/^/        /'
   done
   return 1
 }
