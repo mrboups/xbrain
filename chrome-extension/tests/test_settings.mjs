@@ -60,7 +60,32 @@ await test("loadSettings returns defaults when storage empty", async () => {
     clipDefaultProject: null,
     clipDefaultTruthLevel: "EPHEMERAL",
     clipSkipOverlay: false,
+    allowOpenLinkRequests: true,
   });
+});
+
+// ─── Phase 22 push-a-link (Plan 22-02) — recipient opt-out, default ON ───────
+
+await test("allowOpenLinkRequests defaults ON (D-22-04)", () => {
+  assert.equal(DEFAULT_SETTINGS.allowOpenLinkRequests, true);
+});
+
+await test("mergeSettings keeps an explicit allowOpenLinkRequests:false", () => {
+  const out = mergeSettings({ allowOpenLinkRequests: false });
+  assert.equal(out.allowOpenLinkRequests, false);
+});
+
+await test("mergeSettings type-guards allowOpenLinkRequests → default true", () => {
+  // A non-boolean must be ignored and fall back to the ON default.
+  assert.equal(mergeSettings({ allowOpenLinkRequests: "nope" }).allowOpenLinkRequests, true);
+  assert.equal(mergeSettings({ allowOpenLinkRequests: 0 }).allowOpenLinkRequests, true);
+});
+
+await test("a stored object omitting allowOpenLinkRequests yields true", async () => {
+  const storage = makeStorageArea();
+  await storage.set({ [SETTINGS_KEY]: { openInSidePanel: false } });
+  const s = await loadSettings(storage);
+  assert.equal(s.allowOpenLinkRequests, true);
 });
 
 await test("loadSettings honors persisted false values", async () => {
