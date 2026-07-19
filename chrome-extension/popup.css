@@ -1124,6 +1124,42 @@
 #sendlink-status.success { background: var(--secondary); color: var(--secondary-fg); border: 1px solid var(--border); }
 #sendlink-status.error   { background: transparent;      color: var(--destructive);  border: 1px solid var(--destructive); }
 
+/* Invite-code overlay (Phase 25, JOINCODE-01). The one-time minted code renders
+   in a monospace --muted chip (user-select:all so a click selects the whole
+   secret); the row lays the chip beside its Copy button. Token-driven, radius 0. */
+.xb-invite-code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--muted);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  user-select: all;
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+}
+.xb-invite-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Invite status pills — same monochrome states as #sendlink-status. */
+#invite-status,
+#invite-join-status {
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  font-size: 12px;
+}
+#invite-status.loading,
+#invite-join-status.loading { background: var(--muted);     color: var(--muted-fg);     border: 1px solid var(--border); }
+#invite-status.success,
+#invite-join-status.success { background: var(--secondary); color: var(--secondary-fg); border: 1px solid var(--border); }
+#invite-status.error,
+#invite-join-status.error   { background: transparent;      color: var(--destructive);  border: 1px solid var(--destructive); }
+
 .xb-overlay-footer {
   display: flex;
   justify-content: flex-end;
