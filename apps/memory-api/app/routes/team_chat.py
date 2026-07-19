@@ -25,7 +25,7 @@ from typing import Any
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -330,6 +330,72 @@ async def get_unread_summary(
         "since": cursor.isoformat() if cursor else None,
         "threshold": settings.CATCHUP_UNREAD_THRESHOLD,
     }
+
+
+# ── /v1/teams/{team_id}/catch-me-up — ephemeral opt-in summary (CATCHUP-01) ──
+
+
+@router.post("/teams/{team_id}/catch-me-up", status_code=202)
+async def catch_me_up(
+    team_id: UUID,
+    response: Response,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Opt-in "Catch me up": stream an ephemeral, brain-grounded summary of the
+    messages since the caller's read cursor to the caller's OWN user channel.
+
+    Ordering is load-bearing — every rejection returns BEFORE the summarizer is
+    scheduled, so a rejected request provably starts NO LLM work:
+      1. caller must be a member of team_id           → 403 (T-23-01)
+      2. per-caller rate limit must not be exhausted  → 429 (T-23-03)
+      3. window must be non-empty                     → 200 nothing_to_summarize
+         (0-unread short-circuits, NO create_task, never auto-run — D-23-03)
+      4. THEN fire-and-forget the ephemeral summarizer → 202 accepted
+
+    The summary streams to `user:<caller_sub>` and is NEVER persisted as a
+    `team_messages` row (D-23-04/05, T-23-06).
+    """
+    user = _require_user_principal(principal)
+
+    # 1. Membership (also resolves the Team → 404 if it doesn't exist).
+    team = await _resolve_team_and_check_membership(session, user.id, team_id)
+
+    # 2. Per-caller rate limit — opt-in summaries are LLM-expensive (T-23-03).
+    #    Bucket keyed by the caller's sub (NOT client IP — mirrors nudge_open).
+    if not rate_limit.check_rate(settings.CATCHUP_RATE_LIMIT, "catchup", user.source_user_id):
+        raise HTTPException(429, "catch-me-up is rate-limited — try again later")
+
+    # 3. Resolve the caller's cursor and peek the window. A 0-unread request
+    #    short-circuits with NO LLM call and NO create_task — the summary never
+    #    auto-runs and never fires on an empty window (D-23-03).
+    membership = await teams_repo.get_membership(
+        session, user_id=user.id, team_slug=team.slug
+    )
+    cursor = membership.last_read_at if membership else None
+    count = await tm_repo.count_unread_since(
+        session, team_id=team_id, after_created_at=cursor, exclude_user_id=user.id
+    )
+    if count == 0:
+        response.status_code = 200
+        return {"status": "nothing_to_summarize"}
+
+    # 4. Fire-and-forget the ephemeral summarizer — streams to the caller's OWN
+    #    `user:<sub>` channel and persists nothing.
+    asyncio.create_task(
+        team_chat_agent.catch_me_up(
+            team_id=team_id,
+            caller_user_sub=user.source_user_id,
+            since=cursor,
+        )
+    )
+    log.info(
+        "team_chat.catch_me_up.scheduled",
+        team_id=str(team_id),
+        caller_user_sub=user.source_user_id,
+        unread=count,
+    )
+    return {"status": "accepted"}
 
 
 # ── /v1/teams/{team_id}/nudge-open — push-a-link (NUDGE-01, D-22-01) ─────────
