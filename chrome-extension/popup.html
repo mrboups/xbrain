@@ -94,6 +94,7 @@
       <div class="xb-header-right">
         <button type="button" id="btn-add-to-memory" class="xb-icon-btn xb-text-btn" title="Add current page to team memory">add to memory</button>
         <button type="button" id="btn-send-link" class="xb-icon-btn xb-text-btn" title="Send a link to a teammate">send link</button>
+        <button type="button" id="btn-invite" class="xb-icon-btn xb-text-btn" title="Create or redeem a team invite code">invite</button>
         <div class="seg" role="group" aria-label="Theme">
           <button type="button" id="btn-theme-light" aria-pressed="false" title="Light theme" aria-label="Light theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
           <button type="button" id="btn-theme-dark" aria-pressed="false" title="Dark theme" aria-label="Dark theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg></button>
@@ -279,6 +280,49 @@
       <footer class="xb-overlay-footer">
         <button type="button" id="btn-sendlink-cancel" class="xb-btn-secondary">Cancel</button>
         <button type="button" id="btn-sendlink-submit" class="xb-btn-primary">Send link</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Invite-code overlay — opens on the header "invite" button (Phase 25, JOINCODE-01).
+       Two surfaces: an admin "Create invite code" action that mints and reveals the
+       plaintext code ONCE with a Copy button (the server 403s non-admins), and a
+       "paste a code to join" field that redeems via POST /v1/teams/join-by-code and
+       refreshes the team list. The revealed code renders via textContent only (XSS-safe)
+       and is cleared on close so it never lingers in the DOM. -->
+  <div id="invite-panel" class="xb-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="invite-title">
+    <div class="xb-overlay-card">
+      <header class="xb-overlay-header">
+        <h3 id="invite-title">Team invite code</h3>
+        <button type="button" id="btn-invite-close" class="xb-icon-btn" title="Close">✕</button>
+      </header>
+
+      <div class="xb-overlay-body">
+        <!-- ADMIN: mint + reveal once + copy -->
+        <div class="xb-field">
+          <label>Create an invite code</label>
+          <p class="xb-hint">
+            Share this code with people you want on this team. It is shown once — copy it now.
+          </p>
+          <button type="button" id="btn-invite-mint" class="xb-btn-primary">Create invite code</button>
+          <div id="invite-code-row" class="xb-invite-code-row" hidden>
+            <code id="invite-code-output" class="xb-invite-code"></code>
+            <button type="button" id="btn-invite-copy" class="xb-btn-secondary">Copy</button>
+          </div>
+          <div id="invite-status" hidden></div>
+        </div>
+
+        <!-- ANY MEMBER: paste a code to join -->
+        <div class="xb-field">
+          <label for="invite-join-code">Have a code? Join a team</label>
+          <input type="text" id="invite-join-code" placeholder="xbi_..." autocomplete="off" />
+          <button type="button" id="btn-invite-join" class="xb-btn-primary">Join</button>
+          <div id="invite-join-status" hidden></div>
+        </div>
+      </div>
+
+      <footer class="xb-overlay-footer">
+        <button type="button" id="btn-invite-cancel" class="xb-btn-secondary">Close</button>
       </footer>
     </div>
   </div>

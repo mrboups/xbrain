@@ -75,6 +75,19 @@ const FROZEN_IDS = [
   "btn-catchup-dismiss",
   "catchup-summary",
   "btn-catchup-summary-close",
+  // Plan 25-04 — team invite-code overlay ids.
+  "btn-invite",
+  "invite-panel",
+  "btn-invite-close",
+  "btn-invite-cancel",
+  "btn-invite-mint",
+  "invite-code-row",
+  "invite-code-output",
+  "btn-invite-copy",
+  "invite-status",
+  "invite-join-code",
+  "btn-invite-join",
+  "invite-join-status",
 ];
 
 // Every class popup.js emits on nodes it builds, or toggles at runtime, and

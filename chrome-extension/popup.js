@@ -92,6 +92,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   wireComposer();
   wireClipOverlay();
   wireSendLink();
+  wireInvite();
   wireCatchup();
   await boot();
 });
@@ -312,6 +313,228 @@ function mapNudgeError(status) {
 
 function setSendLinkStatus(text, type) {
   const el = $("sendlink-status");
+  if (!el) return;
+  if (!text) {
+    el.hidden = true;
+    el.textContent = "";
+    el.className = "";
+    return;
+  }
+  el.hidden = false;
+  el.textContent = text;
+  el.className = type || "";
+}
+
+// ---------- Invite-code affordance (Phase 25, JOINCODE-01) ----------
+//
+// A header "invite" control opens an overlay with two surfaces:
+//   1. ADMIN mint — POST /v1/teams/{activeTeamId}/invite-codes reveals the
+//      plaintext code ONCE (rendered via textContent, never innerHTML — T-25-17)
+//      with a Copy button. The client cannot reliably tell admin status from the
+//      my-teams payload, so it shows the action to everyone and surfaces the
+//      server's authoritative 403 as a clear message (T-25-16) — the server is
+//      the real authZ boundary.
+//   2. JOIN — POST /v1/teams/join-by-code {code} redeems a pasted code, then
+//      refreshes the team list so the newly-joined team appears.
+// The revealed code is cleared on close so the one-time secret does not linger in
+// the DOM across opens (T-25-19). popup.js hardcodes no code or team — it renders
+// only server responses (T-25-18).
+
+function wireInvite() {
+  const openBtn = $("btn-invite");
+  if (openBtn) openBtn.addEventListener("click", openInvite);
+  const closeBtn = $("btn-invite-close");
+  if (closeBtn) closeBtn.addEventListener("click", closeInvite);
+  const cancelBtn = $("btn-invite-cancel");
+  if (cancelBtn) cancelBtn.addEventListener("click", closeInvite);
+  const mintBtn = $("btn-invite-mint");
+  if (mintBtn) mintBtn.addEventListener("click", mintInvite);
+  const copyBtn = $("btn-invite-copy");
+  if (copyBtn) copyBtn.addEventListener("click", copyInvite);
+  const joinBtn = $("btn-invite-join");
+  if (joinBtn) joinBtn.addEventListener("click", joinByCode);
+}
+
+function openInvite() {
+  const panel = $("invite-panel");
+  if (!panel) return;
+  panel.hidden = false;
+  setInviteStatus("", "");
+  setInviteJoinStatus("", "");
+  const row = $("invite-code-row");
+  if (row) row.hidden = true;
+}
+
+function closeInvite() {
+  const panel = $("invite-panel");
+  if (panel) panel.hidden = true;
+  // Clear the one-time revealed code so it does not persist across opens (T-25-19).
+  const out = $("invite-code-output");
+  if (out) out.textContent = "";
+  const row = $("invite-code-row");
+  if (row) row.hidden = true;
+}
+
+// ADMIN action — mint an invite code and reveal the plaintext ONCE. The server
+// 403s non-admins; the client only presents the outcome (T-25-16).
+async function mintInvite() {
+  if (!state.activeTeamId) {
+    setInviteStatus("No active team.", "error");
+    return;
+  }
+  const mintBtn = $("btn-invite-mint");
+  if (mintBtn) mintBtn.disabled = true;
+  setInviteStatus("Creating...", "loading");
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    const res = await fetch(
+      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/invite-codes`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${xbt_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      },
+    );
+    if (res.status === 201) {
+      const j = await res.json();
+      // textContent — never innerHTML — the code is an untrusted server string (T-25-17).
+      $("invite-code-output").textContent = j.code;
+      const row = $("invite-code-row");
+      if (row) row.hidden = false;
+      setInviteStatus("Code created — copy it now (shown once).", "success");
+    } else {
+      setInviteStatus(mapMintError(res.status), "error");
+    }
+  } catch (e) {
+    console.warn("[xbrain] mint invite failed:", e);
+    setInviteStatus("Network error — try again.", "error");
+  } finally {
+    if (mintBtn) mintBtn.disabled = false;
+  }
+}
+
+// Map the mint endpoint's rejection codes to clear English text.
+function mapMintError(status) {
+  if (status === 403) return "Only a team admin can create invite codes.";
+  if (status === 429) return "Too many requests — wait a moment.";
+  if (status === 404) return "Team not found.";
+  return `Could not create a code (HTTP ${status}).`;
+}
+
+async function copyInvite() {
+  const out = $("invite-code-output");
+  const code = out ? out.textContent : "";
+  if (!code) {
+    setInviteStatus("Create a code first.", "error");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(code);
+    setInviteStatus("Copied ✓", "success");
+  } catch (e) {
+    console.warn("[xbrain] copy invite code failed:", e);
+    setInviteStatus("Copy failed — select the code manually.", "error");
+  }
+}
+
+// ANY MEMBER — redeem a pasted code. On success, refresh the team list so the
+// newly-joined team shows up in the selector.
+async function joinByCode() {
+  const input = $("invite-join-code");
+  const code = input ? input.value.trim() : "";
+  if (!code) {
+    setInviteJoinStatus("Paste a code first.", "error");
+    return;
+  }
+  const joinBtn = $("btn-invite-join");
+  if (joinBtn) joinBtn.disabled = true;
+  setInviteJoinStatus("Joining...", "loading");
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    const res = await fetch(`${MEMORY_API_BASE}/v1/teams/join-by-code`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${xbt_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ code }),
+    });
+    if (res.status === 200) {
+      const j = await res.json();
+      if (j.already_member) {
+        setInviteJoinStatus("You're already on that team.", "success");
+      } else {
+        // j.display_name is a server string; setInviteJoinStatus renders it via
+        // textContent (never innerHTML) — no XSS surface (T-25-17).
+        setInviteJoinStatus(`Joined ${j.display_name} ✓`, "success");
+      }
+      if (input) input.value = "";
+      await refreshTeamsAfterJoin();
+    } else {
+      setInviteJoinStatus(mapJoinError(res.status), "error");
+    }
+  } catch (e) {
+    console.warn("[xbrain] join-by-code failed:", e);
+    setInviteJoinStatus("Network error — try again.", "error");
+  } finally {
+    if (joinBtn) joinBtn.disabled = false;
+  }
+}
+
+// Map the join endpoint's rejection codes. The server returns a single generic
+// 404 for invalid/expired/revoked/exhausted (no oracle) — the client mirrors that.
+function mapJoinError(status) {
+  if (status === 404) return "That code is invalid, expired, or used up.";
+  if (status === 429) return "Too many attempts — wait a moment.";
+  return `Could not join (HTTP ${status}).`;
+}
+
+// Refresh the team list after a successful join. If the popup had no active team
+// yet (the user just joined their FIRST team), run the full boot path so
+// centrifugo connects and the chat loads; otherwise re-fetch my-teams and
+// re-render the selector so the new team appears without a reconnect.
+async function refreshTeamsAfterJoin() {
+  if (!state.activeTeamId) {
+    await boot();
+    return;
+  }
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    const teams = await fetchJson(
+      `${MEMORY_API_BASE}/v1/teams/my-teams`,
+      xbt_token,
+    );
+    if (Array.isArray(teams) && teams.length) {
+      state.teams = teams;
+      renderTeamSelector();
+    }
+  } catch (e) {
+    console.warn("[xbrain] team refresh after join failed:", e);
+  }
+}
+
+// Two single-target status helpers (mirror setSendLinkStatus) — one per status
+// div. Kept separate so both #invite-status and #invite-join-status are bound by
+// literal $() calls (the popup contract test freezes them).
+function setInviteStatus(text, type) {
+  const el = $("invite-status");
+  if (!el) return;
+  if (!text) {
+    el.hidden = true;
+    el.textContent = "";
+    el.className = "";
+    return;
+  }
+  el.hidden = false;
+  el.textContent = text;
+  el.className = type || "";
+}
+
+function setInviteJoinStatus(text, type) {
+  const el = $("invite-join-status");
   if (!el) return;
   if (!text) {
     el.hidden = true;
