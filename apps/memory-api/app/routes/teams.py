@@ -8,12 +8,14 @@ from uuid import UUID
 
 import httpx
 from cryptography.fernet import Fernet
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import write_audit
 from app.auth import is_admin
+from app.auth.oauth_tokens import hash_token
 from app.config import settings
 from app.db.session import async_session_factory
 from app.deps import get_current_principal, get_session
@@ -24,6 +26,7 @@ from app.repos import users as users_repo
 from app.services import mention_detector
 from app.services.github_app_jwt import mint_app_jwt
 from app.services.github_installation import get_installation_token_for_org
+from app.services.rate_limit import enforce_rate_limit
 
 router = APIRouter()
 
@@ -367,6 +370,110 @@ async def search_teams(
         )
         for t in teams
     ]
+
+
+# ── join-by-code (Phase 25 / JOINCODE-01) — a STATIC path, above /{team_id} ──────
+
+
+class JoinByCodeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(..., min_length=1, max_length=128)
+
+
+class JoinByCodeOut(BaseModel):
+    team_id: str
+    slug: str
+    display_name: str
+    already_member: bool
+
+
+@router.post("/teams/join-by-code", response_model=JoinByCodeOut)
+async def join_by_code(
+    body: JoinByCodeBody,
+    request: Request,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Redeem an invite code to join the team it is bound to (any authenticated
+    caller — the code IS the authorization, D-25-03).
+
+    Rate-limited (D-25-04), idempotent (already-a-member is a 200 no-op with `uses`
+    untouched), and a NO-ORACLE endpoint: an unknown, revoked, expired, or exhausted
+    code all return the SAME generic 404 (D-25-02), so it never leaks which codes exist
+    or why one failed. team_scope integrity: the caller is added to the code's bound
+    team_id ONLY — a code carries no cross-team reach (T-25-10).
+    """
+    user = _require_user(principal)
+    # Brute-force defense in depth (T-25-09) — before any DB work.
+    await enforce_rate_limit(request, settings.JOIN_CODE_RATE_LIMIT, "join-by-code")
+
+    # Look up by hash (matches how the repo stores it) — no plaintext timing oracle.
+    code_hash = hash_token(body.code)
+    row = await invite_codes_repo.get_by_hash(session, code_hash=code_hash)
+    if row is None:
+        raise HTTPException(404, "invalid or expired invite code")  # generic — no oracle
+
+    team = await teams_repo.get_team_by_id(session, row.team_id)
+    if team is None:
+        # Team gone (CASCADE would normally remove the code too) — same generic message.
+        raise HTTPException(404, "invalid or expired invite code")
+
+    existing = await teams_repo.get_membership(
+        session, user_id=user.id, team_slug=team.slug
+    )
+    if existing is not None:
+        await session.commit()  # idempotent no-op — DO NOT increment uses (D-25-04).
+        return JoinByCodeOut(
+            team_id=str(team.id),
+            slug=team.slug,
+            display_name=team.display_name,
+            already_member=True,
+        )
+
+    redeemed = await invite_codes_repo.redeem_atomic(
+        session, code_id=row.id, now=datetime.now(tz=timezone.utc)
+    )
+    if redeemed is None:
+        # revoked / expired / exhausted -> SAME generic 404, no oracle (D-25-02).
+        raise HTTPException(404, "invalid or expired invite code")
+
+    # team_scope integrity: add the caller to row.team_id ONLY — the code carries no
+    # cross-team reach (D-25-04 / T-25-10). Guard the same-user double-submit race:
+    # the step-above get_membership check and this insert are not one atomic unit, so
+    # two concurrent requests from the SAME user with the same code can both pass the
+    # membership check and both reach here — the loser then hits the team_members
+    # (team_id, user_id) unique/PK violation. Catch it and return the idempotent 200
+    # instead of a 500. (redeem_atomic already consumed a use for the winner; the small
+    # over-count on a same-user double-click is acceptable — the caller ends up a member
+    # exactly once, which is the invariant that matters.)
+    try:
+        await teams_repo.add_member(
+            session, team_id=row.team_id, user_id=user.id, role=redeemed.role
+        )
+    except IntegrityError:  # the concurrent-insert loser
+        await session.rollback()
+        return JoinByCodeOut(
+            team_id=str(team.id),
+            slug=team.slug,
+            display_name=team.display_name,
+            already_member=True,
+        )
+
+    await write_audit(
+        session,
+        actor_user_id=user.id,
+        team_scope=team.slug,
+        action="teams.join_by_code",
+        target_id=str(team.id),
+        payload={"code_prefix": row.code_prefix, "role": redeemed.role},  # NO plaintext/hash
+    )
+    await session.commit()
+    return JoinByCodeOut(
+        team_id=str(team.id),
+        slug=team.slug,
+        display_name=team.display_name,
+        already_member=False,
+    )
 
 
 _GH_HEADERS = {
