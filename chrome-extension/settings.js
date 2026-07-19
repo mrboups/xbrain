@@ -30,6 +30,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
   clipDefaultProject: null,
   clipDefaultTruthLevel: "EPHEMERAL",
   clipSkipOverlay: false,
+  // Phase 22 push-a-link (D-22-04). When ON (default), an incoming open_url
+  // nudge from a teammate shows a consent notification; when OFF, the receive
+  // handler ignores the event entirely (no notification). Recipient-side only.
+  allowOpenLinkRequests: true,
 });
 
 /**
@@ -74,6 +78,7 @@ const _SCHEMA = {
   clipDefaultProject: ["string", "null"],
   clipDefaultTruthLevel: ["string"],
   clipSkipOverlay: ["boolean"],
+  allowOpenLinkRequests: ["boolean"],
 };
 
 function _isAllowed(value, allowedTypes) {
