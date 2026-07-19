@@ -50,6 +50,14 @@ class TeamMember(Base):
     joined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # Phase 23 — private per-member read cursor for "Catch me up" (CATCHUP-01,
+    # D-23-01). NULL = never read (a first-time visitor). Set via
+    # repos.teams.set_last_read using a Python datetime (NOT a DDL server_default,
+    # which fires only on INSERT). This is NOT a "seen by" social read-receipt —
+    # it is per-member and never exposed cross-member.
+    last_read_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # Phase 10 — per-member soft-block (GHA-04). NULL = active member.
     # blocked_at MUST be set via Python datetime in repos.teams.block_member —
     # the DDL server_default=func.now() is consulted only on INSERT.
