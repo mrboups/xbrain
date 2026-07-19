@@ -39,9 +39,12 @@ docker invocations need MSYS_NO_PATHCONV=1. English-only.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import os
 import types
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -396,3 +399,281 @@ async def test_join_by_code_gate(client):
                 {"ids": user_ids},
             )
             await cleaner.commit()
+
+
+# ── Group 2: the double-spend race — atomic increment under true concurrency ───
+
+
+async def test_double_spend_race_cannot_exceed_max_uses(pg_url):
+    """THE double-spend guard (D-25-02, T-25-13), proven — not asserted — under true
+    concurrency. Two DISTINCT redeemers race to consume the single use of a
+    max_uses=1 code, each on its OWN pooled `async_session_factory()` session driving
+    the real `redeem_atomic`. The conditional `UPDATE ... WHERE uses < max_uses` takes
+    a row lock, so the two serialize: the winner increments uses to 1 and commits; the
+    loser's re-checked predicate (`1 < 1`) fails, matches no row and returns None. The
+    ceiling therefore holds — EXACTLY ONE redemption succeeds, `uses` ends at 1, and
+    EXACTLY ONE membership is created (a read-then-write repo would let both through)."""
+    import sqlalchemy as sa
+    from sqlalchemy.exc import IntegrityError
+
+    import app.db.session as db_session
+    from app.repos import team_invite_codes as invite_codes_repo
+    from app.repos import teams as teams_repo
+    from app.repos import users as users_repo
+
+    # ── COMMITTED seed: a team, a max_uses=1 code, and two distinct racers ─────
+    async with db_session.async_session_factory() as seed:
+        admin_r = await users_repo.get_or_create_user(
+            seed, source_user_id="jbc-admin-r-sub", email="jbc-admin-r@test.local",
+            display_name="JBC Admin R",
+        )
+        racer1 = await users_repo.get_or_create_user(
+            seed, source_user_id="jbc-racer1-sub", email="jbc-racer1@test.local",
+            display_name="Racer 1",
+        )
+        racer2 = await users_repo.get_or_create_user(
+            seed, source_user_id="jbc-racer2-sub", email="jbc-racer2@test.local",
+            display_name="Racer 2",
+        )
+        team_r = await teams_repo.create_team(
+            seed, slug="jbc-team-r", display_name="JBC Team R",
+            creator_user_id=admin_r.id,
+        )
+        row, _plaintext = await invite_codes_repo.mint_code(
+            seed, team_id=team_r.id, created_by_user_id=admin_r.id,
+            role="member", expires_at=None, max_uses=1,
+        )
+        await seed.commit()
+
+        code_id = row.id
+        team_r_id, team_r_slug = team_r.id, team_r.slug
+        admin_r_id = admin_r.id
+        racer1_id, racer2_id = racer1.id, racer2.id
+
+    try:
+        async def _attempt(user_id) -> bool:
+            """Redeem on an INDEPENDENT session (a separate pooled connection) and, on
+            a non-None redeem, add the member + commit. A unique-violation on a lost
+            race is caught and counted as a non-redemption (defensive — the atomic
+            UPDATE alone should already gate the loser to None)."""
+            async with db_session.async_session_factory() as s:
+                redeemed = await invite_codes_repo.redeem_atomic(
+                    s, code_id=code_id, now=datetime.now(tz=timezone.utc)
+                )
+                if redeemed is None:
+                    return False
+                try:
+                    await teams_repo.add_member(
+                        s, team_id=redeemed.team_id, user_id=user_id,
+                        role=redeemed.role,
+                    )
+                    await s.commit()
+                except IntegrityError:
+                    await s.rollback()
+                    return False
+                return True
+
+        results = await asyncio.gather(
+            _attempt(racer1_id), _attempt(racer2_id), return_exceptions=False
+        )
+
+        # EXACTLY ONE redemption succeeded (the ceiling held under the race).
+        assert sum(1 for r in results if r) == 1, (
+            f"exactly one concurrent redemption must win, got results={results!r}"
+        )
+
+        # uses ended at 1 — NOT 2 (a read-then-write would over-count to 2).
+        async with db_session.async_session_factory() as c:
+            uses = (
+                await c.execute(
+                    sa.text(
+                        "SELECT uses FROM team_invite_codes "
+                        "WHERE id = CAST(:id AS uuid)"
+                    ),
+                    {"id": str(code_id)},
+                )
+            ).scalar_one()
+        assert uses == 1, f"the max_uses=1 ceiling must hold under the race, uses={uses}"
+
+        # EXACTLY ONE of the two racers is now a member (the other gained none).
+        async with db_session.async_session_factory() as c:
+            m1 = await teams_repo.get_membership(
+                c, user_id=racer1_id, team_slug=team_r_slug
+            )
+            m2 = await teams_repo.get_membership(
+                c, user_id=racer2_id, team_slug=team_r_slug
+            )
+        assert (m1 is not None) ^ (m2 is not None), (
+            "exactly one racer must become a member (XOR), "
+            f"got racer1={m1 is not None} racer2={m2 is not None}"
+        )
+    finally:
+        # No audit_log rows here (the race drives the repos directly, not the audited
+        # route) — deleting the team cascades team_members + the code; users last.
+        async with db_session.async_session_factory() as cleaner:
+            await cleaner.execute(
+                sa.text("DELETE FROM teams WHERE id = CAST(:id AS uuid)"),
+                {"id": str(team_r_id)},
+            )
+            await cleaner.execute(
+                sa.text("DELETE FROM users WHERE id = ANY(CAST(:ids AS uuid[]))"),
+                {"ids": [str(admin_r_id), str(racer1_id), str(racer2_id)]},
+            )
+            await cleaner.commit()
+
+
+# ── Group 3: migration 0027 forward-only + edition-agnostic (table + unique idx) ──
+#
+# Self-contained mirror of test_catch_me_up_gate.py's Group 2: a FRESH Postgres
+# container per edition, the config singleton patched DIRECTLY (os.environ alone is
+# inert — `settings` is frozen at import and alembic/env.py reads that singleton),
+# `command.upgrade(cfg, "head")` in a worker thread (env.py calls asyncio.run
+# internally). No reverse migration is ever invoked — this is upgrade-only.
+
+_HERE = Path(__file__).resolve().parent
+_ALEMBIC_INI = _HERE / ".." / "alembic.ini"
+_SCRIPT_LOCATION = _HERE / ".." / "alembic"
+
+# The release matrix is exactly the two editions config.py permits (D-25-05).
+_EDITIONS = ["oss", "saas"]
+
+
+def _docker_available() -> bool:
+    """Mirror conftest.py::_docker_available — skip ONLY when Docker is truly absent."""
+    try:
+        import docker  # noqa: F401
+
+        client = docker.from_env()
+        client.ping()
+        return True
+    except Exception:
+        return False
+
+
+def _alembic_config(sqlalchemy_url: str):
+    """Alembic Config with dirname-relative paths. env.py overwrites sqlalchemy.url
+    from the patched settings.DATABASE_URL, so this URL is only a fallback."""
+    from alembic.config import Config
+
+    cfg = Config(str(_ALEMBIC_INI))
+    cfg.set_main_option("sqlalchemy.url", sqlalchemy_url)
+    cfg.set_main_option("script_location", str(_SCRIPT_LOCATION))
+    return cfg
+
+
+async def _upgrade_and_probe_invite_codes(edition: str) -> tuple[str, str, str]:
+    """Spin fresh PG, patch the config singleton to `edition`, upgrade head, then probe
+    information_schema + pg_indexes for team_invite_codes. Returns
+    (code_hash_data_type, code_hash_is_nullable, unique_index_def).
+
+    Restores the singleton + os.environ in `finally` so no other session test is
+    polluted, and stops the container even on assert/raise.
+    """
+    from testcontainers.postgres import PostgresContainer
+
+    import app.config as app_config
+
+    prev_edition = app_config.settings.EDITION
+    prev_db_url = app_config.settings.DATABASE_URL
+    prev_env_edition = os.environ.get("EDITION")
+    prev_env_db = os.environ.get("DATABASE_URL")
+
+    # Migrations call gen_random_uuid() → pgcrypto must be preloaded (mirrors conftest).
+    pg = PostgresContainer(
+        "postgres:17", username="test", password="test", dbname="test"
+    ).with_command("postgres -c shared_preload_libraries=pgcrypto")
+    pg.start()
+    try:
+        raw = pg.get_connection_url()  # postgresql+psycopg2://test:test@host:port/test
+        asyncpg_url = raw.replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+        plain_dsn = raw.replace("postgresql+psycopg2://", "postgresql://")
+
+        # THE LOAD-BEARING PATCH: switch the singleton DIRECTLY, not just os.environ.
+        os.environ["EDITION"] = edition
+        os.environ["DATABASE_URL"] = asyncpg_url
+        app_config.settings.EDITION = edition
+        app_config.settings.DATABASE_URL = asyncpg_url
+
+        cfg = _alembic_config(asyncpg_url)
+
+        # env.py's run_migrations_online() calls asyncio.run() internally; a worker
+        # thread gives it a clean, loop-free thread under pytest-asyncio's loop.
+        from alembic import command
+
+        await asyncio.to_thread(command.upgrade, cfg, "head")
+
+        import asyncpg
+
+        conn = await asyncpg.connect(dsn=plain_dsn)
+        try:
+            col_rows = await conn.fetch(
+                """
+                SELECT data_type, is_nullable
+                FROM information_schema.columns
+                WHERE table_name = 'team_invite_codes' AND column_name = 'code_hash'
+                """
+            )
+            idx_rows = await conn.fetch(
+                """
+                SELECT indexdef
+                FROM pg_indexes
+                WHERE tablename = 'team_invite_codes'
+                  AND indexname = 'ix_team_invite_codes_code_hash'
+                """
+            )
+        finally:
+            await conn.close()
+
+        assert len(col_rows) == 1, (
+            f"[{edition}] expected exactly ONE team_invite_codes.code_hash column after "
+            f"upgrade head, got {len(col_rows)} — migration 0027 did not create the "
+            f"table under this edition (or the schema forked on EDITION)."
+        )
+        assert len(idx_rows) == 1, (
+            f"[{edition}] expected exactly ONE ix_team_invite_codes_code_hash index "
+            f"after upgrade head, got {len(idx_rows)} — the unique code_hash index is "
+            f"missing under this edition (or the schema forked on EDITION)."
+        )
+        return (
+            col_rows[0]["data_type"],
+            col_rows[0]["is_nullable"],
+            idx_rows[0]["indexdef"],
+        )
+    finally:
+        # Resource hygiene: never leak a container; never pollute other session tests.
+        pg.stop()
+        app_config.settings.EDITION = prev_edition
+        app_config.settings.DATABASE_URL = prev_db_url
+        if prev_env_edition is None:
+            os.environ.pop("EDITION", None)
+        else:
+            os.environ["EDITION"] = prev_env_edition
+        if prev_env_db is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = prev_env_db
+
+
+@pytest.mark.parametrize("edition", _EDITIONS)
+async def test_migration_0027_team_invite_codes_forward_only(edition: str) -> None:
+    """Forward-only, edition-agnostic (D-25-05, T-25-14): `alembic upgrade head` under
+    `edition` creates team_invite_codes with a NOT-NULL text `code_hash` AND a UNIQUE
+    ix_team_invite_codes_code_hash index — IDENTICALLY under oss AND saas (a fork would
+    fail one edition). No reverse migration is invoked."""
+    if not _docker_available():
+        pytest.skip("Docker not available — skipping real-Postgres migration test")
+
+    data_type, is_nullable, indexdef = await _upgrade_and_probe_invite_codes(edition)
+
+    assert is_nullable == "NO", (
+        f"[{edition}] team_invite_codes.code_hash must be NOT NULL (the hash is "
+        f"mandatory, D-25-01) but is_nullable={is_nullable!r}."
+    )
+    assert data_type in ("text", "character varying"), (
+        f"[{edition}] unexpected data_type for team_invite_codes.code_hash: "
+        f"{data_type!r} (0027 declares a text type)."
+    )
+    assert "UNIQUE" in indexdef.upper(), (
+        f"[{edition}] ix_team_invite_codes_code_hash must be UNIQUE (the redeem lookup "
+        f"is by hash, no duplicate codes, D-25-01) but indexdef={indexdef!r}."
+    )
