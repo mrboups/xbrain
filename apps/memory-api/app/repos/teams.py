@@ -307,6 +307,33 @@ async def unblock_member(
     return m
 
 
+# === Phase 23 — read cursor for "Catch me up" (CATCHUP-01) ===
+
+async def set_last_read(
+    session: AsyncSession, *, team_id: UUID, user_id: UUID
+) -> TeamMember | None:
+    """Move one member's read cursor to now(). Returns the updated membership
+    (None if no such membership).
+
+    D-23-01: `last_read_at` is set with a Python datetime (mirrors block_member —
+    a DDL server_default fires only on INSERT, and a Python value keeps the
+    returned row `.isoformat()`-safe for serialisers). Idempotent by construction:
+    repeated calls simply advance the cursor forward to the current time. The
+    caller commits (this repo only flushes; routes own the transaction).
+    """
+    result = await session.execute(
+        select(TeamMember).where(
+            (TeamMember.team_id == team_id) & (TeamMember.user_id == user_id)
+        )
+    )
+    m = result.scalar_one_or_none()
+    if m is None:
+        return None
+    m.last_read_at = datetime.now(tz=timezone.utc)
+    await session.flush()
+    return m
+
+
 async def is_org_blocked(
     session: AsyncSession, *, team_id: UUID, github_login: str
 ) -> bool:
