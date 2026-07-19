@@ -22,6 +22,8 @@ from __future__ import annotations
 import io
 import uuid
 
+from xbrain_memory.types import MemoryItem, TruthLevel, ValidationStatus, Visibility
+
 from app.config import settings
 from app.services.doc_body_ingest import (
     DOCBODY_INGEST_NS,
@@ -29,7 +31,6 @@ from app.services.doc_body_ingest import (
     extract_and_ingest_body,
 )
 from app.services.doc_extract import PDF_MIME
-from xbrain_memory.types import MemoryItem, TruthLevel, ValidationStatus, Visibility
 
 TEAM = "team-alpha"
 OTHER_TEAM = "team-beta"
