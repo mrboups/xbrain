@@ -56,7 +56,7 @@ Delivered on top of shipped v2.0, one phase at a time.
 
 - [x] **ALIAS-01** (Phase 21): A team admin configures the agent's mention name(s) in Settings; the agent is summoned by a per-team, additive alias list (`@agent` always works + defaults + the custom name), `@claude` is removed, and the extension client + server share one source of truth for the list so they never diverge.
 - [x] **NUDGE-01** (Phase 22): A member sends a URL to another team member; the target gets a native notification (sender + full URL) and the link opens as a new tab ONLY on their explicit click — consent-gated, same-team-only, URL-validated, rate-limited, with a recipient opt-out. Reuses the existing `user:<sub>` Centrifugo channel; no new infra.
-- [ ] **CATCHUP-01** (Phase 23): A member opening a busy team chat can OPT IN to a brain-grounded "catch me up" summary of what happened since their last visit — a per-member last_read_at cursor + a since-window query + the existing streaming agent; never auto-run, threshold-gated, ephemeral, rate-limited.
+- [x] **CATCHUP-01** (Phase 23): A member opening a busy team chat can OPT IN to a brain-grounded "catch me up" summary of what happened since their last visit — a per-member last_read_at cursor + a since-window query + the existing streaming agent; never auto-run, threshold-gated, ephemeral, rate-limited.
 
 
 ## v2.0 Traceability

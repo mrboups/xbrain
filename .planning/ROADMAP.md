@@ -693,10 +693,10 @@ Plans:
 
 **Plans**: 4 plans
 Plans:
-- [ ] 23-01-PLAN.md — Cursor foundation: migration 0026 (team_members.last_read_at) + ORM + repo primitives (set_last_read, after_created_at window, count_unread_since)
-- [ ] 23-02-PLAN.md — mark-read + unread-summary endpoints + ephemeral brain-grounded catch-me-up service/endpoint (reuse the @agent streaming path, rate-limited, opt-in)
-- [ ] 23-03-PLAN.md — Real-Postgres gate: cursor + since-window + count-excludes-own + 403 + team_scope isolation + no persisted row; migration 0026 forward-only under oss AND saas
-- [ ] 23-04-PLAN.md — Extension: mark-read on focus/scroll + threshold-gated dismissible "Catch me up" banner + ephemeral summary render; popup contract test stays green
+- [x] 23-01-PLAN.md — Cursor foundation: migration 0026 (team_members.last_read_at) + ORM + repo primitives (set_last_read, after_created_at window, count_unread_since)
+- [x] 23-02-PLAN.md — mark-read + unread-summary endpoints + ephemeral brain-grounded catch-me-up service/endpoint (reuse the @agent streaming path, rate-limited, opt-in)
+- [x] 23-03-PLAN.md — Real-Postgres gate: cursor + since-window + count-excludes-own + 403 + team_scope isolation + no persisted row; migration 0026 forward-only under oss AND saas
+- [x] 23-04-PLAN.md — Extension: mark-read on focus/scroll + threshold-gated dismissible "Catch me up" banner + ephemeral summary render; popup contract test stays green
 **UI hint**: yes (a dismissible catch-me-up banner)
 
 ## Progress
