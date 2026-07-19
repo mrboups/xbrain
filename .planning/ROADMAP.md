@@ -679,6 +679,21 @@ Plans:
 
 **UI hint**: yes (a small "send link to member" affordance + a recipient toggle)
 
+### Phase 23: Catch Me Up (summary since last visit)
+
+**Goal**: When a member opens the team chat after a lot happened, an OPT-IN "Catch me up" produces a brain-grounded summary of the messages since their last visit — never auto-run, threshold-gated, ephemeral. Reuses the existing streaming agent + brain ingest; net-new is a read cursor, a `since` query, and the opt-in trigger.
+**Depends on**: nothing new (the agent summarizer + brain ingest already exist).
+**Requirements**: CATCHUP-01
+**Success Criteria** (what must be TRUE):
+
+  1. A `last_read_at` cursor exists on `team_members` (migration 0026, forward-only under oss AND saas); `POST /mark-read` sets it; the unread-since count (excluding the caller's own messages) is computed against a real Postgres and matches the messages that actually arrived after the cursor.
+  2. `list_messages` supports a `since`/`after_created_at` window symmetric to the existing `before`; catch-me-up gathers exactly the since-window and no other team's messages (team_scope isolation), proven against a real Postgres with the agent streaming stubbed to a recorder (gathering/cursor logic NOT mocked); a non-member → 403.
+  3. The summary is produced via the EXISTING streaming agent path (brain-grounded, truth-level chips), is EPHEMERAL (a dismissible banner/reply, not a persisted message everyone sees), never auto-runs, and is rate-limited per caller.
+  4. The extension shows the "Catch me up" affordance ONLY when the unread volume is meaningful (threshold-gated), calls mark-read on focus/scroll-to-bottom, and the popup contract test stays green.
+
+**Plans**: TBD (populated by `/gsd:plan-phase 23`)
+**UI hint**: yes (a dismissible catch-me-up banner)
+
 ## Progress
 
 **Execution Order:**
