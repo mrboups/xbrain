@@ -671,9 +671,9 @@ Plans:
 **Plans**: 3 plans
 Plans:
 
-- [ ] 22-01-PLAN.md — Server: POST /v1/teams/{id}/nudge-open (same-team publish to user:<sub>) + URL-safety guard + per-sender rate limit + real-Postgres gate
-- [ ] 22-02-PLAN.md — Extension receive: consent-gated open_url handler (no tabs capability) + recipient opt-out toggle + node tests
-- [ ] 22-03-PLAN.md — Wiring: user:<sub> subscription + notification-click→tab (background) + "send link to member" affordance + offline residual doc
+- [x] 22-01-PLAN.md — Server: POST /v1/teams/{id}/nudge-open (same-team publish to user:<sub>) + URL-safety guard + per-sender rate limit + real-Postgres gate
+- [x] 22-02-PLAN.md — Extension receive: consent-gated open_url handler (no tabs capability) + recipient opt-out toggle + node tests
+- [x] 22-03-PLAN.md — Wiring: user:<sub> subscription + notification-click→tab (background) + "send link to member" affordance + offline residual doc
 
 **Wave order**: 1 (22-01 server + 22-02 extension receive — parallel, disjoint file trees) → 2 (22-03 wiring + send affordance, depends on 22-01 endpoint + 22-02 handler)
 

@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 22 — Push-a-Link
+**Current focus:** Phase 22 (push-a-link) COMPLETE — nudge a member with a URL -> native notif -> consent-click opens tab. Verified 4/4 + 5 code-review findings fixed (URL userinfo spoof, click re-validation, blocked-member target, self-nudge, double-tab race). Residual: live 2-account browser smoke (no jsdom harness). Next: backlog #3 catch-me-up.
 
 ## Current Position
 
-Phase: 22 (Push-a-Link) — EXECUTING
+Phase: 22 (Push-a-Link) — COMPLETE. Next backlog: #3 catch-me-up.
 Plan: 1 of 3
-Status: Executing Phase 22
+Status: Phase 22 complete — next backlog #3 (catch-me-up)
 Last activity: 2026-07-19 -- Phase 22 execution started
 
 ## Performance Metrics
