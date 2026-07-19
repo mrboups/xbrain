@@ -261,6 +261,18 @@ class Settings(BaseSettings):
     NUDGE_RATE_LIMIT: str = "10/minute"
     NUDGE_MAX_URL_LENGTH: int = 2048
 
+    # === Phase 23 (CATCHUP-01) — "Catch me up" opt-in summary since last visit ===
+    # Per-caller, in-process bucket (rate_limit.py's --workers 2 caveat applies —
+    # spray-blunting only, not a hard guarantee). Opt-in summaries are LLM-expensive
+    # so the default is deliberately tight (hourly). CATCHUP_UNREAD_THRESHOLD is the
+    # D-23-03 banner gate — the client surfaces the "Catch me up" affordance only
+    # at/above this many unread-that-matter. CATCHUP_MAX_MESSAGES is the D-23-04
+    # token-budget hard cap on the since-window gathered for the summary. OSS-friendly
+    # defaults — no .env entry required; all three are env-overridable.
+    CATCHUP_RATE_LIMIT: str = "10/hour"
+    CATCHUP_UNREAD_THRESHOLD: int = 10
+    CATCHUP_MAX_MESSAGES: int = 200
+
     # === Phase 19 (EMBED-01) — deliberately NO field_validator: a zero-key
     # OSS install must boot; get_embedder() falls back to local on any unknown value ===
     EMBEDDINGS_PROVIDER: str = "local"

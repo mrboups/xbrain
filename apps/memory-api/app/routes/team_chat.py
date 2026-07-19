@@ -273,6 +273,65 @@ async def post_team_message(
     return payload
 
 
+# ── /v1/teams/{team_id}/mark-read + unread-summary — read cursor (CATCHUP-01) ─
+
+
+@router.post("/teams/{team_id}/mark-read", status_code=200)
+async def mark_team_read(
+    team_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Advance the CALLER'S OWN read cursor for this team to now().
+
+    D-23-01: `last_read_at` is a PRIVATE per-member cursor — there is NO request
+    body and NO target-user field, so a caller can only ever move their own
+    cursor (T-23-04, cursor-spoof mitigation). Membership is proven first (403
+    for a non-member) BEFORE any write. The extension calls this on chat focus /
+    scroll-to-bottom; it is idempotent (repeated calls advance the cursor forward
+    to the current time).
+    """
+    user = _require_user_principal(principal)
+    await _resolve_team_and_check_membership(session, user.id, team_id)
+    await teams_repo.set_last_read(session, team_id=team_id, user_id=user.id)
+    await session.commit()
+    return {"status": "ok"}
+
+
+@router.get("/teams/{team_id}/unread-summary")
+async def get_unread_summary(
+    team_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Return {count, since, threshold} for the caller's own unread-that-matters.
+
+    `count` = the number of OTHER members' user messages since the caller's read
+    cursor (excludes the caller's OWN messages AND agent frames — see
+    count_unread_since, D-23-02). `since` = the caller's cursor ISO timestamp
+    (null = never read). `threshold` = CATCHUP_UNREAD_THRESHOLD so the client can
+    decide whether to surface the "Catch me up" affordance (D-23-03).
+
+    Membership-gated (403 non-member, T-23-01). Exposes ONLY the caller's own
+    cursor — no other member's read state is ever returned, so there is no
+    "seen by" / read-receipt surface (T-23-05, D-23-05).
+    """
+    user = _require_user_principal(principal)
+    team = await _resolve_team_and_check_membership(session, user.id, team_id)
+    membership = await teams_repo.get_membership(
+        session, user_id=user.id, team_slug=team.slug
+    )
+    cursor = membership.last_read_at if membership else None
+    count = await tm_repo.count_unread_since(
+        session, team_id=team_id, after_created_at=cursor, exclude_user_id=user.id
+    )
+    return {
+        "count": count,
+        "since": cursor.isoformat() if cursor else None,
+        "threshold": settings.CATCHUP_UNREAD_THRESHOLD,
+    }
+
+
 # ── /v1/teams/{team_id}/nudge-open — push-a-link (NUDGE-01, D-22-01) ─────────
 
 
