@@ -45,6 +45,29 @@ async def get_team_by_id(session: AsyncSession, team_id: UUID) -> Team | None:
     return result.scalar_one_or_none()
 
 
+async def set_agent_aliases(
+    session: AsyncSession,
+    *,
+    team_id: UUID,
+    aliases_csv: str | None,
+) -> Team | None:
+    """Persist a team's CUSTOM mention aliases (Phase 21 / D-21-03).
+
+    `aliases_csv` is a pre-validated comma-separated list WITHOUT leading '@'
+    (see routes.teams._validate_aliases). Pass None to CLEAR the custom list
+    (the team then falls back to the env `AGENT_MENTION_ALIASES` defaults only).
+    Returns the updated Team, or None if no team with `team_id` exists.
+
+    Caller is responsible for the commit (mirrors the other repo mutators here).
+    """
+    team = await get_team_by_id(session, team_id)
+    if team is None:
+        return None
+    team.agent_aliases = aliases_csv
+    await session.flush()
+    return team
+
+
 async def add_member(
     session: AsyncSession,
     *,

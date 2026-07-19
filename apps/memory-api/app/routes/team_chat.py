@@ -196,8 +196,8 @@ async def post_team_message(
          history get a consistent view)
       4. Centrifugo publish to team:<id> — fire-and-forget, doesn't block
          the response
-      5. Mention detection — if @claude/@c/@cl found, fire-and-forget POST
-         to agent-runtime
+      5. Mention detection — if the team's agent alias (@agent + the team's
+         defaults/custom) is found, fire-and-forget POST to agent-runtime
       6. Return the serialized message
     """
     user = _require_user_principal(principal)
@@ -216,7 +216,7 @@ async def post_team_message(
 
     # Core differentiator (MEM-04 / CHAT-03): every substantive human chat
     # message lands in the searchable brain. Fire-and-forget — upserts a
-    # WORKING memory_item + Qdrant vector that the @claude bundle and MCP
+    # WORKING memory_item + Qdrant vector that the agent context bundle and MCP
     # memory_search already read from. Never blocks or breaks the send.
     asyncio.create_task(
         brain_ingest.ingest_team_message(
@@ -235,12 +235,16 @@ async def post_team_message(
         )
     )
 
-    # @claude mention → run the agent handler in the background.
+    # Agent mention → run the agent handler in the background. Detection is
+    # TEAM-SCOPED (Phase 21 / D-21-01): resolve THIS team's effective alias list
+    # (env defaults ∪ team.agent_aliases; @agent always present, @claude never)
+    # and match against it, so one team's custom name never summons on another.
     # We deliberately run inline (memory-api process) rather than dispatching
     # to agent-runtime — v1 simplification. See Wave 2.5 plan for the
     # tradeoff. The handler never raises; it logs and surfaces errors as
     # `agent_stream_error` frames on the Centrifugo channel.
-    mention = mention_detector.detect(body.content)
+    aliases = mention_detector.effective_aliases(team.agent_aliases)
+    mention = mention_detector.detect(body.content, aliases)
     if mention is not None:
         asyncio.create_task(
             team_chat_agent.handle_claude_mention(

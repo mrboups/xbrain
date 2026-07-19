@@ -1,6 +1,7 @@
 """/v1/teams — admin-managed team CRUD + membership."""
 
 import asyncio
+import re
 from typing import Any
 from uuid import UUID
 
@@ -18,6 +19,7 @@ from app.deps import get_current_principal, get_session
 from app.models.team import Team  # forward-typing for _require_team_admin
 from app.repos import teams as teams_repo
 from app.repos import users as users_repo
+from app.services import mention_detector
 from app.services.github_app_jwt import mint_app_jwt
 from app.services.github_installation import get_installation_token_for_org
 
@@ -73,6 +75,57 @@ def _get_fernet() -> Fernet:
     if not key:
         raise HTTPException(500, "FERNET_KEY not configured")
     return Fernet(key.encode())
+
+
+# ── Agent mention aliases (Phase 21 / ALIAS-01) ─────────────────────────────────
+
+# Compiled once — an alias is 1–32 chars of [A-Za-z0-9_-] only (no regex
+# metacharacters, no '@', no whitespace). fullmatch() rejects anything else.
+_ALIAS_RE = re.compile(r"[A-Za-z0-9_-]{1,32}")
+
+
+class AgentAliasesBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # Field bounds the list at 8 items (pydantic 422 on a longer list); the
+    # per-item validation lives in _validate_aliases so the error messages are
+    # explicit and the count is re-checked post-dedup.
+    aliases: list[str] = Field(..., max_length=8)
+
+
+def _validate_aliases(raw: list[str]) -> str | None:
+    """Validate + clean admin-submitted custom aliases (D-21-06).
+
+    For each item: strip surrounding whitespace and a single leading '@'. Reject
+    with HTTPException(422) if the alias is empty after trim, its length is not
+    in 1..32, it contains any char outside [A-Za-z0-9_-], or it equals "claude"
+    case-insensitively (reserved — keeps SC#2 absolute). Dedup case-insensitively
+    preserving first-occurrence order; cap at 8 (Field-bounded, re-checked after
+    dedup). Returns the cleaned comma-joined csv, or None if the list is empty
+    after cleaning (which CLEARS the team's custom aliases).
+    """
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        alias = item.strip()
+        if alias.startswith("@"):
+            alias = alias[1:].strip()
+        if not alias:
+            raise HTTPException(422, "alias must not be empty")
+        if not _ALIAS_RE.fullmatch(alias):
+            raise HTTPException(
+                422,
+                f"invalid alias {alias!r} — 1-32 chars of [A-Za-z0-9_-] only, no '@'",
+            )
+        if alias.lower() == "claude":
+            raise HTTPException(422, "'claude' is reserved and cannot be an agent alias")
+        low = alias.lower()
+        if low in seen:
+            continue
+        seen.add(low)
+        cleaned.append(alias)
+    if len(cleaned) > 8:
+        raise HTTPException(422, "at most 8 custom aliases allowed")
+    return ",".join(cleaned) if cleaned else None
 
 
 class TeamCreateBody(BaseModel):
@@ -540,6 +593,71 @@ async def self_create_team(
 
 
 # ── Parameterized routes /{team_id}/... ────────────────────────────────────────
+
+
+@router.get("/teams/{team_id}/agent-aliases")
+async def get_agent_aliases(
+    team_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Return the team's EFFECTIVE mention-alias list (Phase 21 / D-21-02).
+
+    Effective = env `AGENT_MENTION_ALIASES` defaults ∪ the team's custom
+    `agent_aliases`, with `@agent` always present and `@claude` never. This is
+    the SAME resolver the summon site uses, so the extension client builds its
+    MENTION_RE from exactly this list — one source of truth, no client/server
+    desync.
+
+    Auth: any TEAM MEMBER may read it (403 for non-members).
+    """
+    user = _require_user(principal)
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    membership = await teams_repo.get_membership(
+        session, user_id=user.id, team_slug=team.slug
+    )
+    if membership is None:
+        raise HTTPException(403, "not a member of this team")
+    return {"aliases": mention_detector.effective_aliases(team.agent_aliases)}
+
+
+@router.patch("/teams/{team_id}/agent-aliases")
+async def set_agent_aliases_route(
+    team_id: UUID,
+    body: AgentAliasesBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Set the team's CUSTOM mention alias(es) (Phase 21 / D-21-06).
+
+    Auth: TEAM ADMIN only (403 for a non-admin member or a non-member). The
+    admin check runs BEFORE validation so a non-admin never learns whether their
+    input was well-formed.
+
+    Validates each alias (charset/length/count, leading '@' stripped, dedup,
+    'claude' reserved → 422), persists to `teams.agent_aliases`, writes an audit
+    row, and commits. The change takes effect immediately — detection reads the
+    DB per message and the client re-fetches on save, so no restart (D-21-05).
+    Returns the resulting EFFECTIVE list.
+    """
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    actor = await _require_team_admin(principal, team, session)
+    csv = _validate_aliases(body.aliases)
+    await teams_repo.set_agent_aliases(session, team_id=team.id, aliases_csv=csv)
+    await write_audit(
+        session,
+        actor_user_id=actor.id,
+        team_scope=team.slug,
+        action="team.agent_aliases.set",
+        target_id=str(team.id),
+        payload={"aliases": csv},
+    )
+    await session.commit()
+    return {"aliases": mention_detector.effective_aliases(csv)}
 
 
 @router.post("/teams/{team_id}/members", response_model=MemberOut, status_code=201)
