@@ -668,7 +668,15 @@ Plans:
   3. The extension subscribes to its own `user:<sub>` channel and, on `open_url`, shows a native notification with the sender + full URL, and opens a tab (`chrome.tabs.create`) ONLY on the recipient's explicit click — never auto-open.
   4. A recipient-side "Allow open-link requests" toggle (default ON) suppresses the notification when off; offline/closed-browser delivery is documented as a residual, not promised.
 
-**Plans**: TBD (populated by `/gsd:plan-phase 22`)
+**Plans**: 3 plans
+Plans:
+
+- [ ] 22-01-PLAN.md — Server: POST /v1/teams/{id}/nudge-open (same-team publish to user:<sub>) + URL-safety guard + per-sender rate limit + real-Postgres gate
+- [ ] 22-02-PLAN.md — Extension receive: consent-gated open_url handler (no tabs capability) + recipient opt-out toggle + node tests
+- [ ] 22-03-PLAN.md — Wiring: user:<sub> subscription + notification-click→tab (background) + "send link to member" affordance + offline residual doc
+
+**Wave order**: 1 (22-01 server + 22-02 extension receive — parallel, disjoint file trees) → 2 (22-03 wiring + send affordance, depends on 22-01 endpoint + 22-02 handler)
+
 **UI hint**: yes (a small "send link to member" affordance + a recipient toggle)
 
 ## Progress
