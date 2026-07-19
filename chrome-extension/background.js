@@ -1304,3 +1304,40 @@ async function openPanelOrPopup(tab) {
     });
   }
 }
+
+// ── Push-a-link (Phase 22, Plan 22-03): the consent gesture ──────────────────
+//
+// When a teammate nudges the user with a URL, popup.js (via nudge_open.js) raises
+// an OS notification and stashes the url as chrome.storage.session["nudge_<id>"].
+// The tab is opened ONLY HERE, on the recipient's explicit click. That click is
+// BOTH the user's consent (D-22-02) and the browser-required user gesture for a
+// programmatic tab-open. This is the single place a nudge ever opens a tab —
+// nothing opens without the click (T-22-12). The pending url is removed the moment
+// the tab opens so no stale destination lingers in session storage (T-22-14).
+if (chrome.notifications && chrome.notifications.onClicked) {
+  chrome.notifications.onClicked.addListener(async (notificationId) => {
+    try {
+      if (
+        !notificationId ||
+        !chrome.storage ||
+        !chrome.storage.session ||
+        !chrome.tabs ||
+        !chrome.tabs.create
+      ) {
+        return;
+      }
+      const key = "nudge_" + notificationId;
+      const got = await chrome.storage.session.get(key);
+      const url = got && got[key];
+      if (!url) return; // not a pending nudge — ignore other notifications
+      chrome.tabs.create({ url });
+      await chrome.storage.session.remove(key);
+      if (chrome.notifications.clear) chrome.notifications.clear(notificationId);
+    } catch (e) {
+      console.warn(
+        "[xbrain] nudge click handler failed:",
+        e && e.message ? e.message : e,
+      );
+    }
+  });
+}
