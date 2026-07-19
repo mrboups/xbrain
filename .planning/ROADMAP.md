@@ -699,6 +699,21 @@ Plans:
 - [x] 23-04-PLAN.md — Extension: mark-read on focus/scroll + threshold-gated dismissible "Catch me up" banner + ephemeral summary render; popup contract test stays green
 **UI hint**: yes (a dismissible catch-me-up banner)
 
+### Phase 24: Document Body Extraction on Upload
+
+**Goal**: When a document is uploaded, its TEXT BODY (PDF/DOCX/Markdown/plain text) is extracted, chunked, and embedded via the existing local keyless embedder so it is semantically retrievable from the brain — not just the caption. Closes the Phase-16 SC#3 gap that `media.py` only embedded `caption or filename`.
+**Depends on**: Phase 19 (the local keyless embedder that embeds the chunks).
+**Requirements**: DOCBODY-01
+**Success Criteria** (what must be TRUE):
+
+  1. Uploading a real PDF / DOCX / text-or-markdown file whose BODY contains a distinctive phrase NOT in the caption/filename → the body is extracted, chunked, and each chunk is embedded as a memory_item linked to the MinIO object (media key + parent item) with the full 7-field tagging inherited from the upload — proven against a real Postgres + real Qdrant, no OpenAI key.
+  2. `memory_search` for the distinctive BODY phrase RETRIEVES the document keyless (proving the body, not the caption, is embedded); the embedder is NOT mocked (Phase-19 discipline).
+  3. Guards hold: an oversized body is TRUNCATED with a bounded chunk count (never crashes); a scanned/no-text-layer PDF yields a `no_text_layer` flag on the parent item and NO empty-body chunks (no OCR); an unknown/binary mime is skipped cleanly and the upload still succeeds; an extraction failure never breaks the upload.
+  4. The extraction libs (pypdf, python-docx — both pure-Python) resolve on arm64 AND amd64; embedding stays keyless.
+
+**Plans**: TBD (populated by `/gsd:plan-phase 24`)
+**UI hint**: no (a backend ingestion capability — no user-facing surface)
+
 ## Progress
 
 **Execution Order:**
