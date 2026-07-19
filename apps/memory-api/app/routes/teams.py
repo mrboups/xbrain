@@ -2,26 +2,31 @@
 
 import asyncio
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
 import httpx
 from cryptography.fernet import Fernet
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import write_audit
 from app.auth import is_admin
+from app.auth.oauth_tokens import hash_token
 from app.config import settings
 from app.db.session import async_session_factory
 from app.deps import get_current_principal, get_session
 from app.models.team import Team  # forward-typing for _require_team_admin
+from app.repos import team_invite_codes as invite_codes_repo
 from app.repos import teams as teams_repo
 from app.repos import users as users_repo
 from app.services import mention_detector
 from app.services.github_app_jwt import mint_app_jwt
 from app.services.github_installation import get_installation_token_for_org
+from app.services.rate_limit import enforce_rate_limit
 
 router = APIRouter()
 
@@ -365,6 +370,110 @@ async def search_teams(
         )
         for t in teams
     ]
+
+
+# ── join-by-code (Phase 25 / JOINCODE-01) — a STATIC path, above /{team_id} ──────
+
+
+class JoinByCodeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(..., min_length=1, max_length=128)
+
+
+class JoinByCodeOut(BaseModel):
+    team_id: str
+    slug: str
+    display_name: str
+    already_member: bool
+
+
+@router.post("/teams/join-by-code", response_model=JoinByCodeOut)
+async def join_by_code(
+    body: JoinByCodeBody,
+    request: Request,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Redeem an invite code to join the team it is bound to (any authenticated
+    caller — the code IS the authorization, D-25-03).
+
+    Rate-limited (D-25-04), idempotent (already-a-member is a 200 no-op with `uses`
+    untouched), and a NO-ORACLE endpoint: an unknown, revoked, expired, or exhausted
+    code all return the SAME generic 404 (D-25-02), so it never leaks which codes exist
+    or why one failed. team_scope integrity: the caller is added to the code's bound
+    team_id ONLY — a code carries no cross-team reach (T-25-10).
+    """
+    user = _require_user(principal)
+    # Brute-force defense in depth (T-25-09) — before any DB work.
+    await enforce_rate_limit(request, settings.JOIN_CODE_RATE_LIMIT, "join-by-code")
+
+    # Look up by hash (matches how the repo stores it) — no plaintext timing oracle.
+    code_hash = hash_token(body.code)
+    row = await invite_codes_repo.get_by_hash(session, code_hash=code_hash)
+    if row is None:
+        raise HTTPException(404, "invalid or expired invite code")  # generic — no oracle
+
+    team = await teams_repo.get_team_by_id(session, row.team_id)
+    if team is None:
+        # Team gone (CASCADE would normally remove the code too) — same generic message.
+        raise HTTPException(404, "invalid or expired invite code")
+
+    existing = await teams_repo.get_membership(
+        session, user_id=user.id, team_slug=team.slug
+    )
+    if existing is not None:
+        await session.commit()  # idempotent no-op — DO NOT increment uses (D-25-04).
+        return JoinByCodeOut(
+            team_id=str(team.id),
+            slug=team.slug,
+            display_name=team.display_name,
+            already_member=True,
+        )
+
+    redeemed = await invite_codes_repo.redeem_atomic(
+        session, code_id=row.id, now=datetime.now(tz=timezone.utc)
+    )
+    if redeemed is None:
+        # revoked / expired / exhausted -> SAME generic 404, no oracle (D-25-02).
+        raise HTTPException(404, "invalid or expired invite code")
+
+    # team_scope integrity: add the caller to row.team_id ONLY — the code carries no
+    # cross-team reach (D-25-04 / T-25-10). Guard the same-user double-submit race:
+    # the step-above get_membership check and this insert are not one atomic unit, so
+    # two concurrent requests from the SAME user with the same code can both pass the
+    # membership check and both reach here — the loser then hits the team_members
+    # (team_id, user_id) unique/PK violation. Catch it and return the idempotent 200
+    # instead of a 500. (redeem_atomic already consumed a use for the winner; the small
+    # over-count on a same-user double-click is acceptable — the caller ends up a member
+    # exactly once, which is the invariant that matters.)
+    try:
+        await teams_repo.add_member(
+            session, team_id=row.team_id, user_id=user.id, role=redeemed.role
+        )
+    except IntegrityError:  # the concurrent-insert loser
+        await session.rollback()
+        return JoinByCodeOut(
+            team_id=str(team.id),
+            slug=team.slug,
+            display_name=team.display_name,
+            already_member=True,
+        )
+
+    await write_audit(
+        session,
+        actor_user_id=user.id,
+        team_scope=team.slug,
+        action="teams.join_by_code",
+        target_id=str(team.id),
+        payload={"code_prefix": row.code_prefix, "role": redeemed.role},  # NO plaintext/hash
+    )
+    await session.commit()
+    return JoinByCodeOut(
+        team_id=str(team.id),
+        slug=team.slug,
+        display_name=team.display_name,
+        already_member=False,
+    )
 
 
 _GH_HEADERS = {
@@ -1112,6 +1221,183 @@ async def list_org_blocks_endpoint(
             )
         )
     return out
+
+
+# ── Invite codes (Phase 25 / JOINCODE-01) ───────────────────────────────────────
+#
+# A join code is a BEARER SECRET to the team-scoped brain. Mint / list / revoke are
+# team-admin-gated (D-25-03); the plaintext is revealed exactly once at mint and never
+# persisted or serialised again (only its sha256 hash reaches the DB, Plan 01). The
+# join endpoint itself lives up in the static-path section (POST /teams/join-by-code).
+
+
+class InviteCodeMintBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    role: str = Field(default="member", pattern=r"^(admin|member)$")
+    expires_in_days: int | None = Field(default=None, ge=1, le=365)
+    max_uses: int | None = Field(default=None, ge=1, le=100000)
+
+
+class InviteCodeMintOut(BaseModel):
+    # Returned ONCE at mint — `code` is the one-time plaintext reveal (D-25-01).
+    id: str
+    code: str
+    code_prefix: str
+    role: str
+    expires_at: str | None = None
+    max_uses: int | None = None
+
+
+class InviteCodeOut(BaseModel):
+    # List item — NEVER carries code_hash or the plaintext (D-25-03). The secret
+    # cannot be serialised by construction: there is no field for it here.
+    id: str
+    code_prefix: str
+    role: str
+    uses: int
+    max_uses: int | None = None
+    expires_at: str | None = None
+    revoked_at: str | None = None
+    created_at: str
+
+
+@router.post(
+    "/teams/{team_id}/invite-codes",
+    response_model=InviteCodeMintOut,
+    status_code=201,
+)
+async def mint_invite_code(
+    team_id: UUID,
+    body: InviteCodeMintBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Mint a shareable invite code for this team (team-admin only, D-25-03).
+
+    The plaintext `code` is returned in THIS response exactly once (D-25-01) — the DB
+    stores only its sha256 hash, so it can never be recovered afterwards; the admin UI
+    must copy it now. Neither the plaintext nor the hash is ever logged or audited.
+    """
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    actor = await _require_team_admin(principal, team, session)
+
+    # Effective expiry: explicit override -> config default (days) -> None (no expiry).
+    if body.expires_in_days is not None:
+        expires_at = datetime.now(tz=timezone.utc) + timedelta(
+            days=body.expires_in_days
+        )
+    elif settings.JOIN_CODE_DEFAULT_EXPIRY_DAYS > 0:
+        expires_at = datetime.now(tz=timezone.utc) + timedelta(
+            days=settings.JOIN_CODE_DEFAULT_EXPIRY_DAYS
+        )
+    else:
+        expires_at = None
+
+    # Effective max_uses: explicit override -> config default -> None; 0 maps to None
+    # (unlimited).
+    if body.max_uses is not None:
+        max_uses = body.max_uses
+    else:
+        max_uses = settings.JOIN_CODE_DEFAULT_MAX_USES or None
+
+    row, plaintext = await invite_codes_repo.mint_code(
+        session,
+        team_id=team.id,
+        created_by_user_id=actor.id,
+        role=body.role,
+        expires_at=expires_at,
+        max_uses=max_uses,
+    )
+    expires_iso = expires_at.isoformat() if expires_at else None
+    await write_audit(
+        session,
+        actor_user_id=actor.id,
+        team_scope=team.slug,
+        action="invite_code.mint",
+        target_id=str(row.id),
+        payload={
+            "code_prefix": row.code_prefix,
+            "role": row.role,
+            "expires_at": expires_iso,
+            "max_uses": max_uses,
+        },  # NO plaintext, NO hash — only the non-secret prefix + metadata.
+    )
+    await session.commit()
+    # `code` (the plaintext) is present ONLY in this response — the one-time reveal.
+    return InviteCodeMintOut(
+        id=str(row.id),
+        code=plaintext,
+        code_prefix=row.code_prefix,
+        role=row.role,
+        expires_at=expires_iso,
+        max_uses=max_uses,
+    )
+
+
+@router.get(
+    "/teams/{team_id}/invite-codes", response_model=list[InviteCodeOut]
+)
+async def list_invite_codes(
+    team_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """List this team's invite codes (team-admin only, D-25-03). Serialises metadata +
+    code_prefix + counts ONLY — InviteCodeOut has no code_hash and no plaintext field,
+    so the secret cannot leak by construction (T-25-07)."""
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    await _require_team_admin(principal, team, session)
+    rows = await invite_codes_repo.list_codes(session, team_id=team_id)
+    return [
+        InviteCodeOut(
+            id=str(r.id),
+            code_prefix=r.code_prefix,
+            role=r.role,
+            uses=r.uses,
+            max_uses=r.max_uses,
+            expires_at=r.expires_at.isoformat() if r.expires_at else None,
+            revoked_at=r.revoked_at.isoformat() if r.revoked_at else None,
+            created_at=r.created_at.isoformat(),
+        )
+        for r in rows
+    ]
+
+
+@router.delete("/teams/{team_id}/invite-codes/{code_id}", status_code=204)
+async def revoke_invite_code(
+    team_id: UUID,
+    code_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+):
+    """Soft-revoke an invite code (team-admin only, D-25-03). Sets revoked_at; the row
+    stays for the audit trail. Scoped to this team so one team can never revoke another
+    team's code (team_scope integrity)."""
+    from fastapi.responses import Response
+
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    actor = await _require_team_admin(principal, team, session)
+    updated = await invite_codes_repo.revoke_code(
+        session, team_id=team.id, code_id=code_id
+    )
+    if updated is None:
+        raise HTTPException(404, "invite code not found")
+    await write_audit(
+        session,
+        actor_user_id=actor.id,
+        team_scope=team.slug,
+        action="invite_code.revoke",
+        target_id=str(code_id),
+        payload={},
+    )
+    await session.commit()
+    return Response(status_code=204)
 
 
 @router.post("/teams/{team_id}/join", status_code=204)
