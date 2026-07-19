@@ -68,6 +68,13 @@ const FROZEN_IDS = [
   "btn-clip-cancel",
   "btn-clip-send",
   "clip-use-defaults",
+  // Plan 23-04 — catch-me-up banner + ephemeral summary ids.
+  "catchup-banner",
+  "catchup-banner-text",
+  "btn-catchup-run",
+  "btn-catchup-dismiss",
+  "catchup-summary",
+  "btn-catchup-summary-close",
 ];
 
 // Every class popup.js emits on nodes it builds, or toggles at runtime, and
@@ -534,6 +541,38 @@ for (const sel of [".xb-msg-avatar", ".xb-group-avatar"]) {
     );
   });
 }
+
+// ===========================================================================
+// 6. Plan 23-04 — catch-me-up ordering (checker BLOCKER).
+//
+// In switchTeam(), refreshUnreadBanner() MUST run BEFORE the initial markRead():
+// the banner count is captured against the STALE, pre-visit read cursor. If
+// markRead() advanced the cursor first, unread-summary would always return 0 and
+// the banner would never show. This asserts the textual order inside the
+// switchTeam body and goes RED if the two calls are ever swapped.
+// ===========================================================================
+
+test("catch-me-up ordering: refreshUnreadBanner precedes the initial markRead in switchTeam", () => {
+  const m = /async\s+function\s+switchTeam\s*\([^)]*\)\s*\{/.exec(popupJs);
+  assert.ok(m, "popup.js has no switchTeam() function");
+  const rawBody = braceBlock(popupJs, m.index);
+  assert.ok(rawBody, "could not extract the switchTeam() body");
+  // Strip comments first — a comment that MENTIONS markRead()/refreshUnreadBanner()
+  // must not be mistaken for a call site (the ordering rationale is documented
+  // inline right next to the calls).
+  const body = rawBody
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\n]*/g, "");
+  const iBanner = body.indexOf("refreshUnreadBanner(");
+  const iMark = body.indexOf("markRead(");
+  assert.ok(iBanner !== -1, "switchTeam must call refreshUnreadBanner()");
+  assert.ok(iMark !== -1, "switchTeam must call markRead() after the banner is captured");
+  assert.ok(
+    iBanner < iMark,
+    "refreshUnreadBanner() must textually PRECEDE the initial markRead() in switchTeam — " +
+      "otherwise mark-read bumps the read cursor to now() and the banner count is always 0",
+  );
+});
 
 // ---------------------------------------------------------------------------
 // ENHANCEMENT (not part of the gate): richer DOM smoke when jsdom is present.

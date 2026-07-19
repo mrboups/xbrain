@@ -416,6 +416,122 @@
   color: var(--xb-text);
 }
 
+/* ========================================================================
+ * Catch-me-up banner + ephemeral summary (Phase 23, D-23-03 / D-23-04)
+ *
+ * A dismissible, threshold-gated banner pinned to the TOP of #chat-body and the
+ * ephemeral streamed-summary panel below it. Both use the existing shadcn
+ * Neutral tokens ONLY (radius 0 via var(--radius), --card / --border /
+ * --muted-fg / --primary), so a theme switch carries them for free — no raw
+ * hex, no 50% radius, no external font. The summary text renders via
+ * textContent (XSS-safe) and is never inserted into the message list.
+ * ====================================================================== */
+
+.xb-catchup-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 13px;
+  background: var(--card);
+  color: var(--fg);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.xb-catchup-banner[hidden] { display: none; }
+
+.xb-catchup-banner-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted-fg);
+}
+
+.xb-catchup-banner-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.xb-catchup-run {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.xb-catchup-run:hover { opacity: 0.9; }
+.xb-catchup-run:disabled {
+  background: var(--muted);
+  color: var(--muted-fg);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+#btn-catchup-run:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.xb-catchup-dismiss,
+.xb-catchup-summary-close {
+  background: transparent;
+  color: var(--muted-fg);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.xb-catchup-dismiss:hover,
+.xb-catchup-summary-close:hover { background: var(--muted); color: var(--fg); }
+#btn-catchup-dismiss:focus-visible,
+#btn-catchup-summary-close:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.xb-catchup-summary {
+  padding: 10px 13px;
+  background: var(--card);
+  color: var(--fg);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-height: 42%;
+  overflow-y: auto;
+}
+.xb-catchup-summary[hidden] { display: none; }
+
+.xb-catchup-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.xb-catchup-summary-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-fg);
+}
+
+.xb-catchup-summary-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* === Message rows — shadcn Neutral (Plan 20-03) ===
  *
  * Mirrors the mockup's .row / .avatar / .stack / .bubble / .meta structure on

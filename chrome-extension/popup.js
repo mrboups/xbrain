@@ -58,6 +58,17 @@ const state = {
   // server is authoritative for the actual summon.
   agentAliases: ["agent"],
   mentionRe: buildMentionRegex(["agent"]),
+  // Catch-me-up (Phase 23, CATCHUP-01). The banner count is captured against
+  // the STALE, pre-visit read cursor on team open (see switchTeam ordering).
+  //   markReadInFlight — dedupe guard so scroll/focus don't spam POST /mark-read
+  //   since           — the current unread window (`since` from unread-summary)
+  //   dismissedSince  — the window the user dismissed; suppresses re-nag for the
+  //                     SAME window (undefined = nothing dismissed yet)
+  catchup: {
+    markReadInFlight: false,
+    since: null,
+    dismissedSince: undefined,
+  },
 };
 
 // ---------- DOM refs ----------
@@ -74,6 +85,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   wireComposer();
   wireClipOverlay();
   wireSendLink();
+  wireCatchup();
   await boot();
 });
 
@@ -567,7 +579,44 @@ function subscribeUserChannel() {
  * @param {{type?: string}|null|undefined} data
  */
 async function handleUserPublication(data) {
-  if (!data || data.type !== "open_url") return;
+  if (!data || !data.type) return;
+
+  // Ephemeral "Catch me up" summary frames (Phase 23, D-23-04). They arrive on
+  // the caller's OWN user channel, render into #catchup-summary-text via
+  // textContent (XSS-safe, T-23-08), and are NEVER inserted into #message-list
+  // nor persisted. The open_url branch below is preserved unchanged.
+  if (data.type === "catchup_stream_start") {
+    const textEl = $("catchup-summary-text");
+    const panel = $("catchup-summary");
+    if (textEl) textEl.textContent = "";
+    if (panel) panel.hidden = false;
+    return;
+  }
+  if (data.type === "catchup_stream_chunk") {
+    const textEl = $("catchup-summary-text");
+    if (textEl && typeof data.delta === "string") {
+      textEl.textContent += data.delta;
+    }
+    return;
+  }
+  if (data.type === "catchup_stream_end") {
+    // Empty-window close frame carries a `note` and no streamed text — surface
+    // it so the panel isn't left blank.
+    const textEl = $("catchup-summary-text");
+    if (textEl && data.note && !textEl.textContent) {
+      textEl.textContent = data.note;
+    }
+    return;
+  }
+  if (data.type === "catchup_stream_error") {
+    const textEl = $("catchup-summary-text");
+    if (textEl) {
+      textEl.textContent += `\n\n(error: ${data.error || "unknown"})`;
+    }
+    return;
+  }
+
+  if (data.type !== "open_url") return;
   try {
     await handleOpenUrl(data, {
       getSettings: () => loadSettings(chrome.storage.sync),
@@ -599,6 +648,13 @@ async function switchTeam(teamId) {
   state.streamBuffer = new StreamBuffer();
   state.oldestLoadedTs = null;
   state.initialLoaded = false;
+  // Reset catch-me-up UI/state — dismissal and window are per-team-visit.
+  state.catchup.since = null;
+  state.catchup.dismissedSince = undefined;
+  const prevBanner = $("catchup-banner");
+  if (prevBanner) prevBanner.hidden = true;
+  const prevSummary = $("catchup-summary");
+  if (prevSummary) prevSummary.hidden = true;
   clearMessageList();
   setPresence(0);
 
@@ -616,6 +672,183 @@ async function switchTeam(teamId) {
   await refreshAgentAliases();
 
   await loadInitialHistory();
+
+  // CATCH-ME-UP ordering is LOAD-BEARING (checker BLOCKER, D-23-03): capture the
+  // unread banner against the STALE, pre-visit read cursor FIRST, THEN advance
+  // the cursor with markRead(). If markRead ran first it would bump the cursor
+  // to now() and the banner count would always be 0. Do NOT call markRead from
+  // the initial-load path before the banner is captured.
+  await refreshUnreadBanner();
+  await markRead();
+}
+
+// ---------- Catch me up (Phase 23, CATCHUP-01) ----------
+//
+// mark-read on focus / scroll-to-bottom, a threshold-gated opt-in banner, and
+// the ephemeral streamed summary. The server is the single source of truth for
+// both the unread count AND the threshold (mirrors refreshAgentAliases); the
+// client never auto-runs the (paid) summary — only the run-button click POSTs
+// catch-me-up (T-23-03).
+
+/**
+ * Advance the caller's OWN read cursor for the active team (POST /mark-read).
+ * Fail-soft (no UI on error) and de-duped: a call while one is already in flight
+ * is a no-op so the scroll listener + focus handler can't spam the endpoint.
+ * The endpoint takes no body — a caller can only ever move their own cursor.
+ */
+async function markRead() {
+  if (!state.activeTeamId) return;
+  if (state.catchup.markReadInFlight) return;
+  state.catchup.markReadInFlight = true;
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    if (!xbt_token) return;
+    await fetch(`${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/mark-read`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${xbt_token}` },
+    });
+  } catch (e) {
+    console.warn("[xbrain] mark-read failed:", e);
+  } finally {
+    state.catchup.markReadInFlight = false;
+  }
+}
+
+/**
+ * Poll GET /unread-summary for the active team and show the threshold-gated
+ * banner. The server returns {count, since, threshold}; the banner shows ONLY
+ * when count >= threshold (both from the response — server is authoritative,
+ * never a client-side threshold). A dismissed `since` window stays hidden so we
+ * don't re-nag (T-23-10). Fail-soft: on any error the previous UI is kept.
+ */
+async function refreshUnreadBanner() {
+  if (!state.activeTeamId) return;
+  const banner = $("catchup-banner");
+  const textEl = $("catchup-banner-text");
+  if (!banner || !textEl) return;
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    if (!xbt_token) return;
+    const data = await fetchJson(
+      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/unread-summary`,
+      xbt_token,
+    );
+    const count = Number(data && data.count) || 0;
+    const threshold = Number(data && data.threshold) || 0;
+    const since = data && data.since != null ? data.since : null;
+    state.catchup.since = since;
+
+    // Below the server threshold → no affordance at all (never nag on a quiet
+    // thread, and below-threshold means the run button is unreachable → no
+    // accidental LLM spend, T-23-03).
+    if (threshold <= 0 || count < threshold) {
+      banner.hidden = true;
+      return;
+    }
+    // Already dismissed for THIS exact window → stay hidden (don't re-nag).
+    if (
+      state.catchup.dismissedSince !== undefined &&
+      state.catchup.dismissedSince === since
+    ) {
+      banner.hidden = true;
+      return;
+    }
+    const noun = count === 1 ? "message" : "messages";
+    textEl.textContent = `You have ${count} new ${noun} since your last visit.`;
+    banner.hidden = false;
+  } catch (e) {
+    console.warn("[xbrain] unread-summary refresh failed:", e);
+  }
+}
+
+/**
+ * Wire the static catch-me-up controls once at boot: the run button (the ONLY
+ * place catch-me-up is ever POSTed — no auto-run), the dismiss button (records
+ * the dismissed window), the summary close button, and mark-read on window
+ * focus when a team is active.
+ */
+function wireCatchup() {
+  const runBtn = $("btn-catchup-run");
+  if (runBtn) runBtn.addEventListener("click", runCatchMeUp);
+
+  const dismissBtn = $("btn-catchup-dismiss");
+  if (dismissBtn) {
+    dismissBtn.addEventListener("click", () => {
+      state.catchup.dismissedSince = state.catchup.since;
+      const banner = $("catchup-banner");
+      if (banner) banner.hidden = true;
+    });
+  }
+
+  const summaryCloseBtn = $("btn-catchup-summary-close");
+  if (summaryCloseBtn) {
+    summaryCloseBtn.addEventListener("click", () => {
+      const panel = $("catchup-summary");
+      if (panel) panel.hidden = true;
+    });
+  }
+
+  // Mark-read when the popup/side-panel regains focus and a team is open.
+  window.addEventListener("focus", () => {
+    if (state.activeTeamId) markRead();
+  });
+}
+
+/**
+ * Opt-in "Catch me up" — the ONLY caller of POST /catch-me-up (never auto-run,
+ * T-23-03). On 202 the summary streams to the caller's own user channel, so we
+ * hide the banner and reveal the ephemeral panel with a placeholder. On 200
+ * (nothing_to_summarize) we hide quietly. On 429 / other we surface a short
+ * English status in the banner and leave it visible.
+ */
+async function runCatchMeUp() {
+  if (!state.activeTeamId) return;
+  const runBtn = $("btn-catchup-run");
+  const banner = $("catchup-banner");
+  const bannerText = $("catchup-banner-text");
+  if (runBtn) runBtn.disabled = true;
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    const res = await fetch(
+      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/catch-me-up`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${xbt_token}` },
+      },
+    );
+    if (res.status === 202) {
+      if (banner) banner.hidden = true;
+      showCatchupSummary("Summarizing…");
+    } else if (res.status === 200) {
+      // nothing_to_summarize — nothing changed since the cursor; hide quietly.
+      if (banner) banner.hidden = true;
+    } else if (res.status === 429) {
+      if (bannerText) {
+        bannerText.textContent = "Rate-limited — try again in a moment.";
+      }
+    } else {
+      if (bannerText) {
+        bannerText.textContent = `Could not summarize (HTTP ${res.status}).`;
+      }
+    }
+  } catch (e) {
+    console.warn("[xbrain] catch-me-up failed:", e);
+    if (bannerText) bannerText.textContent = "Network error — try again.";
+  } finally {
+    if (runBtn) runBtn.disabled = false;
+  }
+}
+
+/**
+ * Reveal the ephemeral summary panel with a placeholder while the stream fills
+ * it. The streamed deltas replace/append the text via textContent in
+ * handleUserPublication (XSS-safe). Never touches #message-list.
+ */
+function showCatchupSummary(placeholder) {
+  const textEl = $("catchup-summary-text");
+  const panel = $("catchup-summary");
+  if (textEl) textEl.textContent = placeholder || "";
+  if (panel) panel.hidden = false;
 }
 
 // Fetch the active team's EFFECTIVE agent-alias list and rebuild the client
@@ -1095,9 +1328,19 @@ function wireComposer() {
     if (file) await uploadFile(file);
   });
 
-  // Scroll-up history paging.
+  // Scroll-up history paging + mark-read at the bottom.
   $("chat-scroll").addEventListener("scroll", () => {
-    if ($("chat-scroll").scrollTop < 80) loadOlderPage();
+    const el = $("chat-scroll");
+    if (el.scrollTop < 80) loadOlderPage();
+    // Mark-read once the user reaches the bottom (reuse the ~120px near-bottom
+    // test from scrollToBottom). markRead() is fail-soft and de-dupes in-flight
+    // calls, so this can fire on every scroll frame without spamming the server.
+    if (
+      state.activeTeamId &&
+      el.scrollHeight - el.scrollTop - el.clientHeight < 120
+    ) {
+      markRead();
+    }
   });
 }
 

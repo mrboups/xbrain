@@ -131,6 +131,26 @@
 
     <!-- Chat body — message stream -->
     <main id="chat-body" class="xb-chat-body" aria-live="polite">
+      <!-- Catch-me-up banner (Phase 23, D-23-03) — dismissible, threshold-gated,
+           opt-in. Hidden until unread-summary.count >= the server threshold. It
+           NEVER auto-runs the summary; the user clicks "Catch me up" to trigger it. -->
+      <div id="catchup-banner" class="xb-catchup-banner" role="status" hidden>
+        <span id="catchup-banner-text" class="xb-catchup-banner-text"></span>
+        <div class="xb-catchup-banner-actions">
+          <button type="button" id="btn-catchup-run" class="xb-catchup-run">Catch me up</button>
+          <button type="button" id="btn-catchup-dismiss" class="xb-catchup-dismiss" title="Dismiss" aria-label="Dismiss">✕</button>
+        </div>
+      </div>
+      <!-- Ephemeral catch-me-up summary (Phase 23, D-23-04) — the streamed summary
+           renders into #catchup-summary-text via textContent (XSS-safe) and is
+           NOT inserted into the message list nor persisted. Dismissible. -->
+      <div id="catchup-summary" class="xb-catchup-summary" hidden>
+        <div class="xb-catchup-summary-head">
+          <span class="xb-catchup-summary-title">Catch me up</span>
+          <button type="button" id="btn-catchup-summary-close" class="xb-catchup-summary-close" title="Close" aria-label="Close">✕</button>
+        </div>
+        <div id="catchup-summary-text" class="xb-catchup-summary-text"></div>
+      </div>
       <div id="chat-scroll" class="xb-chat-scroll">
         <div id="history-loader" class="xb-history-loader" hidden>Loading older messages…</div>
         <div id="message-list"></div>
