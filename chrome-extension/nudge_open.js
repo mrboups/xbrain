@@ -39,7 +39,12 @@ export function isSafeHttpUrl(url) {
   } catch {
     return false;
   }
-  return parsed.protocol === "http:" || parsed.protocol === "https:";
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  // Reject embedded userinfo (WR-01): "https://trusted.example@evil.example/x"
+  // looks like trusted.example but resolves to evil.example — a spoof that
+  // defeats showing the recipient the real destination host.
+  if (parsed.username !== "" || parsed.password !== "") return false;
+  return true;
 }
 
 /**

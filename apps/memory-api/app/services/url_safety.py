@@ -59,5 +59,10 @@ def is_safe_nudge_url(url: str, *, max_len: int = 2048) -> bool:
         return False
     if not parts.netloc:  # host must be present (rejects "http://", scheme-relative)
         return False
+    # Reject embedded userinfo (WR-01): "https://trusted.example@evil.example/x"
+    # renders as if it points at trusted.example but actually resolves to
+    # evil.example — a spoof that defeats "show the recipient the real host".
+    if parts.username is not None or parts.password is not None or "@" in parts.netloc:
+        return False
 
     return True

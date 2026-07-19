@@ -314,14 +314,30 @@ async def nudge_open(
     # 1. Sender membership (also resolves the Team → 404 if it doesn't exist).
     team = await _resolve_team_and_check_membership(session, sender.id, team_id)
 
-    # 2. Resolve the target and assert SAME-TEAM membership. A single check covers
-    #    both "user isn't a member" and "user belongs to a different team" — either
-    #    way get_membership(target.id, team.slug) is None → 403, no publish.
+    # 2. Resolve the target and assert SAME-TEAM, NON-BLOCKED membership. A single
+    #    uniform 403 covers "user isn't a member", "belongs to a different team",
+    #    AND "is blocked" (WR-03) — a blocked member must not be a nudge target,
+    #    consistent with the block-enforcement pattern elsewhere (deps.py). The
+    #    identical error text also avoids an existence-enumeration oracle.
     target = await users_repo.get_user_by_id(session, body.target_user_id)
-    if target is None or await teams_repo.get_membership(
-        session, user_id=target.id, team_slug=team.slug
-    ) is None:
+    target_membership = (
+        None
+        if target is None
+        else await teams_repo.get_membership(
+            session, user_id=target.id, team_slug=team.slug
+        )
+    )
+    if (
+        target is None
+        or target_membership is None
+        or target_membership.blocked_at is not None
+    ):
         raise HTTPException(403, "target is not a member of this team")
+
+    # 2b. No self-nudge (IN-01) — server-side, not just the UI guard. Nudging
+    #     yourself is meaningless and would notify your own other sessions.
+    if target.id == sender.id:
+        raise HTTPException(422, "cannot nudge yourself")
 
     # 3. URL safety (D-22-03) — lexical only; read the tunable cap at REQUEST time
     #    so a test monkeypatching the settings singleton takes effect.

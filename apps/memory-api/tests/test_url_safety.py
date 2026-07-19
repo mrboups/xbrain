@@ -56,6 +56,20 @@ def test_rejects_malformed(url: str) -> None:
     assert is_safe_nudge_url(url) is False
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://trusted.example@evil.example/x",   # WR-01 userinfo spoof
+        "http://user:pw@evil.example/login",        # userinfo with password
+        "https://good.example@127.0.0.1/x",
+    ],
+)
+def test_rejects_embedded_userinfo(url: str) -> None:
+    # A URL that renders like trusted.example but resolves to evil.example must
+    # be rejected — it defeats "show the recipient the real destination host".
+    assert is_safe_nudge_url(url) is False
+
+
 @pytest.mark.parametrize("bad", [None, 123, b"https://x", ["https://x"], {}])
 def test_rejects_non_str(bad) -> None:
     assert is_safe_nudge_url(bad) is False  # type: ignore[arg-type]

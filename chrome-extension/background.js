@@ -1330,8 +1330,27 @@ if (chrome.notifications && chrome.notifications.onClicked) {
       const got = await chrome.storage.session.get(key);
       const url = got && got[key];
       if (!url) return; // not a pending nudge — ignore other notifications
-      chrome.tabs.create({ url });
+      // Consume the pending entry BEFORE opening (IN-02): a rapid double-click
+      // then finds no key and can't open a second tab.
       await chrome.storage.session.remove(key);
+      // Re-validate at the point of action (WR-02) — defense in depth: never
+      // trust a URL pulled from storage; only open a well-formed http/https link
+      // with no embedded userinfo (mirrors isSafeHttpUrl).
+      let ok = false;
+      try {
+        const u = new URL(url);
+        ok =
+          (u.protocol === "http:" || u.protocol === "https:") &&
+          u.username === "" &&
+          u.password === "";
+      } catch {
+        ok = false;
+      }
+      if (!ok) {
+        if (chrome.notifications.clear) chrome.notifications.clear(notificationId);
+        return;
+      }
+      chrome.tabs.create({ url });
       if (chrome.notifications.clear) chrome.notifications.clear(notificationId);
     } catch (e) {
       console.warn(
