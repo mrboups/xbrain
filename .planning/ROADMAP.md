@@ -720,6 +720,21 @@ Plans:
 
 **UI hint**: no (a backend ingestion capability — no user-facing surface)
 
+### Phase 25: Team Join-by-Code
+
+**Goal**: A team admin can mint a shareable, revocable, expiring, max-uses-limited invite code; any authenticated user who submits it joins the team chat — no individual invite needed. The code is a bearer secret to the team-scoped brain, so it is stored hashed, returned once, and every guard (revoke/expiry/max-uses/team-binding) is enforced at redemption.
+**Depends on**: Phase 18 (email/password so a redeemer can have an account frictionlessly) — soft.
+**Requirements**: JOINCODE-01
+**Success Criteria** (what must be TRUE):
+
+  1. `POST /v1/teams/{id}/invite-codes` (team-admin only) mints a random `xbi_` code, stores ONLY its sha256 hash, and returns the plaintext exactly once — proven against a real Postgres (the plaintext is absent from the row; the stored hash matches); a non-admin caller gets 403.
+  2. `POST /v1/teams/join-by-code {code}` adds the caller to THAT team (a team_members row) and increments `uses`; already-a-member is a 200 no-op (uses unchanged); the endpoint is rate-limited; a wrong/garbage code returns a generic 404 (no oracle).
+  3. Every security guard holds, proven live: a REVOKED code is rejected; an EXPIRED code is rejected; a max-uses-reached code is rejected AND two racing redemptions cannot exceed max_uses (atomic increment); a code for team A can never add the caller to team B (team_scope isolation via a decoy team).
+  4. Migration 0027 (down_revision 0026, additive, no EDITION branch) upgrades clean under EDITION=oss AND saas; a minimal English-only "create invite link" + "join by code" action lands in the extension Settings surface (contract test extended).
+
+**Plans**: TBD (populated by `/gsd:plan-phase 25`)
+**UI hint**: yes (extension Settings: mint/copy an invite link + a paste-code-to-join field)
+
 ## Progress
 
 **Execution Order:**
