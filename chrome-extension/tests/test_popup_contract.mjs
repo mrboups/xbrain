@@ -169,6 +169,27 @@ for (const id of FROZEN_IDS) {
   });
 }
 
+// ---- 1b. FULL referenced-id existence (Plan 22-03) ----
+//
+// FROZEN_IDS only guards the pre-existing hard-dependency ids. But EVERY id
+// popup.js binds via getElementById / $() / a "#id" selector must also exist in
+// popup.html — a missing one makes getElementById return null, and the very next
+// `.addEventListener` throws at popup init, breaking the WHOLE popup (not just
+// the new control). This asserts every id popup.js references resolves in
+// popup.html, so a popup.js↔popup.html id mismatch (e.g. the Plan 22-03
+// send-link affordance: #btn-send-link, #sendlink-panel, #sendlink-member,
+// #sendlink-url, #btn-sendlink-submit, #sendlink-status, …) goes RED here
+// instead of at runtime.
+
+for (const id of [...REFERENCED].sort()) {
+  test(`referenced id exists in popup.html: #${id}`, () => {
+    assert.ok(
+      popupHtml.includes(`id="${id}"`),
+      `popup.js binds #${id} but popup.html has no id="${id}" — getElementById("${id}") would return null and break popup init`,
+    );
+  });
+}
+
 // ---- 2. Class contract ----
 
 for (const cls of FROZEN_CLASSES) {

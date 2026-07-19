@@ -73,6 +73,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   wireConnectionCard();
   wireComposer();
   wireClipOverlay();
+  wireSendLink();
   await boot();
 });
 
@@ -150,6 +151,158 @@ function wireHeader() {
   if (btnAddToMemory) {
     btnAddToMemory.addEventListener("click", openClipOverlay);
   }
+}
+
+// ---------- Send-link affordance (Phase 22, D-22-05) ----------
+//
+// A small no-navigation control in the header opens an overlay to pick a
+// SAME-TEAM member + a URL and POST the Plan-01 nudge-open endpoint. Every
+// server-side check (target membership, url scheme, per-sender rate limit) is
+// authoritative; the client isSafeHttpUrl pre-check is UX only, NOT the security
+// boundary (T-22-13). The recipient still has to click their notification for a
+// tab to open (D-22-02) — this control only sends the request.
+
+function wireSendLink() {
+  const openBtn = $("btn-send-link");
+  if (openBtn) openBtn.addEventListener("click", openSendLink);
+  const closeBtn = $("btn-sendlink-close");
+  if (closeBtn) closeBtn.addEventListener("click", closeSendLink);
+  const cancelBtn = $("btn-sendlink-cancel");
+  if (cancelBtn) cancelBtn.addEventListener("click", closeSendLink);
+  const submitBtn = $("btn-sendlink-submit");
+  if (submitBtn) submitBtn.addEventListener("click", submitSendLink);
+}
+
+async function openSendLink() {
+  const panel = $("sendlink-panel");
+  if (!panel) return;
+  panel.hidden = false;
+  setSendLinkStatus("", "");
+  await populateSendLinkMembers();
+}
+
+function closeSendLink() {
+  const panel = $("sendlink-panel");
+  if (panel) panel.hidden = true;
+}
+
+// Lazily fetch the active team's members and fill the picker, excluding the
+// current user (you cannot nudge yourself) and any blocked member.
+async function populateSendLinkMembers() {
+  const select = $("sendlink-member");
+  if (!select) return;
+  if (!state.activeTeamId) {
+    select.innerHTML = `<option value="" disabled selected>No active team</option>`;
+    return;
+  }
+  select.innerHTML = `<option value="" disabled selected>Loading members…</option>`;
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    const members = await fetchJson(
+      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/members`,
+      xbt_token,
+    );
+    const myId = state.me && state.me.id;
+    const others = (Array.isArray(members) ? members : []).filter(
+      (m) => m.user_id !== myId && !m.blocked_at,
+    );
+    if (!others.length) {
+      select.innerHTML = `<option value="" disabled selected>No other members on this team</option>`;
+      return;
+    }
+    select.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    placeholder.textContent = "Choose a member…";
+    select.appendChild(placeholder);
+    for (const m of others) {
+      const opt = document.createElement("option");
+      opt.value = m.user_id;
+      // display_name / email are server-provided; use textContent (no innerHTML).
+      opt.textContent = m.display_name || m.email || m.user_id;
+      select.appendChild(opt);
+    }
+  } catch (e) {
+    console.warn("[xbrain] send-link members fetch failed:", e);
+    select.innerHTML = `<option value="" disabled selected>Couldn't load members</option>`;
+  }
+}
+
+// Validate + POST the nudge. The client scheme pre-check blocks the obvious
+// cases early; the server re-validates and is the real boundary.
+async function submitSendLink() {
+  const select = $("sendlink-member");
+  const urlInput = $("sendlink-url");
+  const submitBtn = $("btn-sendlink-submit");
+  if (!select || !urlInput) return;
+
+  const targetUserId = select.value;
+  const url = urlInput.value.trim();
+  if (!targetUserId) {
+    setSendLinkStatus("Pick a team member first.", "error");
+    return;
+  }
+  if (!isSafeHttpUrl(url)) {
+    setSendLinkStatus("Enter a valid http or https link.", "error");
+    return;
+  }
+  if (!state.activeTeamId) {
+    setSendLinkStatus("No active team.", "error");
+    return;
+  }
+
+  if (submitBtn) submitBtn.disabled = true;
+  setSendLinkStatus("Sending…", "loading");
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    const res = await fetch(
+      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/nudge-open`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${xbt_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ target_user_id: targetUserId, url }),
+      },
+    );
+    if (res.status === 202) {
+      setSendLinkStatus("Sent ✓", "success");
+      urlInput.value = "";
+    } else {
+      setSendLinkStatus(mapNudgeError(res.status), "error");
+    }
+  } catch (e) {
+    console.warn("[xbrain] send-link POST failed:", e);
+    setSendLinkStatus("Network error — try again.", "error");
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+// Map the nudge-open endpoint's rejection codes to clear English text.
+function mapNudgeError(status) {
+  if (status === 403) return "That member is not on this team.";
+  if (status === 422) return "That link was rejected — use a plain http/https URL.";
+  if (status === 429) return "Too many link requests — wait a moment and retry.";
+  if (status === 404) return "Team not found.";
+  return `Could not send (HTTP ${status}).`;
+}
+
+function setSendLinkStatus(text, type) {
+  const el = $("sendlink-status");
+  if (!el) return;
+  if (!text) {
+    el.hidden = true;
+    el.textContent = "";
+    el.className = "";
+    return;
+  }
+  el.hidden = false;
+  el.textContent = text;
+  el.className = type || "";
 }
 
 // ---------- Theme (in-popup light/dark toggle) ----------
