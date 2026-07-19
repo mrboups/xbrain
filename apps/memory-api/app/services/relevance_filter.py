@@ -502,15 +502,22 @@ def _record_tokens(team_scope: str, tokens: int) -> None:
     entry["tokens_used"] += tokens
 
 
-async def classify(content: str, *, team_scope: str) -> bool:
+async def classify(
+    content: str, *, team_scope: str, aliases: list[str] | None = None
+) -> bool:
     """Returns True iff content should be ingested into the team brain.
 
     Fail-soft: falls back to the heuristic on any error, timeout,
     missing API key, or budget exhaustion. Never raises.
+
+    `aliases` (WR-01) scopes the fast-path agent-command skip to the team's
+    EFFECTIVE alias list (env defaults ∪ that team's custom names); None → env
+    defaults. So a team's custom `@wizard` command is skipped like `@agent`.
     """
-    # Fast-path heuristic — rejects short messages, @claude prefix, empty content.
-    # This pre-filter runs BEFORE any Haiku call to avoid paying for obvious rejects.
-    if not is_brain_relevant(content):
+    # Fast-path heuristic — rejects short messages, agent-mention COMMANDS
+    # (word-boundary, per the team's aliases), empty content. Runs BEFORE any
+    # Haiku call to avoid paying for obvious rejects.
+    if not is_brain_relevant(content, aliases):
         return False
 
     client = _get_client()

@@ -94,16 +94,41 @@ def _cache_key(aliases: list[str]) -> str:
     return ",".join(sorted(a.lower() for a in aliases))
 
 
+# CR-02: bound the cache. `PATCH agent-aliases` is self-service (any team admin),
+# so an attacker could otherwise grow this process-global dict without limit by
+# setting many distinct alias sets — a memory-exhaustion DoS. In real use the number
+# of distinct sets is tiny (≈ one per team's config), so the cap is never hit; on
+# overflow we drop the whole cache and let it rebuild lazily (crude but keeps it O(cap)).
+_REGEX_CACHE_MAX = 512
+
+
 def _regex_for(aliases: list[str]) -> re.Pattern[str]:
     """Return (building + caching on miss) the compiled regex for an alias set."""
     key = _cache_key(aliases)
     pattern = _regex_cache.get(key)
     if pattern is None:
+        if len(_regex_cache) >= _REGEX_CACHE_MAX:
+            _regex_cache.clear()  # bounded eviction — rebuilds lazily on next miss
         # Reuse the server's escape + longest-first sort. Order in the csv does not
         # matter (the key is normalized and _build_mention_regex re-sorts by length).
         pattern = _build_mention_regex(",".join(aliases))
         _regex_cache[key] = pattern
     return pattern
+
+
+def starts_with_mention(content: str, aliases: list[str] | None = None) -> bool:
+    """True if `content` BEGINS with an agent mention (word-boundary aware).
+
+    Used by brain_ingest to skip agent-COMMAND messages (queries, not facts). Uses the
+    same word-boundary regex as detect(), so `@a` matches `@a hi` but NOT `@austin`
+    (fixing the naive `str.startswith("@a")` over-match). `aliases` scopes it to a
+    team's effective list (env defaults ∪ custom); None → the env defaults with @agent
+    guaranteed and @claude filtered.
+    """
+    if not content:
+        return False
+    rx = _regex_for(aliases) if aliases is not None else _regex_for(effective_aliases(None))
+    return rx.match(content) is not None
 
 
 class Mention(TypedDict):

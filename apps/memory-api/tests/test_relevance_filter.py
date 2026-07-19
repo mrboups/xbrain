@@ -141,8 +141,13 @@ async def test_heuristic_shortcut_short_message(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_at_claude_prefix_rejection(monkeypatch):
-    """@claude prefix → False without Haiku call."""
+async def test_agent_mention_command_rejection(monkeypatch):
+    """An agent-mention COMMAND (`@agent …`) → False on the fast-path, no Haiku call.
+
+    Phase 21: `@claude` was REMOVED as an alias, so it is no longer a command — a
+    substantive `@claude …` message is now normal content and is NOT fast-path
+    rejected. `@agent` is the guaranteed universal alias and IS rejected.
+    """
     import app.services.relevance_filter as rf
 
     called = {"count": 0}
@@ -152,9 +157,16 @@ async def test_at_claude_prefix_rejection(monkeypatch):
         return MagicMock()
 
     monkeypatch.setattr(rf, "_get_client", fake_get_client)
-    result = await rf.classify("@claude what's the status of phase 11?", team_scope="t1")
+
+    # @agent is a real command → fast-path False, no Haiku client built.
+    result = await rf.classify("@agent what's the status of phase 11?", team_scope="t1")
     assert result is False
     assert called["count"] == 0
+
+    # @claude is no longer special — it does NOT get fast-path-rejected as a command
+    # (it would fall through to the Haiku/heuristic path, which builds the client).
+    await rf.classify("@claude what's the status of phase 11?", team_scope="t1")
+    assert called["count"] >= 1
 
 
 @pytest.mark.asyncio

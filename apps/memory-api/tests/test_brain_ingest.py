@@ -152,16 +152,17 @@ async def test_ingest_team_message_cache_invalidated():
 
 
 def test_ingest_team_message_signature_unchanged():
-    """Test 5: ingest_team_message signature must be exactly
-    (team_scope: str, team_id: Any, content: str, author_sub: str | None)
-    with all params keyword-only and no new positional/kw params added.
+    """Test 5: ingest_team_message signature must be
+    (team_scope, team_id, content, author_sub, aliases) — all keyword-only.
+    `aliases` was added in Phase 21 (WR-01): the team's effective mention-alias
+    list, keyword-only + optional (defaults None) so it is backward-compatible.
     """
     from app.services.brain_ingest import ingest_team_message
 
     sig = inspect.signature(ingest_team_message)
     params = dict(sig.parameters)
 
-    expected_params = {"team_scope", "team_id", "content", "author_sub"}
+    expected_params = {"team_scope", "team_id", "content", "author_sub", "aliases"}
     assert set(params.keys()) == expected_params, (
         f"Expected parameters {expected_params}, got {set(params.keys())}"
     )
@@ -171,3 +172,26 @@ def test_ingest_team_message_signature_unchanged():
         assert param.kind == inspect.Parameter.KEYWORD_ONLY, (
             f"Parameter '{name}' must be keyword-only, got {param.kind}"
         )
+    # aliases must be optional (backward-compatible)
+    assert params["aliases"].default is None
+
+
+def test_is_brain_relevant_word_boundary_not_prefix(caplog):
+    """CR-01 regression: a naive startswith('@a') dropped legitimate facts like
+    '@austin reviewed it' from brain ingest once 'a' became a default alias. The
+    filter now uses the word-boundary mention check, so only WHOLE agent-mention
+    commands are skipped."""
+    from app.services.brain_ingest import is_brain_relevant
+
+    # @agent is a guaranteed alias (effective_aliases always includes it) →
+    # a command regardless of the env default. Skipped (not a fact).
+    assert is_brain_relevant("@agent what is the Q3 budget?") is False
+    # The short 'a' alias, when it is in the effective set, is a whole-token command...
+    assert is_brain_relevant("@a summarize the last meeting please", ["agent", "a"]) is False
+    # ...but a person/handle that merely STARTS with '@a...' is NOT — it is a real fact.
+    assert is_brain_relevant("@austin reviewed the budget proposal today", ["agent", "a"]) is True
+    assert is_brain_relevant("@alice owns the vendor contract renewal", ["agent", "a"]) is True
+    # A team custom alias, when passed, is also treated as a command.
+    assert is_brain_relevant("@wizard what's on the roadmap?", ["agent", "wizard"]) is False
+    # ...but @wizard is NOT a command for a team that didn't set it.
+    assert is_brain_relevant("@wizard is a great nickname for the new intern", ["agent"]) is True

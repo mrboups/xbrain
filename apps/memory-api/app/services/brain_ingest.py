@@ -22,7 +22,7 @@ import structlog
 
 from app.deps import get_memory_provider
 from app.services import team_context_cache
-from app.services.mention_detector import effective_aliases
+from app.services.mention_detector import starts_with_mention
 from xbrain_memory.types import (
     MemoryItem,
     TruthLevel,
@@ -38,20 +38,16 @@ log = structlog.get_logger(__name__)
 
 _MIN_CHARS = 15
 
-# Agent-mention COMMANDS are queries, not facts — skip them from brain ingest.
-# The skip-prefixes are DERIVED from the env-default agent aliases (Phase 21 /
-# D-21-01) — e.g. ``@agent``/``@chad``/``@a`` — so the mention vocabulary stays
-# in ONE place and never drifts back to a stale hardcoded token. Per-team
-# resolution is unnecessary for this cheap fire-and-forget filter; the
-# authoritative, team-scoped summon path is mention_detector.detect via
-# team_chat. Computed once at import.
-_AGENT_COMMAND_PREFIXES = tuple(f"@{alias}" for alias in effective_aliases(None))
-
-
-def is_brain_relevant(content: str) -> bool:
+def is_brain_relevant(content: str, aliases: list[str] | None = None) -> bool:
     """v1 relevance heuristic: ingest substantive human messages, skip trivia
-    and agent-mention commands (``@agent``/``@chad``/``@a`` — those are queries,
-    not facts).
+    and agent-mention COMMANDS (``@agent what's the budget?`` — queries, not facts).
+
+    Uses the mention detector's WORD-BOUNDARY check (CR-01): a naive
+    ``startswith("@a")`` dropped legitimate facts like ``@austin reviewed it`` —
+    the regex only treats ``@a`` as a command when it is a whole mention token.
+    ``aliases`` scopes it to a team's EFFECTIVE list (env defaults ∪ that team's
+    custom names, WR-01) so a team's custom ``@wizard`` command is also skipped;
+    None falls back to the env defaults (``@agent`` guaranteed, ``@claude`` filtered).
 
     "En fonction de ce qui peut être pertinent" — a Haiku classifier can
     replace this later for semantic relevance scoring; the heuristic keeps the
@@ -60,8 +56,7 @@ def is_brain_relevant(content: str) -> bool:
     c = (content or "").strip()
     if len(c) < _MIN_CHARS:
         return False
-    low = c.lower()
-    if low.startswith(_AGENT_COMMAND_PREFIXES):
+    if starts_with_mention(c, aliases):
         return False
     return True
 
@@ -72,8 +67,12 @@ async def ingest_team_message(
     team_id: Any,
     content: str,
     author_sub: str | None,
+    aliases: list[str] | None = None,
 ) -> None:
     """Fire-and-forget: upsert a relevant team-chat message into the brain.
+
+    `aliases` is THIS team's effective mention-alias list (WR-01) — so agent
+    COMMANDS to a team's custom name are skipped from ingest like `@agent`.
 
     Never raises — ingestion must never break the chat-send response path.
     """
@@ -82,7 +81,7 @@ async def ingest_team_message(
         # classify() runs is_brain_relevant() first as a fast-path filter,
         # then Haiku for semantic relevance, with heuristic fallback on error.
         from app.services.relevance_filter import classify  # local import — avoids cycle at module load
-        if not await classify(content, team_scope=team_scope):
+        if not await classify(content, team_scope=team_scope, aliases=aliases):
             log.info("brain_ingest.team_message.skipped_by_filter", team_scope=team_scope)
             return
         provider = get_memory_provider()

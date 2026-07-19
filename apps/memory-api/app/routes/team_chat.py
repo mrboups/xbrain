@@ -214,6 +214,12 @@ async def post_team_message(
     await session.commit()
     payload = _serialize_message(msg, team.slug)
 
+    # Resolve THIS team's effective mention aliases ONCE (env defaults ∪
+    # team.agent_aliases; @agent always, @claude never) — used by BOTH the brain
+    # ingest filter (skip agent-command messages, WR-01) and the summon detector
+    # below, so the two never diverge on what counts as a mention.
+    aliases = mention_detector.effective_aliases(team.agent_aliases)
+
     # Core differentiator (MEM-04 / CHAT-03): every substantive human chat
     # message lands in the searchable brain. Fire-and-forget — upserts a
     # WORKING memory_item + Qdrant vector that the agent context bundle and MCP
@@ -224,6 +230,7 @@ async def post_team_message(
             team_id=team_id,
             content=body.content,
             author_sub=user.source_user_id,
+            aliases=aliases,
         )
     )
 
@@ -243,7 +250,6 @@ async def post_team_message(
     # to agent-runtime — v1 simplification. See Wave 2.5 plan for the
     # tradeoff. The handler never raises; it logs and surfaces errors as
     # `agent_stream_error` frames on the Centrifugo channel.
-    aliases = mention_detector.effective_aliases(team.agent_aliases)
     mention = mention_detector.detect(body.content, aliases)
     if mention is not None:
         asyncio.create_task(
