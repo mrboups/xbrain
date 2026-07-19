@@ -29,6 +29,8 @@ dependencies = [
   "argon2-cffi>=25.1.0",  # Phase 18 plan 18-02: argon2id local-auth password hashing (D-18-04)
   "limits>=5.8.0",  # Phase 18 plan 18-02: in-process rate limiting for local-auth routes (D-18-06)
   "fastembed>=0.8.0",  # Phase 19: local keyless embeddings (ONNX via onnxruntime, no torch)
+  "pypdf>=5.1",         # Phase 24 (DOCBODY-01): PDF text-layer extraction (pure-Python, py3-none-any wheel)
+  "python-docx>=1.1",   # Phase 24 (DOCBODY-01): DOCX paragraph text extraction (pulls lxml; both runtime arches ship cp312 wheels — proven in 24-01-SUMMARY)
   "xbrain-memory @ file:///app/packages/memory-models",  # path mounted in compose build
 ]
 
@@ -44,6 +46,7 @@ dev = [
   # accident until now (fastembed -> huggingface_hub -> pyyaml); declare it so the SC3 graph
   # proof cannot silently stop collecting if that transitive chain ever changes.
   "pyyaml>=6.0",
+  "reportlab>=4.2",     # Phase 24 gate (24-03): generate real PDFs (with + without a text layer) for the integration proof; DEV-ONLY, never imported at runtime
 ]
 
 [tool.pytest.ini_options]

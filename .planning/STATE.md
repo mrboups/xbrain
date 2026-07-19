@@ -4,14 +4,14 @@ milestone: v2.0
 milestone_name: Open-Core Edition
 status: executing
 stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
-last_updated: "2026-07-19T06:14:32.769Z"
-last_activity: 2026-07-19 -- Phase 23 execution started
+last_updated: "2026-07-19T14:12:11.418Z"
+last_activity: 2026-07-19 -- Phase 24 execution started
 progress:
-  total_phases: 3
-  completed_phases: 2
-  total_plans: 11
-  completed_plans: 7
-  percent: 64
+  total_phases: 4
+  completed_phases: 3
+  total_plans: 14
+  completed_plans: 11
+  percent: 75
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 23 (catch-me-up) COMPLETE — opt-in brain-grounded summary since last visit; last_read_at cursor + since-window + ephemeral private-channel stream. Verified 4/4 + 1 code-review BLOCKER (scroll/focus mark-read race defeating the banner) + 3 warnings fixed. Residual: live streamed-render UAT (no jsdom). Next: backlog #4 document body extraction.
+**Current focus:** Phase 24 — Doc Body Extraction
 
 ## Current Position
 
-Phase: 23 (Catch Me Up) — COMPLETE. Next backlog: #4 document body extraction.
-Plan: 1 of 4
-Status: Phase 23 complete — next backlog #4 (doc body extraction)
-Last activity: 2026-07-19 -- Phase 23 execution started
+Phase: 24 (Doc Body Extraction) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 24
+Last activity: 2026-07-19 -- Phase 24 execution started
 
 ## Performance Metrics
 
