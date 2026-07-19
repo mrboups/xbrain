@@ -279,6 +279,20 @@ class Settings(BaseSettings):
     LOCAL_EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
     EMBEDDING_CACHE_DIR: str = "/app/model_cache"
 
+    # === Phase 24 (DOCBODY-01) — document body extraction on upload ===
+    # Deliberately NO field_validator (mirrors EMBED-01/CATCHUP): a zero-key OSS install
+    # MUST boot and extract out of the box (D-24-03). These caps are read by
+    # app/services/doc_body_ingest.py (Plan 02) and passed as EXPLICIT args into
+    # app/services/doc_extract.py — which stays pure (never imports settings) so it is
+    # trivially unit-testable. All env-overridable; safe defaults require no .env entry.
+    DOCBODY_EXTRACTION_ENABLED: bool = True          # kill-switch for the whole extract-on-upload path
+    DOCBODY_MAX_FILE_BYTES: int = 10 * 1024 * 1024   # skip extraction above this (object still stored); tighter than the 25MB upload cap
+    DOCBODY_MAX_TOTAL_CHARS: int = 200_000           # truncate extracted text before chunking (token-budget guard)
+    DOCBODY_CHUNK_SIZE: int = 1500                   # chars per chunk
+    DOCBODY_CHUNK_OVERLAP: int = 150                 # char overlap between consecutive chunks
+    DOCBODY_MAX_CHUNKS: int = 200                    # chunk-count cap per document
+    DOCBODY_MIN_CHARS: int = 20                      # below this total => no_text_layer (nothing to embed)
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}
