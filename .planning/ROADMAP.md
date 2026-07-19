@@ -641,7 +641,7 @@ Plans:
 
 **Goal**: The team's agent is summoned by a per-team, additive alias list — `@agent` always works, plus defaults (`chad`, `a`), plus a custom name a team admin sets in Settings — and `@claude` is gone. The extension client and memory-api server share ONE source of truth for the alias list, so they can never diverge again.
 **Depends on**: nothing new (team chat + mention detector already exist).
-**Requirements**: AGENT-01
+**Requirements**: ALIAS-01
 **Success Criteria** (what must be TRUE):
 
   1. On a team whose admin set a custom agent name, a message mentioning that name summons the agent — proven through the real `team_chat` → `mention_detector` path against a real Postgres, and a DIFFERENT team that didn't set it does NOT fire on that name.
