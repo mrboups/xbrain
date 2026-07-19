@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -137,3 +137,62 @@ class TeamOrgBlock(Base):
     blocked_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class TeamInviteCode(Base):
+    """Phase 25 — Slack/Discord-style shared join code for a team (JOINCODE-01).
+
+    A join code is a BEARER SECRET to the team-scoped brain: whoever holds it can
+    redeem it to become a member. Per D-25-01, only the sha256 HASH of the plaintext
+    is ever stored (``code_hash``, UNIQUE-indexed — the join lookup is by hash, so
+    there is no timing oracle on the plaintext). The plaintext (``xbi_`` +
+    ``secrets.token_urlsafe(24)`` ≈ 192 bits) is generated at mint, returned to the
+    admin in the mint response body EXACTLY ONCE, and NEVER persisted or logged. A
+    short, non-secret ``code_prefix`` is kept for admin display only. A DB compromise
+    therefore yields no usable code.
+
+    Per D-25-02 the row carries the full revoke + expiry + max-uses lifecycle:
+    ``revoked_at`` (soft-revoke; the row stays for audit), ``expires_at`` (NULL =
+    never expires), ``max_uses`` (NULL = unlimited), and ``uses`` (monotonically
+    incremented atomically at each redeem so a concurrent double-redeem can never
+    exceed ``max_uses`` — see repos.team_invite_codes.redeem_atomic).
+    """
+
+    __tablename__ = "team_invite_codes"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('admin','member')", name="team_invite_codes_role_check"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    team_id: Mapped[UUID] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False
+    )
+    # sha256 hex is 64 chars — store ONLY this, never the plaintext (D-25-01).
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Non-secret display prefix (e.g. "xbi_ab12cd34") for admin list UIs.
+    code_prefix: Mapped[str] = mapped_column(String(16), nullable=False)
+    role: Mapped[str] = mapped_column(String(16), nullable=False, default="member")
+    # Keep the code if its creator is deleted (audit-safe): SET NULL, not CASCADE.
+    created_by_user_id: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # NULL = never expires.
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # NULL = unlimited redemptions.
+    max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    uses: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Soft-revoke; the row stays for audit. NULL = live.
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    def __init__(self, **kwargs: object) -> None:
+        kwargs.setdefault("role", "member")
+        super().__init__(**kwargs)

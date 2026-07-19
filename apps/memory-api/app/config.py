@@ -273,6 +273,20 @@ class Settings(BaseSettings):
     CATCHUP_UNREAD_THRESHOLD: int = 10
     CATCHUP_MAX_MESSAGES: int = 200
 
+    # === Phase 25 (JOINCODE-01) — Slack/Discord-style team join-by-code ===
+    # Deliberately NO field_validator (mirrors NUDGE/CATCHUP/EMBED): a zero-key OSS
+    # install MUST boot with these defaults, no .env entry required; all env-overridable.
+    # These are read by routes/teams.py (Plan 02): JOIN_CODE_RATE_LIMIT rate-limits the
+    # join-by-code endpoint (per-IP, in-process — rate_limit.py's --workers 2 caveat
+    # applies: spray-blunting, not a hard guarantee — defense in depth even though the
+    # code is ≈192-bit high-entropy). The two "default" knobs map 0 -> NULL at mint time:
+    # JOIN_CODE_DEFAULT_EXPIRY_DAYS = the code lifetime when mint omits expires_in_days
+    # (0 = no expiry -> expires_at NULL); JOIN_CODE_DEFAULT_MAX_USES = the redemption
+    # ceiling when mint omits max_uses (0 = unlimited -> max_uses NULL).
+    JOIN_CODE_RATE_LIMIT: str = "10/minute"
+    JOIN_CODE_DEFAULT_EXPIRY_DAYS: int = 7
+    JOIN_CODE_DEFAULT_MAX_USES: int = 0
+
     # === Phase 19 (EMBED-01) — deliberately NO field_validator: a zero-key
     # OSS install must boot; get_embedder() falls back to local on any unknown value ===
     EMBEDDINGS_PROVIDER: str = "local"

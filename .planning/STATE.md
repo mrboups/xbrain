@@ -4,14 +4,14 @@ milestone: v2.0
 milestone_name: Open-Core Edition
 status: executing
 stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
-last_updated: "2026-07-19T14:12:11.418Z"
-last_activity: 2026-07-19 -- Phase 24 execution started
+last_updated: "2026-07-19T16:25:31.801Z"
+last_activity: 2026-07-19 -- Phase 25 execution started
 progress:
-  total_phases: 4
-  completed_phases: 3
-  total_plans: 14
-  completed_plans: 11
-  percent: 75
+  total_phases: 5
+  completed_phases: 4
+  total_plans: 18
+  completed_plans: 14
+  percent: 78
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 24 (document body extraction) COMPLETE — uploaded PDF/DOCX/MD/text bodies are extracted, chunked, and embedded keyless (Phase-19 local embedder) as linked memory_items with inherited 7-field tagging; guards (size/truncate/chunk-cap/no_text_layer) + fail-soft fire-and-forget. Verified 4/4 + code-review (1 BLOCKER event-loop-freeze, 1 HIGH metadata-clobber, MD/LOW) fixed. Next backlog: #5 team join-by-code.
+**Current focus:** Phase 25 — Team Join-by-Code
 
 ## Current Position
 
-Phase: 24 (Doc Body Extraction) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 24
-Last activity: 2026-07-19 -- Phase 24 execution started
+Phase: 25 (Team Join-by-Code) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 25
+Last activity: 2026-07-19 -- Phase 25 execution started
 
 ## Performance Metrics
 
