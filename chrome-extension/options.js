@@ -407,6 +407,44 @@ async function fillTeamBody(team, body) {
     // Initial load of existing pre-blocks. Fire-and-forget; errors render
     // inline inside loadOrgBlocks itself.
     void loadOrgBlocks(team, blocksList);
+
+    // Admin actions: agent name (per-team mention alias). PATCHes
+    // /v1/teams/{id}/agent-aliases and re-fetches, so a changed name takes
+    // effect with no restart (D-21-05). @agent always works; this ADDS a
+    // custom name — the server re-validates and keeps the defaults.
+    const aliasLabel = document.createElement("p");
+    aliasLabel.className = "team-members-label";
+    aliasLabel.style.marginTop = "8px";
+    aliasLabel.textContent = "Agent name";
+    body.appendChild(aliasLabel);
+
+    const aliasForm = document.createElement("div");
+    aliasForm.className = "team-invite-form";
+    aliasForm.innerHTML = `
+      <input type="text" placeholder="wizard" autocomplete="off" maxlength="32" />
+      <button type="button" class="team-invite-btn">Save</button>
+    `;
+    body.appendChild(aliasForm);
+
+    const aliasHelp = document.createElement("p");
+    aliasHelp.className = "setting-help";
+    aliasHelp.style.cssText =
+      "margin:4px 0 0;font-size:11px;color:var(--xb-text-mute)";
+    aliasHelp.textContent =
+      "Set a custom name to summon the agent (e.g. @wizard). @agent always works.";
+    body.appendChild(aliasHelp);
+
+    const aliasInput = aliasForm.querySelector("input");
+    const aliasBtn = aliasForm.querySelector("button");
+
+    // Prefill with the team's current effective alias list.
+    void loadAgentAliases(team, aliasInput);
+
+    const trySaveAlias = () => saveAgentAliases(team, aliasInput, aliasBtn);
+    aliasBtn.addEventListener("click", trySaveAlias);
+    aliasInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") trySaveAlias();
+    });
   }
 
   // Per-team status line + leave button
@@ -451,6 +489,54 @@ async function inviteMember(team, input, sel, btn) {
       e.status === 404
         ? `${email} isn't registered yet — ask them to sign in once first.`
         : `Invite failed: ${e.message}`;
+    setTeamStatus(team.id, msg, "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// GET the team's EFFECTIVE agent-alias list and prefill the input with it
+// (comma-joined) so the admin sees exactly what currently summons the agent.
+// Non-fatal on error — the placeholder still guides input.
+async function loadAgentAliases(team, input) {
+  try {
+    const data = await _xbtFetch(`/v1/teams/${team.id}/agent-aliases`);
+    const aliases = (data && data.aliases) || [];
+    input.value = aliases.join(", ");
+  } catch {
+    /* leave empty — the placeholder guides the admin */
+  }
+}
+
+// PATCH the team's custom agent alias(es), then re-render the field with the
+// server's resulting EFFECTIVE list so the change is reflected immediately
+// (no restart, D-21-05). Surfaces 403 (non-admin) and 422 (validation) cleanly.
+async function saveAgentAliases(team, input, btn) {
+  const raw = (input.value || "").trim();
+  // Split on commas so an admin can paste the effective list back; the server
+  // re-validates + dedupes, strips leading "@", and always re-adds the
+  // defaults (@agent included), so sending the whole list is safe.
+  const aliases = raw
+    .split(",")
+    .map((a) => a.trim().replace(/^@/, ""))
+    .filter((a) => a.length > 0);
+  btn.disabled = true;
+  setTeamStatus(team.id, "Saving agent name…", "loading");
+  try {
+    const data = await _xbtFetch(`/v1/teams/${team.id}/agent-aliases`, {
+      method: "PATCH",
+      body: { aliases },
+    });
+    const effective = (data && data.aliases) || [];
+    input.value = effective.join(", ");
+    setTeamStatus(team.id, "Agent name saved ✓", "success");
+  } catch (e) {
+    const msg =
+      e.status === 403
+        ? "Only team admins can change the agent name."
+        : e.status === 422
+          ? `Invalid agent name: ${(e.body || "").slice(0, 140)}`
+          : `Save failed: ${e.message}`;
     setTeamStatus(team.id, msg, "error");
   } finally {
     btn.disabled = false;

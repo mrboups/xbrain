@@ -16,6 +16,7 @@
 import {
   StreamBuffer,
   detectMentionClient,
+  buildMentionRegex,
   formatRelative,
   hostnameFromUrl,
   authorLabel,
@@ -49,6 +50,12 @@ const state = {
   oldestLoadedTs: null,
   historyPaging: false,
   initialLoaded: false,
+  // Agent-mention aliases for the active team. Built from the server's
+  // effective list (GET /v1/teams/{id}/agent-aliases); defaults to ["agent"]
+  // until the first fetch. Drives only the optimistic composer hint — the
+  // server is authoritative for the actual summon.
+  agentAliases: ["agent"],
+  mentionRe: buildMentionRegex(["agent"]),
 };
 
 // ---------- DOM refs ----------
@@ -391,7 +398,35 @@ async function switchTeam(teamId) {
   state.subscription.on("subscribed", () => updatePresenceFromAPI());
   state.subscription.subscribe();
 
+  // Refresh the team's agent-alias list so the composer hint matches exactly
+  // what the server will summon for THIS team — no cross-team leakage, and a
+  // name an admin just changed takes effect with no restart. Fail-soft.
+  await refreshAgentAliases();
+
   await loadInitialHistory();
+}
+
+// Fetch the active team's EFFECTIVE agent-alias list and rebuild the client
+// regex from it (JS-escape + longest-first via buildMentionRegex). The server
+// is the single source of truth; on any error we keep the previous regex and
+// never throw into the UI.
+async function refreshAgentAliases() {
+  if (!state.activeTeamId) return;
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    if (!xbt_token) return;
+    const data = await fetchJson(
+      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/agent-aliases`,
+      xbt_token,
+    );
+    const aliases = Array.isArray(data && data.aliases) ? data.aliases : null;
+    if (aliases && aliases.length) {
+      state.agentAliases = aliases;
+      state.mentionRe = buildMentionRegex(aliases);
+    }
+  } catch (e) {
+    console.warn("[xbrain] agent-aliases refresh failed:", e);
+  }
 }
 
 async function updatePresenceFromAPI() {
@@ -825,7 +860,11 @@ function scrollToBottom({ force = false } = {}) {
 
 function wireComposer() {
   const input = $("composer-input");
-  input.addEventListener("input", () => autoResize(input));
+  const mentionHint = createMentionHint();
+  input.addEventListener("input", () => {
+    autoResize(input);
+    updateMentionHint(input, mentionHint);
+  });
   input.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
     // SHIFT+ENTER → newline (textarea default, don't intercept)
@@ -863,6 +902,35 @@ function autoResize(el) {
     el.classList.add("is-overflowing");
   } else {
     el.classList.remove("is-overflowing");
+  }
+}
+
+// Optimistic composer hint: a lightweight text line under the composer that
+// shows "Will summon @<alias>" while the draft contains a live mention. Built
+// dynamically (no popup.html/css contract touched) and styled inline with the
+// existing shadcn tokens. UX-only — the server makes the real summon decision.
+function createMentionHint() {
+  const composer = document.querySelector(".xb-composer");
+  if (!composer) return null;
+  const hint = document.createElement("div");
+  hint.className = "xb-mention-hint";
+  hint.hidden = true;
+  hint.setAttribute("aria-live", "polite");
+  hint.style.cssText =
+    "padding:2px 12px 0;font-size:11px;line-height:1.4;color:var(--muted-fg);";
+  composer.appendChild(hint);
+  return hint;
+}
+
+function updateMentionHint(input, hint) {
+  if (!hint) return;
+  const hit = detectMentionClient(input.value, state.mentionRe);
+  if (hit) {
+    hint.textContent = `Will summon @${hit.trigger}`;
+    hint.hidden = false;
+  } else {
+    hint.textContent = "";
+    hint.hidden = true;
   }
 }
 
@@ -1308,7 +1376,11 @@ async function createSoloTeam(btn) {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes.xbt_token) {
-    // Token appeared or was cleared — rerun boot.
+    // Token appeared or was cleared — rerun boot (which re-fetches teams,
+    // reconnects, and via switchTeam refreshes the team's agent-alias list).
     boot();
+    // Auth/team context may have shifted — also refresh the alias list for the
+    // currently active team so the composer hint never lags behind a re-auth.
+    if (state.activeTeamId) refreshAgentAliases();
   }
 });

@@ -8,22 +8,76 @@
  *   - StreamBuffer: accumulates `agent_stream_chunk` deltas keyed by
  *     message_id. Returns the running text at any time. Caller flushes
  *     when `agent_stream_end` arrives.
- *   - mention regex (mirror of memory-api/app/services/mention_detector.py)
- *     so the composer can do client-side hints ("Will trigger Groove").
+ *   - mention regex BUILT FROM the server's effective alias list
+ *     (GET /v1/teams/{id}/agent-aliases) via buildMentionRegex() — one source
+ *     of truth with memory-api, never a hardcoded vocabulary. Used only for
+ *     the composer's optimistic hint ("Will summon @agent").
  *   - formatRelative(iso) — "12s ago" / "5m ago" / "Mar 5" strings for
  *     message timestamps in bubble headers.
  *   - hostnameFromUrl, hashSourceId — small helpers reused by the clip
  *     overlay path.
  */
 
-// ---------- Mention regex ----------
-// Server-authoritative — this is the SAME pattern as memory-api.
-// Used only for UX hints; the server makes the final decision.
-const MENTION_RE = /(?:^|(?<=[^\w@]))@(grooveos|groove|gr|g)(?=$|[\s.,!?;:()[\]{}'"])/i;
+// ---------- Mention regex (built from the server's effective alias list) ----------
+//
+// ONE source of truth: the extension does NOT hardcode a mention vocabulary.
+// popup.js fetches GET /v1/teams/{id}/agent-aliases and builds the regex from
+// that list via buildMentionRegex() — JS-escaping each alias (mirror of the
+// server's re.escape) and sorting longest-first — so the client and server can
+// never diverge again. Used only for an optimistic composer hint; the server
+// makes the final summon decision.
 
-export function detectMentionClient(text) {
+// JS-escape one alias, mirroring Python re.escape for the metacharacters that
+// matter inside a JS regex. Defense in depth: the server already restricts
+// stored aliases to [A-Za-z0-9_-], so a metachar should never reach here — but
+// we escape anyway so a hostile or garbled list can never inject regex
+// behaviour (e.g. a stray ".*" matches only the literal "@.*").
+function escapeAlias(a) {
+  return a.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
+}
+
+// Build the SAME boundary pattern the server uses (mention_detector
+// _build_mention_regex): a leading @, a word/@ boundary before it, a
+// longest-first alternation of the escaped aliases, and a
+// punctuation/whitespace/end boundary after. "claude" is filtered out
+// (reserved — never a client trigger). An empty list falls back to ["agent"].
+export function buildMentionRegex(aliases) {
+  const cleaned = (Array.isArray(aliases) ? aliases : [])
+    .filter((a) => typeof a === "string" && a.trim().length > 0)
+    .map((a) => a.trim())
+    .filter((a) => a.toLowerCase() !== "claude");
+  // De-dupe case-insensitively, keeping the first-seen spelling.
+  const seen = new Set();
+  const uniq = [];
+  for (const a of cleaned) {
+    const key = a.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniq.push(a);
+    }
+  }
+  const effective = uniq.length ? uniq : ["agent"];
+  // Longest-first so a longer alias wins over a shorter overlapping one
+  // (mirror of the server's aliases.sort(key=len, reverse=True)).
+  const ordered = [...effective].sort((x, y) => y.length - x.length);
+  const joined = ordered.map(escapeAlias).join("|");
+  return new RegExp(
+    "(?:^|(?<=[^\\w@]))@(" + joined + ")(?=$|[\\s.,!?;:()\\[\\]{}'\"])",
+    "i",
+  );
+}
+
+// Detect an agent mention for the optimistic composer hint. `aliasesOrRegex`
+// may be a prebuilt RegExp (from buildMentionRegex) or an array of aliases
+// (built on the fly). If omitted, it defaults to buildMentionRegex(["agent"]) —
+// never the stale vocabulary.
+export function detectMentionClient(text, aliasesOrRegex) {
   if (!text) return null;
-  const m = text.match(MENTION_RE);
+  const re =
+    aliasesOrRegex instanceof RegExp
+      ? aliasesOrRegex
+      : buildMentionRegex(aliasesOrRegex || ["agent"]);
+  const m = text.match(re);
   if (!m) return null;
   return { agent_name: "claude-sonnet-4-6", trigger: m[1].toLowerCase() };
 }
