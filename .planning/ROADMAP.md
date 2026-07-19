@@ -714,9 +714,9 @@ Plans:
 **Plans**: 3 plans
 Plans:
 
-- [ ] 24-01-PLAN.md — Deps (pypdf/python-docx) + DOCBODY_* config knobs + pure extraction/chunking module (mime dispatch, guards, no_text_layer)
-- [ ] 24-02-PLAN.md — extract_and_ingest_body service (linked chunk memory_items, inherited tagging) wired fire-and-forget into media.upload_media
-- [ ] 24-03-PLAN.md — Real Postgres+Qdrant keyless gate: body→embedded→retrieved (non-mocked) + guard proofs
+- [x] 24-01-PLAN.md — Deps (pypdf/python-docx) + DOCBODY_* config knobs + pure extraction/chunking module (mime dispatch, guards, no_text_layer)
+- [x] 24-02-PLAN.md — extract_and_ingest_body service (linked chunk memory_items, inherited tagging) wired fire-and-forget into media.upload_media
+- [x] 24-03-PLAN.md — Real Postgres+Qdrant keyless gate: body→embedded→retrieved (non-mocked) + guard proofs
 
 **UI hint**: no (a backend ingestion capability — no user-facing surface)
 

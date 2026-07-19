@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 24 — Doc Body Extraction
+**Current focus:** Phase 24 (document body extraction) COMPLETE — uploaded PDF/DOCX/MD/text bodies are extracted, chunked, and embedded keyless (Phase-19 local embedder) as linked memory_items with inherited 7-field tagging; guards (size/truncate/chunk-cap/no_text_layer) + fail-soft fire-and-forget. Verified 4/4 + code-review (1 BLOCKER event-loop-freeze, 1 HIGH metadata-clobber, MD/LOW) fixed. Next backlog: #5 team join-by-code.
 
 ## Current Position
 
