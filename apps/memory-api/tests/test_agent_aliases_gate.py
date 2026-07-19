@@ -5,17 +5,24 @@ the agent proves nothing until a real message with that alias actually traverses
 the REAL `team_chat` POST path against a REAL Postgres and reaches the agent
 handler. A mocked detector or an in-memory assertion is worthless here.
 
-Group 1 (`test_summon_*`), `@pytest.mark.integration` (Docker-gated):
-A real POST to `/v1/teams/{id}/messages` runs the REAL
-`mention_detector.effective_aliases` + `detect` resolution (team_chat.py:246-247)
-against a real testcontainer Postgres. The ONLY things stubbed are the three
-downstream fire-and-forget network callers:
-  * `team_chat_agent.handle_claude_mention`  → replaced by a RECORDER (records
-    WHICH team was summoned; never runs the real handler / never calls Anthropic).
-  * `centrifugo_client.publish`              → inert async no-op.
-  * `brain_ingest.ingest_team_message`       → inert async no-op.
-The mention DECISION (effective_aliases + detect) is NEVER mocked — that is
-precisely what this gate exists to prove (T-21-03-01).
+Two groups, both `@pytest.mark.integration` (Docker-gated):
+
+  1. `test_summon_*` — a real POST to `/v1/teams/{id}/messages` runs the REAL
+     `mention_detector.effective_aliases` + `detect` resolution (team_chat.py:246-247)
+     against a real testcontainer Postgres. The ONLY things stubbed are the three
+     downstream fire-and-forget network callers:
+       * `team_chat_agent.handle_claude_mention`  → replaced by a RECORDER (records
+         WHICH team was summoned; never runs the real handler / never calls Anthropic).
+       * `centrifugo_client.publish`              → inert async no-op.
+       * `brain_ingest.ingest_team_message`       → inert async no-op.
+     The mention DECISION (effective_aliases + detect) is NEVER mocked — that is
+     precisely what this gate exists to prove (T-21-03-01).
+
+  2. `test_migration_*` — migration 0025 applies forward-only under EDITION=oss AND
+     EDITION=saas, leaving a NULLABLE `teams.agent_aliases` column under both. Reuses
+     the fresh-container-per-edition + config-singleton-patch pattern from
+     test_migration_editions.py (os.environ alone is INERT: `settings` is frozen at
+     import and alembic/env.py reads that singleton). No `downgrade()` is ever called.
 
 SKIP=FAIL discipline (T-21-03-03): the `integration` marker lets CI's skip-grep capture
 this file. A clean SKIP is legitimate ONLY when Docker is genuinely absent; when Docker
@@ -24,6 +31,8 @@ is present (CI) a SKIP is a FAILURE signal, not a pass — this file MUST run gr
 from __future__ import annotations
 
 import asyncio
+import os
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -158,3 +167,138 @@ async def test_summon_per_team_gate(client, seeded_two_teams, session, monkeypat
     r = await _post_as(bob, team_b.id, "@claude hi")
     assert r.status_code == 201, r.text
     assert summoned == [], f"@claude must NOT summon team-b, got {summoned!r}"
+
+
+# ── Group 2: migration 0025 forward-only + edition-agnostic column proof ──────
+#
+# Self-contained mirror of test_migration_editions.py's PATTERN: a FRESH Postgres
+# container per edition, the config singleton patched DIRECTLY (os.environ is inert
+# because `settings` is frozen at import and alembic/env.py reads that singleton),
+# `command.upgrade(cfg, "head")` in a worker thread (env.py calls asyncio.run
+# internally). No downgrade() anywhere — this is forward-only.
+
+_HERE = Path(__file__).resolve().parent
+_ALEMBIC_INI = _HERE / ".." / "alembic.ini"
+_SCRIPT_LOCATION = _HERE / ".." / "alembic"
+
+# D-17-05 / D-21-03: the release matrix is exactly the two editions config.py
+# permits — there is NO `pro` tier. Do NOT add it here.
+_EDITIONS = ["oss", "saas"]
+
+
+def _docker_available() -> bool:
+    """Mirror conftest.py::_docker_available — skip ONLY when Docker is truly absent."""
+    try:
+        import docker  # noqa: F401
+
+        client = docker.from_env()
+        client.ping()
+        return True
+    except Exception:
+        return False
+
+
+def _alembic_config(sqlalchemy_url: str):
+    """Alembic Config with dirname-relative paths. env.py overwrites sqlalchemy.url
+    from the patched settings.DATABASE_URL, so this URL is only a fallback."""
+    from alembic.config import Config
+
+    cfg = Config(str(_ALEMBIC_INI))
+    cfg.set_main_option("sqlalchemy.url", sqlalchemy_url)
+    cfg.set_main_option("script_location", str(_SCRIPT_LOCATION))
+    return cfg
+
+
+async def _upgrade_and_probe_agent_aliases(edition: str) -> tuple[str, str]:
+    """Spin fresh PG, patch the config singleton to `edition`, upgrade head, then
+    read teams.agent_aliases from information_schema. Returns (data_type, is_nullable).
+
+    Restores the singleton + os.environ in `finally` so no other session test is
+    polluted, and stops the container even on assert/raise (T-21-03-02).
+    """
+    from testcontainers.postgres import PostgresContainer
+
+    import app.config as app_config
+
+    prev_edition = app_config.settings.EDITION
+    prev_db_url = app_config.settings.DATABASE_URL
+    prev_env_edition = os.environ.get("EDITION")
+    prev_env_db = os.environ.get("DATABASE_URL")
+
+    # Migrations call gen_random_uuid() → pgcrypto must be preloaded (mirrors conftest).
+    pg = PostgresContainer(
+        "postgres:17", username="test", password="test", dbname="test"
+    ).with_command("postgres -c shared_preload_libraries=pgcrypto")
+    pg.start()
+    try:
+        raw = pg.get_connection_url()  # postgresql+psycopg2://test:test@host:port/test
+        asyncpg_url = raw.replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+        plain_dsn = raw.replace("postgresql+psycopg2://", "postgresql://")
+
+        # THE LOAD-BEARING PATCH: switch the singleton DIRECTLY, not just os.environ.
+        os.environ["EDITION"] = edition
+        os.environ["DATABASE_URL"] = asyncpg_url
+        app_config.settings.EDITION = edition
+        app_config.settings.DATABASE_URL = asyncpg_url
+
+        cfg = _alembic_config(asyncpg_url)
+
+        # env.py's run_migrations_online() calls asyncio.run() internally; a worker
+        # thread gives it a clean, loop-free thread under pytest-asyncio's loop.
+        from alembic import command
+
+        await asyncio.to_thread(command.upgrade, cfg, "head")
+
+        import asyncpg
+
+        conn = await asyncpg.connect(dsn=plain_dsn)
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT data_type, is_nullable
+                FROM information_schema.columns
+                WHERE table_name = 'teams' AND column_name = 'agent_aliases'
+                """
+            )
+        finally:
+            await conn.close()
+
+        assert len(rows) == 1, (
+            f"[{edition}] expected exactly ONE teams.agent_aliases column after "
+            f"upgrade head, got {len(rows)} — migration 0025 did not create the "
+            f"column under this edition (or the schema forked on EDITION)."
+        )
+        return rows[0]["data_type"], rows[0]["is_nullable"]
+    finally:
+        # Resource hygiene: never leak a container; never pollute other session tests.
+        pg.stop()
+        app_config.settings.EDITION = prev_edition
+        app_config.settings.DATABASE_URL = prev_db_url
+        if prev_env_edition is None:
+            os.environ.pop("EDITION", None)
+        else:
+            os.environ["EDITION"] = prev_env_edition
+        if prev_env_db is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = prev_env_db
+
+
+@pytest.mark.parametrize("edition", _EDITIONS)
+async def test_migration_0025_agent_aliases_forward_only(edition: str) -> None:
+    """Forward-only, edition-agnostic: `alembic upgrade head` under `edition` leaves
+    a NULLABLE teams.agent_aliases column (additive, no backfill). No downgrade()."""
+    if not _docker_available():
+        pytest.skip("Docker not available — skipping real-Postgres migration test")
+
+    data_type, is_nullable = await _upgrade_and_probe_agent_aliases(edition)
+
+    assert is_nullable == "YES", (
+        f"[{edition}] teams.agent_aliases must be NULLABLE (additive column, D-21-03) "
+        f"but is_nullable={is_nullable!r}."
+    )
+    # Belt-and-braces: it is the TEXT column 0025 declares.
+    assert data_type in ("text", "character varying"), (
+        f"[{edition}] unexpected data_type for teams.agent_aliases: {data_type!r} "
+        f"(expected a text column)."
+    )
