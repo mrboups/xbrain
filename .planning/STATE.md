@@ -4,14 +4,14 @@ milestone: v2.0
 milestone_name: Open-Core Edition
 status: executing
 stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
-last_updated: "2026-07-19T01:00:34.913Z"
-last_activity: 2026-07-19 -- Phase 21 execution started
+last_updated: "2026-07-19T04:50:20.655Z"
+last_activity: 2026-07-19 -- Phase 22 execution started
 progress:
-  total_phases: 1
-  completed_phases: 0
-  total_plans: 4
-  completed_plans: 0
-  percent: 0
+  total_phases: 2
+  completed_phases: 1
+  total_plans: 7
+  completed_plans: 4
+  percent: 50
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 21 (agent aliases) COMPLETE — @claude removed, per-team additive aliases (@agent always) + admin Settings name, client reads server list. Verified 4/4 + 2 code-review BLOCKERs fixed (brain-ingest word-boundary data-loss, unbounded regex-cache DoS). Residual: live-browser render of the Settings field (no jsdom harness). Next: backlog #2 push-a-link.
+**Current focus:** Phase 22 — Push-a-Link
 
 ## Current Position
 
-Phase: 21 (Configurable Agent Aliases) — COMPLETE. Next backlog: #2 push-a-link.
-Plan: 1 of 4
-Status: Phase 21 complete — next backlog feature #2 (push-a-link)
-Last activity: 2026-07-19 -- Phase 21 execution started
+Phase: 22 (Push-a-Link) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 22
+Last activity: 2026-07-19 -- Phase 22 execution started
 
 ## Performance Metrics
 
