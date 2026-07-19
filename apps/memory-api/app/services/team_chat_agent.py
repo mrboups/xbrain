@@ -807,3 +807,23 @@ async def catch_me_up(
             team_id=str(team_id),
             err=str(e),
         )
+        # WR-02: a failure BEFORE the stream started (team/caller lookup, message
+        # gathering, brain bundle) would otherwise leave the client stuck on its
+        # "Summarizing…" placeholder forever with no error. Best-effort publish a
+        # terminal error + end frame to the caller's own channel so the panel
+        # resolves. Never raises (the function must not break the request path).
+        try:
+            await centrifugo_client.publish(
+                channel=channel,
+                data={
+                    "type": "catchup_stream_error",
+                    "message_id": str(message_id),
+                    "error": "summary failed",
+                },
+            )
+            await centrifugo_client.publish(
+                channel=channel,
+                data={"type": "catchup_stream_end", "message_id": str(message_id)},
+            )
+        except Exception:  # noqa: BLE001
+            pass

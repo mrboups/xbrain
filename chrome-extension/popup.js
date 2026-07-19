@@ -64,10 +64,17 @@ const state = {
   //   since           — the current unread window (`since` from unread-summary)
   //   dismissedSince  — the window the user dismissed; suppresses re-nag for the
   //                     SAME window (undefined = nothing dismissed yet)
+  switchGen: 0,  // WR-03: incremented per switchTeam; a stale invocation's tail bails
   catchup: {
     markReadInFlight: false,
     since: null,
     dismissedSince: undefined,
+    // BL-01: the scroll/focus auto-mark-read must NOT fire until switchTeam's
+    // initial refreshUnreadBanner()+markRead() pair has completed — otherwise the
+    // scroll event that loadInitialHistory's scrollToBottom() emits races ahead,
+    // bumps the server cursor, and the banner count comes back 0 (banner suppressed).
+    readyForAutoMarkRead: false,
+    activeMessageId: null,  // WR-01: the catch-me-up stream currently being rendered
   },
 };
 
@@ -585,7 +592,13 @@ async function handleUserPublication(data) {
   // the caller's OWN user channel, render into #catchup-summary-text via
   // textContent (XSS-safe, T-23-08), and are NEVER inserted into #message-list
   // nor persisted. The open_url branch below is preserved unchanged.
+  // WR-01: catch-me-up frames are correlated by message_id so two overlapping
+  // streams (double-click / team switch) can't interleave into one panel. A
+  // `start` claims the panel; later frames whose message_id doesn't match the
+  // active stream are dropped. The run button stays disabled until the active
+  // stream's end/error frame arrives.
   if (data.type === "catchup_stream_start") {
+    state.catchup.activeMessageId = data.message_id || null;
     const textEl = $("catchup-summary-text");
     const panel = $("catchup-summary");
     if (textEl) textEl.textContent = "";
@@ -593,6 +606,7 @@ async function handleUserPublication(data) {
     return;
   }
   if (data.type === "catchup_stream_chunk") {
+    if (data.message_id !== state.catchup.activeMessageId) return;
     const textEl = $("catchup-summary-text");
     if (textEl && typeof data.delta === "string") {
       textEl.textContent += data.delta;
@@ -600,19 +614,27 @@ async function handleUserPublication(data) {
     return;
   }
   if (data.type === "catchup_stream_end") {
+    if (data.message_id !== state.catchup.activeMessageId) return;
     // Empty-window close frame carries a `note` and no streamed text — surface
     // it so the panel isn't left blank.
     const textEl = $("catchup-summary-text");
     if (textEl && data.note && !textEl.textContent) {
       textEl.textContent = data.note;
     }
+    state.catchup.activeMessageId = null;
+    const runBtn = $("btn-catchup-run");
+    if (runBtn) runBtn.disabled = false;  // WR-01: stream done, allow another run
     return;
   }
   if (data.type === "catchup_stream_error") {
+    if (data.message_id !== state.catchup.activeMessageId) return;
     const textEl = $("catchup-summary-text");
     if (textEl) {
       textEl.textContent += `\n\n(error: ${data.error || "unknown"})`;
     }
+    state.catchup.activeMessageId = null;
+    const runBtn = $("btn-catchup-run");
+    if (runBtn) runBtn.disabled = false;
     return;
   }
 
@@ -651,6 +673,8 @@ async function switchTeam(teamId) {
   // Reset catch-me-up UI/state — dismissal and window are per-team-visit.
   state.catchup.since = null;
   state.catchup.dismissedSince = undefined;
+  state.catchup.readyForAutoMarkRead = false;  // BL-01: armed only after the banner is captured
+  const switchGen = ++state.switchGen;  // WR-03: re-entrancy token for this switch
   const prevBanner = $("catchup-banner");
   if (prevBanner) prevBanner.hidden = true;
   const prevSummary = $("catchup-summary");
@@ -673,6 +697,11 @@ async function switchTeam(teamId) {
 
   await loadInitialHistory();
 
+  // WR-03: if the user switched to another team while we were loading, this stale
+  // invocation must NOT run its catch-up tail — otherwise it would mark-read /
+  // refresh the banner for whatever team is active NOW, mutating the wrong cursor.
+  if (switchGen !== state.switchGen) return;
+
   // CATCH-ME-UP ordering is LOAD-BEARING (checker BLOCKER, D-23-03): capture the
   // unread banner against the STALE, pre-visit read cursor FIRST, THEN advance
   // the cursor with markRead(). If markRead ran first it would bump the cursor
@@ -680,6 +709,9 @@ async function switchTeam(teamId) {
   // the initial-load path before the banner is captured.
   await refreshUnreadBanner();
   await markRead();
+  // BL-01: only NOW may the scroll/focus side-channels auto-mark-read — the
+  // banner has been captured against the stale cursor, so advancing it is safe.
+  if (switchGen === state.switchGen) state.catchup.readyForAutoMarkRead = true;
 }
 
 // ---------- Catch me up (Phase 23, CATCHUP-01) ----------
@@ -789,8 +821,9 @@ function wireCatchup() {
   }
 
   // Mark-read when the popup/side-panel regains focus and a team is open.
+  // BL-01: gated on readyForAutoMarkRead so it can't race ahead of the banner capture.
   window.addEventListener("focus", () => {
-    if (state.activeTeamId) markRead();
+    if (state.catchup.readyForAutoMarkRead && state.activeTeamId) markRead();
   });
 }
 
@@ -819,6 +852,11 @@ async function runCatchMeUp() {
     if (res.status === 202) {
       if (banner) banner.hidden = true;
       showCatchupSummary("Summarizing…");
+      // WR-01: leave the run button DISABLED — the summary is still streaming.
+      // It is re-enabled only when a matching catchup_stream_end/error frame
+      // arrives (or is force-cleared on a team switch). Returning here skips the
+      // finally re-enable below.
+      return;
     } else if (res.status === 200) {
       // nothing_to_summarize — nothing changed since the cursor; hide quietly.
       if (banner) banner.hidden = true;
@@ -831,10 +869,10 @@ async function runCatchMeUp() {
         bannerText.textContent = `Could not summarize (HTTP ${res.status}).`;
       }
     }
+    if (runBtn) runBtn.disabled = false;  // re-enable for the non-streaming outcomes
   } catch (e) {
     console.warn("[xbrain] catch-me-up failed:", e);
     if (bannerText) bannerText.textContent = "Network error — try again.";
-  } finally {
     if (runBtn) runBtn.disabled = false;
   }
 }
@@ -1336,6 +1374,7 @@ function wireComposer() {
     // test from scrollToBottom). markRead() is fail-soft and de-dupes in-flight
     // calls, so this can fire on every scroll frame without spamming the server.
     if (
+      state.catchup.readyForAutoMarkRead &&
       state.activeTeamId &&
       el.scrollHeight - el.scrollTop - el.clientHeight < 120
     ) {
