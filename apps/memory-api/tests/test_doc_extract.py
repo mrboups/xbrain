@@ -9,6 +9,7 @@ The full real-Postgres+Qdrant embed→retrieve gate is Plan 24-03; this proves t
 from __future__ import annotations
 
 import io
+import itertools
 
 from app.services.doc_extract import (
     DOCX_MIME,
@@ -176,7 +177,7 @@ def test_chunk_overlap_is_exact():
     text = "".join(chr(65 + (i % 26)) for i in range(5000))
     chunks = chunk_text(text, chunk_size=1500, overlap=150, max_chunks=200)
     assert len(chunks) >= 2
-    for a, b in zip(chunks, chunks[1:]):
+    for a, b in itertools.pairwise(chunks):
         if len(a) == 1500:  # a full chunk carries a full overlap tail
             assert a[-150:] == b[:150]
 
