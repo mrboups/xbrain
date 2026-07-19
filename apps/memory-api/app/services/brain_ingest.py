@@ -7,7 +7,7 @@ retrieve chat knowledge.
 
 This hook upserts each substantive human message as a ``WORKING`` memory item.
 Both retrieval paths already read from there with zero extra wiring:
-  - ``team_context_cache.get_team_memory_bundle`` (the @claude system block)
+  - ``team_context_cache.get_team_memory_bundle`` (the agent system block)
     selects ``memory_items WHERE truth_level IN (WORKING, VALIDATED, CANONICAL)``
   - the MCP ``memory_search`` tool queries the Qdrant vectors that
     ``provider.upsert`` writes.
@@ -22,6 +22,7 @@ import structlog
 
 from app.deps import get_memory_provider
 from app.services import team_context_cache
+from app.services.mention_detector import effective_aliases
 from xbrain_memory.types import (
     MemoryItem,
     TruthLevel,
@@ -37,10 +38,20 @@ log = structlog.get_logger(__name__)
 
 _MIN_CHARS = 15
 
+# Agent-mention COMMANDS are queries, not facts — skip them from brain ingest.
+# The skip-prefixes are DERIVED from the env-default agent aliases (Phase 21 /
+# D-21-01) — e.g. ``@agent``/``@chad``/``@a`` — so the mention vocabulary stays
+# in ONE place and never drifts back to a stale hardcoded token. Per-team
+# resolution is unnecessary for this cheap fire-and-forget filter; the
+# authoritative, team-scoped summon path is mention_detector.detect via
+# team_chat. Computed once at import.
+_AGENT_COMMAND_PREFIXES = tuple(f"@{alias}" for alias in effective_aliases(None))
+
 
 def is_brain_relevant(content: str) -> bool:
     """v1 relevance heuristic: ingest substantive human messages, skip trivia
-    and ``@claude`` commands (those are queries, not facts).
+    and agent-mention commands (``@agent``/``@chad``/``@a`` — those are queries,
+    not facts).
 
     "En fonction de ce qui peut être pertinent" — a Haiku classifier can
     replace this later for semantic relevance scoring; the heuristic keeps the
@@ -50,7 +61,7 @@ def is_brain_relevant(content: str) -> bool:
     if len(c) < _MIN_CHARS:
         return False
     low = c.lower()
-    if low.startswith(("@claude", "@c ", "@c\n", "@cl ", "@cl\n")):
+    if low.startswith(_AGENT_COMMAND_PREFIXES):
         return False
     return True
 
@@ -90,7 +101,7 @@ async def ingest_team_message(
             updated_at=now,
         )
         await provider.upsert(item)
-        # Bundle has a 5-min TTL; drop it so @claude sees the new fact now.
+        # Bundle has a 5-min TTL; drop it so the agent sees the new fact now.
         try:
             team_context_cache.invalidate(team_id)
         except Exception:  # noqa: BLE001
