@@ -30,17 +30,21 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.deps import get_current_principal, get_session
 from app.models.team import Team
 from app.repos import team_messages as tm_repo
 from app.repos import teams as teams_repo
+from app.repos import users as users_repo
 from app.routes.media_helpers import mint_media_token
 from app.services import (
     brain_ingest,
     centrifugo_client,
     mention_detector,
+    rate_limit,
     team_chat_agent,
     team_context_cache,
+    url_safety,
 )
 
 log = structlog.get_logger(__name__)
@@ -267,6 +271,92 @@ async def post_team_message(
         )
 
     return payload
+
+
+# ── /v1/teams/{team_id}/nudge-open — push-a-link (NUDGE-01, D-22-01) ─────────
+
+
+class PostNudgeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target_user_id: UUID
+    # Hard server cap; the TUNABLE gate is settings.NUDGE_MAX_URL_LENGTH, applied
+    # by is_safe_nudge_url below. Field bounds only reject the absurdly large early.
+    url: str = Field(..., min_length=1, max_length=4096)
+
+
+@router.post("/teams/{team_id}/nudge-open", status_code=202)
+async def nudge_open(
+    team_id: UUID,
+    body: PostNudgeBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Nudge a SAME-TEAM member to open a URL (consent-gated on the client).
+
+    Publishes an `open_url` event to the target's own `user:<source_user_id>`
+    Centrifugo channel. The channel is derived SERVER-side from a verified
+    membership — the request body never names a channel (T-22-01), and the URL is
+    validated purely lexically with NO server-side fetch/DNS/expansion (T-22-04,
+    D-22-03). The extension shows a notification and only opens the tab on the
+    recipient's explicit click (D-22-02).
+
+    Ordering is load-bearing — every rejection returns BEFORE the publish is
+    scheduled, so a rejected request provably publishes nothing:
+      1. sender must be a member of team_id            → 403 (reuse the helper)
+      2. target must be a member of the SAME team      → 403 (covers non-member
+         AND a different team's member; T-22-02)
+      3. URL must be a safe http/https string          → 422 (T-22-03)
+      4. per-sender rate limit must not be exhausted   → 429 (T-22-05)
+      5. THEN fire-and-forget publish                  → 202
+    """
+    sender = _require_user_principal(principal)
+
+    # 1. Sender membership (also resolves the Team → 404 if it doesn't exist).
+    team = await _resolve_team_and_check_membership(session, sender.id, team_id)
+
+    # 2. Resolve the target and assert SAME-TEAM membership. A single check covers
+    #    both "user isn't a member" and "user belongs to a different team" — either
+    #    way get_membership(target.id, team.slug) is None → 403, no publish.
+    target = await users_repo.get_user_by_id(session, body.target_user_id)
+    if target is None or await teams_repo.get_membership(
+        session, user_id=target.id, team_slug=team.slug
+    ) is None:
+        raise HTTPException(403, "target is not a member of this team")
+
+    # 3. URL safety (D-22-03) — lexical only; read the tunable cap at REQUEST time
+    #    so a test monkeypatching the settings singleton takes effect.
+    if not url_safety.is_safe_nudge_url(body.url, max_len=settings.NUDGE_MAX_URL_LENGTH):
+        raise HTTPException(422, "url must be a well-formed http/https link")
+
+    # 4. Per-sender rate limit (D-22-04, T-22-05) — bucket keyed by the SENDER's sub
+    #    (NOT client IP: enforce_rate_limit keys on IP and must not be used here).
+    if not rate_limit.check_rate(settings.NUDGE_RATE_LIMIT, "nudge", sender.source_user_id):
+        raise HTTPException(429, "too many link requests — try again shortly")
+
+    # 5. Fire-and-forget publish to the target's OWN user channel — never block the
+    #    response. The url is the literal, un-expanded string the sender supplied.
+    asyncio.create_task(
+        centrifugo_client.publish(
+            channel=f"user:{target.source_user_id}",
+            data={
+                "type": "open_url",
+                "url": body.url,
+                "from": {
+                    "display_name": sender.display_name,
+                    "sub": sender.source_user_id,
+                },
+                "team_id": str(team_id),
+                "team_slug": team.slug,
+            },
+        )
+    )
+    log.info(
+        "team_chat.nudge_open.scheduled",
+        team_id=str(team_id),
+        from_sub=sender.source_user_id,
+        target_sub=target.source_user_id,
+    )
+    return {"status": "accepted"}
 
 
 # ── /v1/teams/{team_id}/agent-context-bundle — internal (bridge JWT) ─────────
