@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 21 — Configurable Agent Aliases
+**Current focus:** Phase 21 (agent aliases) COMPLETE — @claude removed, per-team additive aliases (@agent always) + admin Settings name, client reads server list. Verified 4/4 + 2 code-review BLOCKERs fixed (brain-ingest word-boundary data-loss, unbounded regex-cache DoS). Residual: live-browser render of the Settings field (no jsdom harness). Next: backlog #2 push-a-link.
 
 ## Current Position
 
-Phase: 21 (Configurable Agent Aliases) — EXECUTING
+Phase: 21 (Configurable Agent Aliases) — COMPLETE. Next backlog: #2 push-a-link.
 Plan: 1 of 4
-Status: Executing Phase 21
+Status: Phase 21 complete — next backlog feature #2 (push-a-link)
 Last activity: 2026-07-19 -- Phase 21 execution started
 
 ## Performance Metrics
