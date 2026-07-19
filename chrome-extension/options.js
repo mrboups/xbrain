@@ -52,6 +52,23 @@ async function init() {
     );
   });
 
+  // Phase 22 push-a-link (D-22-04) — recipient opt-out. Guarded with if(cb)
+  // so older markup without the checkbox doesn't throw.
+  const cbAllowOpenLink = document.getElementById("opt-allow-open-link");
+  if (cbAllowOpenLink) {
+    cbAllowOpenLink.checked = settings.allowOpenLinkRequests;
+    cbAllowOpenLink.addEventListener("change", async () => {
+      await saveSettings(chrome.storage.sync, {
+        allowOpenLinkRequests: cbAllowOpenLink.checked,
+      });
+      showStatus(
+        cbAllowOpenLink.checked
+          ? "Saved ✓  —  teammates can send you open-link requests (you click to open)"
+          : "Saved ✓  —  open-link requests from teammates will be ignored",
+      );
+    });
+  }
+
   // === Clip defaults (Wave 3.5) ===
   const inProject = document.getElementById("opt-clip-project");
   const radioTruth = document.getElementsByName("opt-clip-truth");
