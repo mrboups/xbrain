@@ -656,6 +656,21 @@ Plans:
 - [x] 21-04-PLAN.md -- Extension client builds MENTION_RE from server list (delete @(grooveos|groove|gr|g)) + popup fetch/cache/refresh + admin Agent-name Settings field + JS gate
 **UI hint**: yes (a small Settings field)
 
+### Phase 22: Push-a-Link (nudge a member to open a URL)
+
+**Goal**: From the team chat, a member sends a URL to another team member; the target's extension shows a native OS notification (sender + full destination URL) and opens the URL as a new tab ONLY on the target's explicit click. Consent-gated, never silent. Reuses Centrifugo + the extension — no new infrastructure.
+**Depends on**: nothing new (the `user:<sub>` Centrifugo channel + notifications/tabs permissions already exist).
+**Requirements**: NUDGE-01
+**Success Criteria** (what must be TRUE):
+
+  1. A member POSTs a nudge to another member of the SAME team → the server publishes an `open_url` event to the target's `user:<sub>` channel — proven against a real Postgres (captured publish), sender+target membership validated; a non-member target or cross-team target → 403 with NO publish.
+  2. URL safety: only http/https accepted (a `javascript:`/`file:`/`data:` URL → 422, no publish); the recipient is shown the real, un-shortened URL; per-sender rate limiting trips under abuse.
+  3. The extension subscribes to its own `user:<sub>` channel and, on `open_url`, shows a native notification with the sender + full URL, and opens a tab (`chrome.tabs.create`) ONLY on the recipient's explicit click — never auto-open.
+  4. A recipient-side "Allow open-link requests" toggle (default ON) suppresses the notification when off; offline/closed-browser delivery is documented as a residual, not promised.
+
+**Plans**: TBD (populated by `/gsd:plan-phase 22`)
+**UI hint**: yes (a small "send link to member" affordance + a recipient toggle)
+
 ## Progress
 
 **Execution Order:**
