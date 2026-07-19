@@ -732,7 +732,11 @@ Plans:
   3. Every security guard holds, proven live: a REVOKED code is rejected; an EXPIRED code is rejected; a max-uses-reached code is rejected AND two racing redemptions cannot exceed max_uses (atomic increment); a code for team A can never add the caller to team B (team_scope isolation via a decoy team).
   4. Migration 0027 (down_revision 0026, additive, no EDITION branch) upgrades clean under EDITION=oss AND saas; a minimal English-only "create invite link" + "join by code" action lands in the extension Settings surface (contract test extended).
 
-**Plans**: TBD (populated by `/gsd:plan-phase 25`)
+**Plans**: 4 plans, 3 waves (1 -> 2 -> 3 parallel)
+- [ ] 25-01-PLAN.md - Schema + repo foundation: team_invite_codes table/model + migration 0027 + config knobs + hash-at-rest mint + race-safe atomic redeem (wave 1)
+- [ ] 25-02-PLAN.md - The 4 endpoints: mint (admin, plaintext once) + join-by-code (any-auth, rate-limited, idempotent, generic-404) + revoke (admin) + list (admin, no hash) (wave 2)
+- [ ] 25-03-PLAN.md - Real-Postgres gate: mint->join->revoke + every guard (revoke/expiry/max-uses/double-spend-race/team-isolation/authZ/idempotent/no-oracle) + migration-both-editions, SKIP=FAIL (wave 3)
+- [ ] 25-04-PLAN.md - Extension Settings UI: in-popup invite overlay (mint+copy / paste-code-to-join), English-only shadcn Neutral, popup contract test extended (wave 3)
 **UI hint**: yes (extension Settings: mint/copy an invite link + a paste-code-to-join field)
 
 ## Progress
