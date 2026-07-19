@@ -631,6 +631,27 @@ Plans:
 - [x] 17-04-PLAN.md — SC3 structural proof (parse the needs-graph) + actionlint gate + Make targets + honest residual doc (REL-01/02/03)
 **UI hint**: no (CI/release infrastructure — no user-facing surface)
 
+---
+
+## Post-v2.0 Backlog Phases
+
+> Milestone v2.0 (Open-Core Edition) shipped 2026-07-19. These phases deliver captured BACKLOG features on top of it, one at a time.
+
+### Phase 21: Configurable Agent Mention Aliases
+
+**Goal**: The team's agent is summoned by a per-team, additive alias list — `@agent` always works, plus defaults (`chad`, `a`), plus a custom name a team admin sets in Settings — and `@claude` is gone. The extension client and memory-api server share ONE source of truth for the alias list, so they can never diverge again.
+**Depends on**: nothing new (team chat + mention detector already exist).
+**Requirements**: AGENT-01
+**Success Criteria** (what must be TRUE):
+
+  1. On a team whose admin set a custom agent name, a message mentioning that name summons the agent — proven through the real `team_chat` → `mention_detector` path against a real Postgres, and a DIFFERENT team that didn't set it does NOT fire on that name.
+  2. `@agent` summons the agent on EVERY team regardless of custom config (universal default), and `@claude` no longer summons anything (removed everywhere, client + server).
+  3. The extension client builds its mention regex from the server's effective alias list (fetched, cached, refreshed on team switch / after a save) — NOT from a hardcoded vocabulary; the stale `@(grooveos|groove|gr|g)` literal is deleted.
+  4. A team admin sets/changes the agent name in Settings and it takes effect with NO restart (detection reads the DB per message; the client re-fetches). A non-admin cannot change it. Submitted aliases are validated (charset, length, count) and safe to compile into a regex.
+
+**Plans**: TBD (populated by `/gsd:plan-phase 21`)
+**UI hint**: yes (a small Settings field)
+
 ## Progress
 
 **Execution Order:**

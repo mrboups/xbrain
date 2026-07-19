@@ -50,6 +50,12 @@ Active scope. One codebase, two runtime shapes (OSS self-host / SaaS hosted); a 
 
 **Out of scope for v2.0 (separate tracks):** Email feature (send + Gmail read/search/ingest — absent today); Grok API-key fallback + per-message trial cap (SaaS trial).
 
+## Post-v2.0 Backlog Requirements
+
+Delivered on top of shipped v2.0, one phase at a time.
+
+- [ ] **AGENT-01** (Phase 21): A team admin configures the agent's mention name(s) in Settings; the agent is summoned by a per-team, additive alias list (`@agent` always works + defaults + the custom name), `@claude` is removed, and the extension client + server share one source of truth for the list so they never diverge.
+
 
 ## v2.0 Traceability
 
