@@ -649,7 +649,11 @@ Plans:
   3. The extension client builds its mention regex from the server's effective alias list (fetched, cached, refreshed on team switch / after a save) — NOT from a hardcoded vocabulary; the stale `@(grooveos|groove|gr|g)` literal is deleted.
   4. A team admin sets/changes the agent name in Settings and it takes effect with NO restart (detection reads the DB per message; the client re-fetches). A non-admin cannot change it. Submitted aliases are validated (charset, length, count) and safe to compile into a regex.
 
-**Plans**: TBD (populated by `/gsd:plan-phase 21`)
+**Plans**: 4 plans (wave 1 -> 2 -> 3||3)
+- [ ] 21-01-PLAN.md -- Persistence (migration 0025 teams.agent_aliases) + config default agent,chad,a + team-aware cached mention_detector (effective_aliases resolver + detect overload)
+- [ ] 21-02-PLAN.md -- Wire team_chat summon site + GET (member) / PATCH (admin, validated, reserved-claude) /agent-aliases + repo + brain_ingest align + real-Postgres API tests
+- [ ] 21-03-PLAN.md -- THE gate: real-Postgres per-team summon path (@custom own-team only, @agent always, @claude never) + migration 0025 forward-only under oss AND saas
+- [ ] 21-04-PLAN.md -- Extension client builds MENTION_RE from server list (delete @(grooveos|groove|gr|g)) + popup fetch/cache/refresh + admin Agent-name Settings field + JS gate
 **UI hint**: yes (a small Settings field)
 
 ## Progress
