@@ -2,7 +2,8 @@
  * Tests for chrome-extension/chat_stream.js (quick task 260512-tcr Wave 3.6).
  *
  * Pure helpers — no DOM, no chrome.*, no Centrifuge. Coverage:
- *   detectMentionClient — mirror of server-side regex
+ *   buildMentionRegex   — regex built from the server's effective alias list
+ *   detectMentionClient — mention detection over that server-derived regex
  *   StreamBuffer        — race conditions, finalize, drop
  *   formatRelative      — buckets, fallbacks
  *   hostnameFromUrl     — happy + invalid input
@@ -18,6 +19,7 @@ import assert from "node:assert/strict";
 import {
   StreamBuffer,
   detectMentionClient,
+  buildMentionRegex,
   formatRelative,
   hostnameFromUrl,
   authorLabel,
@@ -43,37 +45,87 @@ function test(name, body) {
   }
 }
 
-// ---------- detectMentionClient ----------
+// ---------- buildMentionRegex + detectMentionClient (built from server list) ----------
+//
+// The client no longer hardcodes a mention vocabulary. It builds its regex from
+// the server's effective alias list (GET /v1/teams/{id}/agent-aliases) and must
+// agree with what the server would summon for that same list — and reject
+// @claude. This is the CLIENT half of the gate lesson (the server half is the
+// real-Postgres detector test in memory-api).
 
-test("detectMentionClient: @claude matched", () => {
-  const r = detectMentionClient("hey @claude what is up");
-  assert.equal(r?.trigger, "claude");
-  assert.equal(r?.agent_name, "claude-sonnet-4-6");
+// 1. Build-from-list positive: the trigger is whatever the server list contains.
+test("detectMentionClient: builds from a server list (@agent / @chad / @a)", () => {
+  const list = ["agent", "chad", "a"];
+  assert.equal(detectMentionClient("@chad hi", list)?.trigger, "chad");
+  assert.equal(detectMentionClient("@a hi", list)?.trigger, "a");
+  assert.equal(detectMentionClient("@agent hi", list)?.trigger, "agent");
+  assert.equal(
+    detectMentionClient("@agent hi", list)?.agent_name,
+    "claude-sonnet-4-6",
+  );
 });
 
-test("detectMentionClient: @c and @cl short aliases", () => {
-  assert.equal(detectMentionClient("@c hi")?.trigger, "c");
-  assert.equal(detectMentionClient("@cl ?")?.trigger, "cl");
+// 2. Custom alias: a team's admin-set name summons.
+test("detectMentionClient: a team's custom alias summons", () => {
+  assert.equal(
+    detectMentionClient("@wizard go", ["agent", "wizard"])?.trigger,
+    "wizard",
+  );
 });
 
-test("detectMentionClient: case insensitive", () => {
-  assert.equal(detectMentionClient("@CLAUDE pls")?.trigger, "claude");
-  assert.equal(detectMentionClient("@Cl pls")?.trigger, "cl");
+// 3. @claude rejected — reserved, filtered out of the alternation entirely.
+test("detectMentionClient: @claude is never a client trigger", () => {
+  const list = ["agent", "chad", "a", "wizard"];
+  assert.equal(detectMentionClient("@claude hi", list), null);
+  // Even smuggled into the list, buildMentionRegex filters "claude" out.
+  const re = buildMentionRegex(["agent", "claude"]);
+  assert.equal(re.test("@claude x"), false);
+  assert.equal(re.test("@agent x"), true);
 });
 
-test("detectMentionClient: email-like rejected", () => {
-  assert.equal(detectMentionClient("alice@claude.com"), null);
+// 4. Boundary parity with the server: longest-first + trailing boundary + email
+//    rejection + case-insensitivity.
+test("detectMentionClient: boundary parity (trailing char, email, case)", () => {
+  // "@apple" must NOT match ["agent","a"] — "a" needs a trailing boundary.
+  assert.equal(detectMentionClient("@apple", ["agent", "a"]), null);
+  // Email local@domain must never be read as a mention.
+  assert.equal(detectMentionClient("alice@agent.com", ["agent"]), null);
+  // Case-insensitive, like the server (flags "i").
+  assert.equal(detectMentionClient("@AGENT", ["agent"])?.trigger, "agent");
 });
 
-test("detectMentionClient: longer-word false positives rejected", () => {
-  assert.equal(detectMentionClient("@cloud is up"), null);
-  assert.equal(detectMentionClient("@claire said yes"), null);
-  assert.equal(detectMentionClient("@claudes here"), null);
+// 5. Escape parity + longest-first — the security-relevant half (mirror of the
+//    server's re.escape; a hostile alias cannot become a wildcard).
+test("buildMentionRegex: JS-escapes each alias (mirror of server re.escape)", () => {
+  const re = buildMentionRegex(["a.b"]);
+  assert.equal(re.test("@a.b"), true); // the dot is a literal
+  assert.equal(re.test("@axb"), false); // ...not a wildcard
 });
 
-test("detectMentionClient: empty / null input", () => {
-  assert.equal(detectMentionClient(""), null);
+test("buildMentionRegex: a hostile '.*' alias matches only the literal @.*", () => {
+  const re = buildMentionRegex([".*"]);
+  assert.equal(re.test("@.*"), true); // literal ".*"
+  assert.equal(re.test("@anything"), false); // NOT a catch-all — escaped
+});
+
+test("buildMentionRegex: longest-first alternation wins (no truncation)", () => {
+  assert.equal(
+    detectMentionClient("@grove x", ["gr", "grove"])?.trigger,
+    "grove",
+  );
+});
+
+// 6. Empty / degenerate input.
+test("detectMentionClient: empty / null input → null", () => {
+  assert.equal(detectMentionClient("", ["agent"]), null);
+  assert.equal(detectMentionClient(null, ["agent"]), null);
   assert.equal(detectMentionClient(null), null);
+});
+
+test("buildMentionRegex: empty list falls back to @agent (mirror server)", () => {
+  const re = buildMentionRegex([]);
+  assert.equal(re.test("@agent x"), true);
+  assert.equal(detectMentionClient("@agent hi", [])?.trigger, "agent");
 });
 
 // ---------- StreamBuffer ----------
