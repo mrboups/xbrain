@@ -88,8 +88,15 @@ async def list_conversations(
     team_scope: str = Depends(get_team_scope),
     limit: int = Query(default=50, le=200),
 ):
-    # Users see only their own conversations within the team. Bridges see all in the team.
-    owner_filter = principal["user"].id if principal["kind"] == "user" else None
+    # Team-shared by design: xbrain is a per-TEAM group chat, so every member of a team sees
+    # the team's conversations — there is no per-user privacy within a team today (product
+    # decision 2026-07-19). team_scope isolation (team A never sees team B) still holds below.
+    # Previously this filtered `kind=="user"` principals to their own rows while `user_api_token`
+    # principals (every extension user post-onboarding) saw all — an inconsistency where two
+    # members of the same team saw DIFFERENT scopes depending on how they authenticated. Unified
+    # to team-shared. When one-to-one / private conversations ship, owner scoping returns HERE
+    # (opt-in per conversation), not as an auth-kind side effect.
+    owner_filter = None
     convs = await conv_repo.list_conversations(
         session, team_scope=team_scope, owner_user_id=owner_filter, limit=limit
     )

@@ -170,19 +170,15 @@ Sizing: modest phase, dominated by the identity-pairing work — but blocked on 
 
 ---
 
-## Cross-user conversation leak — `conversations.py:92` (LIVE prod bug)
+## ~~Cross-user conversation leak — `conversations.py:92`~~ — NOT A BUG (resolved 2026-07-19)
 
-**Found:** 2026-07-13, by the Phase 18 auth-architecture audit. Surfaced to the user. NOT folded into Phase 18 (kept auth-focused); logged here for a dedicated fix.
+**Resolution (2026-07-19, user decision):** this was a **false alarm**. xbrain is a **per-team group chat**; every team member is *supposed* to see the team's conversations — there is no per-user privacy within a team today (one-to-one is a possible future feature, not current). See memory `project_xbrain_team_shared_no_1to1`.
 
-**The bug:** `apps/memory-api/app/routes/conversations.py:92` —
-`owner_filter = principal["user"].id if principal["kind"] == "user" else None`.
-For a `kind="user_api_token"` principal — which is **every extension user after onboarding**, since both Google and GitHub sign-in end by minting an `xbt_` token — `owner_filter` becomes `None`, and `list_conversations` treats `None` as "no filter". So **every team member sees every other member's conversations**, contradicting the code's own comment ("Users see only their own conversations within the team").
+**What was actually fixed:** an *inconsistency* in the other direction. `list_conversations` filtered `kind=="user"` principals to their own rows but let `user_api_token` principals (every extension user post-onboarding) see all — so two members of the same team saw DIFFERENT scopes depending on auth kind. Unified to **team-shared** (`owner_filter = None`) + corrected the misleading "users see only their own" comment (commit on 2026-07-19). `team_scope` isolation (team A ≠ team B) is unaffected and remains the real invariant.
 
-**Severity:** real cross-user privacy leak, affecting production now, not a future risk. Team-scope isolation still holds (you only see *your team's* data) — but within a team, per-user conversation privacy is gone for `xbt_` sessions.
+**Future:** when one-to-one / private conversations are built, per-conversation owner scoping returns as an **opt-in per conversation**, not as an auth-kind side effect.
 
-**Fix:** one line — gate on `principal.get("user")` being truthy rather than strict `kind == "user"`, so `user_api_token` (which has a fully-populated `user`) also gets its `owner_filter`. Then add a regression test: two members of the same team, each `xbt_`-authenticated, must NOT see each other's conversations.
-
-**Adjacent (same class, from the same audit):** several routes strictly gate `principal["kind"] == "user"` and 403 a valid `user_api_token` (`me.py:76-83`, `audit.py:34`, `promotions.py:58-63`). Lower severity (over-restrictive, not a leak), but worth a sweep in the same pass.
+**Adjacent (still worth a look, separate concern):** several routes strictly gate `principal["kind"] == "user"` and 403 a valid `user_api_token` (`me.py:76-83`, `audit.py:34`, `promotions.py:58-63`). That's over-restrictive (a real extension user gets 403 on their own data), NOT a privacy issue — worth a small sweep so `user_api_token` principals aren't wrongly rejected. Low priority.
 
 ---
 
