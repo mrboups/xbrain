@@ -691,7 +691,12 @@ Plans:
   3. The summary is produced via the EXISTING streaming agent path (brain-grounded, truth-level chips), is EPHEMERAL (a dismissible banner/reply, not a persisted message everyone sees), never auto-runs, and is rate-limited per caller.
   4. The extension shows the "Catch me up" affordance ONLY when the unread volume is meaningful (threshold-gated), calls mark-read on focus/scroll-to-bottom, and the popup contract test stays green.
 
-**Plans**: TBD (populated by `/gsd:plan-phase 23`)
+**Plans**: 4 plans
+Plans:
+- [ ] 23-01-PLAN.md — Cursor foundation: migration 0026 (team_members.last_read_at) + ORM + repo primitives (set_last_read, after_created_at window, count_unread_since)
+- [ ] 23-02-PLAN.md — mark-read + unread-summary endpoints + ephemeral brain-grounded catch-me-up service/endpoint (reuse the @agent streaming path, rate-limited, opt-in)
+- [ ] 23-03-PLAN.md — Real-Postgres gate: cursor + since-window + count-excludes-own + 403 + team_scope isolation + no persisted row; migration 0026 forward-only under oss AND saas
+- [ ] 23-04-PLAN.md — Extension: mark-read on focus/scroll + threshold-gated dismissible "Catch me up" banner + ephemeral summary render; popup contract test stays green
 **UI hint**: yes (a dismissible catch-me-up banner)
 
 ## Progress
