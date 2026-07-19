@@ -253,6 +253,14 @@ class Settings(BaseSettings):
     LOCAL_AUTH_RATE_LIMIT: str = "10/minute"      # per-IP, in-process (NOT durable across uvicorn --workers 2 — Plan 02 rate_limit.py documents this)
     LOCAL_AUTH_MIN_PASSWORD_LENGTH: int = 10
 
+    # === Phase 22 (NUDGE-01) — push-a-link "nudge a member to open a URL" ===
+    # Per-sender, in-process bucket (rate_limit.py's --workers 2 caveat applies —
+    # spray-blunting only, not a hard guarantee). NUDGE_MAX_URL_LENGTH is the
+    # tunable ceiling is_safe_nudge_url enforces. OSS-friendly defaults — no .env
+    # entry required.
+    NUDGE_RATE_LIMIT: str = "10/minute"
+    NUDGE_MAX_URL_LENGTH: int = 2048
+
     # === Phase 19 (EMBED-01) — deliberately NO field_validator: a zero-key
     # OSS install must boot; get_embedder() falls back to local on any unknown value ===
     EMBEDDINGS_PROVIDER: str = "local"
