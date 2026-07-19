@@ -4,14 +4,14 @@ milestone: v2.0
 milestone_name: Open-Core Edition
 status: executing
 stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
-last_updated: "2026-07-18T19:47:03.118Z"
-last_activity: 2026-07-18 -- Phase 17 execution started
+last_updated: "2026-07-19T01:00:34.913Z"
+last_activity: 2026-07-19 -- Phase 21 execution started
 progress:
-  total_phases: 21
-  completed_phases: 19
-  total_plans: 146
-  completed_plans: 140
-  percent: 90
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 4
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** MILESTONE v2.0 COMPLETE (14,15,18,19,16,20,17 all shipped + verified). Residuals are documented, not hidden: no live GitHub-Actions run / GHCR publish / SaaS deploy (VM stopped, deploy disarmed), the Phase-20 live-backend UAT, the amd64-VM clean install, and the LICENSE MIT-vs-AGPLv3+CLA decision (user's call). Next: backlog features.
+**Current focus:** Phase 21 — Configurable Agent Aliases
 
 ## Current Position
 
-Phase: 17 (CI Lockstep) — COMPLETE. MILESTONE v2.0 (Open-Core Edition) COMPLETE.
+Phase: 21 (Configurable Agent Aliases) — EXECUTING
 Plan: 1 of 4
-Status: Phase 17 complete — milestone v2.0 complete. Next: backlog features.
-Last activity: 2026-07-18 -- Phase 17 execution started
+Status: Executing Phase 21
+Last activity: 2026-07-19 -- Phase 21 execution started
 
 ## Performance Metrics
 

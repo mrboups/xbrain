@@ -11,7 +11,14 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.mention_detector import _build_mention_regex, detect
+from app.config import settings
+from app.services.mention_detector import (
+    _build_mention_regex,
+    _regex_cache,
+    _regex_for,
+    detect,
+    effective_aliases,
+)
 
 
 # === Default (module-level) behavior — driven by conftest's
@@ -100,3 +107,118 @@ def test_case_insensitive_flag_preserved():
 def test_non_alias_mention_does_not_match():
     regex = _build_mention_regex("agent,grooveos,groove,gr,g")
     assert regex.search("@nobody") is None
+
+
+# === Phase 21 (21-01) — effective_aliases() resolver ===
+#     defaults (settings.AGENT_MENTION_ALIASES) union custom, "@agent" always,
+#     "@claude" never, deduped case-insensitively (defaults precede custom).
+
+
+def test_effective_aliases_agent_always_present():
+    """@agent is a universal default — present on any effective list."""
+    result = effective_aliases(None)
+    lowers = [a.lower() for a in result]
+    assert "agent" in lowers
+    # every default token from settings is carried through
+    for tok in [t.strip().lower() for t in settings.AGENT_MENTION_ALIASES.split(",") if t.strip()]:
+        assert tok in lowers
+
+
+def test_effective_aliases_custom_added_after_defaults():
+    result = effective_aliases("wizard")
+    lowers = [a.lower() for a in result]
+    assert "agent" in lowers
+    assert "wizard" in lowers
+    # defaults precede custom
+    assert lowers.index("agent") < lowers.index("wizard")
+
+
+def test_effective_aliases_dedup_case_insensitive():
+    result = effective_aliases("Agent, wizard, WIZARD")
+    lowers = [a.lower() for a in result]
+    assert lowers.count("agent") == 1
+    assert lowers.count("wizard") == 1
+
+
+def test_effective_aliases_default_set_monkeypatched(monkeypatch):
+    """With the expanded default (D-21-01), agent/chad/a all resolve."""
+    monkeypatch.setattr(
+        "app.services.mention_detector.settings.AGENT_MENTION_ALIASES", "agent,chad,a"
+    )
+    lowers = [a.lower() for a in effective_aliases(None)]
+    assert "agent" in lowers
+    assert "chad" in lowers
+    assert "a" in lowers
+
+
+def test_effective_aliases_claude_never_present():
+    """@claude is reserved — filtered out even if a bad string persisted it."""
+    lowers = [a.lower() for a in effective_aliases("claude, wizard")]
+    assert "claude" not in lowers
+    assert "wizard" in lowers
+
+
+# === Phase 21 (21-01) — team-aware detect(content, aliases) ===
+
+
+@pytest.mark.parametrize(
+    "text,aliases,expected",
+    [
+        ("@wizard hi", ["agent", "wizard"], "wizard"),  # custom alias fires
+        ("@agent hi", ["agent", "wizard"], "agent"),    # universal default fires
+        ("@a hi", ["agent", "a"], "a"),                 # short alias, boundary-correct
+    ],
+)
+def test_detect_team_aware_positive(text: str, aliases: list[str], expected: str):
+    result = detect(text, aliases)
+    assert result is not None, f"expected match in {text!r} with {aliases}"
+    assert result["trigger"] == expected
+
+
+@pytest.mark.parametrize(
+    "text,aliases",
+    [
+        ("@wizard hi", ["agent"]),                       # team did NOT set this alias
+        ("@claude hi", ["agent", "wizard", "chad", "a"]),  # @claude never triggers
+        ("@apple hi", ["agent", "a"]),                   # short alias must not truncate
+    ],
+)
+def test_detect_team_aware_negative(text: str, aliases: list[str]):
+    assert detect(text, aliases) is None, f"should NOT match {text!r} with {aliases}"
+
+
+def test_detect_backward_compat_no_aliases():
+    """Unchanged callers (no aliases arg) keep using the module-level default regex."""
+    result = detect("@agent hi")
+    assert result is not None
+    assert result["trigger"] == "agent"
+
+
+def test_detect_regex_cache_reused():
+    """A repeated alias-set does not recompile — no new cache key on the 2nd call."""
+    _regex_cache.clear()
+    aliases = ["agent", "wizard"]
+    detect("@wizard one", aliases)
+    assert len(_regex_cache) == 1
+    detect("@wizard two", aliases)
+    assert len(_regex_cache) == 1  # identical set → no new key
+    # key is normalized (sorted + lowercased): a reordered/recased list hits the SAME entry
+    detect("@wizard three", ["WIZARD", "Agent"])
+    assert len(_regex_cache) == 1
+
+
+def test_regex_for_returns_same_pattern_object():
+    """_regex_for keys on the normalized alias tuple → same compiled Pattern reused."""
+    _regex_cache.clear()
+    p1 = _regex_for(["agent", "wizard"])
+    p2 = _regex_for(["wizard", "agent"])
+    assert p1 is p2
+
+
+def test_detect_malicious_alias_is_escaped_literal():
+    """A metacharacter alias like ".*" is re.escape()d — literal, never 'any char'."""
+    aliases = ["agent", ".*"]
+    # the literal token "@.*" fires (escaped alias matches itself)
+    assert detect("@.* hi", aliases) is not None
+    # if ".*" leaked unescaped, "@x" would match; escaped, it must NOT
+    assert detect("@x hi", aliases) is None
