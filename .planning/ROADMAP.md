@@ -711,7 +711,13 @@ Plans:
   3. Guards hold: an oversized body is TRUNCATED with a bounded chunk count (never crashes); a scanned/no-text-layer PDF yields a `no_text_layer` flag on the parent item and NO empty-body chunks (no OCR); an unknown/binary mime is skipped cleanly and the upload still succeeds; an extraction failure never breaks the upload.
   4. The extraction libs (pypdf, python-docx — both pure-Python) resolve on arm64 AND amd64; embedding stays keyless.
 
-**Plans**: TBD (populated by `/gsd:plan-phase 24`)
+**Plans**: 3 plans
+Plans:
+
+- [ ] 24-01-PLAN.md — Deps (pypdf/python-docx) + DOCBODY_* config knobs + pure extraction/chunking module (mime dispatch, guards, no_text_layer)
+- [ ] 24-02-PLAN.md — extract_and_ingest_body service (linked chunk memory_items, inherited tagging) wired fire-and-forget into media.upload_media
+- [ ] 24-03-PLAN.md — Real Postgres+Qdrant keyless gate: body→embedded→retrieved (non-mocked) + guard proofs
+
 **UI hint**: no (a backend ingestion capability — no user-facing surface)
 
 ## Progress
