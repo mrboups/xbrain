@@ -22,6 +22,11 @@ class Team(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     visibility: Mapped[str] = mapped_column(String(16), nullable=False, default="closed")
     github_org: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    # Phase 21 (ALIAS-01, D-21-03) — comma-separated CUSTOM mention aliases only,
+    # no leading '@'. NULL/empty => env AGENT_MENTION_ALIASES defaults only. The
+    # effective list a team summons on (defaults union custom, '@agent' always) is
+    # resolved server-side by mention_detector.effective_aliases().
+    agent_aliases: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

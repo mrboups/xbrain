@@ -238,9 +238,11 @@ class Settings(BaseSettings):
     GITHUB_CATALOG_README_CHARS: int = 8000  # README input cap before Haiku call
 
     # Comma-separated agent mention aliases, WITHOUT the leading '@'.
-    # Neutral default so a fresh OSS install works out of the box: "@agent".
-    # xbrain prod overrides this in .env to preserve today's triggers.
-    AGENT_MENTION_ALIASES: str = "agent"
+    # Default now expands to "@agent, @chad, @a" (D-21-01 — adds the short "a")
+    # so a fresh OSS install summons on any of them out of the box. Per-team custom
+    # aliases (teams.agent_aliases) are ADDED on top; "@agent" is guaranteed present.
+    # Env still overrides this bootstrap list.
+    AGENT_MENTION_ALIASES: str = "agent,chad,a"
 
     # === Phase 18 (LAUTH-01/02) — native email/password auth ===
     # Safe defaults, deliberately NO field_validator: a zero-OAuth install must
