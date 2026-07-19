@@ -329,3 +329,155 @@ async def test_text_markdown_body_extracted_embedded_retrieved_keyless(
     assert top.item.source == "upload:body"
     assert top.item.metadata["parent_item_id"] == "PARENT-MD"
     assert top.item.metadata["media_key"] == "media/phase24/recipe.md"
+
+
+# === THE GUARDS: proven LIVE against the real provider ========================
+
+
+@pytest.mark.integration
+async def test_no_text_layer_pdf_flags_and_writes_no_chunks(
+    pg_url, qdrant_url, local_model_ready
+):
+    """A real PDF with NO text layer (scanned-doc analogue) flags no_text_layer and writes
+    ZERO body chunks — never a silent empty embed (D-24-03). Proven against real PG+Qdrant:
+    the parent id is unretrievable because nothing was ever embedded for it."""
+    from app.qdrant_setup import ensure_collections
+
+    await ensure_collections()
+    provider = _build_native_provider()
+    try:
+        res = await extract_and_ingest_body(
+            provider=provider,
+            data=_make_empty_pdf(),
+            mime=PDF_MIME,
+            filename="scan.pdf",
+            media_key="media/phase24/scan.pdf",
+            parent_item_id="PARENT-SCAN",
+            team_scope=TEAM,
+            project_scope=PROJECT,
+            truth_level="WORKING",
+        )
+        assert res.no_text_layer is True
+        assert res.chunk_count == 0
+
+        # No empty-body chunk was embedded: PARENT-SCAN can never surface in a live search.
+        hits = await provider.search(
+            "scanned document with no readable text layer", team_scope=TEAM, limit=10
+        )
+    finally:
+        await _aclose(provider)
+
+    assert all(
+        h.item.metadata.get("parent_item_id") != "PARENT-SCAN" for h in hits
+    ), "a no-text-layer PDF must not write any retrievable body chunk"
+
+
+@pytest.mark.integration
+async def test_oversized_body_truncated_and_chunk_count_bounded(
+    pg_url, qdrant_url, local_model_ready
+):
+    """An oversized body is TRUNCATED and its chunk count is BOUNDED by DOCBODY_MAX_CHUNKS
+    (T-24-13). Caps are temporarily tightened (mutate+restore, the local_env convention) so
+    a modest body deterministically reaches the bound without embedding hundreds of chunks."""
+    from app.config import settings
+    from app.qdrant_setup import ensure_collections
+
+    await ensure_collections()
+    # Tighten the caps deterministically; restore in finally (no external patching lib).
+    orig = (
+        settings.DOCBODY_MAX_TOTAL_CHARS,
+        settings.DOCBODY_CHUNK_SIZE,
+        settings.DOCBODY_CHUNK_OVERLAP,
+        settings.DOCBODY_MAX_CHUNKS,
+    )
+    settings.DOCBODY_MAX_TOTAL_CHARS = 6000
+    settings.DOCBODY_CHUNK_SIZE = 1000
+    settings.DOCBODY_CHUNK_OVERLAP = 0
+    settings.DOCBODY_MAX_CHUNKS = 3
+
+    provider = _build_native_provider()
+    try:
+        # ~15k chars >> the 6000-char cap → truncated; 6000/1000 = 6 windows, capped to 3.
+        big_body = ("The oversized filler sentence number appears here. " * 400).encode()
+        res = await extract_and_ingest_body(
+            provider=provider,
+            data=big_body,
+            mime="text/plain",
+            filename="huge.txt",
+            media_key="media/phase24/huge.txt",
+            parent_item_id="PARENT-BIG",
+            team_scope=TEAM,
+            project_scope=PROJECT,
+            truth_level="WORKING",
+        )
+        assert res.truncated is True
+        assert res.chunk_count <= settings.DOCBODY_MAX_CHUNKS
+        assert res.chunk_count == settings.DOCBODY_MAX_CHUNKS  # the cap actually bit
+    finally:
+        await _aclose(provider)
+        (
+            settings.DOCBODY_MAX_TOTAL_CHARS,
+            settings.DOCBODY_CHUNK_SIZE,
+            settings.DOCBODY_CHUNK_OVERLAP,
+            settings.DOCBODY_MAX_CHUNKS,
+        ) = orig
+
+
+@pytest.mark.integration
+async def test_unknown_mime_skipped_no_chunks(pg_url, qdrant_url, local_model_ready):
+    """An unknown/binary mime is skipped cleanly with ZERO body chunks — the upload path is
+    unaffected. Proven live: nothing for its parent id is retrievable from real Qdrant."""
+    from app.qdrant_setup import ensure_collections
+
+    await ensure_collections()
+    provider = _build_native_provider()
+    try:
+        res = await extract_and_ingest_body(
+            provider=provider,
+            data=b"\x00\x01\x02binary-blob",
+            mime="application/octet-stream",
+            filename="payload.bin",
+            media_key="media/phase24/payload.bin",
+            parent_item_id="PARENT-BIN",
+            team_scope=TEAM,
+            project_scope=PROJECT,
+            truth_level="WORKING",
+        )
+        assert res.skipped is True
+        assert res.chunk_count == 0
+
+        hits = await provider.search("arbitrary binary payload blob", team_scope=TEAM, limit=10)
+    finally:
+        await _aclose(provider)
+
+    assert all(
+        h.item.metadata.get("parent_item_id") != "PARENT-BIN" for h in hits
+    ), "an unknown-mime upload must not write any body chunk"
+
+
+@pytest.mark.integration
+async def test_extraction_failure_is_fail_soft(pg_url, qdrant_url, local_model_ready):
+    """Corrupt PDF bytes must NEVER raise — extraction failure can never break the upload
+    (D-24-01). The call returns an IngestResult with zero chunks instead of propagating."""
+    from app.qdrant_setup import ensure_collections
+
+    await ensure_collections()
+    provider = _build_native_provider()
+    try:
+        try:
+            res = await extract_and_ingest_body(
+                provider=provider,
+                data=b"%PDF-1.4 this is not actually a valid pdf body at all",
+                mime=PDF_MIME,
+                filename="corrupt.pdf",
+                media_key="media/phase24/corrupt.pdf",
+                parent_item_id="PARENT-CORRUPT",
+                team_scope=TEAM,
+                project_scope=PROJECT,
+                truth_level="WORKING",
+            )
+        except Exception as exc:  # pragma: no cover — the whole point is this can't happen
+            pytest.fail(f"extract_and_ingest_body raised on corrupt PDF bytes: {exc!r}")
+        assert res.chunk_count == 0  # nothing embedded; the upload response is untouched
+    finally:
+        await _aclose(provider)
