@@ -30,6 +30,7 @@ import json
 import re
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -46,6 +47,7 @@ from app.config import settings
 from app.db.session import async_session_factory
 from app.models.team import Team
 from app.models.team_message import TeamMessage
+from app.models.user import User
 from app.repos import team_messages as tm_repo
 from app.services import centrifugo_client, team_context_cache
 
@@ -616,3 +618,192 @@ async def _stream_via_anthropic_api(
                     }
                 },
             )
+
+
+# --- Catch me up — ephemeral, opt-in summary since last visit (Phase 23) ------
+
+
+CATCHUP_SUMMARY_INSTRUCTION = (
+    "You are catching a returning team member up on what they MISSED in this "
+    "team chat since they were last here. Summarize what happened: highlight "
+    "decisions made, questions directed at the returning member, and any "
+    "VALIDATED/CANONICAL facts. Be concise — a tight briefing, not a transcript."
+)
+
+
+def _format_catchup_user_turn(messages: list[TeamMessage]) -> str:
+    """Render the catch-me-up USER turn: an instruction header followed by the
+    chronological since-window (reuses _format_chat_history's per-message
+    rendering so the two never diverge)."""
+    return f"{CATCHUP_SUMMARY_INSTRUCTION}\n\n" + _format_chat_history(messages)
+
+
+async def catch_me_up(
+    *,
+    team_id: UUID,
+    caller_user_sub: str,
+    since: datetime | None,
+) -> None:
+    """Ephemeral, opt-in "Catch me up" summary streamed to the CALLER only.
+
+    Reuses the EXACT @agent streaming path (brain bundle + _stream_via_promax /
+    _stream_via_anthropic_api) but:
+      - streams to the caller's PRIVATE `user:<caller_sub>` Centrifugo channel,
+        NEVER `team:<id>` (D-23-04);
+      - persists NOTHING — it deliberately never inserts an agent-message row,
+        so the summary is never a `team_messages` row everyone sees
+        (D-23-05, T-23-06);
+      - is bounded to CATCHUP_MAX_MESSAGES and filters out the caller's OWN
+        messages so the gathered window agrees with the unread count that gated
+        it ("catch me up on what you MISSED", not what you sent).
+
+    Never raises — logs on failure (mirrors handle_claude_mention). Invoked via
+    asyncio.create_task() from POST /catch-me-up AFTER membership + rate-limit +
+    non-empty-window gates.
+    """
+    channel = f"user:{caller_user_sub}"
+    message_id = uuid.uuid4()
+    try:
+        async with async_session_factory() as session:
+            team = (
+                await session.execute(select(Team).where(Team.id == team_id))
+            ).scalar_one_or_none()
+            if team is None:
+                log.warning("team_chat_agent.catchup.team_missing", team_id=str(team_id))
+                return
+
+            # Gather the since-window (newest-first, capped) then reverse to
+            # chronological (mirror get_recent_messages_chronological). A None
+            # `since` (first visit) returns the latest CATCHUP_MAX_MESSAGES.
+            msgs = await tm_repo.list_messages(
+                session,
+                team_id=team.id,
+                after_created_at=since,
+                limit=settings.CATCHUP_MAX_MESSAGES,
+            )
+            msgs.reverse()
+
+            # Filter out the caller's OWN messages so the summary window agrees
+            # with count_unread_since's exclude_user_id. Resolve the caller's
+            # user.id from their sub (agent frames have a NULL author_user_id and
+            # so are never dropped here).
+            caller = (
+                await session.execute(
+                    select(User).where(User.source_user_id == caller_user_sub)
+                )
+            ).scalar_one_or_none()
+            if caller is not None:
+                msgs = [m for m in msgs if m.author_user_id != caller.id]
+
+            # Empty window → one "nothing new" end frame, NO LLM spend.
+            if not msgs:
+                await centrifugo_client.publish(
+                    channel=channel,
+                    data={
+                        "type": "catchup_stream_end",
+                        "message_id": str(message_id),
+                        "note": "nothing new since your last visit",
+                    },
+                )
+                return
+
+            # Brain bundle — TEAM-SCOPED (the isolation boundary, T-23-02): a
+            # different team's messages/facts are structurally unreachable.
+            bundle = await team_context_cache.get_team_memory_bundle(
+                session, team_scope=team.slug, team_id=team.id
+            )
+
+        # Build prompts by REUSING the module helpers (no duplicated streaming).
+        system_prompt = _build_system_prompt(team_slug=team.slug)
+        cached_memory_block = _format_memory_block(bundle["bundle"])
+        chat_history_block = _format_catchup_user_turn(msgs)
+
+        # Route exactly like the @agent path.
+        has_promax = await _user_has_live_bridge(caller_user_sub)
+        routed_via = "user_promax" if has_promax else "team_api"
+
+        started_at = time.monotonic()
+        log.info(
+            "team_chat_agent.catchup.start",
+            team_id=str(team_id),
+            caller_user_sub=caller_user_sub,
+            routed_via=routed_via,
+            message_id=str(message_id),
+            window=len(msgs),
+        )
+
+        # Stream start → the caller's OWN channel only.
+        await centrifugo_client.publish(
+            channel=channel,
+            data={
+                "type": "catchup_stream_start",
+                "message_id": str(message_id),
+                "agent_name": MODEL_SONNET,
+                "routed_via": routed_via,
+            },
+        )
+
+        try:
+            if has_promax:
+                stream = _stream_via_promax(
+                    triggering_user_sub=caller_user_sub,
+                    system_prompt=system_prompt,
+                    cached_memory_block=cached_memory_block,
+                    chat_history_block=chat_history_block,
+                )
+            else:
+                stream = _stream_via_anthropic_api(
+                    system_prompt=system_prompt,
+                    cached_memory_block=cached_memory_block,
+                    chat_history_block=chat_history_block,
+                )
+            async for chunk_text, _usage in stream:
+                if chunk_text:
+                    await centrifugo_client.publish(
+                        channel=channel,
+                        data={
+                            "type": "catchup_stream_chunk",
+                            "message_id": str(message_id),
+                            "delta": chunk_text,
+                        },
+                    )
+        except Exception as e:  # noqa: BLE001
+            log.warning(
+                "team_chat_agent.catchup.stream_error",
+                team_id=str(team_id),
+                err=str(e),
+            )
+            await centrifugo_client.publish(
+                channel=channel,
+                data={
+                    "type": "catchup_stream_error",
+                    "message_id": str(message_id),
+                    "error": str(e)[:200],
+                },
+            )
+
+        elapsed_ms = int((time.monotonic() - started_at) * 1000)
+        # EPHEMERAL by construction: deliberately no agent-message row is
+        # persisted and NO `team:<id>` publish is made — the summary is never a
+        # row everyone sees (D-23-04/05, T-23-06). Only the caller's own user
+        # channel gets a closing frame.
+        await centrifugo_client.publish(
+            channel=channel,
+            data={
+                "type": "catchup_stream_end",
+                "message_id": str(message_id),
+                "elapsed_ms": elapsed_ms,
+            },
+        )
+        log.info(
+            "team_chat_agent.catchup.done",
+            team_id=str(team_id),
+            message_id=str(message_id),
+            elapsed_ms=elapsed_ms,
+        )
+    except Exception as e:  # noqa: BLE001
+        log.warning(
+            "team_chat_agent.catchup.error",
+            team_id=str(team_id),
+            err=str(e),
+        )
