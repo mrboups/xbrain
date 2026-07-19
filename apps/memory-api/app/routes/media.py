@@ -52,10 +52,17 @@ async def _run_body_ingest(*, provider: MemoryProvider, parent_metadata: dict[st
     try:
         res = await extract_and_ingest_body(provider=provider, **kw)
         if res.no_text_layer:
+            # HI-01: provider.update() REPLACES metadata wholesale, so patch off a FRESH
+            # read — not the closure-captured snapshot taken before extraction started.
+            # A concurrent PATCH /v1/memory/{id} that landed during the (seconds-long)
+            # extraction window would otherwise be silently clobbered. Fall back to the
+            # snapshot only if the item vanished (deleted mid-flight).
+            fresh = await provider.get(kw["parent_item_id"], team_scope=kw["team_scope"])
+            base_meta = dict(fresh.metadata) if fresh and fresh.metadata else dict(parent_metadata)
             await provider.update(
                 kw["parent_item_id"],
                 team_scope=kw["team_scope"],
-                patch={"metadata": {**parent_metadata, "no_text_layer": True}},
+                patch={"metadata": {**base_meta, "no_text_layer": True}},
             )
         log.info(
             "media.body_ingest_done",
@@ -69,6 +76,7 @@ async def _run_body_ingest(*, provider: MemoryProvider, parent_metadata: dict[st
             "media.body_ingest_failed",
             parent_item_id=kw.get("parent_item_id"),
             error=str(exc),
+            exc_info=True,  # LOW: retain the stack trace for a detached-task post-mortem
         )
 
 
@@ -179,6 +187,13 @@ async def upload_media(
                 team_scope=team_scope,
                 project_scope=project_scope,
                 truth_level=truth_level,
+                # MD-03: thread the parent's remaining tagging fields EXPLICITLY so body
+                # chunks inherit the real upload values, not defaults that merely happen
+                # to match. If the parent's visibility/validation/confidence ever change,
+                # the chunks follow instead of silently diverging.
+                visibility=item.visibility,
+                validation_status=item.validation_status,
+                confidence=item.confidence,
                 parent_metadata=item.metadata,
             )
         )

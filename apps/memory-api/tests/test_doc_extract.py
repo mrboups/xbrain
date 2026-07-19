@@ -193,3 +193,21 @@ def test_chunk_empty_input_returns_empty():
 
 def test_chunk_whitespace_only_dropped():
     assert chunk_text("   \n\t   ", chunk_size=1500, overlap=150, max_chunks=200) == []
+
+
+def test_chunk_overlap_ge_chunk_size_terminates():
+    # overlap >= chunk_size would make the window never advance — the step floor must
+    # keep the loop finite and honor the count cap (MD-01 regression).
+    chunks = chunk_text("y" * 10000, chunk_size=100, overlap=100, max_chunks=5)
+    assert len(chunks) == 5
+
+
+def test_chunk_nonpositive_chunk_size_terminates():
+    # A misconfigured DOCBODY_CHUNK_SIZE <= 0 must NOT infinite-loop (MD-01): step is
+    # floored at 1 so the loop always terminates and stays bounded by the count cap.
+    # chunk_size == 0 yields only empty windows (dropped) -> [].
+    assert chunk_text("z" * 5000, chunk_size=0, overlap=0, max_chunks=200) == []
+    # chunk_size < 0 is nonsensical operator error but must still TERMINATE and honor
+    # the cap (no runaway) — the load-bearing property is "finite", not "empty".
+    neg = chunk_text("z" * 5000, chunk_size=-10, overlap=0, max_chunks=50)
+    assert len(neg) <= 50

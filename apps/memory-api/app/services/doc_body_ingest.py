@@ -22,6 +22,7 @@ Contract highlights:
 """
 from __future__ import annotations
 
+import asyncio
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -81,7 +82,13 @@ async def extract_and_ingest_body(
     """
     upserted = 0
     try:
-        res = extract_document(
+        # BL-01: pypdf / python-docx parsing is synchronous CPU-bound work. This runs
+        # from a detached task, but the API is deployed at UVICORN_WORKERS=1 in the
+        # OSS-light target, so a large/crafted document parsed inline on the event loop
+        # would freeze EVERY concurrent request. Offload to a worker thread (the same
+        # asyncio.to_thread convention embedders.py uses) so the loop stays responsive.
+        res = await asyncio.to_thread(
+            extract_document,
             data,
             mime,
             filename,
@@ -155,6 +162,7 @@ async def extract_and_ingest_body(
             filename=filename,
             upserted=upserted,
             error=str(exc),
+            exc_info=True,  # LOW: keep the stack trace for post-mortem, not just the message
         )
         return IngestResult(
             chunk_count=upserted, no_text_layer=False, skipped=False,

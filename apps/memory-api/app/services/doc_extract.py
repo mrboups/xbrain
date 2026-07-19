@@ -178,10 +178,10 @@ def chunk_text(
     if not text or not text.strip():
         return []
 
-    # Guard against a pathological overlap >= chunk_size (would never advance / infinite loop).
-    step = chunk_size - overlap
-    if step <= 0:
-        step = chunk_size
+    # Guard against a non-advancing window (infinite loop). Two ways it could stall:
+    # overlap >= chunk_size, OR a misconfigured chunk_size <= 0. Floor the step at 1 so
+    # `start` always advances and the loop is guaranteed to terminate on any config.
+    step = max(1, chunk_size - overlap)
 
     chunks: list[str] = []
     start = 0
