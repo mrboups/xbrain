@@ -13,6 +13,7 @@ Design notes (from BL-003-media-design.md):
 """
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -20,7 +21,6 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
-
 from xbrain_memory import MemoryItem, MemoryProvider
 
 from app.config import settings
@@ -31,10 +31,45 @@ from app.deps import (
     get_team_scope,
 )
 from app.routes.media_helpers import _MAX_UPLOAD_BYTES, derive_key_and_mime, verify_media_token
+from app.services.doc_body_ingest import extract_and_ingest_body
 
 log = structlog.get_logger(__name__)
 
 router = APIRouter()
+
+
+async def _run_body_ingest(*, provider: MemoryProvider, parent_metadata: dict[str, Any], **kw: Any) -> None:
+    """Detached body-ingest task (Phase 24, DOCBODY-01).
+
+    Scheduled fire-and-forget from upload_media AFTER the parent card item is
+    committed, so a slow / failing extraction can never affect the 201 response
+    (D-24-01). Extracts the body, embeds each chunk as a linked memory_item, and —
+    when the document has no text layer (scanned / image-only) — sets an explicit
+    `no_text_layer: true` flag on the PARENT item's metadata (D-24-03: auditable,
+    not a silent no-op) via provider.update. The whole body is guarded: this task
+    runs after the request returned, so it must swallow everything.
+    """
+    try:
+        res = await extract_and_ingest_body(provider=provider, **kw)
+        if res.no_text_layer:
+            await provider.update(
+                kw["parent_item_id"],
+                team_scope=kw["team_scope"],
+                patch={"metadata": {**parent_metadata, "no_text_layer": True}},
+            )
+        log.info(
+            "media.body_ingest_done",
+            parent_item_id=kw.get("parent_item_id"),
+            chunk_count=res.chunk_count,
+            no_text_layer=res.no_text_layer,
+            skipped=res.skipped,
+        )
+    except Exception as exc:  # detached task — never surface an unhandled exception
+        log.warning(
+            "media.body_ingest_failed",
+            parent_item_id=kw.get("parent_item_id"),
+            error=str(exc),
+        )
 
 
 def _ensure_bucket(client: Any, bucket: str) -> None:
@@ -126,6 +161,27 @@ async def upload_media(
         updated_at=now,
     )
     await provider.upsert(item)
+
+    # Phase 24 (DOCBODY-01): extract the document body and embed each chunk as a
+    # linked memory_item, fire-and-forget AFTER the object + parent card item are
+    # committed. The 201 response is never blocked and any extraction failure is
+    # invisible to the uploader (D-24-01). Gated by a kill-switch so a zero-key
+    # install can disable it entirely.
+    if settings.DOCBODY_EXTRACTION_ENABLED:
+        asyncio.create_task(
+            _run_body_ingest(
+                provider=provider,
+                data=data,
+                mime=mime,
+                filename=file.filename,
+                media_key=key,
+                parent_item_id=item_id,
+                team_scope=team_scope,
+                project_scope=project_scope,
+                truth_level=truth_level,
+                parent_metadata=item.metadata,
+            )
+        )
 
     log.info(
         "media.uploaded",
