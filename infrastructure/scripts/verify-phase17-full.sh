@@ -19,14 +19,14 @@
 #                       reading 1: `config --services` counted with profiles on vs. off
 #                       reading 2: the per-service `profiles:` key in the resolved config
 #                     i.e. listed_full == listed_core + profile_tagged, and the core set is a
-#                     SUBSET of the full set. Today that is 10 + 22 = 32, but the numbers are
+#                     SUBSET of the full set. Today that is 10 + 24 = 34, but the numbers are
 #                     re-derived every run: adding a service updates both sides and the check
 #                     keeps holding, while a service that is tagged/untagged INCONSISTENTLY (the
 #                     failure that silently drops a service out of CI) breaks it.
-#   (b) PROFILES    — `config --profiles` == exactly `integrations ops saas` (no `pro`).
+#   (b) PROFILES    — `config --profiles` == exactly `board integrations ops saas` (no `pro`).
 #   (c) OVERRIDE    — layering docker-compose.ci-images.yml resolves, and EVERY `build:` service
 #                     COMPLETENESS  carries a `ghcr.io/<owner>/xbrain-*` image. The expected count is
-#                     derived from the BASE file (count of services with a `build:` key = 18
+#                     derived from the BASE file (count of services with a `build:` key = 20
 #                     today), never hardcoded. This is the check that catches a service missing
 #                     from the override — the exact defect that would make a downstream job
 #                     silently `--build` one service instead of pulling what CI tested (D-17-02).
@@ -123,11 +123,11 @@ test_a_full_graph() {
 
   local core_list full_list
   core_list=$(env -u COMPOSE_PROFILES "${DC_BASE[@]}" config --services 2>/dev/null | sort)
-  full_list=$(COMPOSE_PROFILES=integrations,saas,ops "${DC_BASE[@]}" config --services 2>/dev/null | sort)
+  full_list=$(COMPOSE_PROFILES=integrations,saas,ops,board "${DC_BASE[@]}" config --services 2>/dev/null | sort)
 
   if [[ -z "$core_list" || -z "$full_list" ]]; then
     ko "(a) 'config --services' returned nothing — the compose graph did not resolve (SKIP=FAIL)"
-    COMPOSE_PROFILES=integrations,saas,ops "${DC_BASE[@]}" config --services 2>&1 | tail -5 | sed 's/^/        /'
+    COMPOSE_PROFILES=integrations,saas,ops,board "${DC_BASE[@]}" config --services 2>&1 | tail -5 | sed 's/^/        /'
     return 1
   fi
 
@@ -140,7 +140,7 @@ test_a_full_graph() {
   # the bare-core listing, and vice versa; that is what makes this a cross-check and not a
   # tautology like "full - core == full - core".
   local keyed
-  keyed=$(COMPOSE_PROFILES=integrations,saas,ops "${DC_BASE[@]}" config --format json 2>/dev/null \
+  keyed=$(COMPOSE_PROFILES=integrations,saas,ops,board "${DC_BASE[@]}" config --format json 2>/dev/null \
     | PYTHONIOENCODING=utf-8 "$PY" -c '
 import json, sys
 try:
@@ -177,8 +177,8 @@ print("%d %d" % (len(untagged), len(tagged)))
     ok "(a) full-profile graph resolves: $n_full services == $n_core core + $n_tagged profile-tagged (derived, agrees with the profiles: keys); core is a subset of full"
     # Informational snapshot only — the ASSERTION above is the derived identity, this line just
     # records what the derivation evaluated to today so drift is visible in CI logs.
-    if [[ "$n_full" -ne 32 || "$n_core" -ne 10 || "$n_tagged" -ne 22 ]]; then
-      yellow "      NOTE: the graph changed since Phase 17 was written (was 32 = 10 + 22, now $n_full = $n_core + $n_tagged)."
+    if [[ "$n_full" -ne 34 || "$n_core" -ne 10 || "$n_tagged" -ne 24 ]]; then
+      yellow "      NOTE: the graph changed since the Phase-26 board profile landed (was 34 = 10 + 24, now $n_full = $n_core + $n_tagged)."
       yellow "            This is NOT a failure — the identity still holds. Update the CI docs if the change was intended."
     fi
   else
@@ -191,18 +191,18 @@ print("%d %d" % (len(untagged), len(tagged)))
 }
 
 # =============================================================================================
-# (b) PROFILES — exactly integrations ops saas.
+# (b) PROFILES — exactly board integrations ops saas.
 # =============================================================================================
 test_b_profiles() {
   echo
-  echo "(b) PROFILES — declared profile set is exactly 'integrations ops saas' (no pro)"
+  echo "(b) PROFILES — declared profile set is exactly 'board integrations ops saas' (no pro)"
 
   local profiles
-  profiles=$(COMPOSE_PROFILES=integrations,saas,ops "${DC_BASE[@]}" config --profiles 2>/dev/null | sort | tr '\n' ' ')
-  if [[ "$profiles" == "integrations ops saas " ]]; then
-    ok "(b) profiles == 'integrations ops saas'"
+  profiles=$(COMPOSE_PROFILES=integrations,saas,ops,board "${DC_BASE[@]}" config --profiles 2>/dev/null | sort | tr '\n' ' ')
+  if [[ "$profiles" == "board integrations ops saas " ]]; then
+    ok "(b) profiles == 'board integrations ops saas'"
   else
-    ko "(b) profiles='$profiles' (expected 'integrations ops saas ')"
+    ko "(b) profiles='$profiles' (expected 'board integrations ops saas ')"
     return 1
   fi
 }
@@ -222,7 +222,7 @@ test_c_override_completeness() {
   # Expected count is DERIVED from the base file: however many services carry a `build:` key must
   # be remapped. Add a build service without adding it to the override and this check fails.
   local n_build_base
-  n_build_base=$(COMPOSE_PROFILES=integrations,saas,ops "${DC_BASE[@]}" config --format json 2>/dev/null \
+  n_build_base=$(COMPOSE_PROFILES=integrations,saas,ops,board "${DC_BASE[@]}" config --format json 2>/dev/null \
     | PYTHONIOENCODING=utf-8 "$PY" -c '
 import json, sys
 try:
@@ -240,7 +240,7 @@ print(sum(1 for v in svc.values() if v.get("build")))
   echo "      derived from $BASE_FILE: $n_build_base services carry a build: key — all $n_build_base must be remapped"
 
   local verdict
-  verdict=$(COMPOSE_PROFILES=integrations,saas,ops "${DC_OVERRIDE[@]}" config --format json 2>/dev/null \
+  verdict=$(COMPOSE_PROFILES=integrations,saas,ops,board "${DC_OVERRIDE[@]}" config --format json 2>/dev/null \
     | PYTHONIOENCODING=utf-8 "$PY" -c '
 import json, re, sys
 
