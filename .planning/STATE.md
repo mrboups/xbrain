@@ -4,14 +4,14 @@ milestone: v2.0
 milestone_name: Open-Core Edition
 status: executing
 stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
-last_updated: "2026-07-19T16:25:31.801Z"
-last_activity: 2026-07-19 -- Phase 25 execution started
+last_updated: "2026-07-24T03:47:27.709Z"
+last_activity: 2026-07-24 -- Phase 26 execution started
 progress:
-  total_phases: 5
-  completed_phases: 4
-  total_plans: 18
-  completed_plans: 14
-  percent: 78
+  total_phases: 6
+  completed_phases: 5
+  total_plans: 25
+  completed_plans: 18
+  percent: 72
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 25 (team join-by-code) COMPLETE — admin mints a revocable/expiring/max-uses invite code (bearer secret: sha256 at rest, plaintext once); any authenticated user redeems it to join that team. Verified 4/4 + code-review (1 BLOCKER post-rollback MissingGreenlet 500, 2 warnings) fixed with a both-ways-proven regression. ALL 5 backlog features shipped (21 aliases, 22 push-a-link, 23 catch-me-up, 24 doc-body, 25 join-by-code). Next: the Excalidraw + Yjs collaborative board (its own large phase).
+**Current focus:** Phase 26 — Collaborative Board
 
 ## Current Position
 
-Phase: 25 (Team Join-by-Code) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 25
-Last activity: 2026-07-19 -- Phase 25 execution started
+Phase: 26 (Collaborative Board) — EXECUTING
+Plan: 1 of 7
+Status: Executing Phase 26
+Last activity: 2026-07-24 -- Phase 26 execution started
 
 ## Performance Metrics
 
