@@ -171,6 +171,80 @@ function wireHeader() {
   if (btnAddToMemory) {
     btnAddToMemory.addEventListener("click", openClipOverlay);
   }
+  // "board" header button (Phase 26, BOARD-01) — opens the ACTIVE team's
+  // collaborative board in a new tab, mirroring how btn-open-librechat opens a
+  // tab. Wired here, alongside the other header actions, rather than in its own
+  // wireX() because it owns no overlay/panel — the board is a tab, not a popup
+  // surface.
+  const btnBoard = $("btn-board");
+  if (btnBoard) {
+    btnBoard.addEventListener("click", openTeamBoard);
+  }
+}
+
+// ---------- Collaborative board (Phase 26, BOARD-01) ----------
+//
+// A single header action that opens the ACTIVE team's board in a browser tab.
+// The extension does NOT own the board UI (Excalidraw is 2.76 MB behind a React
+// peer — it cannot live in a 400 px popup, D-26-01). It asks memory-api for the
+// team's board and opens the URL the server returns. Everything security-bearing
+// (membership check, board-token mint) already happened server-side in 26-02.
+//
+// The server returns `open_url` with a short-lived board token in its URL
+// fragment — a bearer secret for that one board (T-26-32). Two rules follow:
+//   1. The extension NEVER builds this URL; the server owns it (T-26-33).
+//   2. The URL / token is NEVER logged (only err.message on failure, T-26-32).
+// The returned URL is scheme-validated with the existing isSafeHttpUrl guard so
+// a non-http(s) scheme can never reach chrome.tabs.create (T-26-31) — the same
+// helper that guards the Phase-22 nudge path. No new manifest permission is
+// needed: chrome.tabs.create already opens teammate-supplied URLs (Phase 22).
+async function openTeamBoard() {
+  if (!state.activeTeamId) return; // nothing to open yet
+  const btn = $("btn-board");
+  // Disable for the duration of the request so a double-click can't fire two
+  // board-creation calls (T-26-34); re-enabled in finally.
+  if (btn) btn.disabled = true;
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    const res = await fetch(
+      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/boards`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${xbt_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ title: "Team board" }),
+      },
+    );
+    if (!res.ok) throw new Error(`board ${res.status}`);
+    const data = await res.json();
+    // Validate the server-built URL's scheme before handing it to the browser,
+    // and never log it — the fragment is a bearer secret for this one board.
+    if (!data.open_url || !isSafeHttpUrl(data.open_url)) {
+      throw new Error("board url rejected");
+    }
+    chrome.tabs.create({ url: data.open_url });
+  } catch (err) {
+    // Report the FAILURE only — never the URL or the token. Fail-soft: a short
+    // English status flashes on the button itself (no dedicated status surface,
+    // the board owns no overlay), then the label is restored.
+    console.warn("[xbrain] open board failed:", err && err.message);
+    flashBoardError(btn);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Briefly swap the board button's label to a short English failure state, then
+// restore it. Adds no new id/overlay — the board is a bare header action.
+function flashBoardError(btn) {
+  if (!btn) return;
+  const prev = btn.textContent;
+  btn.textContent = "board failed";
+  setTimeout(() => {
+    btn.textContent = prev;
+  }, 2000);
 }
 
 // ---------- Send-link affordance (Phase 22, D-22-05) ----------
