@@ -408,7 +408,9 @@ async def join_by_code(
     await enforce_rate_limit(request, settings.JOIN_CODE_RATE_LIMIT, "join-by-code")
 
     # Look up by hash (matches how the repo stores it) — no plaintext timing oracle.
-    code_hash = hash_token(body.code)
+    # IN-02: strip server-side too. memory-api is the multi-frontend contract; a client
+    # that forgets to trim a pasted code must not get a spurious 404.
+    code_hash = hash_token(body.code.strip())
     row = await invite_codes_repo.get_by_hash(session, code_hash=code_hash)
     if row is None:
         raise HTTPException(404, "invalid or expired invite code")  # generic — no oracle
@@ -418,15 +420,24 @@ async def join_by_code(
         # Team gone (CASCADE would normally remove the code too) — same generic message.
         raise HTTPException(404, "invalid or expired invite code")
 
+    # CR-01: snapshot the team identity into PLAIN LOCALS now, while the ORM object is
+    # live. Every response below (including the post-rollback one) must read these, never
+    # `team.<attr>` — session.rollback() unconditionally expires the identity map (even
+    # with expire_on_commit=False, which only governs commit()), so a bare attribute
+    # access on the expired object under AsyncSession raises MissingGreenlet -> 500.
+    team_id_str = str(team.id)
+    team_slug = team.slug
+    team_display = team.display_name
+
     existing = await teams_repo.get_membership(
-        session, user_id=user.id, team_slug=team.slug
+        session, user_id=user.id, team_slug=team_slug
     )
     if existing is not None:
         await session.commit()  # idempotent no-op — DO NOT increment uses (D-25-04).
         return JoinByCodeOut(
-            team_id=str(team.id),
-            slug=team.slug,
-            display_name=team.display_name,
+            team_id=team_id_str,
+            slug=team_slug,
+            display_name=team_display,
             already_member=True,
         )
 
@@ -434,6 +445,23 @@ async def join_by_code(
         session, code_id=row.id, now=datetime.now(tz=timezone.utc)
     )
     if redeemed is None:
+        # WR-01: a same-user concurrent double-submit of a max_uses=1 code never reaches
+        # the IntegrityError guard below — the loser's redeem_atomic returns None because
+        # the winner already consumed the last use. Re-check membership before 404'ing:
+        # if the caller IS now a member, the honest answer is the idempotent 200, not a
+        # misleading "invalid code". This reveals nothing new — it only reflects the
+        # caller's OWN membership of a team they just joined.
+        raced = await teams_repo.get_membership(
+            session, user_id=user.id, team_slug=team_slug
+        )
+        if raced is not None:
+            await session.commit()
+            return JoinByCodeOut(
+                team_id=team_id_str,
+                slug=team_slug,
+                display_name=team_display,
+                already_member=True,
+            )
         # revoked / expired / exhausted -> SAME generic 404, no oracle (D-25-02).
         raise HTTPException(404, "invalid or expired invite code")
 
@@ -452,26 +480,28 @@ async def join_by_code(
         )
     except IntegrityError:  # the concurrent-insert loser
         await session.rollback()
+        # CR-01: read the pre-rollback locals ONLY — `team` is expired here and any
+        # attribute access on it would raise MissingGreenlet instead of returning 200.
         return JoinByCodeOut(
-            team_id=str(team.id),
-            slug=team.slug,
-            display_name=team.display_name,
+            team_id=team_id_str,
+            slug=team_slug,
+            display_name=team_display,
             already_member=True,
         )
 
     await write_audit(
         session,
         actor_user_id=user.id,
-        team_scope=team.slug,
+        team_scope=team_slug,
         action="teams.join_by_code",
-        target_id=str(team.id),
+        target_id=team_id_str,
         payload={"code_prefix": row.code_prefix, "role": redeemed.role},  # NO plaintext/hash
     )
     await session.commit()
     return JoinByCodeOut(
-        team_id=str(team.id),
-        slug=team.slug,
-        display_name=team.display_name,
+        team_id=team_id_str,
+        slug=team_slug,
+        display_name=team_display,
         already_member=False,
     )
 

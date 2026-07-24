@@ -401,6 +401,116 @@ async def test_join_by_code_gate(client):
             await cleaner.commit()
 
 
+@pytest.mark.integration
+async def test_same_user_race_returns_200_not_missinggreenlet(client):
+    """CR-01 regression — the same-user double-submit guard must actually RETURN 200.
+
+    The guard catches the concurrent-insert loser's IntegrityError, calls
+    `session.rollback()`, and answers `already_member=True`. `rollback()` unconditionally
+    EXPIRES the identity map (expire_on_commit=False only governs commit()), so reading
+    `team.slug` on the expired ORM object afterwards triggers a lazy refresh that raises
+    MissingGreenlet under AsyncSession — turning the graceful 200 into a 500. The route
+    therefore snapshots the team identity into plain locals BEFORE the rollback.
+
+    Only the TRIGGER is injected (add_member raises IntegrityError, exactly what the
+    losing request gets from the team_members unique violation). Everything the bug lived
+    in — the real session, the real rollback, the real expired ORM object, the real
+    response construction — runs unmocked against the real container.
+    """
+    import sqlalchemy as sa
+    from sqlalchemy.exc import IntegrityError
+
+    import app.db.session as db_session
+    import app.routes.teams as teams_routes
+    from app.deps import get_session
+    from app.main import app
+    from app.repos import team_invite_codes as invite_codes_repo
+    from app.repos import teams as teams_repo
+    from app.repos import users as users_repo
+    from app.services import rate_limit
+
+    async def _committing_get_session():
+        async with db_session.async_session_factory() as s:
+            yield s
+
+    app.dependency_overrides[get_session] = _committing_get_session
+    rate_limit._storage.reset()
+
+    async with db_session.async_session_factory() as seed:
+        admin_c = await users_repo.get_or_create_user(
+            seed, source_user_id="jbc-cr01-admin-sub", email="jbc-cr01-admin@test.local",
+            display_name="CR01 Admin",
+        )
+        racer = await users_repo.get_or_create_user(
+            seed, source_user_id="jbc-cr01-racer-sub", email="jbc-cr01-racer@test.local",
+            display_name="CR01 Racer",
+        )
+        team_c = await teams_repo.create_team(
+            seed, slug="jbc-team-cr01", display_name="JBC Team CR01",
+            creator_user_id=admin_c.id,
+        )
+        _row, plaintext = await invite_codes_repo.mint_code(
+            seed, team_id=team_c.id, created_by_user_id=admin_c.id,
+            role="member", expires_at=None, max_uses=None,  # unlimited: reach add_member
+        )
+        await seed.commit()
+        team_c_id, admin_c_id, racer_id = team_c.id, admin_c.id, racer.id
+        expected_slug, expected_display = team_c.slug, team_c.display_name
+
+    real_add_member = teams_routes.teams_repo.add_member
+
+    async def _raising_add_member(*a, **kw):
+        # Exactly what the losing concurrent request hits on the (team_id, user_id) PK.
+        raise IntegrityError("INSERT INTO team_members", {}, Exception("duplicate key"))
+
+    racer_p = types.SimpleNamespace(
+        id=racer_id, source_user_id="jbc-cr01-racer-sub", email="jbc-cr01-racer@test.local",
+        display_name="CR01 Racer", github_username=None, github_id=None,
+    )
+
+    try:
+        teams_routes.teams_repo.add_member = _raising_add_member
+        _install_principal(racer_p)
+        try:
+            res = await client.post("/v1/teams/join-by-code", json={"code": plaintext})
+        finally:
+            _clear_principal()
+            teams_routes.teams_repo.add_member = real_add_member
+
+        # THE assertion: the guard's own path returns the idempotent 200 — not a 500
+        # (which is what MissingGreenlet produced before the fix).
+        assert res.status_code == 200, (
+            "CR-01: the same-user race guard must return the idempotent 200, but got "
+            f"{res.status_code}: {res.text[:400]}"
+        )
+        payload = res.json()
+        assert payload["already_member"] is True
+        # The response must carry the REAL team identity, read from the pre-rollback
+        # locals (a stale/blank value would mean the snapshot was not actually used).
+        assert payload["slug"] == expected_slug
+        assert payload["display_name"] == expected_display
+    finally:
+        async with db_session.async_session_factory() as cleaner:
+            await cleaner.execute(
+                sa.text("DELETE FROM audit_log WHERE actor_user_id = ANY(:ids)"),
+                {"ids": [admin_c_id, racer_id]},
+            )
+            await cleaner.execute(
+                sa.text("DELETE FROM team_invite_codes WHERE team_id = :tid"),
+                {"tid": team_c_id},
+            )
+            await cleaner.execute(
+                sa.text("DELETE FROM team_members WHERE team_id = :tid"), {"tid": team_c_id}
+            )
+            await cleaner.execute(sa.text("DELETE FROM teams WHERE id = :tid"), {"tid": team_c_id})
+            await cleaner.execute(
+                sa.text("DELETE FROM users WHERE id = ANY(:ids)"),
+                {"ids": [admin_c_id, racer_id]},
+            )
+            await cleaner.commit()
+        app.dependency_overrides.pop(get_session, None)
+
+
 # ── Group 2: the double-spend race — atomic increment under true concurrency ───
 
 

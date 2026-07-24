@@ -373,6 +373,14 @@ function closeInvite() {
   if (out) out.textContent = "";
   const row = $("invite-code-row");
   if (row) row.hidden = true;
+  // WR-02: a PASTED code is a bearer secret too — clear the join input (and both status
+  // lines) so it does not survive closing the overlay unsubmitted.
+  const joinInput = $("invite-join-code");
+  if (joinInput) joinInput.value = "";
+  const mintStatus = $("invite-status");
+  if (mintStatus) mintStatus.textContent = "";
+  const joinStatus = $("invite-join-status");
+  if (joinStatus) joinStatus.textContent = "";
 }
 
 // ADMIN action — mint an invite code and reveal the plaintext ONCE. The server
