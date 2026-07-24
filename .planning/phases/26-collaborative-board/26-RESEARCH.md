@@ -575,7 +575,7 @@ document.getElementById("btn-board").addEventListener("click", async () => {
       start_period: 20s
 ```
 
-Port 8107 is free — 8104 mcp-brain, 8105 session-bridge, 8106 centrifugo `[VERIFIED: docker-compose.yml]`.
+**CORRECTION (plan-check):** 8107 is NOT free — `mcp-github` already uses it internally (`FASTMCP_PORT: "8107"`, docker-compose.yml:988, profile `integrations`). This is harmless: each container has its own network namespace, neither service publishes to the host, and DNS/healthchecks are per-container-name — so `board:8107` and `mcp-github:8107` never collide. Keep the number but do NOT treat 8107 as globally reserved. (8104 mcp-brain, 8105 session-bridge, 8106 centrifugo `[VERIFIED: docker-compose.yml]`.)
 
 ### nginx vhost (mirroring the centrifugo template)
 
@@ -702,7 +702,9 @@ Items 1-5 alone are ~6 plans. Items 6-7 are ~3. Phases 21-25 ran 3-4 plans each;
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED except Q4)
+
+> Plan-check resolution: Q1 -> 26-01's mandatory Wave-0 spike (D-26-05); Q2 -> CONTEXT discretion + 26-02's partial-unique-index schema (allows N, defaults to 1); Q3 -> D-26-04 (opt-in profile); Q5 -> 26-04's single-image-both-editions Dockerfile; Q6 -> measured at execution time, feeds 26-06's mem_limit. **Q4 (truth_level for board snapshots) stays genuinely open but is N/A for 26a** — it only matters once 26b's brain ingestion begins.
 
 1. **Does `y-excalidraw@2.0.12` (npm) actually work against `@excalidraw/excalidraw@0.18.1`?**
    - What we know: the peer range is `^0.17.6`; `commitToHistory` was replaced by `captureUpdate` in between; `main` on GitHub is unchanged since 2024-12-10; unmerged PR #13 targets 0.18 compat.
