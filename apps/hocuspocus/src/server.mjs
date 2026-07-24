@@ -52,10 +52,15 @@ const server = new Server({
   // THE TEAM-SCOPE BOUNDARY. verifyBoardToken throws on a bad signature, an expired token,
   // the wrong scope, board_id !== documentName, or a missing team_scope; a throw terminates
   // the connection. team_scope is read only from the verified claim.
-  async onAuthenticate({ token, documentName, connection }) {
+  async onAuthenticate({ token, documentName, connectionConfig }) {
     try {
       const claims = await verifyBoardToken(token, documentName, SECRET);
-      connection.readOnly = claims.read_only === true;
+      // Hocuspocus 4.4.0 passes the per-connection config as `connectionConfig`
+      // (the onAuthenticate payload has NO `connection` field). Setting
+      // connectionConfig.readOnly is how a view-only board connection is issued;
+      // the server reads it back into the Authenticated frame. Guard for shape so a
+      // future upstream rename fails closed rather than throwing post-verification.
+      if (connectionConfig) connectionConfig.readOnly = claims.read_only === true;
       return {
         user: {
           id: claims.sub,
