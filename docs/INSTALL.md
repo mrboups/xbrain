@@ -260,7 +260,7 @@ Before exposing the deployment on a real domain:
 
 ## 10. Opt-in profiles
 
-The 10-service core is everything a self-hoster needs. Two profiles add more, at a
+The 10-service core is everything a self-hoster needs. Three profiles add more, at a
 RAM cost — set them in `.env` via `COMPOSE_PROFILES`:
 
 - `COMPOSE_PROFILES=integrations` — Neo4j + Graphiti + Langfuse + Drive/Granola
@@ -268,8 +268,23 @@ RAM cost — set them in `.env` via `COMPOSE_PROFILES`:
 - `COMPOSE_PROFILES=saas` — the bundled LibreChat / Open WebUI / session-bridge
   frontends. **Also set `EDITION=saas`** (session-bridge needs the saas-only
   routes; `EDITION=oss` would 404 them).
+- `COMPOSE_PROFILES=board` — the collaborative Excalidraw board (`xbrain-board` +
+  `xbrain-hocuspocus`). Adds roughly 320 MB of RAM on top of the core (64 MB for the
+  static SPA + 256 MB for the Yjs WebSocket server) and one new vhost,
+  `board.<your-domain>`. Point that subdomain at the same host as the API.
 
 Combine them comma-separated, e.g. `COMPOSE_PROFILES=integrations,ops`.
+
+### Board knobs (`board` profile)
+
+The board is reached from the Chrome extension's `board` header button, which mints a
+short-lived token and opens the board URL. Four optional `.env` knobs tune it, all with
+safe defaults:
+
+- `BOARD_PUBLIC_BASE_URL` — public base URL of the board SPA (used to build the open-board link).
+- `BOARD_WS_URL_PUBLIC` — public Yjs WebSocket URL (`ws(s)://board.<domain>/collab`).
+- `BOARD_TOKEN_TTL_S` — board access-token lifetime in seconds (default `3600`).
+- `BOARD_MAX_DOC_BYTES` — hard cap on a stored board document (default 16 MB).
 
 ---
 

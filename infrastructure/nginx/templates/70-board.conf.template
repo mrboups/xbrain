@@ -1,0 +1,45 @@
+# === board vhost (Phase 26a, BOARD-01) — profile "board" ===
+# The collaborative board SPA and its Yjs WebSocket. Cloudflare real-IP and the
+# $connection_upgrade map are already declared in 10-xbrain.conf — do NOT redeclare them here.
+# Both upstreams are expose-only containers: this vhost is the ONLY route to them.
+#
+# LAZY UPSTREAM RESOLUTION (REQUIRED): each proxy_pass targets a `set $var` upstream, not a
+# literal name. With the `resolver` from 10-xbrain.conf, nginx resolves the upstream at REQUEST
+# time, not at startup — so nginx still boots when the `board` profile is OFF and neither
+# `board` nor `hocuspocus` container exists. Without this, shipping this template would break
+# the core boot (T-26-40).
+server {
+    listen 80;
+    server_name board.${XBRAIN_BASE_DOMAIN};
+    client_max_body_size 4m;
+    access_log /var/log/nginx/board.access.log;
+
+    location /nginx-health { return 200 "ok\n"; access_log off; }
+
+    # Yjs collaboration socket. The board token travels inside the Hocuspocus Auth MESSAGE,
+    # never as a query parameter — nothing secret is logged by this block.
+    location /collab {
+        set $hocuspocus_upstream http://hocuspocus:8108;
+        proxy_pass $hocuspocus_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        proxy_buffering off;
+    }
+
+    # The built SPA, served by the board container.
+    location / {
+        set $board_upstream http://board:8107;
+        proxy_pass $board_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
