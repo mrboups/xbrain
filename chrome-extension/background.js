@@ -791,9 +791,15 @@ async function openBridgeWS() {
 
   console.log("[xbrain] opening WS");
   ws = new WebSocket(url);
+  // Did THIS attempt ever reach an open socket? A handshake rejected by
+  // session-bridge (HTTP 403 on an invalid token) never opens, and the browser
+  // reports it as close code 1006 — NOT 4401/4403. Without this flag the
+  // auth-failure guard below never fires and we retry a dead token forever.
+  let openedThisAttempt = false;
 
   ws.onopen = async () => {
     console.log("[xbrain] WS open");
+    openedThisAttempt = true;
     reconnectAttempt = 0;
     lastOpenAt = Date.now();
     startPing();
@@ -863,10 +869,22 @@ async function openBridgeWS() {
     console.warn("[xbrain] WS closed", event.code, event.reason);
     stopPing();
     ws = null;
-    // 4401/4403 = auth failure — don't retry until the token has been refreshed.
-    if (event.code !== 4401 && event.code !== 4403) {
-      scheduleReconnect();
+    // 4401/4403 = auth failure signalled by the app protocol — never retry.
+    if (event.code === 4401 || event.code === 4403) return;
+    // A handshake REJECTED by session-bridge (HTTP 403 for a token memory-api no
+    // longer recognises — e.g. after a database reset) surfaces as 1006, not 4403,
+    // so the check above misses it and we would hammer the bridge forever with a
+    // dead token. Don't infer auth from the close code: if the socket never
+    // opened, ask memory-api whether the token is still valid, and only give up
+    // when it actually says no (a network blip also yields 1006, and there
+    // /v1/me fails to answer rather than answering 401 — so we keep retrying).
+    if (!openedThisAttempt) {
+      discardTokenIfRejected().then((discarded) => {
+        if (!discarded) scheduleReconnect();
+      });
+      return;
     }
+    scheduleReconnect();
   };
 
   ws.onerror = (e) => {
@@ -888,6 +906,53 @@ function stopPing() {
     clearInterval(pingTimer);
     pingTimer = null;
   }
+}
+
+/**
+ * Ask memory-api whether the stored xbt_ token is still valid, and drop it if not.
+ *
+ * Called when the bridge WebSocket handshake was rejected. Returns true when the
+ * token was discarded (the caller must then STOP reconnecting — there is nothing
+ * to reconnect with until the user signs in again), false when the token still
+ * works or the check itself could not reach the server (offline, DNS, 5xx), in
+ * which case the failure was transient and reconnecting is the right move.
+ *
+ * Only an explicit 401/403 from /v1/me counts as "rejected" — that is the same
+ * verdict session-bridge itself gets, so we never discard a good token because
+ * the network happened to be down.
+ */
+async function discardTokenIfRejected() {
+  const { xbt_token } = await readStoredAuth();
+  if (!xbt_token) return true; // nothing stored — stop retrying regardless
+  let res;
+  try {
+    res = await fetch(`${MEMORY_API_BASE}/v1/me`, {
+      headers: { Authorization: `Bearer ${xbt_token}` },
+    });
+  } catch (e) {
+    console.warn("[xbrain] token check unreachable, treating as transient:", e && e.message);
+    return false; // could not ask — assume transient, keep retrying
+  }
+  if (res.status !== 401 && res.status !== 403) return false;
+
+  console.warn(
+    "[xbrain] stored token rejected by memory-api — clearing it and stopping reconnects; sign in again",
+  );
+  // Clear ONLY the auth triple, so the popup falls back to its connection card.
+  // Cached teams are dropped too: they belong to the old identity.
+  await chrome.storage.local.remove([
+    "xbt_token",
+    "user_sub",
+    "api_token_id",
+    TEAMS_CACHE_KEY,
+    TEAMS_CACHE_TS_KEY,
+  ]);
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  reconnectAttempt = 0;
+  return true;
 }
 
 function scheduleReconnect() {
