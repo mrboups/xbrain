@@ -307,6 +307,25 @@ class Settings(BaseSettings):
     DOCBODY_MAX_CHUNKS: int = 200                    # chunk-count cap per document
     DOCBODY_MIN_CHARS: int = 20                      # below this total => no_text_layer (nothing to embed)
 
+    # === Phase 26a (BOARD-01) — collaborative board ===
+    # All four have safe local defaults so an OSS install boots with the board profile
+    # OFF and nothing to fill in. Deliberately NO validator on any of them (26-CONTEXT:
+    # safe defaults, no validator — mirrors NUDGE/CATCHUP/EMBED/DOCBODY).
+    # BOARD_PUBLIC_BASE_URL is the origin the SPA is served from; the create endpoint
+    # builds its handoff URL off it. BOARD_WS_URL_PUBLIC is the Hocuspocus websocket the
+    # SPA connects to. Both are env-overridable per deployment.
+    BOARD_PUBLIC_BASE_URL: str = "http://board.localhost"
+    BOARD_WS_URL_PUBLIC: str = "ws://board.localhost/collab"
+    # Mirrors mint_media_token's 3600s default (26-CONTEXT: mirror the media-token TTL
+    # unless there is a reason to differ). The token is single-board and single-team, and
+    # the Hocuspocus provider re-mints on reconnect, so a shorter TTL would only break
+    # long drawing sessions across a network blip.
+    BOARD_TOKEN_TTL_S: int = 3600
+    # Hard ceiling on a stored Y.Doc. 26a keeps images as Excalidraw-native base64 inside
+    # the doc (D-26-06), so this cap is what stops one pasted 20 MB screenshot from OOMing
+    # the board container on the next fetch.
+    BOARD_MAX_DOC_BYTES: int = 16777216
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}
