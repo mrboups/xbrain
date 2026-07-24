@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 26 — Collaborative Board
+**Current focus:** Phase 26a (collaborative board) COMPLETE — a team opens a live Excalidraw board from the chat (separate Vite+React SPA built in Docker + a Hocuspocus Yjs service in its own container); two clients converge live, board survives reload (Postgres Y.Doc), team-scope enforced in onAuthenticate. Verified 4/4 + code-review (1 BLOCKER blocked-member bypass, 1 HIGH image-prune, MEDIUM/LOW) fixed; the live gate caught a real connectionConfig bug unit tests missed. ALL backlog features DONE. Remaining: 26b (images->MinIO + brain ingestion) + user-decision items (LICENSE, telegram, v2.0 residuals).
 
 ## Current Position
 
