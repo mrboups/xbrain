@@ -1,0 +1,23 @@
+{
+  "name": "xbrain-hocuspocus",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "xbrain collaborative-board Yjs server (Hocuspocus 4.4.0). Its onAuthenticate hook is the team-scope boundary: it verifies the memory-api board token and asserts board_id === documentName.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node tests/run_tests.mjs"
+  },
+  "dependencies": {
+    "@hocuspocus/extension-database": "4.4.0",
+    "@hocuspocus/server": "4.4.0",
+    "jose": "6.2.4",
+    "yjs": "13.6.31"
+  },
+  "devDependencies": {
+    "@hocuspocus/provider": "4.4.0"
+  }
+}
