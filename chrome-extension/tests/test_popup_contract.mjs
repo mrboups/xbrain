@@ -88,6 +88,8 @@ const FROZEN_IDS = [
   "invite-join-code",
   "btn-invite-join",
   "invite-join-status",
+  // Plan 26-05 — board action id.
+  "btn-board",
 ];
 
 // Every class popup.js emits on nodes it builds, or toggles at runtime, and
@@ -584,6 +586,78 @@ test("catch-me-up ordering: refreshUnreadBanner precedes the initial markRead in
     iBanner < iMark,
     "refreshUnreadBanner() must textually PRECEDE the initial markRead() in switchTeam — " +
       "otherwise mark-read bumps the read cursor to now() and the banner count is always 0",
+  );
+});
+
+// ===========================================================================
+// 7. Plan 26-05 — the board action opens a SERVER-supplied, validated URL and
+//    never leaks the board token.
+//
+// POST /v1/teams/{id}/boards returns `open_url` with a short-lived board token
+// in its URL fragment — a bearer secret for that one board (T-26-32/33). These
+// assertions pin the security-relevant shape of the openTeamBoard() handler so a
+// future edit cannot (a) build the board URL client-side, (b) skip the scheme
+// check, or (c) log the URL/token. They read popup.js as text (same mechanism as
+// the rest of this file — no DOM harness). Each carries a WHY so a contributor
+// who trips it learns the rule instead of deleting the test.
+// ===========================================================================
+
+// The openTeamBoard() body — the security-relevant surface for these checks.
+const boardHandler = (() => {
+  const m = /async\s+function\s+openTeamBoard\s*\([^)]*\)\s*\{/.exec(popupJs);
+  return m ? braceBlock(popupJs, m.index) : null;
+})();
+
+// popup.js with comments stripped — so an explanatory comment mentioning a
+// forbidden token is never a false positive.
+const popupJsNoComments = popupJs
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/\/\/[^\n]*/g, "");
+
+test("board action: openTeamBoard() opens the board with chrome.tabs.create", () => {
+  assert.ok(boardHandler, "popup.js has no openTeamBoard() handler");
+  assert.ok(
+    boardHandler.includes("chrome.tabs.create"),
+    "openTeamBoard() must open the board with chrome.tabs.create — the board is a tab, not a popup surface",
+  );
+});
+
+test("board action: the opened URL is server-supplied, never built in the extension", () => {
+  // The server owns the board URL (26-02). If popup.js contained a `#t=` fragment
+  // or a `/?b=` board-id query, the extension would be minting board links the
+  // server never authorised (T-26-33).
+  assert.ok(
+    !popupJsNoComments.includes("#t="),
+    "popup.js must not contain a `#t=` fragment — the board URL (and its token) is built by the server, never the extension",
+  );
+  assert.ok(
+    !popupJsNoComments.includes("/?b="),
+    "popup.js must not contain a `/?b=` board-URL template — the extension only opens the open_url the server returns",
+  );
+});
+
+test("board action: the URL is scheme-validated before it is opened", () => {
+  assert.ok(boardHandler, "popup.js has no openTeamBoard() handler");
+  assert.ok(
+    boardHandler.includes("isSafeHttpUrl(data.open_url)"),
+    "openTeamBoard() must validate data.open_url with isSafeHttpUrl before chrome.tabs.create — a non-http(s) scheme (javascript:/data:) must never reach the browser (T-26-31)",
+  );
+});
+
+test("board action: the board URL and token are never logged from the handler", () => {
+  // Scoped to the board handler: the fragment token is a bearer secret, so a
+  // console line carrying open_url or xbt_token would persist it in the log
+  // (T-26-32). (The pre-existing nudge handler elsewhere logs the static string
+  // "open_url handling failed" — a description, not a value — so this is scoped
+  // to openTeamBoard() where the board token actually lives.)
+  assert.ok(boardHandler, "popup.js has no openTeamBoard() handler");
+  assert.ok(
+    !/console\.[a-z]+\([^)]*open_url/.test(boardHandler),
+    "openTeamBoard() must never log open_url — the board URL fragment is a bearer secret (T-26-32)",
+  );
+  assert.ok(
+    !/console\.[a-z]+\([^)]*xbt_token/.test(boardHandler),
+    "openTeamBoard() must never log xbt_token — the caller's bearer token must never be logged (T-26-32)",
   );
 });
 
