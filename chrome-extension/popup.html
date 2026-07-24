@@ -112,13 +112,16 @@
     <section id="connection-card" class="xb-card" hidden>
       <h3>Connect xbrain</h3>
       <p class="xb-hint">
-        Sign in with GitHub to access your org teams. Add Google later for Drive features.
+        Sign in with Google to access your team.
       </p>
-      <button type="button" id="btn-signin-github" class="connect-btn-github">
+      <!-- GitHub sign-in hidden (kept in the DOM so popup.js's #btn-signin-github
+           binding + the popup contract test still resolve). Google is the sole
+           visible sign-in method. -->
+      <button type="button" id="btn-signin-github" class="connect-btn-github" hidden>
         <span aria-hidden="true">⌥</span> Sign in with GitHub
       </button>
-      <div class="xb-signin-divider">or</div>
-      <button type="button" id="btn-connect-xbrain" class="connect-btn-secondary">
+      <div class="xb-signin-divider" hidden>or</div>
+      <button type="button" id="btn-connect-xbrain" class="connect-btn-github">
         🔑 Sign in with Google
       </button>
       <div id="connect-status" hidden></div>
