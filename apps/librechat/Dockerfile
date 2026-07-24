@@ -83,3 +83,10 @@ COPY patches/render-config-entrypoint.sh /usr/local/bin/render-config-entrypoint
 RUN chmod +x /usr/local/bin/render-config-entrypoint.sh
 USER node
 ENTRYPOINT ["/usr/local/bin/render-config-entrypoint.sh"]
+# CMD is MANDATORY here, not decoration: declaring ENTRYPOINT in a derived image
+# RESETS the CMD inherited from the base, and render-config-entrypoint.sh ends with
+# `exec /usr/local/bin/docker-entrypoint.sh "$@"`. With an empty CMD the base
+# entrypoint receives no arguments, starts nothing, and the container exits 0 with
+# no logs — a silent restart loop (observed on the VM 2026-07-24). This restores the
+# base image's own command verbatim (LibreChat v0.8.5 Dockerfile:53).
+CMD ["npm", "run", "backend"]
