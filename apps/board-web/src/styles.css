@@ -1,0 +1,54 @@
+/* Board SPA styles — the minimum. Excalidraw collapses to 0px tall without an
+   explicitly sized parent, so the html/body/#root chain and the canvas wrapper
+   all carry an explicit full-viewport height. Everything else here is the small
+   status indicator and the centred message states. This is not a design slice. */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+#root {
+  width: 100%;
+}
+
+.board-root,
+.board-canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.board-status {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font: 12px/1.4 system-ui, sans-serif;
+  pointer-events: none;
+}
+
+.board-status--connecting {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.board-status--live {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.board-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+  font: 15px/1.5 system-ui, sans-serif;
+  color: #374151;
+}
