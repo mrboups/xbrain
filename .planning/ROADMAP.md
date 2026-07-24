@@ -751,7 +751,17 @@ Plans:
   3. A Y.Doc update stored through the real database extension against a REAL Postgres (testcontainers, migration 0028) and re-fetched into a fresh doc survives intact; the board reloads with its content.
   4. The board + Hocuspocus containers are OPT-IN profile services and `verify-phase16.sh` stays GREEN (the bare OSS core is still exactly 10 services, the profile list and `OPT_IN_CONTAINERS` deny-list amended in this phase); the board image BUILDS via its multi-stage Dockerfile.
 
-**Plans**: TBD (populated by `/gsd:plan-phase 26`)
+**Plans**: 7 plans in 4 waves
+
+Plans:
+- [ ] 26-01-PLAN.md — Wave-0 spike (D-26-05): verify y-excalidraw against Excalidraw 0.18.1, vendor the MIT binding and fix `captureUpdate`; scaffold `apps/board-web/` with exact pins
+- [ ] 26-02-PLAN.md — memory-api: migration 0028 (`boards` + `board_docs`), the board token (media-token shape + `board_id`), membership-gated create/list/mint and the bridge-only internal doc GET/PUT
+- [ ] 26-03-PLAN.md — `apps/hocuspocus`: Hocuspocus 4.4.0 in its own container, `onAuthenticate` claim-vs-documentName team-scope boundary, Postgres persistence via memory-api, DoS ceilings
+- [ ] 26-04-PLAN.md — `apps/board-web` SPA: Excalidraw + HocuspocusProvider + the Yjs binding, fragment token handoff, multi-stage Dockerfile (Node build-time only)
+- [ ] 26-05-PLAN.md — Chrome extension: the `board` header action (`chrome.tabs.create`) + the popup contract test extended
+- [ ] 26-06-PLAN.md — Infra (D-26-04): both containers behind a `board` compose profile, the `board.<domain>` nginx vhost, CI image override, `.env.example` + INSTALL.md, and `verify-phase16.sh` / `verify-phase17-full.sh` amended and GREEN
+- [ ] 26-07-PLAN.md — The gate (SKIP=FAIL): two-client convergence + the rejection matrix against the REAL server with REAL Python-minted tokens, real-Postgres byte-exact persistence + migration 0028 under oss AND saas, restart survival, image build, Phase-16 green
+
 **UI hint**: yes (a new board web app + an "Open board" action in the extension chat)
 
 ## Progress
