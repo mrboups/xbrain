@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 25 — Team Join-by-Code
+**Current focus:** Phase 25 (team join-by-code) COMPLETE — admin mints a revocable/expiring/max-uses invite code (bearer secret: sha256 at rest, plaintext once); any authenticated user redeems it to join that team. Verified 4/4 + code-review (1 BLOCKER post-rollback MissingGreenlet 500, 2 warnings) fixed with a both-ways-proven regression. ALL 5 backlog features shipped (21 aliases, 22 push-a-link, 23 catch-me-up, 24 doc-body, 25 join-by-code). Next: the Excalidraw + Yjs collaborative board (its own large phase).
 
 ## Current Position
 
