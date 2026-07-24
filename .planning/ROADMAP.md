@@ -739,6 +739,21 @@ Plans:
 - [x] 25-04-PLAN.md - Extension Settings UI: in-popup invite overlay (mint+copy / paste-code-to-join), English-only shadcn Neutral, popup contract test extended (wave 3)
 **UI hint**: yes (extension Settings: mint/copy an invite link + a paste-code-to-join field)
 
+### Phase 26: Collaborative Board (Excalidraw + Yjs) — 26a
+
+**Goal**: A team opens a live collaborative Excalidraw board from the chat. Two members drawing at once see each other's changes in real time, the board survives a reload, and a member of team B can never open team A's board. Delivered as a separate Vite+React SPA (built in Docker — the repo has no frontend build tooling) plus a Hocuspocus (Yjs) service in its own container, with the team-scope boundary enforced in `onAuthenticate`.
+**Depends on**: Phase 16 (the OSS-light core contract this must not break).
+**Requirements**: BOARD-01
+**Success Criteria** (what must be TRUE):
+
+  1. Two Yjs clients connected to the REAL running Hocuspocus service converge on the same document state (proven by a headless two-client test asserting convergence, not merely "no error"); the "Open board" action in the extension chat opens the board for the active team.
+  2. **The team-scope boundary holds**: a board token minted for team A's board is REJECTED by the real `onAuthenticate` when used against team B's `documentName`; absent / malformed / expired / wrong-signature tokens are all rejected. Non-mocked — real tokens from the real minting code against the real handler.
+  3. A Y.Doc update stored through the real database extension against a REAL Postgres (testcontainers, migration 0028) and re-fetched into a fresh doc survives intact; the board reloads with its content.
+  4. The board + Hocuspocus containers are OPT-IN profile services and `verify-phase16.sh` stays GREEN (the bare OSS core is still exactly 10 services, the profile list and `OPT_IN_CONTAINERS` deny-list amended in this phase); the board image BUILDS via its multi-stage Dockerfile.
+
+**Plans**: TBD (populated by `/gsd:plan-phase 26`)
+**UI hint**: yes (a new board web app + an "Open board" action in the extension chat)
+
 ## Progress
 
 **Execution Order:**
