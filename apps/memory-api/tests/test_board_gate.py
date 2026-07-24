@@ -390,6 +390,95 @@ async def test_board_http_gate(client):
             await cleaner.commit()
 
 
+@pytest.mark.integration
+async def test_blocked_member_cannot_board(client):
+    """CR BLOCKER regression — an admin-BLOCKED member (team_members.blocked_at set) must
+    lose board access, matching the canonical deps.get_team_scope gate (Phase-10 GHA-03).
+
+    Before the fix, `_resolve_team_and_check_membership` checked only that a membership
+    ROW existed, so a blocked member could still create/list boards and mint fresh board
+    tokens — a standing back door past an admin's block. Real Postgres, real HTTP, real
+    block written by the real repo; nothing mocked.
+    """
+    import app.db.session as db_session
+    from app.deps import get_session
+    from app.main import app
+    from app.repos import teams as teams_repo
+    from app.repos import users as users_repo
+    from app.services import rate_limit
+
+    async def _committing_get_session():
+        async with db_session.async_session_factory() as s:
+            yield s
+
+    app.dependency_overrides[get_session] = _committing_get_session
+    rate_limit._storage.reset()
+
+    async with db_session.async_session_factory() as seed:
+        admin = await users_repo.get_or_create_user(
+            seed, source_user_id="brd-blk-admin-sub", email="brd-blk-admin@test.local",
+            display_name="Blk Admin",
+        )
+        victim = await users_repo.get_or_create_user(
+            seed, source_user_id="brd-blk-victim-sub", email="brd-blk-victim@test.local",
+            display_name="Blk Victim",
+        )
+        team = await teams_repo.create_team(
+            seed, slug="brd-blk-team", display_name="Blk Team", creator_user_id=admin.id,
+        )
+        # victim is a real member, THEN blocked by the admin.
+        await teams_repo.add_member(seed, team_id=team.id, user_id=victim.id, role="member")
+        await seed.commit()
+        blocked = await teams_repo.block_member(
+            seed, team_id=team.id, user_id=victim.id, blocked_by=admin.id
+        )
+        assert blocked is not None and blocked.blocked_at is not None
+        await seed.commit()
+        team_id, victim_id, victim_sub = team.id, victim.id, victim.source_user_id
+        admin_id = admin.id
+
+    victim_p = types.SimpleNamespace(
+        id=victim_id, source_user_id=victim_sub, email="brd-blk-victim@test.local",
+        display_name="Blk Victim", github_username=None, github_id=None,
+    )
+
+    async def _as(user_p, method, path, **kw):
+        _install_principal(user_p)
+        try:
+            if method == "POST":
+                return await client.post(path, **kw)
+            return await client.get(path, **kw)
+        finally:
+            _clear_principal()
+
+    try:
+        # A blocked member must NOT be able to create a board...
+        r_create = await _as(victim_p, "POST", f"/v1/teams/{team_id}/boards", json={})
+        assert r_create.status_code == 403, (
+            f"blocked member created a board: {r_create.status_code} {r_create.text[:200]}"
+        )
+        # ...nor list boards...
+        r_list = await _as(victim_p, "GET", f"/v1/teams/{team_id}/boards")
+        assert r_list.status_code == 403, f"blocked member listed boards: {r_list.status_code}"
+        # (mint-token also runs the same gate; create already proved the shared helper.)
+    finally:
+        import sqlalchemy as sa
+        async with db_session.async_session_factory() as cleaner:
+            await cleaner.execute(
+                sa.text("DELETE FROM boards WHERE team_id = :tid"), {"tid": team_id}
+            )
+            await cleaner.execute(
+                sa.text("DELETE FROM team_members WHERE team_id = :tid"), {"tid": team_id}
+            )
+            await cleaner.execute(sa.text("DELETE FROM teams WHERE id = :tid"), {"tid": team_id})
+            await cleaner.execute(
+                sa.text("DELETE FROM users WHERE id = ANY(:ids)"),
+                {"ids": [admin_id, victim_id]},
+            )
+            await cleaner.commit()
+        app.dependency_overrides.pop(get_session, None)
+
+
 # ── Group 2: migration 0028 forward-only + edition-agnostic ────────────────────
 #
 # Self-contained mirror of test_join_by_code_gate.py's Group 3: a FRESH Postgres

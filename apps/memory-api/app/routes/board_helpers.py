@@ -96,12 +96,16 @@ def verify_board_token(token: str, board_id: str) -> dict:
         The validated claim set as a plain dict.
     """
     from fastapi import HTTPException  # local import — fastapi always present
-    from authlib.jose import jwt as authlib_jwt  # lazy
+    from authlib.jose import JsonWebToken  # lazy
 
     from app.config import settings
 
     try:
-        claims = authlib_jwt.decode(token, settings.BRIDGE_SHARED_SECRET)
+        # CR MEDIUM: PIN the algorithm to HS256 (mirror the Node onAuthenticate's
+        # algorithms:["HS256"]). authlib's default `jwt.decode` accepts whatever alg the
+        # header claims, opening alg:none / algorithm-confusion; a restricted
+        # JsonWebToken instance rejects any other alg outright.
+        claims = JsonWebToken(["HS256"]).decode(token, settings.BRIDGE_SHARED_SECRET)
         claims.validate()  # validates exp, iat, nbf
     except Exception as exc:
         raise HTTPException(403, f"invalid or expired board token: {exc}") from exc

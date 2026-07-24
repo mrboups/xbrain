@@ -78,6 +78,12 @@ async def _resolve_team_and_check_membership(
     )
     if membership is None:
         raise HTTPException(403, "not a member of this team")
+    # CR BLOCKER: an admin's "block member" (team_members.blocked_at) must revoke access
+    # here too, matching the canonical deps.get_team_scope gate (Phase-10 GHA-03). Without
+    # this a blocked member could still create/list boards, mint board tokens, catch-me-up,
+    # or nudge. Same generic message as the non-member case — no blocked-vs-absent oracle.
+    if membership.blocked_at is not None:
+        raise HTTPException(403, "not a member of this team")
     return team
 
 

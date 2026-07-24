@@ -57,10 +57,16 @@ const server = new Server({
       const claims = await verifyBoardToken(token, documentName, SECRET);
       // Hocuspocus 4.4.0 passes the per-connection config as `connectionConfig`
       // (the onAuthenticate payload has NO `connection` field). Setting
-      // connectionConfig.readOnly is how a view-only board connection is issued;
-      // the server reads it back into the Authenticated frame. Guard for shape so a
-      // future upstream rename fails closed rather than throwing post-verification.
-      if (connectionConfig) connectionConfig.readOnly = claims.read_only === true;
+      // connectionConfig.readOnly is how a view-only board connection is issued.
+      // CR LOW: fail CLOSED, not open — if a token is read_only but we cannot set the
+      // flag (a future upstream rename drops connectionConfig), DENY rather than silently
+      // grant a writable connection. A writable token only needs the flag cleared when present.
+      if (claims.read_only === true) {
+        if (!connectionConfig) throw new Error("readonly-unenforceable");
+        connectionConfig.readOnly = true;
+      } else if (connectionConfig) {
+        connectionConfig.readOnly = false;
+      }
       return {
         user: {
           id: claims.sub,

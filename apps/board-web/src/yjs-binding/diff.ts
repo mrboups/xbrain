@@ -188,7 +188,11 @@ export const getDeltaOperationsForAssets = (lastKnownFileIds: Set<string>, files
     }
   }
 
-  for (let fileId in lastKnownFileIds) {
+  // CR HIGH (xbrain): lastKnownFileIds is a Set — `for...in` iterates enumerable object
+  // keys, of which a Set has none, so this loop NEVER ran and deleted image assets were
+  // never pruned from the shared Y.Doc, silently defeating BOARD_MAX_DOC_BYTES. Iterate
+  // the Set's VALUES with `for...of`.
+  for (const fileId of lastKnownFileIds) {
     if (!files.hasOwnProperty(fileId)) {
       operations.push({type: "delete", id: fileId})
     }
