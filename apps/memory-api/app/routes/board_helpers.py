@@ -105,15 +105,25 @@ def verify_board_token(token: str, board_id: str) -> dict:
         # algorithms:["HS256"]). authlib's default `jwt.decode` accepts whatever alg the
         # header claims, opening alg:none / algorithm-confusion; a restricted
         # JsonWebToken instance rejects any other alg outright.
-        claims = JsonWebToken(["HS256"]).decode(token, settings.BRIDGE_SHARED_SECRET)
-        claims.validate()  # validates exp, iat, nbf
+        # codex P2: require `exp` — a token with no expiry (from any other holder of
+        # BRIDGE_SHARED_SECRET) must not be accepted as non-expiring. essential=True makes
+        # claims.validate() reject a missing exp, not just an expired one.
+        claims = JsonWebToken(["HS256"]).decode(
+            token, settings.BRIDGE_SHARED_SECRET,
+            claims_options={"exp": {"essential": True}},
+        )
+        claims.validate()  # validates exp (now essential), iat, nbf
     except Exception as exc:
-        raise HTTPException(403, f"invalid or expired board token: {exc}") from exc
+        # codex P2: generic message — do NOT echo the JOSE exception. Keep this a no-oracle
+        # verifier (it violates the stated contract the moment it is wired to a public route).
+        raise HTTPException(403, "invalid or expired board token") from exc
 
-    if claims.get("scope") != "board":
-        raise HTTPException(403, "board token has wrong scope")
-    if claims.get("board_id") != board_id:
-        raise HTTPException(403, "board token board_id mismatch")
-    if not claims.get("team_scope"):
-        raise HTTPException(403, "board token missing team_scope")
+    # codex P2: every rejection below returns the SAME generic message — no scope-vs-
+    # board-vs-team oracle distinguishing which check failed.
+    if (
+        claims.get("scope") != "board"
+        or claims.get("board_id") != board_id
+        or not claims.get("team_scope")
+    ):
+        raise HTTPException(403, "invalid or expired board token")
     return dict(claims)

@@ -34,24 +34,38 @@ export function readSession(): Session {
   // Token from the FRAGMENT. Parse `location.hash` for `t=<value>` and
   // decodeURIComponent it. The fragment is used (not the query string) precisely
   // so the token is never transmitted to a server (see the module header).
+  // codex P2: parse AND strip inside try/finally so the token can never linger. A
+  // malformed percent-encoding makes decodeURIComponent throw, and replaceState can
+  // itself throw — either would skip the strip and leave the secret in the address bar /
+  // history entry. The `finally` guarantees the fragment is cleared no matter what, and a
+  // failed decode degrades to no-token (the board then shows its access-denied state)
+  // rather than leaking.
   let token: string | null = null;
   const fragment = location.hash.startsWith("#")
     ? location.hash.slice(1)
     : location.hash;
-  for (const pair of fragment.split("&")) {
-    const eq = pair.indexOf("=");
-    if (eq === -1) continue;
-    if (pair.slice(0, eq) === "t") {
-      const value = pair.slice(eq + 1);
-      token = value ? decodeURIComponent(value) : null;
-      break;
+  try {
+    for (const pair of fragment.split("&")) {
+      const eq = pair.indexOf("=");
+      if (eq === -1) continue;
+      if (pair.slice(0, eq) === "t") {
+        const value = pair.slice(eq + 1);
+        token = value ? decodeURIComponent(value) : null;
+        break;
+      }
     }
-  }
-
-  // Strip the fragment IMMEDIATELY, before any network call, so the secret does
-  // not linger in the address bar or in this browser history entry.
-  if (location.hash) {
-    history.replaceState(null, "", location.pathname + location.search);
+  } catch {
+    token = null; // malformed encoding — treat as no token, never leak the raw fragment
+  } finally {
+    // Strip the fragment IMMEDIATELY, before any network call, so the secret does not
+    // linger. Guarded so a replaceState failure can't itself abort the strip path.
+    if (location.hash) {
+      try {
+        history.replaceState(null, "", location.pathname + location.search);
+      } catch {
+        location.hash = ""; // last-resort clear if replaceState is unavailable/throws
+      }
+    }
   }
 
   // WS URL DERIVED from the current location, never from a build-time env var.

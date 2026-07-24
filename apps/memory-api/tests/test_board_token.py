@@ -119,7 +119,8 @@ def test_verify_rejects_wrong_board():
     with pytest.raises(HTTPException) as exc:
         verify_board_token(token, OTHER_BOARD_ID)
     assert exc.value.status_code == 403
-    assert "board_id mismatch" in str(exc.value.detail)
+    # codex P2: all rejections share ONE generic message (no scope/board/team oracle).
+    assert "invalid or expired board token" in str(exc.value.detail)
 
 
 def test_verify_rejects_wrong_secret():
@@ -152,6 +153,32 @@ def test_verify_rejects_expired_token():
     assert exc.value.status_code == 403
 
 
+def test_verify_rejects_token_without_exp():
+    """codex P2: a token with NO exp claim (crafted by any other holder of
+    BRIDGE_SHARED_SECRET) must be rejected — exp is essential, not merely validated when
+    present. Signed with the REAL secret, so only the missing-exp check can reject it."""
+    now = int(time.time())
+    no_exp = authlib_jwt.encode(
+        {"alg": "HS256"},
+        {
+            "scope": "board",
+            "board_id": BOARD_ID,
+            "team_scope": "team-a",
+            "team_id": TEAM_ID,
+            "sub": "no-exp-sub",
+            "display_name": "No Exp",
+            "read_only": False,
+            "iat": now,
+            # deliberately NO "exp"
+        },
+        settings.BRIDGE_SHARED_SECRET,
+    )
+    with pytest.raises(HTTPException) as exc:
+        verify_board_token(no_exp, BOARD_ID)
+    assert exc.value.status_code == 403
+    assert "invalid or expired board token" in str(exc.value.detail)
+
+
 def test_verify_rejects_a_media_token():
     """The two token families are NOT interchangeable: a media token carries
     scope="media" and must never open a board."""
@@ -159,7 +186,7 @@ def test_verify_rejects_a_media_token():
     with pytest.raises(HTTPException) as exc:
         verify_board_token(media_token, BOARD_ID)
     assert exc.value.status_code == 403
-    assert "wrong scope" in str(exc.value.detail)
+    assert "invalid or expired board token" in str(exc.value.detail)
 
 
 def test_media_verifier_rejects_a_board_token():
@@ -192,7 +219,7 @@ def test_verify_rejects_a_token_without_team_scope():
     with pytest.raises(HTTPException) as exc:
         verify_board_token(scopeless, BOARD_ID)
     assert exc.value.status_code == 403
-    assert "missing team_scope" in str(exc.value.detail)
+    assert "invalid or expired board token" in str(exc.value.detail)
 
 
 @pytest.mark.parametrize("garbage", ["", "not-a-jwt", "a.b.c", "Bearer x.y.z"])

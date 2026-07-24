@@ -343,3 +343,32 @@ executor flagged this rather than writing a check that silently proved nothing.
 **Fix shape:** make the client stop hardcoding aliases — have it read the alias list the server already exposes (or ship it via the existing config/`/v1/me`-style surface) so one source of truth drives both, then update `test_chat_stream.mjs` to the real aliases. Relates to the "Agent mention alias — settable from the Settings UI" backlog item above: both want the alias list to stop being hardcoded in two places.
 
 **Sizing:** small. Blocked on nothing.
+
+## Board websocket: enforce token lifetime on the LIVE connection (codex P1, 2026-07-19)
+
+**Found:** 2026-07-19 by a codex adversarial review of Phase 26a (on top of the passing
+gsd-code-review + live gate). The cross-team boundary itself HOLDS — this is a lifetime gap.
+
+**The gap:** Hocuspocus `onAuthenticate` (`apps/hocuspocus/src/auth.mjs`) validates the board
+token's `exp` and the `board_id === documentName` match ONCE, at the websocket handshake.
+An ESTABLISHED connection is never revalidated (`server.mjs`), so a client that connected
+before its token expired — or before an admin blocked them / revoked membership — keeps
+read/write access for as long as the socket stays open. The stated contract ("a revoked
+member loses access within one token TTL") is only true for NEW connections.
+
+**Why it needs its own slice (not a quick patch):** the fix is a design addition —
+enforce a per-connection max lifetime = the token's remaining TTL (force-close on expiry
+via a server-side timer keyed off `exp`), and ideally a revocation signal so a block takes
+effect faster than one TTL. It touches the live auth path, so it MUST re-run the 26-07
+live gate (two-client convergence + the cross-language rejection matrix + a NEW "socket
+closes at exp" assertion) — patching it without that boot gate would repeat the exact
+"check that never traverses the real path" trap that the connectionConfig bug fell into.
+
+**Sizing:** small-medium, security hardening. Pairs naturally with 26b (the next board slice).
+Bounded default: cap connection lifetime at BOARD_TOKEN_TTL_S so the worst-case stale-access
+window equals one token TTL (1h), matching the documented contract.
+
+**Also from the same review (already fixed 2026-07-19, for the record):** require `exp`
+as an essential claim + a generic no-oracle message in the Python `verify_board_token`;
+try/finally the SPA fragment-strip so a malformed token can't linger. The P1 above is the
+only item deferred.
