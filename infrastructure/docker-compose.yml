@@ -1063,6 +1063,67 @@ services:
       retries: 3
       start_period: 10s
 
+  # === Collaborative board (Phase 26a, BOARD-01) — OPT-IN profile "board" ===
+  # Both containers are deliberately kept OUT of the bare core (the OSS-light budget is
+  # ~4 GB for the 10 core services) AND out of the `integrations` profile (that profile
+  # drags Neo4j + Langfuse + ClickHouse, ~5 GB — a board user must not have to pay for a
+  # graph database). A self-hoster who wants the board opts in with COMPOSE_PROFILES=board.
+  # Both are expose-only on xbrain_net: the ingress nginx `board.<domain>` vhost (70-board)
+  # is the ONLY route to either — publishing a host port would create an unauthenticated,
+  # unlogged bypass of the ingress and the onAuthenticate boundary.
+  board:
+    build:
+      context: ../apps/board-web
+      dockerfile: Dockerfile
+    image: xbrain/board-web:phase26
+    container_name: xbrain-board
+    profiles: ["board"]
+    restart: unless-stopped
+    logging: *default-logging
+    expose:
+      - "8107"                        # NEVER ports: — reached only through the ingress nginx vhost
+    networks: [xbrain_net]
+    mem_limit: 64m                     # static nginx (26-04 image 87.1 MB), same class as the ingress nginx (64m)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8107/healthz 2>/dev/null | grep -q ok"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  hocuspocus:
+    build:
+      context: ../apps/hocuspocus
+      dockerfile: Dockerfile
+    image: xbrain/hocuspocus:phase26
+    container_name: xbrain-hocuspocus
+    profiles: ["board"]
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      MEMORY_API_URL: http://memory-api:8000
+      BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
+      HOCUSPOCUS_PORT: "8108"
+      BOARD_MAX_DOC_BYTES: ${BOARD_MAX_DOC_BYTES:-16777216}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    expose:
+      - "8108"                        # NEVER ports: — the Yjs WebSocket is nginx-fronted only
+    networks: [xbrain_net]
+    # Measured idle RSS ~27.6 MiB (26-03-SUMMARY, docker stats on the built runtime image);
+    # research assumption A1's 256m guess is now verified as safe, with headroom for the
+    # Y.Docs held open under concurrent editing.
+    mem_limit: 256m
+    depends_on:
+      memory-api: { condition: service_healthy }
+    healthcheck:
+      # A Hocuspocus port is a WebSocket upgrade endpoint, not an HTTP 200 — probe the TCP
+      # bind instead, exactly as mcp-brain does and for the same documented reason.
+      test: ["CMD", "node", "-e", "require('net').connect(8108,'127.0.0.1',function(){process.exit(0)}).on('error',function(){process.exit(1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
   # === graphiti-service (plan 05-01) — temporal fact extraction + contradiction detection ===
   graphiti-service:
     build:

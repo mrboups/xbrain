@@ -26,7 +26,7 @@
 #                       what the deploy job pulls); defaults to `latest` locally.
 #
 # NOTES
-#   - Exactly the 18 `build:` services from docker-compose.yml appear here — no core-only
+#   - Exactly the 20 `build:` services from docker-compose.yml appear here — no core-only
 #     pulled images (postgres/qdrant/minio/nginx/centrifugo) and no third-party images
 #     (openwebui, mongo, meili, langfuse*, neo4j, searxng) are remapped: those already ship
 #     as public registry images and are pulled as-is.
@@ -85,3 +85,9 @@ services:
   # --- ops profile — 1 build: service (amd64-only base; NO double prefix) ---
   xbrain-backup:
     image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-backup:${XBRAIN_IMAGE_TAG:-latest}
+
+  # --- board profile — 2 build: services ---
+  board:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-board:${XBRAIN_IMAGE_TAG:-latest}
+  hocuspocus:
+    image: ghcr.io/${GHCR_OWNER:-mrboups}/xbrain-hocuspocus:${XBRAIN_IMAGE_TAG:-latest}

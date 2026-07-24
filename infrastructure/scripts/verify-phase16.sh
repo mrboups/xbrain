@@ -16,7 +16,7 @@
 #
 # Checks:
 #   (a) CONFIG      — `docker compose config --services` (COMPOSE_PROFILES unset) == exactly
-#                     the 10 core BY NAME; `--profiles` == `integrations ops saas`.
+#                     the 10 core BY NAME; `--profiles` == `board integrations ops saas`.
 #   (b) ENV-DRIFT   — static audit of .env.example (D-16-05 regression guard): MinIO root
 #                     password is [required] not [optional], the stale SaaS-only header is gone,
 #                     the REQUIRED — core boot header exists, and the saas-only secrets no longer
@@ -36,7 +36,9 @@
 #                     (GITHUB_APP_CLIENT_ID empty, NO 302 to github.com); POST /oauth/authorize/local
 #                     -> 302 to the registered redirect_uri carrying a minted ?code=.
 #   (h) SC#3 clip   — POST /v1/memory/upsert (source=manual-clip) -> 201 + a memory_items row.
-#   (i) SC#2 bound  — zero opt-in containers running with COMPOSE_PROFILES unset.
+#   (i) SC#2 bound  — zero opt-in containers running with COMPOSE_PROFILES unset. This now
+#                     also covers the Phase-26 board profile: xbrain-board and xbrain-hocuspocus
+#                     are opt-in ("board") containers on the OPT_IN_CONTAINERS deny-list.
 #
 # Exit code: 0 when FAIL == 0 (regardless of SKIP), 1 when FAIL > 0.
 #
@@ -88,7 +90,7 @@ CORE="brain-janitor centrifugo mcp-brain mcp-gateway mcp-scraper memory-api mini
 # Container-name deny-list — copied verbatim from verify-phase15.sh:408. container_name: is EXPLICIT
 # and GLOBAL in docker-compose.yml (NOT namespaced to the -p project), and it is `xbrain-<service>`
 # for every opt-in service EXCEPT xbrain-backup, whose service name already carries the prefix.
-OPT_IN_CONTAINERS="xbrain-neo4j xbrain-graphiti-service xbrain-langfuse xbrain-langfuse-worker xbrain-langfuse-clickhouse xbrain-langfuse-redis xbrain-mcp-calendar xbrain-mcp-drive-read xbrain-mcp-deck xbrain-mcp-github xbrain-granola-sync xbrain-drive-sync xbrain-searxng xbrain-agent-runtime xbrain-session-bridge xbrain-librechat xbrain-librechat-mongo xbrain-librechat-meili xbrain-librechat-bridge xbrain-openwebui xbrain-openwebui-pipeline xbrain-backup"
+OPT_IN_CONTAINERS="xbrain-neo4j xbrain-graphiti-service xbrain-langfuse xbrain-langfuse-worker xbrain-langfuse-clickhouse xbrain-langfuse-redis xbrain-mcp-calendar xbrain-mcp-drive-read xbrain-mcp-deck xbrain-mcp-github xbrain-granola-sync xbrain-drive-sync xbrain-searxng xbrain-agent-runtime xbrain-session-bridge xbrain-librechat xbrain-librechat-mongo xbrain-librechat-meili xbrain-librechat-bridge xbrain-openwebui xbrain-openwebui-pipeline xbrain-backup xbrain-board xbrain-hocuspocus"
 
 # --- Temp files (declared up front so the single EXIT trap always cleans them) ----------------
 HERMETIC_ENV="$(mktemp)"       # phase15-style hermetic env for the config-layer check (a)
@@ -258,7 +260,7 @@ EOF
 
 test_a_config() {
   echo
-  echo "(a) CONFIG — bare core is exactly the 10 services BY NAME; profiles == integrations ops saas"
+  echo "(a) CONFIG — bare core is exactly the 10 services BY NAME; profiles == board integrations ops saas"
   build_hermetic_env
   local DC=(docker compose -p "$PROJECT" -f infrastructure/docker-compose.yml --env-file "$HERMETIC_ENV")
 
@@ -275,10 +277,10 @@ $d"
 
   local profiles
   profiles=$(env -u COMPOSE_PROFILES "${DC[@]}" config --profiles 2>/dev/null | sort | tr '\n' ' ')
-  if [[ "$profiles" == "integrations ops saas " ]]; then
-    ok "profiles == 'integrations ops saas' (no pro)"
+  if [[ "$profiles" == "board integrations ops saas " ]]; then
+    ok "profiles == 'board integrations ops saas' (no pro)"
   else
-    ko "profiles='$profiles' (expected 'integrations ops saas ')"
+    ko "profiles='$profiles' (expected 'board integrations ops saas ')"
   fi
 }
 
