@@ -841,6 +841,42 @@ test_k_migration() {
   fi
 }
 
+# ============================================================================
+# HOUSEKEEPING — the gate cleans up after itself
+# ============================================================================
+# Checks (e) and (f) post REAL messages into a REAL team, because that is the only way
+# to prove a message travels end to end; a mock would prove nothing. But the operator
+# then finds their team chat full of `verify-phase27-…` and `phase27-realtime-probe …`
+# lines, one pair per run, and after a few runs the real conversation is buried.
+#
+# So the proof stays, and the litter goes: the probe messages are SOFT-deleted (the
+# 30-day `deleted_at` mechanism every entity already has — recoverable, not erased) once
+# the checks that needed them are done.
+#
+# This is hygiene, not proof: it records no PASS and no FAIL, and cannot turn a green run
+# red. But a silent failure to clean up is exactly how the litter accumulated in the first
+# place, so an unreachable database says so out loud.
+#
+# NO MSYS_NO_PATHCONV: the DC array carries HOST paths, and the SQL travels on stdin so
+# there is no in-container path to protect. Credentials expand INSIDE the container.
+cleanup_probe_messages() {
+  echo
+  echo "--- housekeeping: hiding this run's probe messages ---"
+  local sql out
+  sql="UPDATE team_messages SET deleted_at = now(), deleted_by = author_user_id
+       WHERE deleted_at IS NULL
+         AND (content LIKE 'verify-phase27-%' OR content LIKE 'phase27-realtime-probe %');"
+  if ! out="$(printf '%s\n' "$sql" \
+      | "${DC[@]}" exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tA' 2>&1)"; then
+    yellow "  could not reach the database, so this run's probe messages are STILL VISIBLE in the team chat."
+    yellow "  Hide them with: UPDATE team_messages SET deleted_at=now(), deleted_by=author_user_id"
+    yellow "                  WHERE deleted_at IS NULL AND (content LIKE 'verify-phase27-%' OR content LIKE 'phase27-realtime-probe %');"
+    return 0
+  fi
+  local n; n="$(echo "$out" | grep -oE 'UPDATE [0-9]+' | grep -oE '[0-9]+' | tail -1)"
+  echo "  ${n:-0} probe message(s) hidden from the team chat (soft delete — recoverable, nothing erased)"
+}
+
 # --- Orchestration ---------------------------------------------------------------------
 # Every check runs, and every check that cannot run records `ko`. There is no branch in
 # this gate that produces a skip.
@@ -855,6 +891,9 @@ test_h_push_config
 test_i_static_suites
 test_j_server_suite
 test_k_migration
+
+# Runs after every check that needed a real message has had it.
+cleanup_probe_messages
 
 echo
 echo "=== Summary ==="
