@@ -34,6 +34,11 @@ export const DEFAULT_SETTINGS = Object.freeze({
   // nudge from a teammate shows a consent notification; when OFF, the receive
   // handler ignores the event entirely (no notification). Recipient-side only.
   allowOpenLinkRequests: true,
+  // Skip the click. When ON, a link a teammate sends opens straight away instead
+  // of waiting for the notification to be clicked. OFF by default ON PURPOSE:
+  // letting someone else open tabs in your browser is a real capability, so it
+  // stays opt-in and the consent notification remains the default path.
+  autoOpenLinkRequests: false,
 });
 
 /**
@@ -79,6 +84,7 @@ const _SCHEMA = {
   clipDefaultTruthLevel: ["string"],
   clipSkipOverlay: ["boolean"],
   allowOpenLinkRequests: ["boolean"],
+  autoOpenLinkRequests: ["boolean"],
 };
 
 function _isAllowed(value, allowedTypes) {

@@ -69,6 +69,24 @@ async function init() {
     });
   }
 
+  // Auto-open (opt-in). Kept as a SEPARATE toggle rather than a third state of the
+  // one above, because the two answer different questions: "may they send?" and
+  // "may it skip my click?".
+  const cbAutoOpenLink = document.getElementById("opt-auto-open-link");
+  if (cbAutoOpenLink) {
+    cbAutoOpenLink.checked = settings.autoOpenLinkRequests;
+    cbAutoOpenLink.addEventListener("change", async () => {
+      await saveSettings(chrome.storage.sync, {
+        autoOpenLinkRequests: cbAutoOpenLink.checked,
+      });
+      showStatus(
+        cbAutoOpenLink.checked
+          ? "Saved ✓  —  links from teammates will open WITHOUT asking"
+          : "Saved ✓  —  you will be asked before a link opens",
+      );
+    });
+  }
+
   // === Clip defaults (Wave 3.5) ===
   const inProject = document.getElementById("opt-clip-project");
   const radioTruth = document.getElementsByName("opt-clip-truth");

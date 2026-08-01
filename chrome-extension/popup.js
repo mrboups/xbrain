@@ -1059,6 +1059,13 @@ async function handleUserPublication(data) {
         new Promise((resolve) => chrome.notifications.create(opts, resolve)),
       persistPending: (id, url) =>
         chrome.storage.session.set({ ["nudge_" + id]: url }),
+      // Used only when the recipient opted into auto-open. Re-validates at the
+      // point of action exactly like the notification-click path does — the URL
+      // is never trusted just because it already passed a check upstream.
+      openDirect: (url) => {
+        if (!isSafeHttpUrl(url)) return;
+        chrome.tabs.create({ url });
+      },
     });
   } catch (e) {
     console.warn("[xbrain] open_url handling failed:", e);

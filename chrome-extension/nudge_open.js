@@ -77,6 +77,15 @@ export async function handleOpenUrl(data, deps) {
   const from = data.from || {};
   const sender = from.display_name || from.sub || "A teammate";
 
+  // Opt-in fast path: the recipient has ticked "open links automatically", so skip
+  // the notification and open it. Deliberately AFTER isSafeHttpUrl above — auto-open
+  // relaxes the click, never the URL validation. Falls back to the notification if
+  // the caller supplied no opener, so a missing dep can never silently drop a nudge.
+  if (settings && settings.autoOpenLinkRequests === true && deps.openDirect) {
+    await deps.openDirect(data.url);
+    return "auto-opened";
+  }
+
   // The notification shows exactly WHO and exactly WHERE: the sender in the
   // title, the full literal URL as the message (no shortening — T-22-10).
   const id = await deps.notify({

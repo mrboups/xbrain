@@ -61,7 +61,17 @@ await test("loadSettings returns defaults when storage empty", async () => {
     clipDefaultTruthLevel: "EPHEMERAL",
     clipSkipOverlay: false,
     allowOpenLinkRequests: true,
+    autoOpenLinkRequests: false,
   });
+});
+
+await test("autoOpenLinkRequests defaults OFF — auto-open is opt-in", async () => {
+  // Letting a teammate open tabs in your browser without a click is a real
+  // capability, so the default must stay the consent notification. A future edit
+  // that flips this to true has to change this assertion deliberately.
+  assert.equal(DEFAULT_SETTINGS.autoOpenLinkRequests, false);
+  const s = await loadSettings(makeStorageArea());
+  assert.equal(s.autoOpenLinkRequests, false);
 });
 
 // ─── Phase 22 push-a-link (Plan 22-02) — recipient opt-out, default ON ───────
