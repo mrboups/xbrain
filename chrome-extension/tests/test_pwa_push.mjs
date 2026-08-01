@@ -25,6 +25,7 @@
  */
 
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -576,6 +577,288 @@ testAsync("the click handler toggles, and wiring twice does not double-toggle", 
     "clicking an on button must turn it off on the server too",
   );
   assert.equal(btn.getAttribute("data-state"), "off");
+});
+
+// ---- Structural half: the gate itself -----------------------------------
+
+/**
+ * Comments out FIRST, everywhere below.
+ *
+ * The module docstring in push.js exists to explain the invariant, and prose
+ * that explains a rule inevitably names the thing the rule is about. A gate
+ * that counts its own documentation measures nothing: it would fire on a
+ * correct file that describes itself, and it would stay silent on a file that
+ * hides a real call inside a commented-out block. Over-stripping is the safe
+ * direction - it can only shrink what these checks see, never invent a match.
+ */
+function stripComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+}
+
+/**
+ * Blank out the CONTENTS of string and template literals, keeping length and
+ * line breaks. A brace inside a string would otherwise move the depth counter
+ * and make the top-level check report nonsense.
+ */
+function stripStringBodies(src) {
+  let out = "";
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    if (ch === '"' || ch === "'" || ch === "`") {
+      out += ch;
+      i += 1;
+      while (i < src.length) {
+        if (src[i] === "\\") {
+          out += "  ";
+          i += 2;
+          continue;
+        }
+        if (src[i] === ch) {
+          out += ch;
+          i += 1;
+          break;
+        }
+        out += src[i] === "\n" ? "\n" : " ";
+        i += 1;
+      }
+      continue;
+    }
+    out += ch;
+    i += 1;
+  }
+  return out;
+}
+
+/** Brace depth at every character, on comment- and string-stripped source. */
+function depthMap(code) {
+  const depths = new Array(code.length).fill(0);
+  let depth = 0;
+  for (let i = 0; i < code.length; i += 1) {
+    if (code[i] === "}") depth -= 1;
+    depths[i] = depth;
+    if (code[i] === "{") depth += 1;
+  }
+  return depths;
+}
+
+/** The body of `function NAME(...)`, by brace matching. */
+function functionBody(code, name) {
+  const decl = new RegExp(`function\\s+${name}\\s*\\(`).exec(code);
+  assert.ok(decl, `could not find function ${name}`);
+  const open = code.indexOf("{", decl.index);
+  assert.ok(open > 0, `could not find the body of ${name}`);
+  let depth = 0;
+  for (let i = open; i < code.length; i += 1) {
+    if (code[i] === "{") depth += 1;
+    if (code[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return { start: open, end: i, text: code.slice(open, i + 1) };
+    }
+  }
+  throw new Error(`unbalanced braces in ${name}`);
+}
+
+/** Every .js directly in app-site/app/, plus the markup. */
+function appSources() {
+  const out = readdirSync(APP_DIR)
+    .filter((f) => f.endsWith(".js"))
+    .sort()
+    .map((f) => ({ name: f, src: readFileSync(join(APP_DIR, f), "utf8") }));
+  out.push({ name: "index.html", src: readFileSync(join(APP_DIR, "index.html"), "utf8") });
+  return out;
+}
+
+const PROMPT_APIS = ["requestPermission", "pushManager.subscribe"];
+
+test("the comment stripper is not inert, and the docstring is not the gate", () => {
+  const raw = readFileSync(join(APP_DIR, "push.js"), "utf8");
+  const code = stripComments(raw);
+  assert.ok(
+    code.length < raw.length * 0.75,
+    "push.js is heavily commented; if stripping removed almost nothing, the stripper is broken and every check below is measuring prose",
+  );
+  const comments = [...raw.matchAll(/\/\*[\s\S]*?\*\//g), ...raw.matchAll(/^\s*\/\/.*$/gm)]
+    .map((m) => m[0])
+    .join("\n");
+  assert.ok(comments.length > 1000, "expected substantial prose to have been removed");
+  for (const api of PROMPT_APIS) {
+    assert.ok(
+      !comments.includes(api),
+      `the removed comments contain "${api}" - the docstring deliberately does not spell either API name, so that a plain count over the raw file stays meaningful too`,
+    );
+  }
+});
+
+test("push.js is the ONLY file under app-site/app/ that can raise the prompt", () => {
+  let owners = [];
+  for (const { name, src } of appSources()) {
+    const code = stripComments(src);
+    if (PROMPT_APIS.some((api) => code.includes(api))) owners.push(name);
+  }
+  assert.deepEqual(
+    owners,
+    ["push.js"],
+    `exactly one file may reach the permission prompt (D-27-05); found ${JSON.stringify(owners)}`,
+  );
+});
+
+test("each prompt API appears exactly once in push.js, and never at top level", () => {
+  const code = stripStringBodies(stripComments(readFileSync(join(APP_DIR, "push.js"), "utf8")));
+  const depths = depthMap(code);
+  for (const api of PROMPT_APIS) {
+    const at = [...code.matchAll(new RegExp(api.replace(".", "\\."), "g"))].map((m) => m.index);
+    assert.equal(
+      at.length,
+      1,
+      `"${api}" must appear exactly once in push.js; found ${at.length}`,
+    );
+    assert.ok(
+      depths[at[0]] > 0,
+      `"${api}" sits at brace depth ${depths[at[0]]} - at top level it runs on import, which is a prompt on load`,
+    );
+  }
+});
+
+test("enablePush is called from exactly one place, inside a click listener", () => {
+  const code = stripComments(readFileSync(join(APP_DIR, "push.js"), "utf8"));
+  const calls = [...code.matchAll(/(?:^|[^.\w$])enablePush\s*\(/g)]
+    .map((m) => m.index + m[0].length - "enablePush(".length)
+    .filter((i) => !/function\s+$/.test(code.slice(Math.max(0, i - 24), i)));
+  assert.equal(
+    calls.length,
+    1,
+    `enablePush must be called exactly once; found ${calls.length} call site(s)`,
+  );
+
+  const wire = functionBody(code, "wirePushButton");
+  assert.ok(
+    calls[0] > wire.start && calls[0] < wire.end,
+    "the one call site must live inside wirePushButton",
+  );
+  const clickAt = code.indexOf('addEventListener("click"', wire.start);
+  assert.ok(
+    clickAt > wire.start && clickAt < wire.end,
+    "wirePushButton must attach a click listener",
+  );
+  assert.ok(
+    calls[0] > clickAt,
+    "the call must sit INSIDE the click listener - reachable by a user gesture and by nothing else",
+  );
+});
+
+test("push.js talks to the three push endpoints and to nothing else", () => {
+  const code = stripComments(readFileSync(join(APP_DIR, "push.js"), "utf8"));
+  const paths = [...code.matchAll(/\/v1\/[A-Za-z0-9_/-]+/g)].map((m) => m[0]).sort();
+  assert.deepEqual(
+    paths,
+    ["/v1/push/config", "/v1/push/subscribe", "/v1/push/unsubscribe"],
+    "each of the three exactly once, and no other API path",
+  );
+});
+
+test("push.js exports the surface the shell binds to", () => {
+  const code = readFileSync(join(APP_DIR, "push.js"), "utf8");
+  for (const name of [
+    "urlBase64ToUint8Array",
+    "enablePush",
+    "disablePush",
+    "refreshPushButton",
+    "wirePushButton",
+  ]) {
+    assert.match(
+      code,
+      new RegExp(`export\\s+(async\\s+)?function\\s+${name}\\b`),
+      `push.js must export ${name}`,
+    );
+  }
+});
+
+test("no VAPID private key material anywhere under app-site/app/", () => {
+  for (const { name, src } of appSources()) {
+    assert.ok(
+      !/VAPID_PRIVATE|vapid_private|PRIVATE KEY/.test(src),
+      `${name} must never carry private key material - the client only ever gets the public half`,
+    );
+  }
+  // The public key is fetched, never baked in: a build-time constant would mean
+  // a server key rotation needs a client release (27-CONTEXT).
+  const push = readFileSync(join(APP_DIR, "push.js"), "utf8");
+  assert.ok(
+    !/B[A-Za-z0-9_-]{85,}/.test(stripComments(push)),
+    "push.js appears to contain a literal VAPID public key - it must come from /v1/push/config",
+  );
+});
+
+// ---- The worker's half of the rotation repair ---------------------------
+
+test("sw.js reports a rotation and repairs nothing itself", () => {
+  const sw = stripComments(readFileSync(join(APP_DIR, "sw.js"), "utf8"));
+  assert.equal(
+    (sw.match(/addEventListener\("pushsubscriptionchange"/g) || []).length,
+    1,
+    "exactly one rotation handler",
+  );
+  for (const api of PROMPT_APIS) {
+    assert.ok(
+      !sw.includes(api),
+      `a worker cannot prompt and holds no token; it must not reference ${api}`,
+    );
+  }
+  assert.ok(sw.includes("postMessage"), "the worker's only move is to tell an open client");
+});
+
+test("the rotation message literal is the same on both sides", () => {
+  const push = stripComments(readFileSync(join(APP_DIR, "push.js"), "utf8"));
+  const sw = stripComments(readFileSync(join(APP_DIR, "sw.js"), "utf8"));
+  const declared = /PUSH_ROTATED_MESSAGE\s*=\s*"([^"]+)"/.exec(push);
+  assert.ok(declared, "push.js must name the rotation message in one constant");
+  assert.ok(
+    sw.includes(`"${declared[1]}"`),
+    `sw.js posts a different message type than push.js listens for; a typo here means a rotated device silently never repairs (client expects "${declared[1]}")`,
+  );
+});
+
+// ---- The shell must not offer a signed-out person a token-gated control --
+
+test("the push toggle and its hint are hidden on the signed-out surface", () => {
+  const app = stripComments(readFileSync(join(APP_DIR, "app.js"), "utf8"));
+  const out = functionBody(app, "showSignedOut").text;
+  const inn = functionBody(app, "showSignedIn").text;
+  for (const id of ["btn-enable-push", "push-hint"]) {
+    assert.match(
+      out,
+      new RegExp(`el\\("${id}"\\)[\\s\\S]{0,40}?hidden\\s*=\\s*true`),
+      `showSignedOut must hide #${id} - every push endpoint is user-gated, so a signed-out click can only produce an unexplained failure`,
+    );
+    assert.match(
+      inn,
+      new RegExp(`el\\("${id}"\\)[\\s\\S]{0,40}?hidden\\s*=\\s*false`),
+      `showSignedIn must reveal #${id}`,
+    );
+  }
+});
+
+test("every id app.js reads is declared in index.html", () => {
+  const app = readFileSync(join(APP_DIR, "app.js"), "utf8");
+  const html = readFileSync(join(APP_DIR, "index.html"), "utf8");
+  const ids = new Set([...app.matchAll(/\bel\(\s*["']([a-z0-9-]+)["']\s*\)/g)].map((m) => m[1]));
+  assert.ok(ids.size >= 8, `expected app.js to bind several ids, found ${ids.size}`);
+  for (const id of ids) {
+    assert.ok(
+      html.includes(`id="${id}"`),
+      `app.js reads #${id}, which index.html does not declare - the binding silently does nothing`,
+    );
+  }
+});
+
+test("english-only: no accented Latin chars in push.js", () => {
+  const hits = readFileSync(join(APP_DIR, "push.js"), "utf8").match(/[À-ÿ]/g) || [];
+  assert.equal(
+    hits.length,
+    0,
+    `push.js has ${hits.length} accented char(s) ${JSON.stringify([...new Set(hits)])} - product strings must be English`,
+  );
 });
 
 // ---- Run the async probes ------------------------------------------------
