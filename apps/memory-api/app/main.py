@@ -36,6 +36,7 @@ from app.routes import (
     internal_github,
     me,
     me_github,
+    me_profile,
     media,
     memory,
     messages,
@@ -116,6 +117,9 @@ CORE_ROUTERS: list[tuple[APIRouter, str, list[str]]] = [
     (internal_github.router, "/v1", ["internal-github"]),
     (me.router, "/v1", ["me"]),
     (me_github.router, "/v1", ["me"]),
+    # A profile — the name a person chooses, their bio, their avatar — is not a
+    # paid feature. Core in every edition, OSS included.
+    (me_profile.router, "/v1", ["me"]),
     (auth_github.router, "/v1", ["auth"]),
     (auth_local.router, "/v1", ["auth-local"]),
     (teams.router, "/v1", ["teams"]),
