@@ -143,6 +143,24 @@ export const webPlatform = {
       return null;
     }
   },
+
+  /**
+   * Always null — and that is the honest answer, not a gap.
+   *
+   * The extension can read the tab the user is looking at, so "send this page
+   * to a teammate" needs no typing there. A web page can see nothing but
+   * itself: the only URL available here is this app's own, which nobody wants
+   * to send. Returning it would ship a button that always sends the wrong
+   * thing, and inventing one would be worse.
+   *
+   * Callers treat null as "ask the person for a link" — the paste path — so
+   * the difference stays visible in the UI instead of being papered over.
+   *
+   * @returns {Promise<null>}
+   */
+  async currentPageUrl() {
+    return null;
+  },
 };
 
 // Fail at import, not at first use.

@@ -22,10 +22,21 @@
  * @property {PlatformStorage} storage
  * @property {(url: string) => void} openUrl
  * @property {(opts: {title: string, message: string, iconUrl?: string}) => Promise<string|null>} notify
+ * @property {() => Promise<string|null>} currentPageUrl
  */
 
-/** Every top-level member a platform implementation must provide. */
-export const PLATFORM_MEMBERS = ["storage", "openUrl", "notify"];
+/**
+ * Every top-level member a platform implementation must provide.
+ *
+ * `currentPageUrl` is the one capability the two surfaces genuinely do not
+ * share. An extension can read the page the user is looking at, so "send this
+ * to a teammate" needs no typing; a web page cannot see anything but itself, so
+ * the honest answer there is null and the person pastes a link. It is a member
+ * of the contract rather than an optional extra precisely so the null case has
+ * to be handled: a surface that quietly skipped it would ship a "send the
+ * current page" button that sends nothing.
+ */
+export const PLATFORM_MEMBERS = ["storage", "openUrl", "notify", "currentPageUrl"];
 
 /** Every function `platform.storage` must provide. */
 export const PLATFORM_STORAGE_MEMBERS = ["get", "set", "remove"];
@@ -63,6 +74,9 @@ export function assertPlatform(p) {
   }
   if (typeof p.notify !== "function") {
     throw new TypeError("platform.notify is not a function");
+  }
+  if (typeof p.currentPageUrl !== "function") {
+    throw new TypeError("platform.currentPageUrl is not a function");
   }
   return p;
 }
