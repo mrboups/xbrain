@@ -36,15 +36,46 @@ const TARGETS = [
 
 const checkOnly = process.argv.includes("--check");
 
+/**
+ * Modules both surfaces are known to import.
+ *
+ * The file list below is discovered from disk, which is what keeps a NEW module
+ * covered without touching this script. The failure that discovery cannot see is
+ * the opposite one: a module deleted from the package stops being copied, the
+ * orphan sweep removes it from both targets, and the check goes green while two
+ * surfaces sit on a broken import. Naming the modules makes that a red gate.
+ */
+const REQUIRED_MODULES = [
+  "api.js",
+  "chat_stream.js",
+  "nudge_open.js",
+  "platform.js",
+  "publication.js",
+  "realtime.js",
+  "render.js",
+  "team_rail.js",
+  "theme.js",
+];
+
 /** Every runtime module in the package, sorted for stable reporting. */
 function sourceFiles() {
   if (!existsSync(SOURCE_DIR)) {
     console.error(`FATAL: source directory missing: ${SOURCE_DIR}`);
     process.exit(1);
   }
-  return readdirSync(SOURCE_DIR)
+  const found = readdirSync(SOURCE_DIR)
     .filter((f) => f.endsWith(".js"))
     .sort();
+  const absent = REQUIRED_MODULES.filter((m) => !found.includes(m));
+  if (absent.length) {
+    console.error(
+      `FATAL: packages/chat-core is missing ${absent.join(", ")} — ` +
+        "both surfaces import it. Remove it from REQUIRED_MODULES only together " +
+        "with its import sites.",
+    );
+    process.exit(1);
+  }
+  return found;
 }
 
 /** `.js` files currently sitting in a target dir (may include stale copies). */

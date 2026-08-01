@@ -49,6 +49,7 @@ const SHELL = [
   "/app/chat_core/render.js",
   "/app/chat_core/publication.js",
   "/app/chat_core/realtime.js",
+  "/app/chat_core/team_rail.js",
 ];
 
 self.addEventListener("install", (event) => {
