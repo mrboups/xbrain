@@ -8,6 +8,15 @@
 # Bash-equivalents
 *.bash text eol=lf
 
+# The PWA and the extension MUST run the byte-identical Centrifuge build —
+# tests/test_pwa_chat.mjs asserts it, because two different realtime client
+# builds mean a socket bug reproduces on one surface and not the other. The
+# bundle is minified (~8 lines), so core.autocrlf=true silently made the two
+# on-disk copies differ by exactly 8 bytes: one path was materialised by a
+# checkout (CRLF), the other written by a tool (LF). Pinning eol=lf makes a
+# fresh clone produce identical bytes on both paths.
+**/vendor/centrifuge.js text eol=lf
+
 # Other infrastructure formats that the Linux VM consumes (avoid surprises)
 Dockerfile text eol=lf
 *.dockerfile text eol=lf
