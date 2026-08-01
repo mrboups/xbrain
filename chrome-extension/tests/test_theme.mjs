@@ -14,7 +14,7 @@ import {
   THEME_STORAGE_KEY,
   resolveInitialTheme,
   applyTheme,
-} from "../theme.js";
+} from "../../packages/chat-core/theme.js";
 
 // Tiny root element stub — records the last data-theme stamped on it.
 function makeRootStub() {

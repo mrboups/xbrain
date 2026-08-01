@@ -6,7 +6,11 @@
  */
 
 import { loadSettings, saveSettings } from "./settings.js";
-import { THEME_STORAGE_KEY, resolveInitialTheme, applyTheme } from "./theme.js";
+import {
+  THEME_STORAGE_KEY,
+  resolveInitialTheme,
+  applyTheme,
+} from "./chat_core/theme.js";
 
 const STATUS_FADE_MS = 1500;
 

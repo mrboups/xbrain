@@ -26,16 +26,32 @@ import {
   savedToBrainLabel,
   sameDay,
   dayLabel,
-} from "./chat_stream.js";
+} from "./chat_core/chat_stream.js";
 import { loadSettings, saveSettings } from "./settings.js";
-import { handleOpenUrl, isSafeHttpUrl } from "./nudge_open.js";
+import { handleOpenUrl, isSafeHttpUrl } from "./chat_core/nudge_open.js";
 import {
   THEME_STORAGE_KEY,
   resolveInitialTheme,
   applyTheme,
-} from "./theme.js";
+} from "./chat_core/theme.js";
+import { createApi } from "./chat_core/api.js";
+import { chromePlatform } from "./platform_chrome.js";
 
 const MEMORY_API_BASE = "https://api.grooveos.app";
+
+// ---------- memory-api client (Phase 27, D-27-04) ----------
+//
+// ONE client for the whole popup: it is the only place a Bearer header is
+// assembled, and the only place a non-2xx becomes an Error. `baseUrl` is
+// injected here because the origin belongs to THIS surface — chat_core/api.js
+// carries no origin at all, so the PWA cannot be repointed by a shared edit.
+// The token is read through the platform shim rather than the extension's
+// storage API directly, which is what makes the same client work in the PWA.
+const api = createApi({
+  baseUrl: MEMORY_API_BASE,
+  getToken: async () =>
+    (await chromePlatform.storage.get(["xbt_token"])).xbt_token || null,
+});
 
 // ---------- App state (single instance per popup open) ----------
 
@@ -100,7 +116,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 async function boot() {
   // 1. Check connection state. If no xbt_token → show connection card,
   //    let the user click Connect; chat boots once they're authed.
-  const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+  const { xbt_token } = await chromePlatform.storage.get(["xbt_token"]);
   if (!xbt_token) {
     showConnectionCard();
     return;
@@ -109,11 +125,8 @@ async function boot() {
 
   // 2. Fetch /v1/me + teams in parallel.
   try {
-    state.me = await fetchJson(`${MEMORY_API_BASE}/v1/me`, xbt_token);
-    state.teams = await fetchJson(
-      `${MEMORY_API_BASE}/v1/teams/my-teams`,
-      xbt_token,
-    );
+    state.me = await api.me();
+    state.teams = await api.myTeams();
   } catch (e) {
     console.error("[xbrain] boot failed:", e);
     showConnectionCard();
@@ -211,23 +224,15 @@ async function openTeamBoard() {
   // board-creation calls (T-26-34); re-enabled in finally.
   if (btn) btn.disabled = true;
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    const res = await fetch(
-      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/boards`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${xbt_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ title: "Team board" }),
-      },
+    const data = await api.request(
+      `/v1/teams/${state.activeTeamId}/boards`,
+      { method: "POST", body: { title: "Team board" } },
     );
-    if (!res.ok) throw new Error(`board ${res.status}`);
-    const data = await res.json();
     // Validate the server-built URL's scheme before handing it to the browser,
     // and never log it — the fragment is a bearer secret for this one board.
-    if (!data.open_url || !isSafeHttpUrl(data.open_url)) {
+    // `data` is null when the server answers with an empty body — treat that as
+    // a rejection rather than dereferencing it.
+    if (!data || !data.open_url || !isSafeHttpUrl(data.open_url)) {
       throw new Error("board url rejected");
     }
     chrome.tabs.create({ url: data.open_url });
@@ -345,11 +350,7 @@ async function renderPeopleList(focusUserId) {
 
   let members = [];
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    const res = await fetch(
-      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/members`,
-      { headers: { Authorization: `Bearer ${xbt_token}` } },
-    );
+    const res = await api.rawFetch(`/v1/teams/${state.activeTeamId}/members`);
     if (!res.ok) {
       setPeopleStatus(`Could not load members (HTTP ${res.status}).`, "error");
       return;
@@ -439,7 +440,9 @@ function pickFileForMember(member) {
     }
     setPeopleStatus(`Uploading ${file.name}…`, "loading");
     try {
-      const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+      // Multipart stays on raw fetch: the browser must set Content-Type itself
+      // so the boundary is correct. The token still comes from the shim.
+      const { xbt_token } = await chromePlatform.storage.get(["xbt_token"]);
       const form = new FormData();
       form.append("file", file);
       form.append("caption", file.name);
@@ -522,11 +525,7 @@ async function sendLinkToEveryone() {
   if (btn) btn.disabled = true;
   setPeopleStatus("Sending…", "loading");
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    const res = await fetch(
-      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/members`,
-      { headers: { Authorization: `Bearer ${xbt_token}` } },
-    );
+    const res = await api.rawFetch(`/v1/teams/${state.activeTeamId}/members`);
     const members = res.ok ? await res.json() : [];
     let sent = 0;
     let failed = 0;
@@ -552,17 +551,11 @@ async function sendLinkToEveryone() {
 /** One nudge POST. Returns the HTTP status so callers can map it themselves. */
 async function postNudge(targetUserId, url) {
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    const res = await fetch(
-      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/nudge-open`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${xbt_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ target_user_id: targetUserId, url }),
-      },
+    // rawFetch, not request(): the caller maps 202/403/422/429 to copy, so an
+    // exception would destroy the very information it needs.
+    const res = await api.rawFetch(
+      `/v1/teams/${state.activeTeamId}/nudge-open`,
+      { method: "POST", body: { target_user_id: targetUserId, url } },
     );
     return res.status;
   } catch {
@@ -597,10 +590,8 @@ async function populateSendLinkMembers() {
   }
   select.innerHTML = `<option value="" disabled selected>Loading members…</option>`;
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    const members = await fetchJson(
-      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/members`,
-      xbt_token,
+    const members = await api.request(
+      `/v1/teams/${state.activeTeamId}/members`,
     );
     const myId = state.me && state.me.id;
     const others = (Array.isArray(members) ? members : []).filter(
@@ -656,17 +647,9 @@ async function submitSendLink() {
   if (submitBtn) submitBtn.disabled = true;
   setSendLinkStatus("Sending…", "loading");
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    const res = await fetch(
-      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/nudge-open`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${xbt_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ target_user_id: targetUserId, url }),
-      },
+    const res = await api.rawFetch(
+      `/v1/teams/${state.activeTeamId}/nudge-open`,
+      { method: "POST", body: { target_user_id: targetUserId, url } },
     );
     if (res.status === 202) {
       setSendLinkStatus("Sent ✓", "success");
@@ -760,17 +743,9 @@ async function inviteByEmail() {
   if (btn) btn.disabled = true;
   setInviteEmailStatus("Adding...", "loading");
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    const res = await fetch(
-      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/invite`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${xbt_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, role: "member" }),
-      },
+    const res = await api.rawFetch(
+      `/v1/teams/${state.activeTeamId}/invite`,
+      { method: "POST", body: { email, role: "member" } },
     );
     if (res.status === 201) {
       if (input) input.value = "";
@@ -838,17 +813,9 @@ async function mintInvite() {
   if (mintBtn) mintBtn.disabled = true;
   setInviteStatus("Creating...", "loading");
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    const res = await fetch(
-      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/invite-codes`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${xbt_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({}),
-      },
+    const res = await api.rawFetch(
+      `/v1/teams/${state.activeTeamId}/invite-codes`,
+      { method: "POST", body: {} },
     );
     if (res.status === 201) {
       const j = await res.json();
@@ -936,14 +903,9 @@ async function joinByCode() {
   if (joinBtn) joinBtn.disabled = true;
   setInviteJoinStatus("Joining...", "loading");
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    const res = await fetch(`${MEMORY_API_BASE}/v1/teams/join-by-code`, {
+    const res = await api.rawFetch("/v1/teams/join-by-code", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${xbt_token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ code }),
+      body: { code },
     });
     if (res.status === 200) {
       const j = await res.json();
@@ -985,11 +947,7 @@ async function refreshTeamsAfterJoin() {
     return;
   }
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    const teams = await fetchJson(
-      `${MEMORY_API_BASE}/v1/teams/my-teams`,
-      xbt_token,
-    );
+    const teams = await api.myTeams();
     if (Array.isArray(teams) && teams.length) {
       state.teams = teams;
       renderTeamSelector();
@@ -1048,9 +1006,9 @@ function setInviteEmailStatus(text, type) {
 
 /**
  * Wire the header light/dark segmented toggle. Theme logic lives in the pure
- * theme.js module; this function owns the impure parts: reading/writing
- * chrome.storage.local and stamping the DOM. The stored choice wins over the
- * OS preference and persists across popup opens (Plan 20-01).
+ * chat_core/theme.js module; this function owns the impure parts: reading and
+ * writing through the platform storage shim, and stamping the DOM. The stored
+ * choice wins over the OS preference and persists across popup opens (20-01).
  */
 async function wireTheme() {
   const root = document.documentElement;
@@ -1069,7 +1027,7 @@ async function wireTheme() {
     reflect(mode);
     if (persist) {
       try {
-        await chrome.storage.local.set({ [THEME_STORAGE_KEY]: mode });
+        await chromePlatform.storage.set({ [THEME_STORAGE_KEY]: mode });
       } catch (e) {
         console.warn("[xbrain] theme persist failed:", e);
       }
@@ -1079,7 +1037,7 @@ async function wireTheme() {
   // Boot: stored choice wins; first-ever open falls back to prefers-color-scheme.
   let storedTheme = null;
   try {
-    const got = await chrome.storage.local.get([THEME_STORAGE_KEY]);
+    const got = await chromePlatform.storage.get([THEME_STORAGE_KEY]);
     storedTheme = got ? got[THEME_STORAGE_KEY] : null;
   } catch (e) {
     console.warn("[xbrain] theme read failed:", e);
@@ -1138,7 +1096,7 @@ function orderTeams(teams, order) {
 
 async function loadTeamOrder() {
   try {
-    const got = await chrome.storage.local.get([TEAM_ORDER_KEY]);
+    const got = await chromePlatform.storage.get([TEAM_ORDER_KEY]);
     const v = got && got[TEAM_ORDER_KEY];
     return Array.isArray(v) ? v : [];
   } catch {
@@ -1148,7 +1106,7 @@ async function loadTeamOrder() {
 
 async function saveTeamOrder(ids) {
   try {
-    await chrome.storage.local.set({ [TEAM_ORDER_KEY]: ids });
+    await chromePlatform.storage.set({ [TEAM_ORDER_KEY]: ids });
   } catch {
     /* an unsaved order is a cosmetic loss, never a blocker */
   }
@@ -1230,7 +1188,7 @@ async function refreshTeamBadges() {
   if (!rail) return;
   let token;
   try {
-    ({ xbt_token: token } = await chrome.storage.local.get(["xbt_token"]));
+    ({ xbt_token: token } = await chromePlatform.storage.get(["xbt_token"]));
   } catch { return; }
   if (!token) return;
 
@@ -1242,10 +1200,7 @@ async function refreshTeamBadges() {
       continue;
     }
     try {
-      const res = await fetch(
-        `${MEMORY_API_BASE}/v1/teams/${id}/unread-summary`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+      const res = await api.rawFetch(`/v1/teams/${id}/unread-summary`);
       if (!res.ok) continue;
       const { count } = await res.json();
       let badge = btn.querySelector(".xb-team-badge");
@@ -1391,12 +1346,7 @@ function setConnectStatus(text, type) {
 // ---------- Centrifugo connect ----------
 
 async function connectCentrifugo() {
-  const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-  const tokenInfo = await fetchJson(
-    `${MEMORY_API_BASE}/v1/me/centrifugo-token`,
-    xbt_token,
-    "POST",
-  );
+  const tokenInfo = await api.centrifugoToken();
 
   // Disconnect any prior centrifuge instance (e.g. after token refresh).
   if (state.centrifuge) {
@@ -1444,7 +1394,7 @@ async function connectCentrifugo() {
  * switch can never double-subscribe.
  *
  * The handler NEVER opens a browser tab — it only raises a notification via
- * nudge_open.handleOpenUrl and stashes the url in chrome.storage.session. The
+ * nudge_open.handleOpenUrl and stashes the url in the session area. The
  * tab is opened ONLY when the recipient clicks that notification, wired in
  * background.js (the required user gesture + the consent gate).
  */
@@ -1622,12 +1572,7 @@ async function markRead() {
   if (state.catchup.markReadInFlight) return;
   state.catchup.markReadInFlight = true;
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    if (!xbt_token) return;
-    await fetch(`${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/mark-read`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${xbt_token}` },
-    });
+    await api.markRead(state.activeTeamId);
   } catch (e) {
     console.warn("[xbrain] mark-read failed:", e);
   } finally {
@@ -1648,12 +1593,7 @@ async function refreshUnreadBanner() {
   const textEl = $("catchup-banner-text");
   if (!banner || !textEl) return;
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    if (!xbt_token) return;
-    const data = await fetchJson(
-      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/unread-summary`,
-      xbt_token,
-    );
+    const data = await api.unreadSummary(state.activeTeamId);
     const count = Number(data && data.count) || 0;
     const threshold = Number(data && data.threshold) || 0;
     const since = data && data.since != null ? data.since : null;
@@ -1730,13 +1670,9 @@ async function runCatchMeUp() {
   const bannerText = $("catchup-banner-text");
   if (runBtn) runBtn.disabled = true;
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    const res = await fetch(
-      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/catch-me-up`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${xbt_token}` },
-      },
+    const res = await api.rawFetch(
+      `/v1/teams/${state.activeTeamId}/catch-me-up`,
+      { method: "POST" },
     );
     if (res.status === 202) {
       if (banner) banner.hidden = true;
@@ -1785,12 +1721,7 @@ function showCatchupSummary(placeholder) {
 async function refreshAgentAliases() {
   if (!state.activeTeamId) return;
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    if (!xbt_token) return;
-    const data = await fetchJson(
-      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/agent-aliases`,
-      xbt_token,
-    );
+    const data = await api.agentAliases(state.activeTeamId);
     const aliases = Array.isArray(data && data.aliases) ? data.aliases : null;
     if (aliases && aliases.length) {
       state.agentAliases = aliases;
@@ -1816,11 +1747,7 @@ async function updatePresenceFromAPI() {
 async function loadInitialHistory() {
   if (state.initialLoaded) return;
   state.initialLoaded = true;
-  const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-  const data = await fetchJson(
-    `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/messages?limit=50`,
-    xbt_token,
-  );
+  const data = await api.listMessages(state.activeTeamId);
   // Response is newest-first; render oldest-first.
   const msgs = (data.messages || []).slice().reverse();
   if (msgs.length === 0) {
@@ -1840,11 +1767,9 @@ async function loadOlderPage() {
   state.historyPaging = true;
   $("history-loader").hidden = false;
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    const data = await fetchJson(
-      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/messages?before=${encodeURIComponent(state.oldestLoadedTs)}&limit=50`,
-      xbt_token,
-    );
+    const data = await api.listMessages(state.activeTeamId, {
+      before: state.oldestLoadedTs,
+    });
     const olderMsgs = (data.messages || []).slice().reverse();
     const list = $("message-list");
     // Preserve scroll position: measure top sentinel before prepend.
@@ -2342,13 +2267,7 @@ async function sendMessage() {
   const sendBtn = $("btn-send");
   sendBtn.disabled = true;
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    const sent = await fetchJson(
-      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/messages`,
-      xbt_token,
-      "POST",
-      { content },
-    );
+    const sent = await api.postMessage(state.activeTeamId, { content });
     input.value = "";
     autoResize(input);
     // Optimistic render: show the message immediately from the POST response
@@ -2377,8 +2296,8 @@ function openFilePicker() {
 
 /**
  * Upload a file to /v1/media/upload and post a media message into team chat.
- * Uses raw fetch (not fetchJson) because multipart requires the browser to set
- * the Content-Type boundary automatically — never set it manually.
+ * Uses raw fetch (not the shared client) because multipart requires the browser
+ * to set the Content-Type boundary automatically — never set it manually.
  */
 async function uploadFile(file) {
   const MAX_BYTES = 25 * 1024 * 1024; // 25 MB — must match backend constant
@@ -2402,7 +2321,7 @@ async function uploadFile(file) {
     return;
   }
 
-  const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+  const { xbt_token } = await chromePlatform.storage.get(["xbt_token"]);
   if (!xbt_token) {
     console.warn("[xbrain] uploadFile: no xbt_token");
     return;
@@ -2448,22 +2367,16 @@ async function uploadFile(file) {
  */
 async function postMediaMessage(item, filename) {
   if (!state.activeTeamId) return;
-  const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
   try {
-    const sent = await fetchJson(
-      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/messages`,
-      xbt_token,
-      "POST",
-      {
-        content: filename,
-        media: {
-          item_id: item.item_id,
-          mime: item.mime,
-          size: item.size,
-          filename,
-        },
+    const sent = await api.postMessage(state.activeTeamId, {
+      content: filename,
+      media: {
+        item_id: item.item_id,
+        mime: item.mime,
+        size: item.size,
+        filename,
       },
-    );
+    });
     // Optimistic render: show immediately from the POST response;
     // the Centrifugo echo for the same id will be de-duped by renderMessage().
     if (sent && sent.id) {
@@ -2642,7 +2555,7 @@ async function submitClip() {
 
     // Auth with the xbt_ personal token (works for GitHub OR Google sign-in —
     // same universal credential the chat uses), not the legacy Google-only flow.
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    const { xbt_token } = await chromePlatform.storage.get(["xbt_token"]);
     if (!xbt_token) {
       setClipStatus("Sign-in required", "error");
       sendBtn.disabled = false;
@@ -2682,23 +2595,13 @@ async function submitClip() {
 }
 
 // ---------- HTTP helpers ----------
-
-async function fetchJson(url, token, method = "GET", body = null) {
-  const opts = {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  };
-  if (body) opts.body = JSON.stringify(body);
-  const r = await fetch(url, opts);
-  if (!r.ok) {
-    const text = await r.text().catch(() => "");
-    throw new Error(`HTTP ${r.status}: ${text.slice(0, 200)}`);
-  }
-  return r.json();
-}
+//
+// The popup's local JSON helper lived here until Phase 27. It now lives in
+// packages/chat-core/api.js — same Bearer header, same `HTTP <status>: <body>`
+// throw shape — so the PWA runs the identical client instead of a second copy
+// that would drift (D-27-04). The module-level `api` at the top of this file is
+// the only entry point; multipart uploads stay on raw fetch because the browser
+// must own their Content-Type boundary.
 
 /**
  * Empty state — the product is a TEAM chat, so this proposes creating a team and
@@ -2816,14 +2719,9 @@ async function joinFromEmptyState(btn, codeInput) {
     statusLine.textContent = text;
   };
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
-    const res = await fetch(`${MEMORY_API_BASE}/v1/teams/join-by-code`, {
+    const res = await api.rawFetch("/v1/teams/join-by-code", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${xbt_token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ code }),
+      body: { code },
     });
     if (res.status === 200) {
       const j = await res.json();
@@ -2880,19 +2778,14 @@ async function createTeam(btn, input) {
   const original = btn.textContent;
   btn.textContent = "Creating…";
   try {
-    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
     const base = slugifyTeamName(displayName);
     let res;
     // One retry on a slug collision (409) with a short suffix — two people naming
     // their team the same thing must not dead-end on an error they cannot act on.
     for (const slug of [base, `${base}-${Math.random().toString(36).slice(2, 6)}`]) {
-      res = await fetch(`${MEMORY_API_BASE}/v1/teams/self`, {
+      res = await api.rawFetch("/v1/teams/self", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${xbt_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ slug, display_name: displayName }),
+        body: { slug, display_name: displayName },
       });
       if (res.status !== 409) break;
     }

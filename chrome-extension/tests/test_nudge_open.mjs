@@ -24,7 +24,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { isSafeHttpUrl, handleOpenUrl } from "../nudge_open.js";
+import {
+  isSafeHttpUrl,
+  handleOpenUrl,
+} from "../../packages/chat-core/nudge_open.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -175,7 +178,12 @@ await test("isSafeHttpUrl: http/https true; everything else false", () => {
 // ---------- structural: the module cannot open a tab ----------
 
 await test("nudge_open.js source contains NO 'tabs' capability (D-22-02)", () => {
-  const src = readFileSync(join(__dirname, "..", "nudge_open.js"), "utf8");
+  // The SOURCE, not the generated copy: the invariant must hold where the file
+  // is edited. test_chat_core_sync.mjs proves the copies match byte-for-byte.
+  const src = readFileSync(
+    join(__dirname, "..", "..", "packages", "chat-core", "nudge_open.js"),
+    "utf8",
+  );
   assert.equal(
     src.includes("tabs"),
     false,
