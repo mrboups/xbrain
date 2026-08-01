@@ -16,10 +16,11 @@
  * add a browser-tab API call here; the node test greps this file for the
  * tab-opening capability name and fails if it appears.
  *
- * Pure module: imports NOTHING from chrome.*. All side effects flow through the
- * injected `deps` so the handler is testable in plain node (no jsdom, no chrome
- * polyfill). Used by:
+ * Pure module: imports NOTHING from a browser-extension API. All side effects
+ * flow through the injected `deps` so the handler is testable in plain node (no
+ * jsdom, no extension polyfill). Used by:
  *   - chrome-extension/popup.js (subscribes user:<sub>, routes open_url here)
+ *   - app-site/app/ — the PWA (same routing, web-backed deps)
  *   - chrome-extension/tests/test_nudge_open.mjs
  */
 
@@ -71,7 +72,7 @@ export async function handleOpenUrl(data, deps) {
   if (settings && settings.allowOpenLinkRequests === false) return null;
 
   // Defense-in-depth: drop unsafe/malformed schemes client-side. The server
-  // already validated, but the extension re-checks before showing anything.
+  // already validated, but the client re-checks before showing anything.
   if (!isSafeHttpUrl(data.url)) return null;
 
   const from = data.from || {};

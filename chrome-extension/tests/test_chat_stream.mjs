@@ -28,7 +28,7 @@ import {
   brainSummaryLabel,
   savedToBrainLabel,
   sameDay,
-} from "../chat_stream.js";
+} from "../../packages/chat-core/chat_stream.js";
 
 let passed = 0;
 let failed = 0;

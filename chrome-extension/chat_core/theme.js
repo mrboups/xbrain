@@ -1,27 +1,30 @@
 /**
- * xbrain extension — theme.js (Plan 20-01, shadcn "Neutral" theme runtime).
+ * xbrain — theme.js (Plan 20-01, shadcn "Neutral" theme runtime).
  *
- * Pure, dependency-free ES module: NO chrome.*, NO DOM globals. The caller
- * (popup.js) injects the storage value and the root element, exactly like
- * settings.js injects chrome.storage. That keeps this module node-testable.
+ * Pure, dependency-free ES module: NO browser-extension API, NO DOM globals.
+ * The caller injects the storage value and the root element, exactly like
+ * settings.js takes its storage area as an argument. That keeps this module
+ * node-testable.
  *
  * Responsibilities:
  *   - resolveInitialTheme: decide 'light' vs 'dark' on boot. A previously
  *     stored choice wins over the OS preference; an absent/invalid stored
  *     value falls back to prefers-color-scheme.
- *   - applyTheme: stamp `data-theme` on the root element. popup.css defines the
- *     token overrides for :root[data-theme="dark"] / :root[data-theme="light"],
+ *   - applyTheme: stamp `data-theme` on the root element. The stylesheet defines
+ *     the token overrides for :root[data-theme="dark"] / :root[data-theme="light"],
  *     which out-specify the prefers-color-scheme media block so the toggle wins
  *     in BOTH directions.
  *
- * Persistence (chrome.storage.local) is done by popup.js under THEME_STORAGE_KEY.
+ * Persistence is done by the surface, through its platform storage shim, under
+ * THEME_STORAGE_KEY.
  *
  * Used by:
- *   - chrome-extension/popup.js (boot + toggle wiring)
+ *   - chrome-extension/popup.js + options.js (boot + toggle wiring)
+ *   - app-site/app/ — the PWA (same key, web storage shim)
  *   - chrome-extension/tests/test_theme.mjs
  */
 
-/** Storage key for the persisted theme choice (chrome.storage.local). */
+/** Storage key for the persisted theme choice (platform storage shim). */
 export const THEME_STORAGE_KEY = "xbrain_theme_v1";
 
 /** The only two valid theme modes. */

@@ -1,8 +1,14 @@
 /**
  * Pure helpers for the team chat streaming + rendering layer.
  *
- * Quick task 260512-tcr Wave 3.3. Kept dependency-free (no DOM, no chrome.*,
- * no Centrifuge) so node tests can import and exercise them directly.
+ * Quick task 260512-tcr Wave 3.3. Kept dependency-free (no DOM, no browser
+ * extension APIs, no Centrifuge) so node tests can import and exercise them
+ * directly.
+ *
+ * Used by:
+ *   - chrome-extension/popup.js (via chrome-extension/chat_core/)
+ *   - app-site/app/ — the PWA (via app-site/app/chat_core/)
+ *   - chrome-extension/tests/test_chat_stream.mjs
  *
  * Concepts:
  *   - StreamBuffer: accumulates `agent_stream_chunk` deltas keyed by
@@ -20,8 +26,8 @@
 
 // ---------- Mention regex (built from the server's effective alias list) ----------
 //
-// ONE source of truth: the extension does NOT hardcode a mention vocabulary.
-// popup.js fetches GET /v1/teams/{id}/agent-aliases and builds the regex from
+// ONE source of truth: the client does NOT hardcode a mention vocabulary.
+// The surface fetches GET /v1/teams/{id}/agent-aliases and builds the regex from
 // that list via buildMentionRegex() — JS-escaping each alias (mirror of the
 // server's re.escape) and sorting longest-first — so the client and server can
 // never diverge again. Used only for an optimistic composer hint; the server
@@ -89,7 +95,7 @@ export function detectMentionClient(text, aliasesOrRegex) {
 //   buf.append(messageId, delta)        × N
 //   buf.finalize(messageId, finalText?) → buf.get(messageId) returns text
 //
-// Buffers persist across the popup's lifetime so a chunk that races
+// Buffers persist across the surface's lifetime so a chunk that races
 // against the start frame doesn't get dropped.
 
 export class StreamBuffer {
@@ -171,7 +177,7 @@ export function hostnameFromUrl(url) {
 
 // ---------- Author display name lookup ----------
 //
-// Server only sends author_user_id; the popup keeps a name cache populated
+// Server only sends author_user_id; the surface keeps a name cache populated
 // from team members + the caller's own profile.
 
 export function authorLabel({ msg, selfUserId, nameCache }) {

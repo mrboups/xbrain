@@ -44,6 +44,17 @@ ps:  ## Liste containers + healthchecks
 test:  ## Lance les tests memory-api
 	cd apps/memory-api && pytest -v
 
+# === Shared chat core (Phase 27, D-27-04) ===
+# packages/chat-core is the ONLY editable copy; both surfaces carry generated,
+# byte-identical copies. check-chat-core is the gate that keeps them honest.
+.PHONY: sync-chat-core
+sync-chat-core:  ## Copy packages/chat-core into both surfaces (extension + PWA)
+	node scripts/sync-chat-core.mjs
+
+.PHONY: check-chat-core
+check-chat-core:  ## Fail if either surface's chat-core copy has drifted
+	node scripts/sync-chat-core.mjs --check
+
 .PHONY: lint
 lint:  ## Lint Python (ruff)
 	cd apps/memory-api && ruff check .

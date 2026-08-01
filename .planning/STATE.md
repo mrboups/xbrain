@@ -4,14 +4,14 @@ milestone: v2.0
 milestone_name: Open-Core Edition
 status: executing
 stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
-last_updated: "2026-07-24T03:47:27.709Z"
-last_activity: 2026-07-24 -- Phase 26 execution started
+last_updated: "2026-08-01T07:50:21.582Z"
+last_activity: 2026-08-01 -- Phase 27 execution started
 progress:
-  total_phases: 6
-  completed_phases: 5
-  total_plans: 25
-  completed_plans: 18
-  percent: 72
+  total_phases: 7
+  completed_phases: 6
+  total_plans: 34
+  completed_plans: 25
+  percent: 74
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-02)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
-**Current focus:** Phase 26a (collaborative board) COMPLETE — a team opens a live Excalidraw board from the chat (separate Vite+React SPA built in Docker + a Hocuspocus Yjs service in its own container); two clients converge live, board survives reload (Postgres Y.Doc), team-scope enforced in onAuthenticate. Verified 4/4 + code-review (1 BLOCKER blocked-member bypass, 1 HIGH image-prune, MEDIUM/LOW) fixed; the live gate caught a real connectionConfig bug unit tests missed. ALL backlog features DONE. Remaining: 26b (images->MinIO + brain ingestion) + user-decision items (LICENSE, telegram, v2.0 residuals).
+**Current focus:** Phase 27 — PWA + Web Push
 
 ## Current Position
 
-Phase: 26 (Collaborative Board) — EXECUTING
-Plan: 1 of 7
-Status: Executing Phase 26
-Last activity: 2026-07-24 -- Phase 26 execution started
+Phase: 27 (PWA + Web Push) — EXECUTING
+Plan: 1 of 9
+Status: Executing Phase 27
+Last activity: 2026-08-01 -- Phase 27 execution started
 
 ## Performance Metrics
 
