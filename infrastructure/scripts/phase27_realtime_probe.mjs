@@ -186,13 +186,49 @@ async function main() {
       }
     });
 
+    // A publication can also be routed to the CLIENT rather than to the subscription
+    // object, so arrival is watched on both paths. Whichever fires first resolves the
+    // same promise; counting a frame twice is harmless, missing it is not.
+    centrifuge.on("publication", (ctx) => {
+      if (!ctx || ctx.channel !== channel) return;
+      const data = ctx.data;
+      frames.push(data);
+      const content =
+        data && data.message && typeof data.message.content === "string" ? data.message.content : "";
+      if (data && data.type === "message" && content.includes(nonce)) {
+        resolveArrival(Date.now());
+      }
+    });
+
     // 2. Subscribe barrier. Centrifugo does not replay: publishing before the
     //    subscription is live would look exactly like a broken realtime layer.
+    //
+    // The barrier accepts EITHER event, because which one fires depends on how this
+    // deployment's connection token is shaped. `POST /v1/me/centrifugo-token` returns a
+    // `channels` claim, which makes Centrifugo subscribe the connection SERVER-SIDE at
+    // connect time; the channel is then already live when `subscription.subscribe()`
+    // runs, so Centrifugo answers error 105 "already subscribed" and the subscription
+    // object's own `subscribed` event never fires. Gating on that event alone timed out
+    // against production on 2026-08-01 while realtime was in fact working — publications
+    // were arriving on the subscription object the whole time. A barrier that reports a
+    // healthy system as broken is as much a defect as one that reports the reverse, so
+    // the client-level `subscribed` for THIS channel counts too, and error 105 is not
+    // treated as a failure.
     const subscribed = new Promise((resolve, reject) => {
       subscription.on("subscribed", () => resolve());
-      subscription.on("error", (err) =>
-        reject(new Error(`subscribe to ${channel} failed: ${JSON.stringify(err && err.error ? err.error : err)}`)),
-      );
+      centrifuge.on("subscribed", (ctx) => {
+        if (ctx && ctx.channel === channel) resolve();
+      });
+      subscription.on("error", (err) => {
+        const e = err && err.error ? err.error : err;
+        if (e && e.code === 105) {
+          // Already subscribed server-side — the channel is live, which is what the
+          // barrier is actually asking about.
+          resolve();
+          return;
+        }
+        reject(new Error(`subscribe to ${channel} failed: ${JSON.stringify(e)}`));
+      });
       setTimeout(
         () => reject(new Error(`the receiver never became subscribed to ${channel} within ${SUBSCRIBE_TIMEOUT_MS}ms`)),
         SUBSCRIBE_TIMEOUT_MS,

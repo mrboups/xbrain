@@ -822,7 +822,16 @@ test_k_migration() {
   fi
 
   # NO MSYS_NO_PATHCONV: the DC array carries HOST paths.
-  local out; out="$("${DC[@]}" exec -T memory-api alembic current 2>&1 | tr -d '\r')"
+  #
+  # `python -m alembic`, not `alembic`: the runtime image installs the alembic PACKAGE
+  # (the container runs its migrations at boot) but not the console script, so the bare
+  # `alembic` binary is not on PATH and the exec fails with "executable file not found".
+  # That is the same root cause as check (j)'s in-container pytest problem — a runtime
+  # image is not a dev image. The module form reads the identical alembic_version row
+  # through the API container's own configured connection, so the check still answers
+  # "what revision is applied where the API actually runs" and not "what files exist on
+  # disk". Verified against production 2026-08-01: reports `0029_push_subscriptions (head)`.
+  local out; out="$("${DC[@]}" exec -T memory-api python -m alembic current 2>&1 | tr -d '\r')"
   local rev; rev="$(echo "$out" | grep -oE '[0-9]{4}_[a-z0-9_]+' | tail -1)"
   local num="${rev%%_*}"
   if [ -n "$num" ] && [ "$((10#$num))" -ge 29 ] 2>/dev/null; then
