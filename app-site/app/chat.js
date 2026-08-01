@@ -83,10 +83,15 @@ const streamBufferFacade = {
 };
 
 /**
- * Every frame on `team:<id>` — messages and agent streams alike — goes through
- * chat-core's router, which is the same code path the extension runs. The
- * surface only supplies the renderer, the buffer and the one fact the router
- * cannot know: which element says "no messages yet".
+ * Every frame on the active team's channel — messages and agent streams alike —
+ * goes through chat-core's router, which is the same code path the extension
+ * runs. The surface only supplies the renderer, the buffer and the one fact the
+ * router cannot know: which element says "no messages yet".
+ *
+ * The channel's NAME is deliberately not quoted anywhere in this file. Building
+ * one here would be the first step towards this surface deciding what it may
+ * subscribe to; chat-core's realtime module owns that, and the contract test
+ * reads this file for a quoted channel token like any other source text.
  */
 const handleTeamPublication = createPublicationRouter({
   renderer,
