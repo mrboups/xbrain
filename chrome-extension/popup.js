@@ -13,19 +13,14 @@
 
 "use strict";
 
+// The label/class helpers (authorLabel, bubbleClass, provenanceLabel,
+// brainSummaryLabel, savedToBrainLabel, formatRelative, sameDay, dayLabel) are
+// no longer imported here — chat_core/render.js is their only consumer now.
 import {
   StreamBuffer,
   detectMentionClient,
   buildMentionRegex,
-  formatRelative,
   hostnameFromUrl,
-  authorLabel,
-  bubbleClass,
-  provenanceLabel,
-  brainSummaryLabel,
-  savedToBrainLabel,
-  sameDay,
-  dayLabel,
 } from "./chat_core/chat_stream.js";
 import { loadSettings, saveSettings } from "./settings.js";
 import { handleOpenUrl, isSafeHttpUrl } from "./chat_core/nudge_open.js";
@@ -35,6 +30,9 @@ import {
   applyTheme,
 } from "./chat_core/theme.js";
 import { createApi } from "./chat_core/api.js";
+import { createRenderer } from "./chat_core/render.js";
+import { createPublicationRouter } from "./chat_core/publication.js";
+import { connectRealtime } from "./chat_core/realtime.js";
 import { chromePlatform } from "./platform_chrome.js";
 
 const MEMORY_API_BASE = "https://api.grooveos.app";
@@ -59,9 +57,7 @@ const state = {
   me: null,            // /v1/me result {id, source_user_id, email, ...}
   teams: [],           // [{id, slug, display_name, github_org}, ...]
   activeTeamId: null,
-  centrifuge: null,    // Centrifuge instance
-  subscription: null,  // active team:<id> subscription
-  userSubscription: null, // user:<source_user_id> subscription (open_url nudges)
+  realtime: null,      // chat_core/realtime.js handle (connection + subscriptions)
   presenceCount: 0,
   streamBuffer: new StreamBuffer(),
   nameCache: {},       // author_user_id → display name
@@ -98,11 +94,62 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+// ---------- Shared chat core (Phase 27, D-27-04) ----------
+//
+// The renderer and the websocket frame router live in packages/chat-core and are
+// imported, not copied — the PWA drives the SAME code, so a fix to a bubble or a
+// stream lands on both surfaces at once. Everything extension-specific (the
+// document, the two containers, the API origin, the people overlay) is injected
+// here and nowhere else.
+//
+// Built after DOM ready because the renderer captures #message-list and
+// #chat-scroll; every caller runs after boot(), so a module-level `let` is safe.
+let renderer = null;
+let routeTeamFrame = () => {};
+
+// state.streamBuffer is REPLACED on every team switch (a fresh buffer per team).
+// The router is built once, so it reads the buffer through this facade rather
+// than capturing an instance a later switch would leave stale.
+const streamBufferFacade = {
+  start: (id) => state.streamBuffer.start(id),
+  append: (id, delta) => state.streamBuffer.append(id, delta),
+  get: (id) => state.streamBuffer.get(id),
+  finalize: (id) => state.streamBuffer.finalize(id),
+};
+
+function buildChatCore() {
+  renderer = createRenderer({
+    doc: document,
+    listEl: $("message-list"),
+    scrollEl: $("chat-scroll"),
+    apiBase: MEMORY_API_BASE,
+    getSelfUserId: () => state.me?.id,
+    getNameCache: () => state.nameCache,
+    // Extension-only affordance: click a teammate's name to open the people
+    // overlay on their row. The PWA ships no people overlay (27-CONTEXT deferred)
+    // and passes null, which leaves the name plain instead of dead-clickable.
+    onAuthorClick: (uid) => openPeople({ focusUserId: uid }),
+  });
+  routeTeamFrame = createPublicationRouter({
+    renderer,
+    streamBuffer: streamBufferFacade,
+    // The surface owns its own "no messages yet" panel, so the router only
+    // reports that a frame proved the thread is non-empty.
+    onNonEmpty: () => {
+      $("chat-empty").hidden = true;
+    },
+  });
+}
+
+/** The live team subscription — owned by the realtime handle, read for presence. */
+const teamSub = () => (state.realtime ? state.realtime.teamSubscription : null);
+
 // ---------- Boot ----------
 
 document.addEventListener("DOMContentLoaded", async () => {
   // Apply the theme before anything paints so there is no light/dark flash.
   await wireTheme();
+  buildChatCore();
   wireHeader();
   wireConnectionCard();
   wireComposer();
@@ -141,8 +188,20 @@ async function boot() {
   renderTeamSelector();
   state.activeTeamId = state.teams[0].id;
 
-  // 3. Mint Centrifugo token + connect.
-  await connectCentrifugo();
+  // 3. Mint Centrifugo token + connect. The socket URL is whatever
+  //    POST /v1/me/centrifugo-token returned — never a constant (D-27-03).
+  state.realtime = await connectRealtime({
+    // The vendored client publishes a global; the shared module never reaches
+    // for one, so the surface hands the constructor in.
+    // eslint-disable-next-line no-undef -- global from vendor/centrifuge.js
+    Centrifuge: globalThis.Centrifuge,
+    api,
+    getUserSub: () => state.me?.source_user_id || null,
+    onTeamPublication: (data) => routeTeamFrame(data),
+    onUserPublication: handleUserPublication,
+    onPresenceChange: updatePresenceFromAPI,
+    previous: state.realtime,
+  });
 
   // 4. Subscribe to the active team channel + load initial history.
   await switchTeam(state.activeTeamId);
@@ -364,7 +423,7 @@ async function renderPeopleList(focusUserId) {
   // Who is online — best effort, never fatal.
   const online = new Set();
   try {
-    const p = await state.subscription.presence();
+    const p = await teamSub().presence();
     for (const c of Object.values(p.clients || {})) {
       if (c && c.user) online.add(String(c.user));
     }
@@ -1343,72 +1402,13 @@ function setConnectStatus(text, type) {
   el.className = type || "";
 }
 
-// ---------- Centrifugo connect ----------
-
-async function connectCentrifugo() {
-  const tokenInfo = await api.centrifugoToken();
-
-  // Disconnect any prior centrifuge instance (e.g. after token refresh).
-  if (state.centrifuge) {
-    try {
-      state.centrifuge.disconnect();
-    } catch {
-      /* ignore */
-    }
-    // The prior user subscription belonged to the old instance; drop the ref so
-    // subscribeUserChannel() re-creates it on the fresh instance below.
-    state.userSubscription = null;
-  }
-
-  // eslint-disable-next-line no-undef -- global from vendor/centrifuge.js
-  const Centrifuge = globalThis.Centrifuge;
-  if (!Centrifuge) {
-    console.error("[xbrain] Centrifuge global missing — vendor/centrifuge.js didn't load");
-    return;
-  }
-  state.centrifuge = new Centrifuge(tokenInfo.ws_url, {
-    token: tokenInfo.token,
-  });
-  state.centrifuge.on("connected", () => {
-    console.log("[xbrain] centrifuge connected");
-  });
-  state.centrifuge.on("error", (err) => {
-    console.warn("[xbrain] centrifuge error:", err);
-  });
-
-  // Subscribe to the caller's OWN user channel for direct open_url nudges. The
-  // centrifugo-token endpoint already grants `user:<source_user_id>`, so this is
-  // just claiming a channel the token authorizes. Built ONCE per connection and
-  // independent of team switches (a team switch never touches this sub).
-  subscribeUserChannel();
-
-  state.centrifuge.connect();
-}
-
 // ---------- User channel (direct open_url nudges — Phase 22, D-22-02) ----------
-
-/**
- * Subscribe to the caller's own `user:<source_user_id>` Centrifugo channel and
- * route incoming `open_url` events to the consent-gated handler. Idempotent: a
- * second call while a subscription is live is a no-op, so a reconnect or team
- * switch can never double-subscribe.
- *
- * The handler NEVER opens a browser tab — it only raises a notification via
- * nudge_open.handleOpenUrl and stashes the url in the session area. The
- * tab is opened ONLY when the recipient clicks that notification, wired in
- * background.js (the required user gesture + the consent gate).
- */
-function subscribeUserChannel() {
-  if (!state.centrifuge) return;
-  if (!state.me || !state.me.source_user_id) return;
-  if (state.userSubscription) return; // already subscribed on this instance
-
-  const channelName = `user:${state.me.source_user_id}`;
-  const sub = state.centrifuge.newSubscription(channelName);
-  sub.on("publication", (ctx) => handleUserPublication(ctx.data));
-  sub.subscribe();
-  state.userSubscription = sub;
-}
+//
+// The subscription itself is created by chat_core/realtime.js — it claims
+// `user:<source_user_id>` ONCE per connection, so a reconnect or a team switch
+// can never double-subscribe. What stays here is the frame handler: catch-me-up
+// is extension-only for now, and the nudge path needs the browser capabilities
+// the shared module deliberately has none of.
 
 /**
  * Route a frame from the user channel. Only `open_url` events are handled; any
@@ -1494,16 +1494,9 @@ async function handleUserPublication(data) {
 // ---------- Team switch ----------
 
 async function switchTeam(teamId) {
-  // Tear down any prior subscription.
-  if (state.subscription) {
-    try {
-      state.subscription.unsubscribe();
-      state.centrifuge.removeSubscription(state.subscription);
-    } catch {
-      /* ignore */
-    }
-    state.subscription = null;
-  }
+  // Tear down any prior subscription FIRST, so no frame from the team we are
+  // leaving can land in the list we are about to clear.
+  if (state.realtime) state.realtime.unsubscribeTeam();
 
   state.activeTeamId = teamId;
   state.streamBuffer = new StreamBuffer();
@@ -1518,16 +1511,14 @@ async function switchTeam(teamId) {
   if (prevBanner) prevBanner.hidden = true;
   const prevSummary = $("catchup-summary");
   if (prevSummary) prevSummary.hidden = true;
-  clearMessageList();
+  renderer.clear();
   setPresence(0);
 
-  const channelName = `team:${teamId}`;
-  state.subscription = state.centrifuge.newSubscription(channelName);
-  state.subscription.on("publication", (ctx) => handlePublication(ctx.data));
-  state.subscription.on("join", () => updatePresenceFromAPI());
-  state.subscription.on("leave", () => updatePresenceFromAPI());
-  state.subscription.on("subscribed", () => updatePresenceFromAPI());
-  state.subscription.subscribe();
+  // Claim the new team channel. The realtime handle owns the whole lifecycle —
+  // publication routing and the presence callbacks are rewired with it, and the
+  // user channel is untouched. A null handle means the vendored client did not
+  // load: history still renders, only live updates are missing.
+  if (state.realtime) state.realtime.subscribeTeam(teamId);
 
   // Refresh the team's agent-alias list so the composer hint matches exactly
   // what the server will summon for THIS team — no cross-team leakage, and a
@@ -1735,7 +1726,7 @@ async function refreshAgentAliases() {
 async function updatePresenceFromAPI() {
   // Use Centrifuge's presence_stats() RPC — returns {num_clients, num_users}.
   try {
-    const stats = await state.subscription.presenceStats();
+    const stats = await teamSub().presenceStats();
     setPresence(stats?.numUsers ?? 0);
   } catch {
     /* presence is optional */
@@ -1755,11 +1746,11 @@ async function loadInitialHistory() {
     return;
   }
   $("chat-empty").hidden = true;
-  for (const m of msgs) renderMessage(m, { prepend: false });
-  syncDaySeparators();
+  for (const m of msgs) renderer.renderMessage(m, { prepend: false });
+  renderer.syncDaySeparators();
   state.oldestLoadedTs = msgs[0].created_at;
   // Initial load: pin to the latest message regardless of scrollTop.
-  scrollToBottom({ force: true });
+  renderer.scrollToBottom({ force: true });
 }
 
 async function loadOlderPage() {
@@ -1776,9 +1767,9 @@ async function loadOlderPage() {
     const scrollEl = $("chat-scroll");
     const prevHeight = scrollEl.scrollHeight;
     for (const m of olderMsgs) {
-      renderMessage(m, { prepend: true });
+      renderer.renderMessage(m, { prepend: true });
     }
-    syncDaySeparators();
+    renderer.syncDaySeparators();
     if (olderMsgs.length > 0) {
       state.oldestLoadedTs = olderMsgs[0].created_at;
     }
@@ -1787,387 +1778,6 @@ async function loadOlderPage() {
   } finally {
     state.historyPaging = false;
     $("history-loader").hidden = true;
-  }
-}
-
-// ---------- Publication handler (incoming WS frames) ----------
-
-function handlePublication(data) {
-  if (!data || !data.type) return;
-  if (data.type === "message") {
-    renderMessage(data.message, { prepend: false });
-    syncDaySeparators();
-    scrollToBottom();
-    $("chat-empty").hidden = true;
-    return;
-  }
-  if (data.type === "agent_stream_start") {
-    state.streamBuffer.start(data.message_id);
-    renderAgentBubble({
-      id: data.message_id,
-      agent_name: data.agent_name,
-      routed_via: data.routed_via,
-      streaming: true,
-    });
-    scrollToBottom();
-    $("chat-empty").hidden = true;
-    return;
-  }
-  if (data.type === "agent_stream_chunk") {
-    state.streamBuffer.append(data.message_id, data.delta);
-    const textEl = streamTextTarget(data.message_id);
-    if (textEl) {
-      textEl.textContent = state.streamBuffer.get(data.message_id);
-      scrollToBottom();
-    }
-    return;
-  }
-  if (data.type === "agent_stream_end") {
-    state.streamBuffer.finalize(data.message_id);
-    const bodyEl = document.querySelector(
-      `[data-msg-id="${data.message_id}"] .xb-msg-bubble`,
-    );
-    if (bodyEl) bodyEl.classList.remove("streaming");
-    return;
-  }
-  if (data.type === "agent_stream_error") {
-    const bodyEl = document.querySelector(
-      `[data-msg-id="${data.message_id}"] .xb-msg-bubble`,
-    );
-    const textEl = streamTextTarget(data.message_id);
-    if (bodyEl) bodyEl.classList.remove("streaming");
-    if (textEl) {
-      textEl.textContent += `\n\n(error: ${data.error || "unknown"})`;
-    }
-    return;
-  }
-}
-
-/**
- * Resolve where an agent stream should write its text.
- *
- * The bubble now also holds the agent label and the sources disclosure, so the
- * stream writes into the dedicated .xb-msg-text span instead of replacing the
- * whole bubble's textContent (which would wipe them). Falls back to the bubble
- * itself for any row built before the span existed.
- *
- * @param {string} messageId
- * @returns {HTMLElement|null}
- */
-function streamTextTarget(messageId) {
-  const bubble = document.querySelector(
-    `[data-msg-id="${messageId}"] .xb-msg-bubble`,
-  );
-  if (!bubble) return null;
-  return bubble.querySelector(".xb-msg-text") || bubble;
-}
-
-// ---------- Render messages ----------
-
-function clearMessageList() {
-  $("message-list").innerHTML = "";
-}
-
-function renderMessage(msg, { prepend = false } = {}) {
-  if (document.querySelector(`[data-msg-id="${msg.id}"]`)) return; // de-dupe
-  const wrapper = buildBubbleNode(msg);
-  const list = $("message-list");
-  if (prepend) list.insertBefore(wrapper, list.firstChild);
-  else list.appendChild(wrapper);
-}
-
-function renderAgentBubble({ id, agent_name, routed_via, streaming }) {
-  if (document.querySelector(`[data-msg-id="${id}"]`)) return;
-  const wrapper = buildBubbleNode({
-    id,
-    kind: "agent",
-    agent_name,
-    routed_via,
-    content: "",
-    created_at: new Date().toISOString(),
-  });
-  if (streaming) {
-    wrapper.querySelector(".xb-msg-bubble").classList.add("streaming");
-  }
-  $("message-list").appendChild(wrapper);
-  syncDaySeparators();
-}
-
-function buildBubbleNode(msg) {
-  // Row layout (mockup .row) — 2-col grid: avatar | (meta + bubble [+ savetag]).
-  // .is-self mirrors the columns so the avatar/bubble sit on the right.
-  const rowClass = bubbleClass(msg, state.me?.id); // is-self / is-user / is-agent
-  const wrapper = document.createElement("div");
-  wrapper.className = `xb-msg ${rowClass}`;
-  wrapper.dataset.msgId = msg.id;
-  // Day-separator input (syncDaySeparators reads this off the DOM).
-  if (msg.created_at) wrapper.dataset.createdAt = msg.created_at;
-
-  // Avatar — letter for users, 🤖 for agents
-  const avatar = document.createElement("div");
-  avatar.className = "xb-msg-avatar";
-  if (msg.kind === "agent") {
-    avatar.textContent = "🤖";
-  } else {
-    const label = authorLabel({
-      msg,
-      selfUserId: state.me?.id,
-      nameCache: state.nameCache,
-    });
-    avatar.textContent = (label[0] || "?").toUpperCase();
-  }
-  wrapper.appendChild(avatar);
-
-  // Meta row (sender + time + provenance)
-  const meta = document.createElement("div");
-  meta.className = "xb-msg-meta";
-
-  const author = document.createElement("span");
-  author.className = "xb-msg-author";
-  if (msg.kind === "agent") author.classList.add("is-agent");
-  author.textContent = authorLabel({
-    msg,
-    selfUserId: state.me?.id,
-    nameCache: state.nameCache,
-  });
-  // Click a teammate's name to act on THEM: opens the people overlay with their row
-  // highlighted, so sending a link or a file starts from the message you are reading
-  // instead of reopening a list and finding them again. Skipped for the agent and for
-  // your own messages — neither is someone you send things to.
-  if (
-    msg.kind !== "agent" &&
-    msg.author_user_id &&
-    msg.author_user_id !== state.me?.id
-  ) {
-    author.style.cursor = "pointer";
-    author.title = "Send them a link or a file";
-    author.addEventListener("click", () =>
-      openPeople({ focusUserId: msg.author_user_id }),
-    );
-  }
-  meta.appendChild(author);
-
-  const time = document.createElement("span");
-  time.className = "xb-msg-time";
-  time.textContent = formatRelative(msg.created_at);
-  time.title = new Date(msg.created_at).toLocaleString();
-  meta.appendChild(time);
-
-  const prov = provenanceLabel(msg.routed_via);
-  if (prov) {
-    const provSpan = document.createElement("span");
-    provSpan.className = `xb-msg-provenance ${prov.cls}`;
-    provSpan.textContent = prov.text;
-    meta.appendChild(provSpan);
-  }
-  // Body — the bubble (own = --primary, others = --muted, agent = --card).
-  const body = document.createElement("div");
-  body.className = "xb-msg-bubble";
-
-  // Telegram-style: the name + timestamp live INSIDE the bubble, not floating on a
-  // line above it. Previously the meta row sat in its own grid row, which left the
-  // bubble visually detached from the name it belonged to.
-  body.appendChild(meta);
-
-  // Agent block label (mockup .agent-bubble .who) — mono uppercase, styled by
-  // CSS. Lives inside the bubble but OUTSIDE .xb-msg-text so the streaming
-  // writer can replace the text without wiping the label.
-  if (msg.kind === "agent") {
-    const who = document.createElement("div");
-    who.className = "xb-msg-agent-label";
-    who.textContent = "agent · from your brain";
-    body.appendChild(who);
-  }
-
-  // BL-003 Slice 4 — render media inline when the message carries a media
-  // attachment. The URL is a server-minted signed path (/v1/media/{id}/img?t=...)
-  // so no Bearer header is needed for the <img src>.
-  if (msg.metadata && msg.metadata.media && msg.metadata.media.item_id) {
-    renderMediaInto(body, msg.metadata.media);
-    // Also show the caption/filename as small text below the attachment.
-    if (msg.content) {
-      const caption = document.createElement("div");
-      caption.className = "xb-msg-caption";
-      caption.textContent = msg.content;
-      body.appendChild(caption);
-    }
-  } else {
-    // Text lives in its own span — the target the agent stream writes into.
-    const text = document.createElement("span");
-    text.className = "xb-msg-text";
-    text.textContent = msg.content || "";
-    body.appendChild(text);
-  }
-
-  // Sources disclosure — driven by the REAL memory_items count the agent
-  // pipeline persisted. Renders nothing when the agent used no brain items.
-  if (msg.kind === "agent") {
-    const summaryLabel = brainSummaryLabel(msg.metadata);
-    if (summaryLabel) {
-      body.appendChild(buildSourcesNode(summaryLabel, msg.metadata.sources));
-    }
-  }
-
-  wrapper.appendChild(body);
-
-  // Saved-to-brain badge — only on a genuine indexed-attachment signal.
-  const savedLabel = savedToBrainLabel(msg);
-  if (savedLabel) {
-    const tag = document.createElement("span");
-    tag.className = "xb-msg-savetag";
-    tag.textContent = savedLabel;
-    wrapper.appendChild(tag);
-  }
-
-  return wrapper;
-}
-
-/**
- * Build the agent's `<details>` sources disclosure.
- *
- * The summary line is the real memory_items count. Individual source rows are
- * rendered ONLY when the server actually sends `metadata.sources` — the backend
- * does not emit it today, so this stays future-proof and fabricates nothing
- * (threat T-20-03-02). Truth levels come from the payload; the chip styling is
- * selected by data-level, never hardcoded.
- *
- * @param {string} summaryLabel - e.g. "2 sources from the brain"
- * @param {Array<object>|undefined} sources - server-sent rows, if any
- * @returns {HTMLDetailsElement}
- */
-function buildSourcesNode(summaryLabel, sources) {
-  const details = document.createElement("details");
-  details.className = "xb-msg-sources";
-
-  const summary = document.createElement("summary");
-  summary.textContent = summaryLabel;
-  details.appendChild(summary);
-
-  if (Array.isArray(sources)) {
-    for (const s of sources) {
-      const row = document.createElement("div");
-      row.className = "xb-msg-src";
-
-      const level =
-        s && typeof s.truth_level === "string" ? s.truth_level.toLowerCase() : null;
-      if (level) {
-        const chip = document.createElement("span");
-        chip.className = "xb-msg-chip";
-        chip.dataset.level = level;
-        chip.textContent = level;
-        row.appendChild(chip);
-      }
-
-      const label = document.createElement("span");
-      label.textContent = (s && (s.text || s.title)) || "";
-      row.appendChild(label);
-
-      details.appendChild(row);
-    }
-  }
-
-  return details;
-}
-
-/**
- * Reconcile day separators across the whole thread.
- *
- * Recomputed from the rows currently in the DOM (rather than tracked
- * incrementally) so it stays correct for the append path, the prepend
- * pagination path, and live inserts alike. Separators carry no data-msg-id, so
- * the de-dupe lookup in renderMessage never sees them.
- */
-function syncDaySeparators() {
-  const list = $("message-list");
-  for (const sep of Array.from(list.querySelectorAll(".xb-msg-daysep"))) {
-    sep.remove();
-  }
-  let prevIso = null;
-  for (const row of Array.from(list.children)) {
-    const iso = row.dataset ? row.dataset.createdAt : null;
-    if (!iso) continue;
-    if (!prevIso || !sameDay(prevIso, iso)) {
-      const sep = document.createElement("div");
-      sep.className = "xb-msg-daysep";
-      sep.textContent = dayLabel(iso);
-      list.insertBefore(sep, row);
-    }
-    prevIso = iso;
-  }
-}
-
-/**
- * Render a media attachment (image or document chip) into an existing element.
- * All DOM construction uses createElement/textContent — no innerHTML with
- * interpolated user data — to stay XSS-safe.
- *
- * @param {HTMLElement} el   - Target container element (the bubble body div).
- * @param {object}      media - {item_id, mime, size, filename, url?}
- */
-function renderMediaInto(el, media) {
-  // Build the absolute URL from the server-minted relative path.
-  const src = media.url ? `${MEMORY_API_BASE}${media.url}` : null;
-
-  if (media.mime && media.mime.startsWith("image/") && src) {
-    // Image: render a thumbnail that opens the full image in a new tab.
-    const img = document.createElement("img");
-    img.className = "xb-msg-thumb";
-    img.alt = media.filename || "image";
-    img.src = src;
-    img.addEventListener("click", () => {
-      window.open(src, "_blank", "noopener");
-    });
-    el.appendChild(img);
-  } else {
-    // Document: render a file chip with filename + size.
-    const chip = document.createElement("a");
-    chip.className = "xb-msg-file-chip";
-    chip.href = src || "#";
-    chip.target = "_blank";
-    chip.rel = "noopener";
-
-    const icon = document.createTextNode("📄 "); // 📄
-    chip.appendChild(icon);
-
-    const nameNode = document.createTextNode(media.filename || "file");
-    chip.appendChild(nameNode);
-
-    if (media.size) {
-      const sizeNode = document.createTextNode(` (${formatBytes(media.size)})`);
-      chip.appendChild(sizeNode);
-    }
-    el.appendChild(chip);
-  }
-}
-
-/**
- * Format a byte count into a compact human-readable string (KB / MB).
- * @param {number} n - byte count
- * @returns {string}
- */
-function formatBytes(n) {
-  if (n == null || n < 0) return "?";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function scrollToBottom({ force = false } = {}) {
-  const el = $("chat-scroll");
-  // Force=true: always pin to bottom (use this on initial chat load so the
-  // user lands on the latest message right above the composer).
-  // Force=false (default): only auto-scroll if the user is near the bottom —
-  // don't yank them up if they scrolled history to read something older.
-  if (force) {
-    // Defer to next frame so layout has settled (avatar grid + body sizes).
-    requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight;
-    });
-    return;
-  }
-  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-  if (nearBottom) {
-    el.scrollTop = el.scrollHeight;
   }
 }
 
@@ -2275,8 +1885,8 @@ async function sendMessage() {
     // while the popup is backgrounded). renderMessage() de-dupes by id, so the
     // later "message" publication for the same id is a no-op.
     if (sent && sent.id) {
-      renderMessage(sent, { prepend: false });
-      scrollToBottom();
+      renderer.renderMessage(sent, { prepend: false });
+      renderer.scrollToBottom();
       $("chat-empty").hidden = true;
     }
   } catch (e) {
@@ -2380,8 +1990,8 @@ async function postMediaMessage(item, filename) {
     // Optimistic render: show immediately from the POST response;
     // the Centrifugo echo for the same id will be de-duped by renderMessage().
     if (sent && sent.id) {
-      renderMessage(sent, { prepend: false });
-      scrollToBottom();
+      renderer.renderMessage(sent, { prepend: false });
+      renderer.scrollToBottom();
       $("chat-empty").hidden = true;
     }
   } catch (e) {
