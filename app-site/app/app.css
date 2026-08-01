@@ -243,6 +243,29 @@ body {
   pointer-events: none;
 }
 
+/* The "+" at the right-hand end of the rail. Dashed until hovered, so it reads
+   as "one more slot" rather than as another team. Value for value with
+   chrome-extension/popup.css. */
+.xb-team-add {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--muted-fg);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.xb-team-add:hover { background: var(--muted); color: var(--fg); border-style: solid; }
+.xb-team-add:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
 /* ---- Header icon buttons --------------------------------------------- */
 
 .xb-icon-btn {
@@ -1058,6 +1081,276 @@ body {
   color: var(--muted-fg);
   line-height: 1.4;
 }
+
+/* ========================================================================
+ * Overlays — members and invite.
+ *
+ * Value for value with chrome-extension/popup.css: the two products must read
+ * as one, and a rule that was copied once and then edited on one side looks
+ * fine in isolation and wrong side by side. What differs is deliberate — the
+ * card is capped against a PHONE viewport here, not a 320px popup panel.
+ * ====================================================================== */
+
+.xb-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+  /* The overlay sits above the composer, which on a notched phone is already
+     inset — without this the card's own bottom can land under the home bar. */
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+.xb-overlay-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+}
+
+.xb-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.xb-overlay-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.xb-overlay-body {
+  padding: 14px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* Inside an overlay a field is a stack, not a spaced block — the sign-in card's
+   .xb-field rule above is the page's, this one is the modal's. */
+.xb-overlay-body .xb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 0;
+}
+.xb-overlay-body .xb-field > label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-fg);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.xb-overlay-body .xb-field input {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  font-family: inherit;
+  /* 16px, and not a pixel less: iOS Safari zooms the whole page in on a focused
+     field below that size, and it never zooms back out. */
+  font-size: 16px;
+  outline: none;
+}
+.xb-overlay-body .xb-field input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.xb-overlay-body .xb-field input::placeholder { color: var(--muted-fg); }
+
+.xb-overlay-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.xb-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted-fg);
+  line-height: 1.45;
+}
+
+.xb-btn-secondary {
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted-fg);
+  border: 1px solid var(--input);
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.xb-btn-secondary:hover { background: var(--muted); color: var(--fg); }
+.xb-btn-secondary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.xb-btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ---- Members list ----------------------------------------------------- */
+
+.xb-people-list { list-style: none; margin: 0; padding: 0; }
+.xb-people-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+.xb-people-row:last-child { border-bottom: none; }
+/* Present, or absent. There is no third dot: a channel that exposes no presence
+   renders every row without one, because an invented "offline" is worse than a
+   missing indicator. */
+.xb-people-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--muted-fg);
+}
+.xb-people-dot.is-online { background: var(--success, #16a34a); }
+.xb-people-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.xb-people-row .xb-btn-secondary { padding: 3px 8px; font-size: 11px; }
+/* Opened by tapping this person's name in the chat — their row answers "that
+   one" instead of making the reader find them again. */
+.xb-people-row.is-focused {
+  background: var(--muted);
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+
+/* ---- Invite ----------------------------------------------------------- */
+
+.xb-invite-code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--muted);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  /* One tap selects the WHOLE secret — a half-copied invite code fails with a
+     404 that says nothing about why. */
+  user-select: all;
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+}
+.xb-invite-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Status pills — monochrome states, keyed off the className setStatusLine
+   writes ("loading" | "success" | "error"). */
+#people-status,
+#invite-status,
+#invite-join-status,
+#invite-email-status {
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  font-size: 12px;
+}
+#people-status.loading,
+#invite-status.loading,
+#invite-join-status.loading,
+#invite-email-status.loading { background: var(--muted); color: var(--muted-fg); border: 1px solid var(--border); }
+#people-status.success,
+#invite-status.success,
+#invite-join-status.success,
+#invite-email-status.success { background: var(--secondary); color: var(--secondary-fg); border: 1px solid var(--border); }
+#people-status.error,
+#invite-status.error,
+#invite-join-status.error,
+#invite-email-status.error { background: transparent; color: var(--destructive); border: 1px solid var(--destructive); }
+
+/* ---- Create-or-join starter (chat-core teams.js) ----------------------- */
+/* The panel a person with no team is shown, and what the "+" opens. Its markup
+   is built by the SHARED module, so it carries no inline styles of its own —
+   these rules are the PWA's half of that trade, and popup.css carries the twin. */
+.xb-starter {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  text-align: center;
+  max-width: 320px;
+  margin: 0 auto;
+}
+.xb-starter-text {
+  margin: 0;
+  color: var(--muted-fg);
+  line-height: 1.5;
+}
+.xb-starter-input {
+  width: 100%;
+  max-width: 260px;
+  padding: 8px 10px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 16px;              /* see the overlay input rule — iOS zoom */
+  outline: none;
+}
+.xb-starter-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.xb-starter-input::placeholder { color: var(--muted-fg); }
+.xb-starter-btn {
+  width: 100%;
+  max-width: 260px;
+  padding: 8px 12px;
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.xb-starter-btn:hover:not(:disabled) { opacity: 0.9; }
+.xb-starter-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.xb-starter-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.xb-starter-divider {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted-fg);
+  letter-spacing: 0.04em;
+}
+.xb-starter-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted-fg);
+  line-height: 1.45;
+}
+.xb-starter-status {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted-fg);
+}
+.xb-starter-status.error { color: var(--destructive); }
+.xb-starter-status.success { color: var(--fg); }
 
 /* Motion is decorative only — kill it when the OS asks. */
 @media (prefers-reduced-motion: reduce) {

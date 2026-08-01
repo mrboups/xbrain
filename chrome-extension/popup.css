@@ -1404,15 +1404,21 @@ html, body {
 #clip-status.success { background: var(--secondary); color: var(--secondary-fg); border: 1px solid var(--border); }
 #clip-status.error   { background: transparent;      color: var(--destructive);  border: 1px solid var(--destructive); }
 
-/* Send-link status pill (Phase 22, D-22-05) — same monochrome states. */
-#sendlink-status {
+/* People-overlay status pill — same monochrome states as #clip-status. It
+   replaced #sendlink-status, whose overlay was removed along with its handlers:
+   nothing had opened it since the header button became the people icon. */
+#people-status,
+#invite-email-status {
   padding: 6px 8px;
   border-radius: var(--radius);
   font-size: 12px;
 }
-#sendlink-status.loading { background: var(--muted);     color: var(--muted-fg);     border: 1px solid var(--border); }
-#sendlink-status.success { background: var(--secondary); color: var(--secondary-fg); border: 1px solid var(--border); }
-#sendlink-status.error   { background: transparent;      color: var(--destructive);  border: 1px solid var(--destructive); }
+#people-status.loading,
+#invite-email-status.loading { background: var(--muted);     color: var(--muted-fg);     border: 1px solid var(--border); }
+#people-status.success,
+#invite-email-status.success { background: var(--secondary); color: var(--secondary-fg); border: 1px solid var(--border); }
+#people-status.error,
+#invite-email-status.error   { background: transparent;      color: var(--destructive);  border: 1px solid var(--destructive); }
 
 /* Invite-code overlay (Phase 25, JOINCODE-01). The one-time minted code renders
    in a monospace --muted chip (user-select:all so a click selects the whole

@@ -26,9 +26,10 @@
       purpose; the teams ARE the identity of this screen, and a title would only
       push them right.
 
-      Deliberately NOT here (27-CONTEXT defers them out of the PWA): the board,
-      the invite overlay, the people overlay, and add-page-to-memory, which needs
-      a tab the page cannot read.
+      Deliberately NOT here: the board, and add-page-to-memory, which needs a
+      tab a web page cannot read. The people and invite overlays ARE here — they
+      run chat_core/people.js and chat_core/invite.js, the same modules the
+      extension drives, so the two surfaces cannot drift apart.
     -->
     <header class="xb-header">
       <div class="xb-header-left">
@@ -36,9 +37,26 @@
              switches the thread; unread counts ride the square itself. Built by
              chat_core/team_rail.js — the SAME module the extension renders. -->
         <div id="team-rail" class="xb-team-rail" role="tablist" aria-label="Teams"></div>
+        <!-- Rightmost of the rail, exactly where the extension puts it. It opens
+             the same create-or-join panel the no-teams state shows, because "add
+             a team" means both: a founder types a name, an invitee pastes a
+             code, and neither should need a different door. -->
+        <button type="button" id="btn-team-add" class="xb-team-add" title="Create a team" aria-label="Create a team" hidden>+</button>
       </div>
 
       <div class="xb-header-right">
+        <!-- The extension's icons, path for path (chrome-extension/popup.html):
+             two products, one language. -->
+        <button type="button" id="btn-people" class="xb-icon-btn"
+                title="Team members - send a link or a file" aria-label="Team members" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        </button>
+
+        <button type="button" id="btn-invite" class="xb-icon-btn"
+                title="Invite teammates" aria-label="Invite teammates" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>
+        </button>
+
         <!-- The ONLY control in this app that may ask the browser for
              notification access, and only from this click (D-27-05). push.js
              owns the data-state, the labels and whether it is disabled; the two
@@ -140,7 +158,10 @@
     <div id="chat-scroll" hidden>
       <p id="history-loader" class="xb-history-loader" hidden>Loading older messages...</p>
       <div id="message-list"></div>
-      <p id="chat-empty" hidden></p>
+      <!-- A div, not a p: the create-or-join starter is rendered INTO this box
+           when there is no team yet, and that panel is a stack of inputs and
+           buttons a paragraph may not contain. -->
+      <div id="chat-empty" hidden></div>
     </div>
 
     <p id="composer-error" class="xb-composer-error" role="alert" hidden></p>
@@ -170,6 +191,107 @@
     </div>
 
     <p id="account-identity" hidden></p>
+  </div>
+
+  <!--
+    People overlay — who is on the team, who is connected right now, and the one
+    place a link or a file gets pushed to somebody. Driven by
+    chat_core/people.js, the same module the extension's overlay drives.
+
+    THE ONE REAL PLATFORM DIFFERENCE is the URL field. The extension fills it
+    with the tab you are looking at; a web page can see nothing but itself, so
+    platform_web's currentPageUrl() answers null and the panel asks for a pasted
+    link instead. #people-hint below is written by the panel on every open and
+    says which of those two this surface is — there is no "send current page"
+    control here, because it would send nothing.
+  -->
+  <div id="people-panel" class="xb-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="people-title">
+    <div class="xb-overlay-card">
+      <header class="xb-overlay-header">
+        <h3 id="people-title">Team members</h3>
+        <button type="button" id="btn-people-close" class="xb-icon-btn" title="Close" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </header>
+
+      <div class="xb-overlay-body">
+        <div class="xb-field">
+          <label for="people-url">Link to send</label>
+          <input type="url" id="people-url" placeholder="https://example.com/page" autocomplete="off" />
+          <p id="people-hint" class="xb-hint">Paste the link you want to send. Sending shows the recipient a notification; it only opens if they allowed that.</p>
+        </div>
+
+        <div class="xb-field">
+          <button type="button" id="btn-people-send-all" class="xb-btn-secondary">Send to everyone</button>
+          <div id="people-status" hidden></div>
+        </div>
+
+        <div class="xb-field">
+          <label>Members</label>
+          <ul id="people-list" class="xb-people-list"></ul>
+        </div>
+      </div>
+
+      <footer class="xb-overlay-footer">
+        <input type="file" id="people-file" hidden />
+        <button type="button" id="btn-people-cancel" class="xb-btn-secondary">Close</button>
+      </footer>
+    </div>
+  </div>
+
+  <!--
+    Invite overlay — mint a one-click join link, add someone by email, or redeem
+    a code. chat_core/invite.js owns all three, including the property that
+    matters most: the code rides in the URL FRAGMENT (#c=), which is never sent
+    to a server, so the invite secret cannot land in a hosting log or a Referer.
+    The minted code is shown once and cleared on close.
+  -->
+  <div id="invite-panel" class="xb-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="invite-title">
+    <div class="xb-overlay-card">
+      <header class="xb-overlay-header">
+        <h3 id="invite-title">Invite teammates</h3>
+        <button type="button" id="btn-invite-close" class="xb-icon-btn" title="Close" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </header>
+
+      <div class="xb-overlay-body">
+        <!-- PRIMARY: a link works for ANYONE, including people who have never
+             opened this app — they sign in and land in the team. -->
+        <div class="xb-field">
+          <label>Share an invite link</label>
+          <p class="xb-hint">Works for anyone - they sign in and join in one click. The code is shown once.</p>
+          <button type="button" id="btn-invite-mint" class="xb-btn-primary">Create invite link</button>
+          <div id="invite-code-row" class="xb-invite-code-row" hidden>
+            <code id="invite-code-output" class="xb-invite-code"></code>
+            <button type="button" id="btn-invite-copy" class="xb-btn-secondary" title="Copy a link that joins the team in one click">Copy link</button>
+          </div>
+          <div id="invite-status" hidden></div>
+        </div>
+
+        <!-- SECONDARY: by email, which only resolves somebody who already has an
+             account (the endpoint 404s otherwise) — so the copy says so up front
+             instead of letting the person discover it through an error. -->
+        <div class="xb-field">
+          <label for="invite-email">Or add someone by email</label>
+          <p class="xb-hint">Only works if they already have an account. Otherwise send them the link above.</p>
+          <input type="email" id="invite-email" placeholder="teammate@example.com" autocomplete="off" />
+          <button type="button" id="btn-invite-email" class="xb-btn-secondary">Add to team</button>
+          <div id="invite-email-status" hidden></div>
+        </div>
+
+        <div class="xb-field">
+          <label for="invite-join-code">Have a code? Join a team</label>
+          <input type="text" id="invite-join-code" placeholder="xbi_..." autocomplete="off" spellcheck="false" />
+          <button type="button" id="btn-invite-join" class="xb-btn-primary">Join</button>
+          <div id="invite-join-status" hidden></div>
+        </div>
+      </div>
+
+      <footer class="xb-overlay-footer">
+        <button type="button" id="btn-invite-cancel" class="xb-btn-secondary">Close</button>
+      </footer>
+    </div>
   </div>
 
   <!--

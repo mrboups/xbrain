@@ -261,17 +261,18 @@ test("the bell is still the only push control, and nothing else may prompt", () 
 
 // ---- 5. The settings surface ---------------------------------------------
 
-test("settings holds exactly two things: the display mode and the push state", () => {
+test("settings holds the display mode and the push state", () => {
   const panel = /<div[^>]*id="settings-panel"[\s\S]*?\n    <\/div>/.exec(HTML);
   assert.ok(panel, "index.html must declare #settings-panel");
   for (const id of ["btn-theme-light", "btn-theme-dark", "settings-push-state"]) {
     assert.ok(panel[0].includes(`id="${id}"`), `#${id} belongs inside the settings panel`);
   }
-  // The deferred surfaces must not have crept in as "just a link".
+  // Settings is for preferences and for the account. The overlays are header
+  // ACTIONS and must not have crept in here as "just a link".
   for (const marker of ["board", "invite", "people", "catchup", "add-to-memory"]) {
     assert.ok(
       !panel[0].toLowerCase().includes(marker),
-      `the settings panel references "${marker}" — the PWA is chat-only by scope (27-CONTEXT)`,
+      `the settings panel references "${marker}" — that is a header action, not a setting`,
     );
   }
 });

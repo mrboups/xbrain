@@ -17,9 +17,10 @@
  *   - a socket URL. The server hands it back on POST /v1/me/centrifugo-token
  *     and chat-core's realtime module uses what it is given (D-27-03).
  *
- * OUT OF SCOPE, deliberately (27-CONTEXT defers them): the board, the invite
- * overlay, the people overlay, the personal-summary panel, the clipper and file
- * upload. The team switcher, history, the composer and realtime are the slice.
+ * OUT OF SCOPE, deliberately: the board, the personal-summary panel and the web
+ * clipper. The members overlay, the invite overlay and the create-or-join panel
+ * are in — they live in panels.js, which owns their state and their ids so this
+ * file stays the chat and nothing else.
  */
 
 import { createApi, MAX_MEDIA_BYTES } from "./chat_core/api.js";
@@ -30,6 +31,7 @@ import { createTeamRail } from "./chat_core/team_rail.js";
 import { StreamBuffer } from "./chat_core/chat_stream.js";
 import { handleOpenUrl, isSafeHttpUrl } from "./chat_core/nudge_open.js";
 import { webPlatform } from "./platform_web.js";
+import { bootPanels } from "./panels.js";
 import { MEMORY_API_BASE, getToken, signOut } from "./auth.js";
 
 const el = (id) => document.getElementById(id);
@@ -56,7 +58,23 @@ const state = {
   initialLoaded: false,
 };
 
+/** The refs bootChat was last called with — see reloadTeams for why. */
+let lastBootRefs = {};
+
 const api = createApi({ baseUrl: MEMORY_API_BASE, getToken });
+
+/**
+ * The overlays. Built here, at module scope, so the renderer below can hand a
+ * live callback into them; everything they read about the current team is a
+ * function, because none of it exists yet at this point in the file.
+ */
+const panels = bootPanels({
+  api,
+  getActiveTeamId: () => state.activeTeamId,
+  getTeams: () => state.teams,
+  getTeamSubscription: () => (state.realtime ? state.realtime.teamSubscription : null),
+  onTeamsChanged: (preferTeamId) => reloadTeams(preferTeamId),
+});
 
 const renderer = createRenderer({
   doc: document,
@@ -65,7 +83,10 @@ const renderer = createRenderer({
   apiBase: MEMORY_API_BASE,
   getSelfUserId: () => state.me && state.me.id,
   getNameCache: () => state.nameCache,
-  onAuthorClick: null, // the people overlay is not part of the PWA slice
+  // Click a teammate's name to act on THEM: the members list opens with their
+  // row highlighted, so sending a link or a file starts from the message you
+  // are reading instead of reopening a list and finding them again.
+  onAuthorClick: (userId) => panels.openPeople(userId),
 });
 
 /**
@@ -161,15 +182,66 @@ function focusComposer() {
   window.requestAnimationFrame(() => input.focus());
 }
 
+/**
+ * No team yet — which is a starting point, not a dead end.
+ *
+ * It used to say "ask a teammate to invite you", which leaves the reader with
+ * nothing they can do on this screen. The starter offers the two things they
+ * actually have: create a team, or redeem the invite they were sent. The
+ * members and invite controls stay hidden until there is a team for them to act
+ * on; a control that can only 404 is worse than an absent one.
+ */
 function renderEmptyTeams() {
-  const empty = el("chat-empty");
-  if (empty) {
-    empty.textContent =
-      "You are not a member of any team yet. Ask a teammate to invite you.";
-    empty.hidden = false;
-  }
+  panels.hide();
+  panels.openStarter();
   const composer = el("composer");
   if (composer) composer.hidden = true;
+}
+
+/**
+ * A team was just created, or an invite was just redeemed.
+ *
+ * @param {string} [preferTeamId] the team to land on — the one just created or
+ *   joined, which is the one the person is thinking about.
+ */
+async function reloadTeams(preferTeamId) {
+  let teams;
+  try {
+    teams = await api.myTeams();
+  } catch (e) {
+    console.warn("[xbrain] team refresh failed:", e);
+    return;
+  }
+  if (!Array.isArray(teams) || teams.length === 0) return;
+  state.teams = teams;
+
+  // THE FIRST TEAM EVER is not a team switch. This session booted with no
+  // socket because there was nothing to subscribe to, so the whole boot has to
+  // run — otherwise the new team is live for nobody, including its founder.
+  if (!state.realtime) {
+    await bootChat(lastBootRefs);
+    return;
+  }
+
+  const wanted =
+    (preferTeamId && teams.some((t) => String(t.id) === String(preferTeamId)) && preferTeamId) ||
+    (state.activeTeamId &&
+      teams.some((t) => String(t.id) === String(state.activeTeamId)) &&
+      state.activeTeamId) ||
+    teams[0].id;
+
+  revealChat();
+  panels.reveal();
+  await teamRail.render();
+  await switchTeam(wanted);
+}
+
+/** Put the chat frame back after the no-teams state hid the composer. */
+function revealChat() {
+  const composer = el("composer");
+  if (composer) composer.hidden = false;
+  const empty = el("chat-empty");
+  if (empty) empty.hidden = true;
 }
 
 // ---------- Teams ----------
@@ -598,6 +670,10 @@ async function handleUserPublication(data) {
  */
 export async function bootChat(refs = {}) {
   const { onSignedOut } = refs;
+  // Remembered so the first-team-ever path can re-run this boot: creating a
+  // team when the session came up with no socket needs the whole sequence, and
+  // the sign-out hook belongs to app.js, not to this file.
+  lastBootRefs = refs;
 
   // 1. A token, or there is nothing to boot.
   if (!(await getToken())) {
@@ -629,7 +705,10 @@ export async function bootChat(refs = {}) {
   // 4. The rail, defaulting to the team they read last. Painted before the
   //    socket so the header is never empty while a network call is in flight.
   state.activeTeamId = (await preferredTeamId()) || state.teams[0].id;
+  revealChat();
   await teamRail.render();
+  // There is a team now, so the controls that act on one may appear.
+  panels.reveal();
 
   // 5. Connect. The socket target is whatever POST /v1/me/centrifugo-token
   //    returned — this file names no host and no scheme (D-27-03).
