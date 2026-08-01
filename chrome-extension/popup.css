@@ -843,7 +843,9 @@
 .xb-composer-pill {
   flex: 1;
   display: flex;
-  align-items: flex-end;
+  /* center, not flex-end: at one row everything shares the same baseline box, and
+     once the textarea grows the buttons stay optically centred against it. */
+  align-items: center;
   gap: 4px;
   background: var(--bg);
   border: 1px solid var(--input);
@@ -941,10 +943,10 @@
   font-family: var(--sans);
   outline: none;
   resize: none;
-  /* 2 rows tall by default. font-size 14px × line-height 1.5 = 21px per row,
-     + top/bottom padding 8+8 = 16px → ~58px. line-height-based so the math
-     stays consistent if the font changes. */
-  min-height: calc(1.5em * 2 + 16px);
+  /* ONE row at rest, so the field, the "+" and the "›" sit on a single line and
+     the pill is only as tall as it needs to be. JS grows it as the text wraps,
+     up to 8 rows. line-height-based so the math survives a font change. */
+  min-height: calc(1.5em + 16px);
   max-height: calc(1.5em * 8 + 16px); /* grows up to 8 rows */
   line-height: 1.5;
   /* No visible scrollbar at min-height. JS bumps to `auto` once content

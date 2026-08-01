@@ -1797,7 +1797,7 @@ function wireComposer() {
 }
 
 function autoResize(el) {
-  // Let CSS min-height set the 2-row floor; we just grow up to max-height.
+  // Let CSS min-height set the ONE-row floor; we just grow up to max-height.
   // Reset height to "auto" first so scrollHeight reflects the true content size.
   el.style.height = "auto";
   // Read the CSS max-height ceiling so JS + CSS stay in sync.
