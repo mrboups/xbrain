@@ -362,6 +362,87 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+/* The account block — first thing in Settings, because everything below it is a
+   preference and this is the account they belong to. Square avatar at radius 0,
+   like every other avatar in the product. */
+.xb-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.xb-profile-avatar {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius);
+  background: var(--muted);
+  border: 1px solid var(--border);
+  color: var(--muted-fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+}
+.xb-profile-avatar.has-image { background: var(--muted); }
+.xb-profile-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.xb-profile-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+/* The name reads as text until it is touched — this is a profile line, not a
+   form. The border appears on focus so it is still obviously editable once the
+   caret is in it. */
+.xb-profile-name {
+  width: 100%;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 3px 5px;
+  margin-left: -5px;
+  font-family: var(--sans);
+  /* 16px: iOS Safari zooms the page in on a focused field below that size and
+     never zooms back out. */
+  font-size: 16px;
+  font-weight: 600;
+  outline: none;
+}
+.xb-profile-name:hover:not(:disabled) { border-color: var(--border); }
+.xb-profile-name:focus { border-color: var(--input); background: var(--bg); }
+.xb-profile-name:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+/* Read-only is the endpoint-not-there state. It must look settled, not broken:
+   no border, no cursor, full contrast — a greyed-out field invites a click that
+   does nothing. */
+.xb-profile-name:disabled {
+  color: var(--fg);
+  opacity: 1;
+  cursor: default;
+  border-color: transparent;
+}
+.xb-profile-name::placeholder { color: var(--muted-fg); font-weight: 500; }
+.xb-profile-bio {
+  font-size: 12px;
+  color: var(--muted-fg);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.xb-profile-status {
+  margin: -4px 0 10px;
+  font-size: 11px;
+  color: var(--muted-fg);
+}
+.xb-profile-status.error { color: var(--destructive); }
+
 .xb-settings-head {
   display: flex;
   align-items: center;

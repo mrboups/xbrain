@@ -85,6 +85,28 @@
       header because it is a display mode, not an item to read past.
     -->
     <div id="settings-panel" class="xb-settings-panel" hidden>
+      <!--
+        You, first. Everything below this is a preference; this is the account
+        the preferences belong to, and it is the one thing in here another
+        person ever sees.
+
+        profile.js fills it from GET /v1/me/profile and saves the name with
+        PATCH. If that endpoint is not deployed yet the block goes READ-ONLY and
+        says nothing about it — a settings panel that throws on open takes the
+        theme and the notification state down with it, over a field nobody came
+        here to edit.
+      -->
+      <div id="settings-profile" class="xb-profile">
+        <span id="profile-avatar" class="xb-profile-avatar" aria-hidden="true"></span>
+        <span class="xb-profile-fields">
+          <input type="text" id="profile-name" class="xb-profile-name"
+                 maxlength="128" autocomplete="name" spellcheck="false"
+                 placeholder="Your name" aria-label="Your name" />
+          <span id="profile-bio" class="xb-profile-bio" hidden></span>
+        </span>
+      </div>
+      <p id="profile-status" class="xb-profile-status" role="status" hidden></p>
+
       <div class="xb-settings-head">
         <span class="xb-settings-title">Settings</span>
         <div class="seg" role="group" aria-label="Theme">

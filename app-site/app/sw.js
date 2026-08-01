@@ -50,6 +50,7 @@ const SHELL = [
   "/app/push.js",
   "/app/chat.js",
   "/app/panels.js",
+  "/app/profile.js",
   "/app/manifest.webmanifest",
   "/app/vendor/centrifuge.js",
   "/app/icons/icon-192.png",
