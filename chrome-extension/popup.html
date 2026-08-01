@@ -82,9 +82,15 @@
 
     <!-- Header — team selector + presence + settings + LibreChat opener -->
     <header class="xb-header">
+      <!-- Team rail — one square per team, click to switch, unread count badged on
+           the icon. Replaces the old <select>: with a handful of teams a dropdown
+           hides both which teams exist and which ones have new messages. The
+           <select> is kept hidden because popup.js still writes the active team
+           through it (and the popup contract test requires every bound id). -->
       <div class="xb-header-left">
-        <span class="xb-group-avatar" aria-hidden="true"></span>
-        <select id="teamSelector" class="xb-team-select" aria-label="Active team">
+        <div id="team-rail" class="xb-team-rail" role="tablist" aria-label="Teams"></div>
+        <button type="button" id="btn-team-add" class="xb-team-add" title="Create a team" aria-label="Create a team">+</button>
+        <select id="teamSelector" class="xb-team-select" aria-label="Active team" hidden>
           <option value="" disabled selected>Loading…</option>
         </select>
         <span class="xb-presence" id="presenceBadge" title="Members online" hidden>
@@ -92,16 +98,29 @@
         </span>
       </div>
       <div class="xb-header-right">
-        <button type="button" id="btn-add-to-memory" class="xb-icon-btn xb-text-btn" title="Add current page to team memory">add to memory</button>
-        <button type="button" id="btn-send-link" class="xb-icon-btn xb-text-btn" title="Send a link to a teammate">send link</button>
-        <button type="button" id="btn-invite" class="xb-icon-btn xb-text-btn" title="Create or redeem a team invite code">invite</button>
-        <button type="button" id="btn-board" class="xb-icon-btn xb-text-btn" title="Open the team's collaborative board">board</button>
-        <div class="seg" role="group" aria-label="Theme">
+        <button type="button" id="btn-add-to-memory" class="xb-icon-btn" title="Add current page to team memory" aria-label="Add current page to team memory">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+        </button>
+        <button type="button" id="btn-send-link" class="xb-icon-btn" title="Team members — send a link or a file" aria-label="Team members">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        </button>
+        <button type="button" id="btn-invite" class="xb-icon-btn" title="Invite teammates" aria-label="Invite teammates">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>
+        </button>
+        <button type="button" id="btn-board" class="xb-icon-btn" title="Open the team's collaborative board" aria-label="Open the board">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M9 21V9"/></svg>
+        </button>
+        <button type="button" id="btn-settings" class="xb-icon-btn" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </button>
+        <!-- Theme switch moved to the Settings page (it is a preference, not an
+             action, and the header had to get out of its own way). LibreChat is
+             hidden for now; both stay in the DOM so popup.js keeps its bindings. -->
+        <div class="seg" role="group" aria-label="Theme" hidden>
           <button type="button" id="btn-theme-light" aria-pressed="false" title="Light theme" aria-label="Light theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
           <button type="button" id="btn-theme-dark" aria-pressed="false" title="Dark theme" aria-label="Dark theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg></button>
         </div>
-        <button type="button" id="btn-settings" class="xb-icon-btn" title="Settings">⚙️</button>
-        <button type="button" id="btn-open-librechat" class="xb-icon-btn" title="Open LibreChat in new tab">💬</button>
+        <button type="button" id="btn-open-librechat" class="xb-icon-btn" title="Open LibreChat in new tab" hidden>💬</button>
       </div>
     </header>
 
@@ -342,6 +361,42 @@
 
       <footer class="xb-overlay-footer">
         <button type="button" id="btn-invite-cancel" class="xb-btn-secondary">Close</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- People overlay — who is on the team, who is online, and the one place a link
+       or a file gets sent from. Replaces the old "send link" URL prompt: you almost
+       always mean "send THIS page to THAT person", so the current tab is the default
+       and the recipient is a click. -->
+  <div id="people-panel" class="xb-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="people-title">
+    <div class="xb-overlay-card">
+      <header class="xb-overlay-header">
+        <h3 id="people-title">Team members</h3>
+        <button type="button" id="btn-people-close" class="xb-icon-btn" title="Close">✕</button>
+      </header>
+
+      <div class="xb-overlay-body">
+        <div class="xb-field">
+          <label for="people-url">Link to send</label>
+          <input type="url" id="people-url" placeholder="https://example.com/page" autocomplete="off" />
+          <p class="xb-hint">Defaults to the page you are on. Sending shows the recipient a notification; it only opens if they allowed that.</p>
+        </div>
+
+        <div class="xb-field">
+          <button type="button" id="btn-people-send-all" class="xb-btn-secondary">Send to everyone</button>
+          <div id="people-status" hidden></div>
+        </div>
+
+        <div class="xb-field">
+          <label>Members</label>
+          <ul id="people-list" class="xb-people-list"></ul>
+        </div>
+      </div>
+
+      <footer class="xb-overlay-footer">
+        <input type="file" id="people-file" hidden />
+        <button type="button" id="btn-people-cancel" class="xb-btn-secondary">Close</button>
       </footer>
     </div>
   </div>

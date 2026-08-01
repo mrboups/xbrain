@@ -372,3 +372,58 @@ window equals one token TTL (1h), matching the documented contract.
 as an essential claim + a generic no-oracle message in the Python `verify_board_token`;
 try/finally the SPA fragment-strip so a malformed token can't linger. The P1 above is the
 only item deferred.
+
+## Team-wide nudge belongs server-side (client fan-out today) — 2026-08-01
+
+**Shipped as a deliberate stopgap, agreed with the owner.** The people overlay's "Send to
+everyone" loops over `GET /v1/teams/{id}/members` and fires ONE
+`POST /v1/teams/{id}/nudge-open` per member from the extension, because that endpoint takes a
+single `target_user_id`.
+
+**Why it needs replacing:** it burns the caller's per-user rate-limit budget (N sends count as N),
+it is not atomic (a failure halfway leaves some members notified and some not, with no way to
+retry just the rest), and it scales linearly with team size from a client that may be closed
+mid-loop.
+
+**Shape:** `POST /v1/teams/{id}/nudge-open-all {url}` — one membership read, one URL validation,
+one publish per member server-side, one rate-limit charge. Same guards as the single-target
+version (sender membership, blocked-member exclusion, URL safety, self-skip). The client then
+makes one call and reports one result.
+
+**Sizing:** small. Blocked on nothing.
+
+---
+
+## Send a FILE to a teammate — needs a client-mintable signed media URL — 2026-08-01
+
+The people overlay can send a LINK today (Phase 22 nudge). Sending a FILE cannot work yet: the
+upload response returns `raw_path` (`/v1/media/{id}/raw`), which requires `Authorization` +
+`X-Team-Scope` headers — a browser opening a nudged URL sends neither. The signed variant
+`GET /media/{id}/img?t=<token>` exists but its token is minted server-side only
+(`mint_media_token`, used by `/v1/brain/events` and `_serialize_message`), so the sender's client
+has no way to produce one.
+
+**Shape:** include a signed URL in the `POST /v1/media/upload` response (mint_media_token is
+already imported in that module's neighbours), then "send file" = upload → nudge the signed URL.
+Same TTL discipline as the existing media tokens.
+
+**Also requested:** the recipient should be able to SAVE the file to their device (not Drive —
+the owner corrected this explicitly on 2026-08-01). That is `chrome.downloads.download()`, which
+needs the `downloads` permission added to manifest.json — a permission change users are prompted
+about, so it should ship with the feature rather than ahead of it. NOTE: Drive-side saving would
+need the `drive.file` WRITE scope; the project only requests `drive.readonly` today.
+
+**Sizing:** small backend + small client. Blocked on nothing.
+
+---
+
+## Click a member IN THE CHAT to send them a link/file — 2026-08-01
+
+Requested alongside the people overlay: clicking a message author should offer the same
+send-link / send-file actions the overlay provides, so you can act on the person you are reading
+rather than reopening a list. Depends on the file item above for the file half; the link half
+works today via the existing nudge.
+
+**Sizing:** small (a popover anchored to the author element, reusing sendLinkToMember).
+
+---

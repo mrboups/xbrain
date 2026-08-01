@@ -165,6 +165,12 @@ function wireHeader() {
   $("btn-open-librechat").addEventListener("click", () => {
     chrome.tabs.create({ url: "https://chat.grooveos.app/" });
   });
+  // "+" beside the last team square. It shows the same create-or-join panel the
+  // empty state uses, because "add a team" means both — a founder types a name, an
+  // invitee pastes a code, and neither should need a different entry point.
+  const btnTeamAdd = $("btn-team-add");
+  if (btnTeamAdd) btnTeamAdd.addEventListener("click", () => renderEmptyTeams());
+
   // "add to memory" header button — opens the clip overlay (same as the
   // old 📎 composer button). The composer 📎 is now the file attach trigger.
   const btnAddToMemory = $("btn-add-to-memory");
@@ -257,8 +263,18 @@ function flashBoardError(btn) {
 // tab to open (D-22-02) — this control only sends the request.
 
 function wireSendLink() {
+  // The header button is now the PEOPLE icon and opens the members overlay: you
+  // almost always mean "send this page to that person", so the recipient should be
+  // a click, not a form. The old URL-first sendlink overlay stays wired below as
+  // the mechanism the people overlay delegates to.
   const openBtn = $("btn-send-link");
-  if (openBtn) openBtn.addEventListener("click", openSendLink);
+  if (openBtn) openBtn.addEventListener("click", openPeople);
+  const peopleClose = $("btn-people-close");
+  if (peopleClose) peopleClose.addEventListener("click", closePeople);
+  const peopleCancel = $("btn-people-cancel");
+  if (peopleCancel) peopleCancel.addEventListener("click", closePeople);
+  const sendAll = $("btn-people-send-all");
+  if (sendAll) sendAll.addEventListener("click", sendLinkToEveryone);
   const closeBtn = $("btn-sendlink-close");
   if (closeBtn) closeBtn.addEventListener("click", closeSendLink);
   const cancelBtn = $("btn-sendlink-cancel");
@@ -266,6 +282,215 @@ function wireSendLink() {
   const submitBtn = $("btn-sendlink-submit");
   if (submitBtn) submitBtn.addEventListener("click", submitSendLink);
 }
+
+// ---------- People overlay (members + send a link/file) ----------
+
+function setPeopleStatus(text, type) {
+  const el = $("people-status");
+  if (!el) return;
+  if (!text) {
+    el.hidden = true;
+    el.textContent = "";
+    el.className = "";
+    return;
+  }
+  el.hidden = false;
+  el.textContent = text;
+  el.className = type || "";
+}
+
+function closePeople() {
+  const panel = $("people-panel");
+  if (panel) panel.hidden = true;
+  setPeopleStatus("", "");
+}
+
+/** Current tab URL — the default thing you want to send. Fail-soft: an unreadable
+ *  tab just leaves the field empty rather than blocking the overlay. */
+async function currentTabUrl() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return tab && tab.url && /^https?:/i.test(tab.url) ? tab.url : "";
+  } catch {
+    return "";
+  }
+}
+
+async function openPeople() {
+  const panel = $("people-panel");
+  if (!panel) return;
+  if (!state.activeTeamId) {
+    setPeopleStatus("No active team.", "error");
+    return;
+  }
+  panel.hidden = false;
+  setPeopleStatus("", "");
+  const urlInput = $("people-url");
+  if (urlInput && !urlInput.value) urlInput.value = await currentTabUrl();
+  await renderPeopleList();
+}
+
+/**
+ * List the team's members, marking who is connected right now.
+ *
+ * Presence comes from Centrifugo's `presence()` RPC, which returns the connected
+ * clients for the team channel. If the channel does not expose presence the list
+ * still renders — every row simply shows no dot, because an invented "offline" is
+ * worse than an absent one.
+ */
+async function renderPeopleList() {
+  const list = $("people-list");
+  if (!list) return;
+  list.innerHTML = "";
+
+  let members = [];
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    const res = await fetch(
+      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/members`,
+      { headers: { Authorization: `Bearer ${xbt_token}` } },
+    );
+    if (!res.ok) {
+      setPeopleStatus(`Could not load members (HTTP ${res.status}).`, "error");
+      return;
+    }
+    members = await res.json();
+  } catch {
+    setPeopleStatus("Network error loading members.", "error");
+    return;
+  }
+
+  // Who is online — best effort, never fatal.
+  const online = new Set();
+  try {
+    const p = await state.subscription.presence();
+    for (const c of Object.values(p.clients || {})) {
+      if (c && c.user) online.add(String(c.user));
+    }
+  } catch {
+    /* presence unavailable on this channel — rows render without a dot */
+  }
+
+  for (const m of members) {
+    const row = document.createElement("li");
+    row.className = "xb-people-row";
+
+    const dot = document.createElement("span");
+    dot.className =
+      "xb-people-dot" + (online.has(String(m.source_user_id)) ? " is-online" : "");
+    dot.title = online.has(String(m.source_user_id)) ? "Active now" : "Not active";
+    row.appendChild(dot);
+
+    const name = document.createElement("span");
+    name.className = "xb-people-name";
+    // textContent — member names are user-supplied strings.
+    name.textContent = m.display_name || m.email || m.source_user_id || "member";
+    row.appendChild(name);
+
+    const linkBtn = document.createElement("button");
+    linkBtn.type = "button";
+    linkBtn.className = "xb-btn-secondary";
+    linkBtn.textContent = "Link";
+    linkBtn.title = "Send the link above to this person";
+    linkBtn.addEventListener("click", () => sendLinkToMember(m, linkBtn));
+    row.appendChild(linkBtn);
+
+    list.appendChild(row);
+  }
+
+  if (!members.length) setPeopleStatus("No members yet.", "");
+}
+
+/** Send the composed link to ONE member (Phase 22 nudge). */
+async function sendLinkToMember(member, btn) {
+  const url = ($("people-url") || {}).value || "";
+  if (!url.trim()) {
+    setPeopleStatus("Enter a link to send.", "error");
+    return;
+  }
+  if (btn) btn.disabled = true;
+  try {
+    const status = await postNudge(member.user_id || member.id, url.trim());
+    setPeopleStatus(
+      status === 202
+        ? `Sent to ${member.display_name || "them"} ✓`
+        : mapNudgeError(status),
+      status === 202 ? "success" : "error",
+    );
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+/**
+ * Send to the whole team.
+ *
+ * TODO(server): this fans out ONE request per member from the client because
+ * /v1/teams/{id}/nudge-open takes a single target_user_id. That is fine for a small
+ * team but it burns the caller's rate-limit budget and is not atomic — a proper
+ * team-wide nudge belongs server-side (one call, one membership read, one publish
+ * per member). Tracked in .planning/BACKLOG.md.
+ */
+async function sendLinkToEveryone() {
+  const url = ($("people-url") || {}).value || "";
+  if (!url.trim()) {
+    setPeopleStatus("Enter a link to send.", "error");
+    return;
+  }
+  const btn = $("btn-people-send-all");
+  if (btn) btn.disabled = true;
+  setPeopleStatus("Sending…", "loading");
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    const res = await fetch(
+      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/members`,
+      { headers: { Authorization: `Bearer ${xbt_token}` } },
+    );
+    const members = res.ok ? await res.json() : [];
+    let sent = 0;
+    let failed = 0;
+    for (const m of members) {
+      const id = m.user_id || m.id;
+      if (!id) continue;
+      const status = await postNudge(id, url.trim());
+      // The server 422s a self-nudge; that is expected here and not a failure.
+      if (status === 202 || status === 422) sent += status === 202 ? 1 : 0;
+      else failed += 1;
+    }
+    setPeopleStatus(
+      failed ? `Sent to ${sent}, ${failed} failed.` : `Sent to ${sent} teammate${sent === 1 ? "" : "s"} ✓`,
+      failed ? "error" : "success",
+    );
+  } catch {
+    setPeopleStatus("Network error — try again.", "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+/** One nudge POST. Returns the HTTP status so callers can map it themselves. */
+async function postNudge(targetUserId, url) {
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    const res = await fetch(
+      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/nudge-open`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${xbt_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ target_user_id: targetUserId, url }),
+      },
+    );
+    return res.status;
+  } catch {
+    return 0;
+  }
+}
+
+// mapNudgeError is shared with the sendlink overlay and defined further down —
+// same endpoint, same status codes, so one mapping serves both surfaces.
 
 async function openSendLink() {
   const panel = $("sendlink-panel");
@@ -379,9 +604,10 @@ async function submitSendLink() {
 // Map the nudge-open endpoint's rejection codes to clear English text.
 function mapNudgeError(status) {
   if (status === 403) return "That member is not on this team.";
-  if (status === 422) return "That link was rejected — use a plain http/https URL.";
+  if (status === 422) return "Rejected — that is you, or the link is not a plain http/https URL.";
   if (status === 429) return "Too many link requests — wait a moment and retry.";
   if (status === 404) return "Team not found.";
+  if (status === 0) return "Network error — try again.";
   return `Could not send (HTTP ${status}).`;
 }
 
@@ -794,6 +1020,90 @@ function renderTeamSelector() {
     sel.appendChild(opt);
   }
   sel.value = state.activeTeamId || state.teams[0].id;
+  renderTeamRail();
+}
+
+/** Two-letter mark for a team square — initials of the first two words, else the
+ *  first two characters. Falls back to "?" so a nameless team still renders. */
+function teamInitials(name) {
+  const words = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+/**
+ * Render one square per team. Clicking a square switches the chat; the active one
+ * is filled. Unread counts are badged onto the square itself so a team with new
+ * messages is visible without opening anything — which a <select> could not do.
+ */
+function renderTeamRail() {
+  const rail = $("team-rail");
+  if (!rail) return;
+  rail.innerHTML = "";
+  for (const t of state.teams) {
+    const name = t.display_name || t.slug;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "xb-team-icon";
+    btn.setAttribute("role", "tab");
+    btn.setAttribute("aria-selected", String(t.id === state.activeTeamId));
+    btn.title = name;
+    btn.setAttribute("aria-label", name);
+    btn.dataset.teamId = t.id;
+    btn.textContent = teamInitials(name);
+    btn.addEventListener("click", () => {
+      if (t.id !== state.activeTeamId) switchTeam(t.id);
+    });
+    rail.appendChild(btn);
+  }
+  refreshTeamBadges();
+}
+
+/**
+ * Badge each INACTIVE team with its unread count (Phase 23's unread-summary, the
+ * same cursor the catch-me-up banner reads). The active team is skipped on purpose:
+ * you are looking at it, and switchTeam marks it read a moment later, so a badge
+ * there would flash and vanish. Fail-soft — a badge is a nicety, never a blocker.
+ */
+async function refreshTeamBadges() {
+  const rail = $("team-rail");
+  if (!rail) return;
+  let token;
+  try {
+    ({ xbt_token: token } = await chrome.storage.local.get(["xbt_token"]));
+  } catch { return; }
+  if (!token) return;
+
+  for (const btn of rail.querySelectorAll(".xb-team-icon")) {
+    const id = btn.dataset.teamId;
+    if (!id || id === state.activeTeamId) {
+      const old = btn.querySelector(".xb-team-badge");
+      if (old) old.remove();
+      continue;
+    }
+    try {
+      const res = await fetch(
+        `${MEMORY_API_BASE}/v1/teams/${id}/unread-summary`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) continue;
+      const { count } = await res.json();
+      let badge = btn.querySelector(".xb-team-badge");
+      if (!count) {
+        if (badge) badge.remove();
+        continue;
+      }
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "xb-team-badge";
+        btn.appendChild(badge);
+      }
+      badge.textContent = count > 99 ? "99+" : String(count);
+    } catch {
+      /* one team's badge failing must not stop the others */
+    }
+  }
 }
 
 function setPresence(n) {

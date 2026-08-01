@@ -202,6 +202,114 @@
   color: var(--fg);
 }
 
+/* ── Team rail (replaces the <select>) ─────────────────────────────────────── */
+.xb-team-rail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;          /* the rail scrolls, but a bar here is noise */
+  max-width: 190px;
+}
+.xb-team-rail::-webkit-scrollbar { display: none; }
+
+.xb-team-icon {
+  position: relative;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-fg);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.xb-team-icon:hover { background: var(--muted); color: var(--fg); }
+.xb-team-icon:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+/* The active team is the filled one — same signal as the group avatar it replaces. */
+.xb-team-icon[aria-selected="true"] {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-color: var(--primary);
+}
+
+/* Unread count rides the icon itself, so an unattended team is visible without
+   opening anything. Hidden at zero rather than showing a "0". */
+.xb-team-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--destructive, #dc2626);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.xb-team-add {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--muted-fg);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.xb-team-add:hover { background: var(--muted); color: var(--fg); border-style: solid; }
+.xb-team-add:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* ── People overlay list ───────────────────────────────────────────────────── */
+.xb-people-list { list-style: none; margin: 0; padding: 0; }
+.xb-people-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+.xb-people-row:last-child { border-bottom: none; }
+.xb-people-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--muted-fg);     /* offline / unknown */
+}
+.xb-people-dot.is-online { background: var(--success, #16a34a); }
+.xb-people-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.xb-people-row .xb-btn-secondary { padding: 3px 8px; font-size: 11px; }
+
 .xb-presence {
   display: inline-flex;
   align-items: center;

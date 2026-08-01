@@ -6,6 +6,7 @@
  */
 
 import { loadSettings, saveSettings } from "./settings.js";
+import { THEME_STORAGE_KEY, resolveInitialTheme, applyTheme } from "./theme.js";
 
 const STATUS_FADE_MS = 1500;
 
@@ -20,8 +21,41 @@ function showStatus(text) {
   }, STATUS_FADE_MS);
 }
 
+/**
+ * Theme control — moved out of the chat header (it is a preference, not an action).
+ * Stored under the SAME key the popup reads (THEME_STORAGE_KEY) so a change here is
+ * what the chat picks up on its next open; unset still means "follow the system".
+ */
+async function wireThemeToggle() {
+  const cb = document.getElementById("opt-dark-theme");
+  if (!cb) return;
+  let stored = null;
+  try {
+    const got = await chrome.storage.local.get([THEME_STORAGE_KEY]);
+    stored = got[THEME_STORAGE_KEY] || null;
+  } catch {
+    /* unreadable storage — fall back to the system preference below */
+  }
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const mode = resolveInitialTheme({ storedTheme: stored, prefersDark });
+  cb.checked = mode === "dark";
+  applyTheme(document.documentElement, mode);
+
+  cb.addEventListener("change", async () => {
+    const next = cb.checked ? "dark" : "light";
+    applyTheme(document.documentElement, next);
+    try {
+      await chrome.storage.local.set({ [THEME_STORAGE_KEY]: next });
+      showStatus(`Saved ✓  —  ${next} theme`);
+    } catch {
+      showStatus("Could not save the theme");
+    }
+  });
+}
+
 async function init() {
   const settings = await loadSettings(chrome.storage.sync);
+  await wireThemeToggle();
 
   // === Existing toggles ===
   const cbSidePanel = document.getElementById("opt-side-panel");
