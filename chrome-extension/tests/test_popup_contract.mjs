@@ -558,6 +558,86 @@ for (const sel of [".xb-msg-avatar", ".xb-group-avatar"]) {
 }
 
 // ===========================================================================
+// 5f. The shell must work in BOTH entry points.
+//
+// popup.html is the manifest's `default_popup` AND its `side_panel`
+// default_path. A side panel is a real full-height viewport; an extension popup
+// has no height of its own — Chrome sizes the window to the document. A
+// viewport-relative height therefore resolves against nothing in popup mode and
+// the flex column collapses to a ~100px strip, which drops .xb-chat-empty
+// (position:absolute; inset:0) straight on top of the composer. That shipped.
+//
+// These assertions are what stop the 100vh from coming back, and stop a second
+// owner of the shell box from appearing.
+// ===========================================================================
+
+test("shell: html/body are sized in percent, never in viewport units", () => {
+  const body = selectorBlock(CSS, "html, body");
+  assert.ok(
+    body,
+    "popup.css must own the html/body box — without any height there, #app's percentage height has nothing to resolve against",
+  );
+  const d = /height\s*:\s*([^;]+)/.exec(body);
+  assert.ok(d, "html/body must declare a height");
+  assert.equal(
+    d[1].trim(),
+    "100%",
+    `html/body height is ${d[1].trim()} — a vh unit collapses the popup, because the popup's viewport is sized BY this document`,
+  );
+});
+
+test("shell: #app fills its context and still has a floor for popup mode", () => {
+  const app = selectorBlock(CSS, "#app");
+  assert.ok(app, "popup.css must declare #app");
+  const height = /(?:^|;)\s*height\s*:\s*([^;]+)/.exec(app);
+  assert.ok(height && height[1].trim() === "100%", `#app height must be 100% (got ${height && height[1]})`);
+  const minH = /min-height\s*:\s*(\d+)px/.exec(app);
+  assert.ok(
+    minH,
+    "#app needs a min-height, or popup mode has nothing to grow to and collapses",
+  );
+  const px = Number(minH[1]);
+  assert.ok(
+    px >= 480 && px <= 600,
+    `#app min-height is ${px}px — it must be tall enough to be usable and at or under Chrome's 600px popup cap`,
+  );
+});
+
+test("shell: no vh in the chain that SIZES the popup window", () => {
+  // Scoped to the shell chain on purpose. A vh on html/body/#app is circular in
+  // popup mode — the viewport is sized by this document — and that is the bug.
+  // A vh elsewhere is fine and sometimes right: .xb-overlay-card caps a modal
+  // at the window height, which is a perfectly well-defined number once the
+  // window has one.
+  const offenders = [];
+  for (const sel of ["html, body", "#app"]) {
+    const block = selectorBlock(CSS, sel);
+    const hits = (block || "").match(/\d+vh/g) || [];
+    if (hits.length) offenders.push(`${sel}: ${hits.join(", ")}`);
+  }
+  const inlineStyle = /<style>([\s\S]*?)<\/style>/.exec(popupHtml);
+  assert.ok(inlineStyle, "popup.html has an inline <style> block");
+  const inlineHits = inlineStyle[1].match(/\d+vh/g) || [];
+  if (inlineHits.length) offenders.push(`popup.html inline: ${inlineHits.join(", ")}`);
+  assert.deepEqual(
+    offenders,
+    [],
+    `viewport height in the shell chain: ${offenders.join("; ")} — this is what collapsed popup mode`,
+  );
+});
+
+test("shell: the html/body box has exactly ONE owner", () => {
+  // It used to be declared inline in popup.html, AFTER the stylesheet link — so
+  // the shell's height lived in one file and everything depending on it in
+  // another, with the inline copy silently winning every edit.
+  const inlineStyle = /<style>([\s\S]*?)<\/style>/.exec(popupHtml)[1];
+  assert.ok(
+    !/(^|[};])\s*html\s*,?\s*body\s*\{/.test(inlineStyle) && !/(^|[};])\s*body\s*\{/.test(inlineStyle),
+    "popup.html's inline <style> declares html/body again — popup.css owns the shell box",
+  );
+});
+
+// ===========================================================================
 // 6. Plan 23-04 — catch-me-up ordering (checker BLOCKER).
 //
 // In switchTeam(), refreshUnreadBanner() MUST run BEFORE the initial markRead():

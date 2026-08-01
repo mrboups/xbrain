@@ -10,20 +10,13 @@
     /* Design tokens now live in popup.css (Plan 20-01 - shadcn "Neutral",
        single source of truth). These inline rules only reset box-sizing and
        style the scrollbars + GitHub sign-in buttons; they consume the same
-       var(--xb-*) names, which popup.css aliases to the new shadcn tokens. */
+       var(--xb-*) names, which popup.css aliases to the new shadcn tokens.
+
+       The html/body box moved to popup.css. It used to live here, AFTER the
+       stylesheet link, which meant the shell's height was declared in one file
+       and everything that depends on it in another - with the inline copy
+       silently winning. One owner now. */
     *, *::before, *::after { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      min-width: 320px;
-      height: 100vh;
-      background: var(--xb-bg);
-      color: var(--xb-text);
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 13px;
-      overflow: hidden;
-    }
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: var(--xb-bg); }
     ::-webkit-scrollbar-thumb { background: var(--xb-border-2); border-radius: 4px; }
