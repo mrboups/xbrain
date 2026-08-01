@@ -141,6 +141,18 @@ services:
       # exactly what happened on the VM until 2026-08-01.
       BOARD_PUBLIC_BASE_URL: ${BOARD_PUBLIC_BASE_URL:-http://board.localhost}
       BOARD_WS_URL_PUBLIC: ${BOARD_WS_URL_PUBLIC:-ws://board.localhost/collab}
+      # Phase 27 (PUSH-01) — web push. All six default to a value that BOOTS: with an
+      # empty keypair GET /v1/push/config answers {"enabled": false} and nothing is ever
+      # sent, so a zero-key OSS install needs no .env entry at all. The PRIVATE half is
+      # server-side only — it reaches this container and stops here (no route reads it,
+      # no response carries it). Mint a pair with the command in .env.example.
+      PUSH_ENABLED: ${PUSH_ENABLED:-true}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
+      PUSH_TTL_S: ${PUSH_TTL_S:-86400}
+      PUSH_PREVIEW_CHARS: ${PUSH_PREVIEW_CHARS:-120}
+      PUSH_SUBSCRIBE_RATE_LIMIT: ${PUSH_SUBSCRIBE_RATE_LIMIT:-20/minute}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       ADMIN_USER_SUBS: ${ADMIN_USER_SUBS:-}

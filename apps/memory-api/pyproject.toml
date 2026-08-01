@@ -31,6 +31,10 @@ dependencies = [
   "fastembed>=0.8.0",  # Phase 19: local keyless embeddings (ONNX via onnxruntime, no torch)
   "pypdf>=5.1",         # Phase 24 (DOCBODY-01): PDF text-layer extraction (pure-Python, py3-none-any wheel)
   "python-docx>=1.1",   # Phase 24 (DOCBODY-01): DOCX paragraph text extraction (pulls lxml; both runtime arches ship cp312 wheels — proven in 24-01-SUMMARY)
+  "pywebpush>=2.3,<3",  # Phase 27 (PUSH-01): VAPID + aes128gcm payload encryption. pywebpush and
+                        # py-vapid ship py3-none-any wheels; http-ece is sdist-only but pure Python
+                        # (builds to py3-none-any on any arch) — proven in 27-03-SUMMARY. py-vapid
+                        # raises the resolved cryptography floor to >=46; PyJWT[crypto] has no ceiling.
   "xbrain-memory @ file:///app/packages/memory-models",  # path mounted in compose build
 ]
 
