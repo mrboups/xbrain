@@ -27,8 +27,10 @@
  *
  * v2 — the header adopted the extension's design (team rail, icon actions,
  * settings panel, composer pill).
+ * v3 — members, invite and add-a-team joined the app, so the shell grew four
+ * shared modules and a panels surface.
  */
-const CACHE = "xb-app-shell-v2";
+const CACHE = "xb-app-shell-v3";
 
 /**
  * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07
@@ -54,13 +56,17 @@ const SHELL = [
   "/app/icons/icon-maskable-512.png",
   "/app/chat_core/chat_stream.js",
   "/app/chat_core/api.js",
+  "/app/chat_core/dom.js",
   "/app/chat_core/platform.js",
   "/app/chat_core/nudge_open.js",
   "/app/chat_core/theme.js",
   "/app/chat_core/render.js",
   "/app/chat_core/publication.js",
   "/app/chat_core/realtime.js",
+  "/app/chat_core/people.js",
+  "/app/chat_core/invite.js",
   "/app/chat_core/team_rail.js",
+  "/app/chat_core/teams.js",
 ];
 
 self.addEventListener("install", (event) => {
