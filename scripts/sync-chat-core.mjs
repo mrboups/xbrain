@@ -48,12 +48,16 @@ const checkOnly = process.argv.includes("--check");
 const REQUIRED_MODULES = [
   "api.js",
   "chat_stream.js",
+  "dom.js",
+  "invite.js",
   "nudge_open.js",
+  "people.js",
   "platform.js",
   "publication.js",
   "realtime.js",
   "render.js",
   "team_rail.js",
+  "teams.js",
   "theme.js",
 ];
 

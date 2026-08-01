@@ -262,6 +262,91 @@ test("authorLabel: other from cache, fallback Teammate", () => {
   assert.equal(lbl2, "Teammate");
 });
 
+// The precedence below is the fix for a real bug: a person with a perfectly good
+// Google name rendered as "Teammate" because the label depended ENTIRELY on a
+// roster fetch that resolves after first paint — and on an author who has since
+// left the team, that fetch never contains them at all. The server now sends the
+// label with the message; the cache stays only as a fallback for older cached
+// messages and for a client talking to an API that has not been redeployed.
+
+test("authorLabel: the label the MESSAGE carries wins over the roster cache", () => {
+  const lbl = authorLabel({
+    msg: { kind: "user", author_user_id: "u2", author_label: "Nico Boups" },
+    selfUserId: "u1",
+    nameCache: { u2: "Stale Cached Name" },
+  });
+  assert.equal(
+    lbl,
+    "Nico Boups",
+    "the message-carried label is correct on first paint and for former members; the cache is neither",
+  );
+});
+
+test("authorLabel: a message with no label falls back to the cache", () => {
+  const lbl = authorLabel({
+    msg: { kind: "user", author_user_id: "u2" },
+    selfUserId: "u1",
+    nameCache: { u2: "Bob" },
+  });
+  assert.equal(lbl, "Bob", "older messages carry no label and must still render a name");
+});
+
+test("authorLabel: an empty or blank carried label does not win", () => {
+  for (const carried of ["", "   ", null, 42]) {
+    const lbl = authorLabel({
+      msg: { kind: "user", author_user_id: "u2", author_label: carried },
+      selfUserId: "u1",
+      nameCache: { u2: "Bob" },
+    });
+    assert.equal(
+      lbl,
+      "Bob",
+      `author_label=${JSON.stringify(carried)} is not a name — it must fall through, not blank the row`,
+    );
+  }
+});
+
+test("authorLabel: self still gets 'You', even with a carried label", () => {
+  const lbl = authorLabel({
+    msg: { kind: "user", author_user_id: "u1", author_label: "Nico Boups" },
+    selfUserId: "u1",
+    nameCache: {},
+  });
+  assert.equal(lbl, "You");
+});
+
+test("authorLabel: the agent branch ignores the carried label", () => {
+  const lbl = authorLabel({
+    msg: { kind: "agent", agent_name: "claude", author_label: "Not The Agent" },
+    selfUserId: "u1",
+    nameCache: {},
+  });
+  assert.match(lbl, /^🤖 claude/);
+});
+
+test("authorLabel: 'Teammate' only when there is genuinely nothing", () => {
+  const lbl = authorLabel({
+    msg: { kind: "user", author_user_id: "u9" },
+    selfUserId: "u1",
+    nameCache: {},
+  });
+  assert.equal(lbl, "Teammate");
+});
+
+test("authorLabel: pure — the same inputs give the same answer, and nothing is mutated", () => {
+  const msg = { kind: "user", author_user_id: "u2", author_label: "Nico" };
+  const cache = { u2: "Bob" };
+  const first = authorLabel({ msg, selfUserId: "u1", nameCache: cache });
+  const second = authorLabel({ msg, selfUserId: "u1", nameCache: cache });
+  assert.equal(first, second);
+  assert.deepEqual(msg, {
+    kind: "user",
+    author_user_id: "u2",
+    author_label: "Nico",
+  });
+  assert.deepEqual(cache, { u2: "Bob" });
+});
+
 // ---------- bubbleClass ----------
 
 test("bubbleClass: agent → is-agent; self → is-self; other → is-user", () => {

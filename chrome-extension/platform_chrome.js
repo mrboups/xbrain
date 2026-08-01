@@ -64,6 +64,30 @@ export const chromePlatform = {
       ),
     );
   },
+
+  /**
+   * The page the user is currently looking at — the default thing they mean
+   * when they open "send a link to a teammate".
+   *
+   * This is the capability the PWA cannot have: a web page can see its own URL
+   * and nothing else, so its shim answers null and the person pastes a link
+   * instead. Here the extension really can read the active tab.
+   *
+   * Fail-soft, and http(s) only: an unreadable tab (a settings page, a PDF
+   * viewer, a revoked permission) leaves the field empty rather than blocking
+   * the overlay, and an internal scheme is not something a teammate could open
+   * anyway.
+   *
+   * @returns {Promise<string|null>}
+   */
+  currentPageUrl: async () => {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      return tab && tab.url && /^https?:/i.test(tab.url) ? tab.url : null;
+    } catch (e) {
+      return null;
+    }
+  },
 };
 
 // Fail at import, not at first use.

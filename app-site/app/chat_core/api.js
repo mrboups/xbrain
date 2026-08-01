@@ -113,6 +113,46 @@ export function createApi({ baseUrl, getToken } = {}) {
       request(`/v1/teams/${teamId}/mark-read`, { method: "POST" }),
     unreadSummary: (teamId) => request(`/v1/teams/${teamId}/unread-summary`),
 
+    // ---- Roster ----
+    // Two shapes on purpose. `members` throws on a bad status, which is what a
+    // caller filling a name cache wants; `membersRaw` hands back the Response
+    // for the people panel, which prints the status code it got.
+    members: (teamId) => request(`/v1/teams/${teamId}/members`),
+    membersRaw: (teamId) => rawFetch(`/v1/teams/${teamId}/members`),
+
+    // ---- Link nudges (Phase 22) ----
+    //
+    // Raw: every caller branches on 202 vs 403 vs 422 vs 429 to say something
+    // specific, and each of those means a different thing to the person who
+    // pressed the button. An exception would collapse them into one sentence.
+    nudgeOpenRaw: (teamId, targetUserId, url) =>
+      rawFetch(`/v1/teams/${teamId}/nudge-open`, {
+        method: "POST",
+        body: { target_user_id: targetUserId, url },
+      }),
+
+    // ---- Growing a team (Phase 25, JOINCODE-01) ----
+    //
+    // All raw, all for the same reason: the SERVER is the authority on who may
+    // do these things, and its rejection codes are the message. A 403 on a mint
+    // is "you are not an admin", a 404 on an email invite is "that person has no
+    // account yet, send them the link instead", and a 404 on a join is the
+    // deliberate no-oracle answer for invalid/expired/revoked/used-up.
+    mintInviteCodeRaw: (teamId) =>
+      rawFetch(`/v1/teams/${teamId}/invite-codes`, { method: "POST", body: {} }),
+    inviteByEmailRaw: (teamId, email, role = "member") =>
+      rawFetch(`/v1/teams/${teamId}/invite`, {
+        method: "POST",
+        body: { email, role },
+      }),
+    joinByCodeRaw: (code) =>
+      rawFetch("/v1/teams/join-by-code", { method: "POST", body: { code } }),
+    createTeamRaw: (slug, displayName) =>
+      rawFetch("/v1/teams/self", {
+        method: "POST",
+        body: { slug, display_name: displayName },
+      }),
+
     // ---- Media ----
     uploadMediaRaw,
 

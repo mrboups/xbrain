@@ -176,15 +176,38 @@ export function hostnameFromUrl(url) {
 }
 
 // ---------- Author display name lookup ----------
-//
-// Server only sends author_user_id; the surface keeps a name cache populated
-// from team members + the caller's own profile.
 
+/**
+ * The name to print above someone's message.
+ *
+ * Precedence, and why it is that way round:
+ *
+ *   1. `msg.author_label` — the label the SERVER resolved for this message.
+ *      This is the only source that is correct unconditionally. It arrives with
+ *      the message itself, so it is already there on first paint, and it still
+ *      names an author who has since left the team.
+ *   2. `nameCache[author_user_id]` — the roster lookup the surface builds from
+ *      GET /v1/teams/{id}/members. It is a FALLBACK, not the source of truth:
+ *      it is populated after an await, so a thread rendered before that call
+ *      returned would label every message "Teammate" and never revisit it, and
+ *      a former member is missing from it permanently. It stays because an
+ *      older cached message carries no label, and because a client may be
+ *      talking to an API that has not been redeployed yet.
+ *   3. "Teammate" — genuinely last resort. With a current server it should be
+ *      unreachable for any real account.
+ *
+ * Pure: same inputs, same output, no lookups of its own.
+ *
+ * @param {{msg: Object, selfUserId?: string, nameCache?: Object}} args
+ * @returns {string}
+ */
 export function authorLabel({ msg, selfUserId, nameCache }) {
   if (msg.kind === "agent") {
     return `🤖 ${msg.agent_name || "agent"}`;
   }
   if (msg.author_user_id === selfUserId) return "You";
+  const carried = typeof msg.author_label === "string" ? msg.author_label.trim() : "";
+  if (carried) return carried;
   const name = nameCache && nameCache[msg.author_user_id];
   return name || "Teammate";
 }
