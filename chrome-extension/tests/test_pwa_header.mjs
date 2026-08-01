@@ -205,7 +205,7 @@ test("every inline SVG is given an explicit size", () => {
 
 test("the header ships icons, not text labels", () => {
   const header = /<header[^>]*class="xb-header"[^>]*>([\s\S]*?)<\/header>/.exec(HTML)[1];
-  for (const id of ["btn-enable-push", "btn-settings", "btn-sign-out"]) {
+  for (const id of ["btn-people", "btn-invite", "btn-enable-push", "btn-settings"]) {
     const btn = new RegExp(`<button[^>]*id="${id}"[\\s\\S]*?</button>`).exec(header);
     assert.ok(btn, `the header must carry #${id}`);
     assert.ok(
@@ -275,6 +275,57 @@ test("settings holds the display mode and the push state", () => {
       `the settings panel references "${marker}" — that is a header action, not a setting`,
     );
   }
+});
+
+test("sign out is the LAST row of settings, and is not in the header at all", () => {
+  // It is a rare, deliberate act. In the header it wore a glyph that reads as
+  // "exit" only once you already know, one tap away from the controls people
+  // use constantly.
+  const header = /<header[^>]*class="xb-header"[^>]*>([\s\S]*?)<\/header>/.exec(HTML)[1];
+  assert.ok(
+    !header.includes('id="btn-sign-out"'),
+    "sign out must have left the header — it competed with what people actually use",
+  );
+  const panel = /<div[^>]*id="settings-panel"[\s\S]*?\n    <\/div>/.exec(HTML)[0];
+  const btn = /<button[^>]*id="btn-sign-out"[\s\S]*?<\/button>/.exec(panel);
+  assert.ok(btn, "#btn-sign-out belongs at the end of the settings panel");
+  // Last: everything else in the panel opens before it in the markup.
+  const rest = panel.slice(panel.indexOf(btn[0]) + btn[0].length);
+  assert.ok(
+    !/<(button|input|select|a)\b/.test(rest),
+    `sign out must be the last control in the panel; found more after it: ${rest.trim().slice(0, 60)}`,
+  );
+  assert.equal(
+    btn[0].replace(/<[^>]*>/g, "").trim(),
+    "Sign out",
+    "a labelled row, not an icon — an icon here would be the same mistake in a new place",
+  );
+  assert.ok(
+    !btn[0].includes("<svg"),
+    "no glyph: the row IS the label",
+  );
+  assert.ok(
+    btn[0].includes('class="xb-settings-signout"'),
+    "it needs its own class, or it inherits the look of a preference",
+  );
+  // Full width, and destructive-styled so it never reads as one more setting.
+  const p = props(selectorBlock(CSS, ".xb-settings-signout"));
+  assert.equal(p.width, "100%", "a full-width row, not a button floating in the panel");
+  assert.ok(
+    (p.color || "").includes("var(--destructive)") ||
+      (p.border || "").includes("var(--destructive)"),
+    `the row must be destructive-styled (got color=${p.color} border=${p.border})`,
+  );
+  assert.equal(p["border-radius"], "var(--radius)", "radius must stay token-driven (0)");
+  assert.ok(
+    selectorBlock(CSS, ".xb-settings-signout:focus-visible"),
+    "keyboard users must see where they are",
+  );
+  // The id is load-bearing: app.js binds the click and toggles its visibility.
+  assert.ok(
+    appJs.includes('el("btn-sign-out")'),
+    "app.js still owns the click; moving the element must not have moved the wiring",
+  );
 });
 
 test("the theme switch is pinned to the top-right of the panel, not listed as a row", () => {

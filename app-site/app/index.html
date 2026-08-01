@@ -75,10 +75,6 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         </button>
 
-        <button type="button" id="btn-sign-out" class="xb-icon-btn"
-                title="Sign out" aria-label="Sign out" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-        </button>
       </div>
     </header>
 
@@ -106,6 +102,13 @@
              two can never disagree. -->
         <span id="settings-push-state" class="xb-settings-value">Notifications off</span>
       </div>
+      <!-- LAST, and a full-width row rather than an icon. Signing out is a rare
+           and deliberate act; in the header it sat in the tap target next to
+           the controls people use constantly, wearing a glyph that reads as
+           "exit" only once you already know. At the bottom of a panel somebody
+           opened on purpose, it is where it can be found and nowhere near
+           anything else. -->
+      <button type="button" id="btn-sign-out" class="xb-settings-signout" hidden>Sign out</button>
     </div>
 
     <!-- Shown only when the notification state needs something this app cannot

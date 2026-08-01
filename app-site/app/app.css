@@ -385,6 +385,29 @@ body {
   gap: 10px;
 }
 .xb-settings-label { font-size: 12.5px; color: var(--fg); }
+
+/* Sign out — the last row of the panel, outlined in --destructive so it never
+   reads as one more preference. It fills on hover rather than shipping filled:
+   a permanently red block at the bottom of a settings panel pulls the eye to
+   the one control nobody opened the panel to use. */
+.xb-settings-signout {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px 12px;
+  background: transparent;
+  color: var(--destructive);
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s;
+}
+.xb-settings-signout:hover { background: var(--destructive); color: var(--bg); }
+.xb-settings-signout:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .xb-settings-value {
   font-family: var(--mono);
   font-size: 11px;
