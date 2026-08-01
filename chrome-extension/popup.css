@@ -326,8 +326,8 @@
 }
 
 .xb-icon-btn {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -341,6 +341,15 @@
   transition: background 0.14s, color 0.14s;
   line-height: 1;
 }
+/* Inline SVGs carry a viewBox but no intrinsic size, so without this they render at
+   the UA default (~300x150) and blow the header apart — which is exactly what the
+   icon-only header did. 15px keeps them on the shadcn scale next to 28px buttons. */
+.xb-icon-btn svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+
 .xb-icon-btn:hover {
   background: var(--muted);
   color: var(--fg);
@@ -656,11 +665,12 @@
  */
 
 .xb-msg {
-  display: grid;
-  grid-template-columns: 26px 1fr;
-  grid-template-rows: auto auto;
-  column-gap: 8px;
-  row-gap: 2px;
+  /* Telegram layout: avatar and bubble sit SIDE BY SIDE on one line, avatar aligned
+     to the bottom of the bubble. The old 2-row grid put the name on its own row,
+     which read as a floating label above a detached box. */
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
   padding: 0 13px;
   margin-top: 9px;
   border-radius: var(--radius);
@@ -673,20 +683,16 @@
 
 /* === Own messages — mockup .row.mine: avatar right, bubble right-aligned === */
 .xb-msg.is-self {
-  grid-template-columns: 1fr 26px;
+  /* Mirror the row instead of re-declaring grid columns: avatar ends up on the
+     right, bubble hugs the right edge, and the flex layout above stays the single
+     source of truth for spacing. */
+  flex-direction: row-reverse;
   background: transparent;
 }
-.xb-msg.is-self .xb-msg-avatar {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-}
 .xb-msg.is-self .xb-msg-meta {
-  grid-column: 1;
   justify-content: flex-end;
 }
 .xb-msg.is-self .xb-msg-bubble {
-  grid-column: 1;
-  justify-self: end;
   background: var(--primary);
   color: var(--primary-fg);
   border: 1px solid var(--primary);
@@ -697,9 +703,9 @@
 /* Square avatar (mockup .avatar) — --secondary chip with a --border hairline.
    The agent variant flips to --primary (mockup .agent-av). */
 .xb-msg-avatar {
-  grid-row: 1 / span 2;
-  width: 26px;
-  height: 26px;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
   border-radius: var(--radius);
   display: grid;
   place-items: center;
@@ -720,7 +726,6 @@
 
 /* Meta row (mockup .name + .meta) — mono micro-text on --muted-fg. */
 .xb-msg-meta {
-  grid-column: 2;
   display: flex;
   align-items: baseline;
   gap: 6px;
@@ -762,14 +767,15 @@
 
 /* Bubble body (mockup .bubble) — others' default; own/agent override below. */
 .xb-msg-bubble {
-  grid-column: 2;
-  justify-self: start;
   max-width: 78%;
   padding: 7px 10px;
   background: var(--muted);
   color: var(--fg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  /* The row is flex now, so the bubble sizes to its content and the row direction
+     decides which edge it hugs — no justify-self needed. */
+  width: fit-content;
   white-space: pre-wrap;
   word-wrap: break-word;
   overflow-wrap: anywhere;
@@ -1406,3 +1412,6 @@
   background: var(--muted);
   box-shadow: inset 2px 0 0 var(--primary);
 }
+
+/* The square being dragged — faded so the gap it will leave is readable. */
+.xb-team-icon.is-dragging { opacity: 0.4; }

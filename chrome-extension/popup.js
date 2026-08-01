@@ -1101,7 +1101,10 @@ function renderTeamSelector() {
     sel.appendChild(opt);
   }
   sel.value = state.activeTeamId || state.teams[0].id;
-  renderTeamRail();
+  // Fire-and-forget: the rail reads the saved order from storage, so it paints a tick
+  // later than the (hidden) select. Caught so a storage hiccup can't surface as an
+  // unhandled rejection — a rail that fails to paint must not break the chat.
+  renderTeamRail().catch(() => {});
 }
 
 /** Two-letter mark for a team square — initials of the first two words, else the
@@ -1113,16 +1116,64 @@ function teamInitials(name) {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
+const TEAM_ORDER_KEY = "xbrain_team_order_v1";
+
+/**
+ * Order the rail: teams the user has explicitly arranged keep their position, and
+ * anything not in that list (a team just created or just joined) goes to the END —
+ * so a new square appears to the RIGHT of the newest rather than jumping into the
+ * middle because the API happened to sort differently.
+ */
+function orderTeams(teams, order) {
+  if (!Array.isArray(order) || !order.length) return teams.slice();
+  const rank = new Map(order.map((id, i) => [id, i]));
+  return teams
+    .slice()
+    .sort((a, b) => {
+      const ra = rank.has(a.id) ? rank.get(a.id) : Number.MAX_SAFE_INTEGER;
+      const rb = rank.has(b.id) ? rank.get(b.id) : Number.MAX_SAFE_INTEGER;
+      return ra - rb;   // ties (both unknown) keep the API's own order
+    });
+}
+
+async function loadTeamOrder() {
+  try {
+    const got = await chrome.storage.local.get([TEAM_ORDER_KEY]);
+    const v = got && got[TEAM_ORDER_KEY];
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveTeamOrder(ids) {
+  try {
+    await chrome.storage.local.set({ [TEAM_ORDER_KEY]: ids });
+  } catch {
+    /* an unsaved order is a cosmetic loss, never a blocker */
+  }
+}
+
+/** Persist whatever order the rail currently shows. */
+async function persistRailOrder(rail) {
+  const ids = Array.from(rail.querySelectorAll(".xb-team-icon"))
+    .map((el) => el.dataset.teamId)
+    .filter(Boolean);
+  await saveTeamOrder(ids);
+}
+
 /**
  * Render one square per team. Clicking a square switches the chat; the active one
  * is filled. Unread counts are badged onto the square itself so a team with new
  * messages is visible without opening anything — which a <select> could not do.
+ * Squares are draggable so the user can arrange them.
  */
-function renderTeamRail() {
+async function renderTeamRail() {
   const rail = $("team-rail");
   if (!rail) return;
   rail.innerHTML = "";
-  for (const t of state.teams) {
+  const ordered = orderTeams(state.teams, await loadTeamOrder());
+  for (const t of ordered) {
     const name = t.display_name || t.slug;
     const btn = document.createElement("button");
     btn.type = "button";
@@ -1136,6 +1187,33 @@ function renderTeamRail() {
     btn.addEventListener("click", () => {
       if (t.id !== state.activeTeamId) switchTeam(t.id);
     });
+
+    // Drag to rearrange. Native HTML5 DnD keeps this to a few handlers and no
+    // pointer-math; the drop target moves the dragged square before or after
+    // itself depending on which half was entered, then the new order is saved.
+    btn.draggable = true;
+    btn.addEventListener("dragstart", (e) => {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", t.id);
+      btn.classList.add("is-dragging");
+    });
+    btn.addEventListener("dragend", () => btn.classList.remove("is-dragging"));
+    btn.addEventListener("dragover", (e) => {
+      e.preventDefault();                       // required to allow a drop
+      e.dataTransfer.dropEffect = "move";
+    });
+    btn.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      const draggedId = e.dataTransfer.getData("text/plain");
+      if (!draggedId || draggedId === t.id) return;
+      const dragged = rail.querySelector(`[data-team-id="${CSS.escape(draggedId)}"]`);
+      if (!dragged) return;
+      const rect = btn.getBoundingClientRect();
+      const after = e.clientX > rect.left + rect.width / 2;
+      rail.insertBefore(dragged, after ? btn.nextSibling : btn);
+      await persistRailOrder(rail);
+    });
+
     rail.appendChild(btn);
   }
   refreshTeamBadges();
@@ -1957,11 +2035,14 @@ function buildBubbleNode(msg) {
     provSpan.textContent = prov.text;
     meta.appendChild(provSpan);
   }
-  wrapper.appendChild(meta);
-
   // Body — the bubble (own = --primary, others = --muted, agent = --card).
   const body = document.createElement("div");
   body.className = "xb-msg-bubble";
+
+  // Telegram-style: the name + timestamp live INSIDE the bubble, not floating on a
+  // line above it. Previously the meta row sat in its own grid row, which left the
+  // bubble visually detached from the name it belonged to.
+  body.appendChild(meta);
 
   // Agent block label (mockup .agent-bubble .who) — mono uppercase, styled by
   // CSS. Lives inside the bubble but OUTSIDE .xb-msg-text so the streaming
