@@ -25,6 +25,7 @@ single seam the tests replace.
 from __future__ import annotations
 
 import json
+import re
 import types
 from pathlib import Path
 from uuid import uuid4
@@ -438,14 +439,35 @@ def test_prune_statuses_are_exactly_404_and_410():
 
 def test_the_sender_never_logs_subscription_secrets():
     """T-27-04-07. An operator needs to tell FCM from Mozilla in the logs; nobody needs
-    the endpoint path (a bearer-equivalent capability to push to that device) or the
-    encryption keys sitting in a log aggregator."""
+    the endpoint PATH — anyone holding it can push to that device, so it is a capability
+    — or the encryption keys, sitting in a log aggregator.
+
+    Asserted structurally rather than by substring: every `log.*()` call in the module is
+    parsed and each argument inspected, so the check cannot be defeated by reformatting
+    and cannot false-positive on the repo calls that legitimately pass the endpoint.
+    """
+    import ast
+
     from app.services import web_push
 
     source = Path(web_push.__file__).read_text(encoding="utf-8")
-    # The subscription's secrets reach pywebpush as DICT entries ("p256dh": sub.p256dh);
-    # the kwarg spelling below only ever appears in a structlog call, so its absence is
-    # exactly the property we want.
-    for leak in ("endpoint=sub.endpoint", "p256dh=sub.p256dh", "auth=sub.auth"):
-        assert leak not in source, f"{leak} escapes into a log line"
+    tree = ast.parse(source)
+
+    log_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "log"
+    ]
+    assert log_calls, "expected the sender to log at all"
+
+    for call in log_calls:
+        # Erase the ONE sanctioned wrapper — `_host(...)` reduces an endpoint to its
+        # hostname — then anything still naming a secret is an unwrapped leak.
+        rendered = re.sub(r"_host\([^()]*\)", "HOST", ast.unparse(call))
+        for secret in ("sub.endpoint", "sub.p256dh", "sub.auth", "VAPID_PRIVATE_KEY"):
+            assert secret not in rendered, f"a log line leaks {secret}: {rendered}"
+
     assert "_host(" in source, "the sender must log the endpoint HOST, not the endpoint"
