@@ -506,6 +506,31 @@ function mapMintError(status) {
   return `Could not create a code (HTTP ${status}).`;
 }
 
+/**
+ * Build the shareable join link for an invite code.
+ *
+ * The code travels in the URL FRAGMENT (`#c=`), never a query string: a fragment is
+ * never transmitted to a server, so the invite secret cannot land in hosting logs or
+ * in a Referer header. app-site/join/ reads it and strips it on load.
+ *
+ * The origin is DERIVED from MEMORY_API_BASE (drop a leading `api.`) rather than
+ * hardcoded a second time, so a rebrand of that one constant carries the join link
+ * with it instead of silently pointing at the old domain.
+ */
+function buildJoinLink(code) {
+  let origin;
+  try {
+    const u = new URL(MEMORY_API_BASE);
+    u.hostname = u.hostname.replace(/^api\./, "");
+    origin = u.origin;
+  } catch (e) {
+    return null;
+  }
+  return `${origin}/join/#c=${encodeURIComponent(code)}`;
+}
+
+// Copies the shareable LINK, not the bare code — the recipient clicks it and joins,
+// with no code to paste. The code stays visible above as the manual fallback.
 async function copyInvite() {
   const out = $("invite-code-output");
   const code = out ? out.textContent : "";
@@ -513,11 +538,17 @@ async function copyInvite() {
     setInviteStatus("Create a code first.", "error");
     return;
   }
+  const link = buildJoinLink(code);
+  if (!link) {
+    setInviteStatus("Could not build the link — copy the code instead.", "error");
+    return;
+  }
   try {
-    await navigator.clipboard.writeText(code);
-    setInviteStatus("Copied ✓", "success");
+    await navigator.clipboard.writeText(link);
+    setInviteStatus("Invite link copied ✓ — share it, it joins in one click.", "success");
   } catch (e) {
-    console.warn("[xbrain] copy invite code failed:", e);
+    // Never log the link or the code — both carry the invite secret.
+    console.warn("[xbrain] copy invite link failed");
     setInviteStatus("Copy failed — select the code manually.", "error");
   }
 }

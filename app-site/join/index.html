@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Join a team — GrooveOS</title>
+  <meta name="description" content="Accept an xbrain team invite and join the team chat." />
+  <meta name="robots" content="noindex" />
+  <meta name="referrer" content="no-referrer" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --bg:        #0D1117;
+      --bg-2:      #161B22;
+      --bg-3:      #21262D;
+      --text:      #E6EDF3;
+      --muted:     #8B949E;
+      --dim:       #6E7681;
+      --accent:    #22D3EE;
+      --accent-bg: rgba(34, 211, 238, 0.12);
+      --accent-2:  #06B6D4;
+      --green:     #3FB950;
+      --green-bg:  rgba(63, 185, 80, 0.12);
+      --red:       #F85149;
+      --red-bg:    rgba(248, 81, 73, 0.12);
+      --border:    #30363D;
+      --border-2:  #444C56;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13.5px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .wrap { max-width: 480px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    .hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+    .hdr__brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; }
+    .hdr__brand .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(34,211,238,0.2);
+    }
+
+    h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+    .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 28px; line-height: 1.55; }
+
+    .card {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 22px;
+      margin-bottom: 16px;
+    }
+
+    .field { margin-bottom: 16px; }
+    .field label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .field input {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border-2);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: 13.5px;
+      outline: none;
+    }
+    .field input:focus { border-color: var(--accent); }
+
+    .btn {
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: 1px solid var(--border-2);
+      background: var(--bg-3);
+      color: var(--text);
+    }
+    .btn:hover { background: var(--bg-2); border-color: var(--accent); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-2); border-color: var(--accent-2); color: var(--bg); }
+    .btn-block { width: 100%; margin-top: 4px; }
+
+    .auth-banner {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-top: 14px;
+      font-size: 12.5px;
+      color: var(--muted);
+      background: var(--bg-3);
+    }
+    .auth-banner.is-ok { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+    .auth-banner.is-error { border-color: var(--red); color: var(--red); background: var(--red-bg); }
+
+    .result-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .result-card.is-ok h3 { color: var(--green); }
+    .result-card.is-error h3 { color: var(--red); }
+    .result-card p { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+    .result-card .team-name { color: var(--text); font-weight: 600; }
+
+    .steps { color: var(--muted); font-size: 12.5px; margin: 0 0 16px 18px; }
+    .steps li { margin-bottom: 4px; }
+
+    .footnote { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 4px; }
+    .footer {
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--dim);
+      text-align: center;
+    }
+
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hdr">
+      <div class="hdr__brand">
+        <span class="dot" aria-hidden="true"></span>
+        GrooveOS
+      </div>
+    </header>
+
+    <h1>Join a team</h1>
+    <p class="subtitle" id="page-subtitle">Checking your invite&hellip;</p>
+
+    <!-- State: working / transient status -->
+    <div id="status-card" class="card" hidden>
+      <div id="status-banner" class="auth-banner"><span id="status-msg">&mdash;</span></div>
+    </div>
+
+    <!-- State: no code in the link -->
+    <div id="code-card" class="card" hidden>
+      <form id="code-form">
+        <div class="field">
+          <label for="code-input">Invite code</label>
+          <input type="text" id="code-input" name="code" autocomplete="off" spellcheck="false"
+                 placeholder="xbi_…" required />
+        </div>
+        <button type="submit" id="code-btn" class="btn btn-primary btn-block">Continue</button>
+      </form>
+    </div>
+
+    <!-- State: signed out — sign in, then redeem automatically -->
+    <div id="signin-card" class="card" hidden>
+      <form id="signin-form">
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="current-password" required />
+        </div>
+        <button type="submit" id="signin-btn" class="btn btn-primary btn-block">Sign in and join</button>
+      </form>
+      <div id="signin-banner" class="auth-banner" hidden><span id="signin-msg">&mdash;</span></div>
+    </div>
+
+    <!-- State: done (joined / already a member / failed) -->
+    <div id="result-card" class="card result-card" hidden>
+      <h3 id="result-title">&mdash;</h3>
+      <p id="result-body">&mdash;</p>
+      <ol class="steps" id="result-steps" hidden>
+        <li>Open the xbrain extension in Chrome.</li>
+        <li>Pick the team from the selector at the top.</li>
+      </ol>
+      <a href="/account/teams/" class="btn btn-primary" id="result-cta">Go to Teams</a>
+    </div>
+
+    <p class="footnote" id="register-footnote" hidden>
+      No account yet? <a href="/account/register/">Create one</a>, then reopen this invite link.
+    </p>
+
+    <footer class="footer">
+      xbrain &middot; memory layer for hybrid teams &middot;
+      <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener">github</a>
+    </footer>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    // Hardcoded API base — SAME pattern as every other account page
+    // (login/index.html:234, teams.js:32, admin.js:30).
+    const MEMORY_API_BASE = "https://api.grooveos.app";
+
+    // Canonical localStorage keys — SAME keys login/teams/admin use.
+    const STORAGE_TOKEN = "xbt_token";
+    const STORAGE_EMAIL = "user_sub";
+
+    const el = function (id) { return document.getElementById(id); };
+
+    const subtitle      = el("page-subtitle");
+    const statusCard    = el("status-card");
+    const statusBanner  = el("status-banner");
+    const statusMsg     = el("status-msg");
+    const codeCard      = el("code-card");
+    const codeForm      = el("code-form");
+    const codeInput     = el("code-input");
+    const codeBtn       = el("code-btn");
+    const signinCard    = el("signin-card");
+    const signinForm    = el("signin-form");
+    const emailInput    = el("email");
+    const passwordInput = el("password");
+    const signinBtn     = el("signin-btn");
+    const signinBanner  = el("signin-banner");
+    const signinMsg     = el("signin-msg");
+    const resultCard    = el("result-card");
+    const resultTitle   = el("result-title");
+    const resultBody    = el("result-body");
+    const resultSteps   = el("result-steps");
+    const resultCta     = el("result-cta");
+    const registerNote  = el("register-footnote");
+
+    // The invite code lives ONLY in this closure for the lifetime of the page.
+    // It is never written to localStorage/sessionStorage and never logged: it is a
+    // bearer secret that grants entry to a team's brain.
+    let inviteCode = null;
+
+    /**
+     * Read the code from the URL FRAGMENT (`#c=…`) and strip it immediately.
+     *
+     * The fragment is used rather than a query string precisely because a fragment
+     * is never transmitted to a server — it cannot land in Firebase Hosting logs or
+     * in a Referer header. Parsing and stripping both sit inside try/finally so a
+     * malformed percent-encoding (decodeURIComponent throws) or a replaceState
+     * failure can never leave the secret sitting in the address bar / history entry.
+     */
+    function readAndStripCode() {
+      let code = null;
+      const fragment = location.hash.charAt(0) === "#" ? location.hash.slice(1) : location.hash;
+      try {
+        const parts = fragment.split("&");
+        for (let i = 0; i < parts.length; i++) {
+          const eq = parts[i].indexOf("=");
+          if (eq === -1) continue;
+          if (parts[i].slice(0, eq) === "c") {
+            const raw = parts[i].slice(eq + 1);
+            code = raw ? decodeURIComponent(raw) : null;
+            break;
+          }
+        }
+      } catch (e) {
+        code = null; // malformed encoding — treat as no code rather than leak it
+      } finally {
+        if (location.hash) {
+          try {
+            history.replaceState(null, "", location.pathname + location.search);
+          } catch (e) {
+            location.hash = ""; // last-resort clear
+          }
+        }
+      }
+      return code;
+    }
+
+    function hideAll() {
+      statusCard.hidden = true;
+      codeCard.hidden = true;
+      signinCard.hidden = true;
+      resultCard.hidden = true;
+      registerNote.hidden = true;
+    }
+
+    function showStatus(msg, type) {
+      hideAll();
+      statusMsg.textContent = msg;
+      statusBanner.className = "auth-banner" + (type ? " is-" + type : "");
+      statusCard.hidden = false;
+    }
+
+    function showResult(title, body, kind, opts) {
+      hideAll();
+      resultTitle.textContent = title;
+      resultBody.textContent = body;
+      resultCard.className = "card result-card" + (kind ? " is-" + kind : "");
+      resultSteps.hidden = !(opts && opts.steps);
+      resultCta.hidden = !!(opts && opts.hideCta);
+      resultCard.hidden = false;
+    }
+
+    async function readDetail(r) {
+      try {
+        const data = await r.json();
+        if (typeof data.detail === "string") return data.detail;
+        if (Array.isArray(data.detail)) {
+          return data.detail.map(function (d) { return d.msg || JSON.stringify(d); }).join(" ");
+        }
+        return null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    /** Ask for the code manually — the rescue path for a link that lost its fragment. */
+    function askForCode() {
+      hideAll();
+      subtitle.textContent = "Paste the invite code you were given.";
+      codeCard.hidden = false;
+      codeInput.focus();
+    }
+
+    /** Signed out: collect credentials, then redeem in the same page (the code never navigates away). */
+    function askToSignIn() {
+      hideAll();
+      subtitle.textContent = "Sign in to accept this invite. You will join the team right after.";
+      signinCard.hidden = false;
+      registerNote.hidden = false;
+      emailInput.focus();
+    }
+
+    /** POST the code. The team is decided by the code server-side — never by this page. */
+    async function redeem() {
+      const token = localStorage.getItem(STORAGE_TOKEN);
+      if (!token) { askToSignIn(); return; }
+
+      showStatus("Joining the team…");
+
+      let r;
+      try {
+        r = await fetch(MEMORY_API_BASE + "/v1/teams/join-by-code", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
+          },
+          body: JSON.stringify({ code: inviteCode }),
+        });
+      } catch (err) {
+        showResult(
+          "Network error",
+          "Could not reach the server. Check your connection and reopen the invite link.",
+          "error",
+          { hideCta: true }
+        );
+        return;
+      }
+
+      if (r.status === 200) {
+        const data = await r.json();
+        const name = data.display_name || data.slug || "the team";
+        if (data.already_member) {
+          showResult("Already a member", "You are already in " + name + ".", "ok", { steps: true });
+        } else {
+          showResult("You joined " + name, "The team chat is ready.", "ok", { steps: true });
+        }
+        return;
+      }
+
+      if (r.status === 401 || r.status === 403) {
+        // Session no longer valid — drop it and let them sign in again.
+        localStorage.removeItem(STORAGE_TOKEN);
+        askToSignIn();
+        signinMsg.textContent = "Your session expired. Sign in again to accept the invite.";
+        signinBanner.className = "auth-banner is-error";
+        signinBanner.hidden = false;
+        return;
+      }
+
+      if (r.status === 429) {
+        showResult(
+          "Too many attempts",
+          (await readDetail(r)) || "Wait a moment, then reopen the invite link.",
+          "error",
+          { hideCta: true }
+        );
+        return;
+      }
+
+      // 404 is the server's deliberate no-oracle answer: unknown, revoked, expired and
+      // used-up codes are byte-identical, so this copy must not speculate about which.
+      if (r.status === 404) {
+        showResult(
+          "This invite is not valid",
+          "The link may have expired, been revoked, or already been used up. Ask the team admin for a new one.",
+          "error",
+          { hideCta: true }
+        );
+        return;
+      }
+
+      showResult(
+        "Could not join",
+        (await readDetail(r)) || ("The server returned HTTP " + r.status + "."),
+        "error",
+        { hideCta: true }
+      );
+    }
+
+    codeForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const typed = codeInput.value.trim();
+      if (!typed) return;
+      inviteCode = typed;
+      codeBtn.disabled = true;
+      redeem().finally(function () { codeBtn.disabled = false; });
+    });
+
+    signinForm.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      signinBanner.hidden = true;
+
+      const email = emailInput.value.trim().toLowerCase();
+      const password = passwordInput.value;
+      if (!email || !password) return;
+
+      signinBtn.disabled = true;
+      signinMsg.textContent = "Signing in…";
+      signinBanner.className = "auth-banner";
+      signinBanner.hidden = false;
+
+      try {
+        const r = await fetch(MEMORY_API_BASE + "/v1/auth/local/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email, password: password }),
+        });
+
+        if (r.status === 200) {
+          const data = await r.json();
+          localStorage.setItem(STORAGE_TOKEN, data.xbt_token);
+          localStorage.setItem(STORAGE_EMAIL, (data.user && data.user.email) || email);
+          await redeem();          // straight through — no second click
+          return;
+        }
+
+        // Same generic copy as the login page: never reveal whether the account exists.
+        const detail = await readDetail(r);
+        signinMsg.textContent =
+          r.status === 401 ? (detail || "Invalid email or password.")
+          : r.status === 429 ? (detail || "Too many attempts — try again shortly.")
+          : (detail || ("Sign-in failed (HTTP " + r.status + ")."));
+        signinBanner.className = "auth-banner is-error";
+        signinBanner.hidden = false;
+      } catch (err) {
+        signinMsg.textContent = "Network error — could not reach the server.";
+        signinBanner.className = "auth-banner is-error";
+        signinBanner.hidden = false;
+      } finally {
+        signinBtn.disabled = false;
+      }
+    });
+
+    // --- boot -------------------------------------------------------------
+    inviteCode = readAndStripCode();
+    if (!inviteCode) {
+      askForCode();
+    } else if (!localStorage.getItem(STORAGE_TOKEN)) {
+      askToSignIn();
+    } else {
+      subtitle.textContent = "Accepting your invite…";
+      redeem();
+    }
+  })();
+  </script>
+</body>
+</html>
