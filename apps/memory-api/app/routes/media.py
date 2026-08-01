@@ -30,7 +30,12 @@ from app.deps import (
     get_memory_provider,
     get_team_scope,
 )
-from app.routes.media_helpers import _MAX_UPLOAD_BYTES, derive_key_and_mime, verify_media_token
+from app.routes.media_helpers import (
+    _MAX_UPLOAD_BYTES,
+    derive_key_and_mime,
+    mint_media_token,
+    verify_media_token,
+)
 from app.services.doc_body_ingest import extract_and_ingest_body
 
 log = structlog.get_logger(__name__)
@@ -112,7 +117,9 @@ async def upload_media(
 ) -> dict[str, Any]:
     """Upload a file (≤25 MB) to MinIO and create a media memory_item.
 
-    Returns {item_id, key, mime, size, raw_path}.
+    Returns {item_id, key, mime, size, raw_path, signed_url}. `raw_path` needs a
+    Bearer header; `signed_url` carries its own short-lived token so a browser can
+    open it directly (used to hand a file to a teammate).
     """
     client = get_minio_client()
     if client is None:
@@ -212,6 +219,19 @@ async def upload_media(
         "mime": mime,
         "size": len(data),
         "raw_path": f"/v1/media/{item_id}/raw",
+        # Signed, header-free URL for the object the uploader just created.
+        #
+        # `raw_path` above needs Authorization + X-Team-Scope, which a BROWSER cannot
+        # send when it merely opens a URL — so a client that wants to hand this file to
+        # a teammate (Phase 22 nudge) or drop it in an <img src> had no usable link.
+        # This mints the same short-lived HS256 token /v1/brain/events already returns
+        # (mint_media_token, 1h, claims item_id + team_scope), so the serve endpoint
+        # validates it without a DB lookup and it stays bound to THIS item and THIS
+        # team. Same exposure model as the chat attachments that already ship signed
+        # URLs: whoever holds the link can fetch until it expires.
+        "signed_url": (
+            f"/v1/media/{item_id}/img?t={mint_media_token(item_id, team_scope)}"
+        ),
     }
 
 

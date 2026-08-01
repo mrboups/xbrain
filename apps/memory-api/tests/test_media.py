@@ -19,12 +19,51 @@ from __future__ import annotations
 
 import pytest
 
-from app.routes.media_helpers import _MAX_UPLOAD_BYTES, derive_key_and_mime
+from app.routes.media_helpers import (
+    _MAX_UPLOAD_BYTES,
+    derive_key_and_mime,
+    mint_media_token,
+    verify_media_token,
+)
 
 
 # ---------------------------------------------------------------------------
 # Unit tests — no network, no DB
 # ---------------------------------------------------------------------------
+
+
+class TestUploadSignedUrl:
+    """The `signed_url` the upload response now returns must actually be openable.
+
+    `raw_path` needs Authorization + X-Team-Scope, which a browser cannot send when it
+    merely follows a link — so handing a file to a teammate depends on this token being
+    valid AND bound to the one item. Unit-level on purpose: it exercises the exact
+    mint/verify pair the endpoint uses, with no MinIO in the way.
+    """
+
+    ITEM = "11111111-1111-4111-8111-111111111111"
+    OTHER = "22222222-2222-4222-8222-222222222222"
+
+    def test_minted_token_verifies_for_its_own_item(self):
+        tok = mint_media_token(self.ITEM, "team-a")
+        assert verify_media_token(tok, self.ITEM) == "team-a"
+
+    def test_token_is_bound_to_the_item_it_was_minted_for(self):
+        # A token for one upload must not unlock a different one — otherwise a link
+        # shared with a teammate would be a skeleton key for the whole bucket.
+        from fastapi import HTTPException
+
+        tok = mint_media_token(self.ITEM, "team-a")
+        with pytest.raises(HTTPException):
+            verify_media_token(tok, self.OTHER)
+
+    def test_signed_url_shape_matches_the_serve_route(self):
+        # Guards against the response drifting away from GET /media/{id}/img?t=...
+        tok = mint_media_token(self.ITEM, "team-a")
+        url = f"/v1/media/{self.ITEM}/img?t={tok}"
+        assert url.startswith(f"/v1/media/{self.ITEM}/img?t=")
+        assert verify_media_token(url.split("?t=", 1)[1], self.ITEM) == "team-a"
+
 
 
 class TestDeriveKeyAndMime:
