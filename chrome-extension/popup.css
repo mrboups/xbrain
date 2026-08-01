@@ -359,6 +359,17 @@
   outline-offset: 1px;
 }
 
+/* The notification bell ships BOTH glyphs and CSS shows one, keyed off the
+   [data-state] popup.js writes. Doing it here rather than by swapping DOM means
+   the icon and the stored setting are the same fact, not two copies of it. */
+#btn-notifications .xb-ico-bell { display: none; }
+#btn-notifications .xb-ico-bell-off { display: block; }
+#btn-notifications[data-state="on"] .xb-ico-bell { display: block; }
+#btn-notifications[data-state="on"] .xb-ico-bell-off { display: none; }
+/* Muted is the state worth noticing, so it dims; on sits at the header's
+   ordinary icon weight. */
+#btn-notifications[data-state="off"] { opacity: 0.55; }
+
 /* Segmented light/dark theme toggle (shadcn style, radius 0). The pressed
    segment uses --primary/--primary-fg; focus-visible draws the --ring. */
 .seg {

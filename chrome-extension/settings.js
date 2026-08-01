@@ -39,6 +39,12 @@ export const DEFAULT_SETTINGS = Object.freeze({
   // letting someone else open tabs in your browser is a real capability, so it
   // stays opt-in and the consent notification remains the default path.
   autoOpenLinkRequests: false,
+  // The master switch for every desktop notification this extension raises —
+  // clip results, the "selection captured" nudge, and a teammate's link request
+  // alike. ON by default because notifications already worked before this
+  // setting existed: shipping it OFF would silently take away a behaviour
+  // people rely on, which is a regression wearing a feature's clothes.
+  showNotifications: true,
 });
 
 /**
@@ -85,6 +91,7 @@ const _SCHEMA = {
   clipSkipOverlay: ["boolean"],
   allowOpenLinkRequests: ["boolean"],
   autoOpenLinkRequests: ["boolean"],
+  showNotifications: ["boolean"],
 };
 
 function _isAllowed(value, allowedTypes) {
@@ -103,4 +110,28 @@ export function mergeSettings(raw) {
     }
   }
   return out;
+}
+
+/**
+ * May this extension raise a desktop notification right now?
+ *
+ * THE ONE QUESTION EVERY NOTIFICATION CALL SITE MUST ASK. A toggle honoured in
+ * some places and not others is worse than no toggle: the person turns it off,
+ * sees notifications keep arriving, and concludes the setting is broken — which
+ * it is, just not in the way they think.
+ *
+ * FAILS OPEN. An unreadable settings store means we do not know what they chose,
+ * and the default is ON; silently muting on a storage hiccup would lose a
+ * teammate's link request with nothing anywhere to explain it.
+ *
+ * @param {{get: (k: string[]) => Promise<object>}} storageArea
+ * @returns {Promise<boolean>}
+ */
+export async function notificationsEnabled(storageArea) {
+  try {
+    const settings = await loadSettings(storageArea);
+    return settings.showNotifications !== false;
+  } catch (e) {
+    return true;
+  }
 }

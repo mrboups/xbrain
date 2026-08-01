@@ -90,6 +90,23 @@ async function init() {
     );
   });
 
+  // The master notification switch. Same setting the chat header's bell edits,
+  // so the two surfaces can never show different answers — there is one value.
+  const cbShowNotifications = document.getElementById("opt-show-notifications");
+  if (cbShowNotifications) {
+    cbShowNotifications.checked = settings.showNotifications;
+    cbShowNotifications.addEventListener("change", async () => {
+      await saveSettings(chrome.storage.sync, {
+        showNotifications: cbShowNotifications.checked,
+      });
+      showStatus(
+        cbShowNotifications.checked
+          ? "Saved ✓  —  desktop notifications on"
+          : "Saved ✓  —  desktop notifications off (nothing will pop up)",
+      );
+    });
+  }
+
   // Phase 22 push-a-link (D-22-04) — recipient opt-out. Guarded with if(cb)
   // so older markup without the checkbox doesn't throw.
   const cbAllowOpenLink = document.getElementById("opt-allow-open-link");

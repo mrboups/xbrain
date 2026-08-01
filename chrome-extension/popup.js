@@ -232,6 +232,7 @@ function wireHeader() {
       switchTeam(id);
     }
   });
+  wireNotificationToggle();
   $("btn-settings").addEventListener("click", () => {
     chrome.runtime.openOptionsPage();
   });
@@ -1100,6 +1101,49 @@ async function wireTheme() {
 }
 
 /**
+ * The bell — mute every desktop notification this extension raises.
+ *
+ * It edits ONE setting, which every call site consults (settings.js's
+ * notificationsEnabled). The alternative — muting only what the popup itself
+ * raises — would leave clip results and "selection captured" arriving from a
+ * switch the person had just turned off, and that is worse than no switch.
+ *
+ * The stored value is read on open, not assumed: chrome.storage.sync means the
+ * choice may have been made on another machine, or on the options page a moment
+ * ago. Both bells are already in the markup; only the data-state moves.
+ */
+function wireNotificationToggle() {
+  const btn = $("btn-notifications");
+  if (!btn) return;
+
+  const paint = (on) => {
+    const label = on ? "Notifications on" : "Notifications off";
+    btn.setAttribute("data-state", on ? "on" : "off");
+    btn.setAttribute("aria-pressed", String(on));
+    btn.title = label;
+    btn.setAttribute("aria-label", label);
+  };
+
+  // Reflect what is actually stored. On a read failure the default (ON) stands,
+  // which is also what every call site falls back to — so the icon still tells
+  // the truth about what will happen.
+  loadSettings(chrome.storage.sync)
+    .then((s) => paint(s.showNotifications !== false))
+    .catch(() => paint(true));
+
+  btn.addEventListener("click", async () => {
+    const next = btn.getAttribute("data-state") !== "on";
+    paint(next); // optimistic: the click must feel instant
+    try {
+      await saveSettings(chrome.storage.sync, { showNotifications: next });
+    } catch (e) {
+      console.warn("[xbrain] notification setting not saved:", e);
+      paint(!next); // roll the icon back rather than lie about what was stored
+    }
+  });
+}
+
+/**
  * The rail, built by the SHARED module (D-27-04).
  *
  * Everything it needs is read late — the team list and the active id both change
@@ -1339,8 +1383,10 @@ async function handleUserPublication(data) {
   try {
     await handleOpenUrl(data, {
       getSettings: () => loadSettings(chrome.storage.sync),
-      notify: (opts) =>
-        new Promise((resolve) => chrome.notifications.create(opts, resolve)),
+      // Through the shim, not a bare create: that is the one place the popup
+      // raises a notification, and the one place the mute setting is honoured.
+      // A null id (muted) is a case handleOpenUrl already handles.
+      notify: (opts) => chromePlatform.notify(opts),
       persistPending: (id, url) =>
         chrome.storage.session.set({ ["nudge_" + id]: url }),
       // Used only when the recipient opted into auto-open. Re-validates at the
