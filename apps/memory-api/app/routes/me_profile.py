@@ -33,13 +33,20 @@ the odd one out.
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
+from xbrain_memory import MemoryProvider
 
-from app.deps import get_current_principal, get_session
+from app.deps import (
+    get_current_principal,
+    get_memory_provider,
+    get_session,
+    get_team_scope,
+)
 from app.models.user import User
 from app.services.user_profile import (
     normalize_bio,
@@ -191,4 +198,113 @@ async def patch_my_profile(
         preferred_name_cleared=("preferred_name" in sent and row.preferred_name is None),
         bio_cleared=("bio" in sent and row.bio is None),
     )
+    return profile_payload(row)
+
+
+# ── PUT/DELETE /v1/me/profile/avatar ────────────────────────────────────────
+#
+# The avatar reuses the media path that already exists rather than growing a
+# second one. The client uploads through POST /v1/media/upload (MinIO + a media
+# memory_item + a signed URL, all already built and already tested), then points
+# its profile at the returned `item_id` here. Nothing about blob storage, size
+# caps or signed tokens is reimplemented in this module.
+#
+# What IS stored is the id and the team scope it lives in — never a URL. The
+# signed token in a media URL expires in an hour, so a persisted URL is a link
+# that works right up until it silently stops. `avatar_url_for()` mints a fresh
+# one on every read instead.
+
+
+class AvatarBody(BaseModel):
+    """The id of an already-uploaded media item. `extra="forbid"`: nothing else."""
+
+    model_config = ConfigDict(extra="forbid")
+    media_item_id: UUID
+
+
+@router.put("/me/profile/avatar")
+async def set_my_avatar(
+    body: AvatarBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    team_scope: str = Depends(get_team_scope),
+    session: AsyncSession = Depends(get_session),
+    provider: MemoryProvider = Depends(get_memory_provider),
+) -> dict[str, Any]:
+    """Point the caller's own profile at an uploaded media item.
+
+    Send `X-Team-Scope` for the team the item was uploaded under. That header is
+    resolved by `get_team_scope`, which requires membership AND treats
+    `team_members.blocked_at` as a refusal — a blocked member gains no new surface
+    here, exactly as in team_chat.py::_resolve_team_and_check_membership.
+
+    The item must exist IN THAT TEAM (the provider read is team-scoped, so an
+    id belonging to another team is a 404, not a silent success) and must be an
+    image — an `<img>` element pointed at a PDF renders as a broken picture.
+
+    The scope is recorded alongside the id because a person belongs to several
+    teams and the avatar lives in exactly one of them. See avatar_url_for().
+
+    Auth: the caller's own principal. There is no parameter for another user.
+    """
+    row = await _load_own_row(session, principal)
+
+    item = await provider.get(str(body.media_item_id), team_scope=team_scope)
+    media = (item.metadata or {}).get("media") if item is not None else None
+    if not media:
+        # Same message whether the item is absent, soft-deleted, or in another
+        # team: this endpoint must not become an oracle for which ids exist
+        # elsewhere.
+        raise HTTPException(404, "Media item not found in this team")
+
+    mime = str(media.get("mime") or "")
+    if not mime.startswith("image/"):
+        # A declared content type, not a sniffed one — it is the same value the
+        # upload recorded. It catches the honest mistake (picking a PDF), which
+        # is what it is for; it is not a defence against a crafted upload, and
+        # the serve endpoint already returns the stored mime rather than guessing.
+        raise HTTPException(422, "An avatar must be an image.")
+
+    # NOTE: any media item in a team the caller belongs to is accepted, including
+    # one a teammate uploaded. Media items record no owner — `source` is
+    # "upload:<surface>" — so there is no ownership to check without a schema
+    # change. Within a team whose chat is shared by design this exposes nothing
+    # the caller could not already see.
+    row.avatar_media_id = body.media_item_id
+    row.avatar_media_team_scope = team_scope
+    await session.commit()
+
+    log.info(
+        "me.profile.avatar_set",
+        user_id=str(row.id),
+        media_item_id=str(body.media_item_id),
+        team_scope=team_scope,
+    )
+    return profile_payload(row)
+
+
+@router.delete("/me/profile/avatar")
+async def delete_my_avatar(
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Remove the caller's avatar. Idempotent; returns the profile either way.
+
+    Deliberately NOT team-scoped, unlike the PUT. Removing your own picture must
+    not depend on still being a member in good standing of the team it happens to
+    be stored in — someone blocked from that team, or no longer in it, must still
+    be able to take their photo down.
+
+    The media item itself is left alone: it is an ordinary uploaded file that may
+    also be sitting in a chat message, and deleting a blob out from under a
+    message that references it would break that message.
+
+    Auth: the caller's own principal. There is no parameter for another user.
+    """
+    row = await _load_own_row(session, principal)
+    had_avatar = row.avatar_media_id is not None
+    row.avatar_media_id = None
+    row.avatar_media_team_scope = None
+    await session.commit()
+
+    log.info("me.profile.avatar_cleared", user_id=str(row.id), had_avatar=had_avatar)
     return profile_payload(row)
