@@ -4,6 +4,7 @@ from app.models.conversation import Conversation
 from app.models.installation import Installation
 from app.models.message import Message
 from app.models.promotion import Promotion
+from app.models.push import PushSubscription
 from app.models.team import Team, TeamMember
 from app.models.user import User
 
@@ -16,4 +17,5 @@ __all__ = [
     "AuditLog",
     "Promotion",
     "Installation",
+    "PushSubscription",
 ]

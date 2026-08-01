@@ -326,6 +326,38 @@ class Settings(BaseSettings):
     # the board container on the next fetch.
     BOARD_MAX_DOC_BYTES: int = 16777216
 
+    # === Phase 27 (PUSH-01) — web push ===
+    # Deliberately NO field_validator (mirrors NUDGE/CATCHUP/EMBED/DOCBODY/BOARD): a
+    # zero-key OSS install MUST boot. With the keypair empty, GET /v1/push/config answers
+    # {"enabled": false} and the send path (plan 27-04) is a no-op — push is simply absent,
+    # never a crash-boot. All six are env-overridable; no .env entry is required.
+    #
+    # The PRIVATE half of the keypair is SERVER-SIDE ONLY. It is never serialized to a
+    # client, never logged, and never referenced by app/routes/push.py —
+    # tests/test_push_endpoint_safety.py scans that module's source and fails the build
+    # if its name ever appears there. Only the PUBLIC half crosses to a browser.
+    # Mint a keypair with the command documented in .env.example / 27-03-SUMMARY.
+    PUSH_ENABLED: bool = True              # kill-switch for the whole send path
+    VAPID_PUBLIC_KEY: str = ""             # base64url P-256 point; served to clients by GET /v1/push/config
+    VAPID_PRIVATE_KEY: str = ""            # base64url P-256 scalar. SERVER-SIDE ONLY — never serialized to a client.
+    VAPID_SUBJECT: str = "mailto:admin@example.com"   # the `sub` claim push services require
+    PUSH_TTL_S: int = 86400                # how long a push service may hold an undelivered message
+    PUSH_PREVIEW_CHARS: int = 120          # hard cap on the body preview (D-27-06: a short preview, never the whole message)
+    PUSH_SUBSCRIBE_RATE_LIMIT: str = "20/minute"
+
+    @property
+    def vapid_is_signable(self) -> bool:
+        """True when a signing key is configured — WITHOUT handing the key out.
+
+        app/routes/push.py must be able to answer "is push actually usable?" (a public
+        key with nothing to sign with delivers nothing, so advertising it would make the
+        client raise a permission prompt for a channel that cannot work). But that module
+        is source-scanned by tests/test_push_endpoint_safety.py and must not so much as
+        NAME the private half. This property is the sanctioned read: it returns a boolean
+        and never the value, so the only place the secret is named stays this file.
+        """
+        return bool(self.VAPID_PRIVATE_KEY)
+
     @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}
