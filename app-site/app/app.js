@@ -22,6 +22,7 @@ import { createApi } from "./chat_core/api.js";
 import { webPlatform } from "./platform_web.js";
 import { MEMORY_API_BASE, getToken, getUserSub, signOut, mountSignIn } from "./auth.js";
 import { bootChat } from "./chat.js";
+import { mountProfile, hideProfile } from "./profile.js";
 import { wirePushButton, refreshPushButton, resyncPush } from "./push.js";
 
 const el = (id) => document.getElementById(id);
@@ -62,6 +63,9 @@ function showSignedOut() {
   // worse than not offering it.
   el("btn-enable-push").hidden = true;
   el("push-hint").hidden = true;
+  // Signing out must not leave somebody's name and picture on the screen for
+  // whoever signs in next on the same device.
+  hideProfile();
 }
 
 function showSignedIn(identity) {
@@ -160,6 +164,13 @@ function showSignInCard() {
 async function startChat(identity) {
   showSignedIn(identity);
   await bootChat({ onSignedOut: showSignInCard });
+
+  // The account block at the top of Settings. Needs a token, like push, so it
+  // waits for the chat to boot. It never throws: an endpoint that is not
+  // deployed yet leaves the block read-only rather than taking the panel down.
+  mountProfile(api, identity).catch((e) => {
+    console.warn("[xbrain] profile unavailable:", e);
+  });
 
   const pushBtn = el("btn-enable-push");
   const pushHint = el("push-hint");

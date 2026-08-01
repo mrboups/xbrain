@@ -316,6 +316,90 @@ html, body {
 .xb-team-add:hover { background: var(--muted); color: var(--fg); border-style: solid; }
 .xb-team-add:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
+/* ── Create-or-join starter (chat-core teams.js) ───────────────────────────────
+   The panel a person with no team is shown, and what the "+" beside the rail
+   opens. Its markup is built by the SHARED module, so it can carry no inline
+   styles of its own — these rules are the extension's half of that trade, and
+   app-site/app/app.css carries the twin. Radius 0 throughout, like everything
+   else in the Neutral palette. */
+.xb-starter {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  text-align: center;
+  max-width: 320px;
+}
+.xb-starter-text {
+  margin: 0;
+  color: var(--muted-fg);
+  line-height: 1.5;
+}
+.xb-starter-input {
+  width: 100%;
+  max-width: 260px;
+  padding: 8px 10px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: inherit;
+  outline: none;
+}
+.xb-starter-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.xb-starter-input::placeholder { color: var(--muted-fg); }
+.xb-starter-btn {
+  width: 100%;
+  max-width: 260px;
+  padding: 8px 12px;
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.xb-starter-btn:hover:not(:disabled) { opacity: 0.9; }
+.xb-starter-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.xb-starter-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.xb-starter-divider {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted-fg);
+  letter-spacing: 0.04em;
+}
+.xb-starter-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted-fg);
+  line-height: 1.45;
+}
+.xb-starter-status {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted-fg);
+}
+.xb-starter-status.error { color: var(--destructive); }
+.xb-starter-status.success { color: var(--fg); }
+/* The way back, drawn only when the panel was opened OVER a chat. Quiet on
+   purpose: it is an escape hatch, not one of the two things being offered. */
+.xb-starter-cancel {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  color: var(--muted-fg);
+  font-family: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.xb-starter-cancel:hover { color: var(--fg); }
+.xb-starter-cancel:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
 /* ── People overlay list ───────────────────────────────────────────────────── */
 .xb-people-list { list-style: none; margin: 0; padding: 0; }
 .xb-people-row {
@@ -797,11 +881,50 @@ html, body {
   color: var(--fg);
 }
 .xb-msg-author.is-agent { color: var(--fg); }
+
+/* THE NAME IS PER-RUN, THE TIME IS PER-MESSAGE.
+   render.js marks every bubble after the first of a run .is-run-follower; the
+   name is introduced once, at the top of the run, and the avatar closes it at
+   the bottom. Your OWN messages carry neither — they are right-aligned, and
+   "You" on every line of your own chat is the least useful string on screen. */
+.xb-msg.is-run-follower .xb-msg-author,
+.xb-msg.is-self .xb-msg-author { display: none; }
+/* With the name gone the meta row is usually empty and must stop reserving a
+   line. The :has() refinement gives the margin back on the rows that still
+   carry a provenance chip; a browser without :has() simply keeps it flush. */
+.xb-msg.is-run-follower .xb-msg-meta,
+.xb-msg.is-self .xb-msg-meta { margin-bottom: 0; }
+.xb-msg.is-run-follower .xb-msg-meta:has(.xb-msg-provenance),
+.xb-msg.is-self .xb-msg-meta:has(.xb-msg-provenance) { margin-bottom: 3px; }
+
+/* Timestamp — out of flow, in the bubble's bottom-right corner. */
 .xb-msg-time {
+  position: absolute;
+  right: 10px;                     /* the bubble's own horizontal padding */
+  bottom: 7px;                     /* ... and its vertical one */
   font-family: var(--mono);
   font-size: 10px;
+  line-height: 1;
   color: var(--muted-fg);
+  white-space: nowrap;
+  pointer-events: none;
 }
+/* An INVISIBLE copy of the same string, last in the bubble's flow. It reserves
+   exactly the width the absolute timestamp is about to paint over — so a long
+   final word wraps above the time instead of sliding under it, for every label
+   formatRelative can produce ("just now" and "5m" are not the same width).
+   visibility:hidden also keeps it out of the accessibility tree, so the time is
+   not announced twice. */
+.xb-msg-timespace {
+  display: inline-block;
+  visibility: hidden;
+  font-family: var(--mono);
+  font-size: 10px;
+  padding-left: 12px;
+  user-select: none;
+}
+/* On your own bubble the fill is --primary, where --muted-fg has no contrast. */
+.xb-msg.is-self .xb-msg-time { color: var(--primary-fg); opacity: 0.7; }
 
 /* Provenance (via Pro/Max · via team API) — mono micro badge, no green/blue. */
 .xb-msg-provenance {
@@ -822,6 +945,9 @@ html, body {
 
 /* Bubble body (mockup .bubble) — others' default; own/agent override below. */
 .xb-msg-bubble {
+  /* The positioning context for .xb-msg-time, which sits in the bottom-right
+     corner of THIS box rather than on a line of its own. */
+  position: relative;
   max-width: 78%;
   padding: 7px 10px;
   background: var(--muted);
@@ -1292,15 +1418,21 @@ html, body {
 #clip-status.success { background: var(--secondary); color: var(--secondary-fg); border: 1px solid var(--border); }
 #clip-status.error   { background: transparent;      color: var(--destructive);  border: 1px solid var(--destructive); }
 
-/* Send-link status pill (Phase 22, D-22-05) — same monochrome states. */
-#sendlink-status {
+/* People-overlay status pill — same monochrome states as #clip-status. It
+   replaced #sendlink-status, whose overlay was removed along with its handlers:
+   nothing had opened it since the header button became the people icon. */
+#people-status,
+#invite-email-status {
   padding: 6px 8px;
   border-radius: var(--radius);
   font-size: 12px;
 }
-#sendlink-status.loading { background: var(--muted);     color: var(--muted-fg);     border: 1px solid var(--border); }
-#sendlink-status.success { background: var(--secondary); color: var(--secondary-fg); border: 1px solid var(--border); }
-#sendlink-status.error   { background: transparent;      color: var(--destructive);  border: 1px solid var(--destructive); }
+#people-status.loading,
+#invite-email-status.loading { background: var(--muted);     color: var(--muted-fg);     border: 1px solid var(--border); }
+#people-status.success,
+#invite-email-status.success { background: var(--secondary); color: var(--secondary-fg); border: 1px solid var(--border); }
+#people-status.error,
+#invite-email-status.error   { background: transparent;      color: var(--destructive);  border: 1px solid var(--destructive); }
 
 /* Invite-code overlay (Phase 25, JOINCODE-01). The one-time minted code renders
    in a monospace --muted chip (user-select:all so a click selects the whole

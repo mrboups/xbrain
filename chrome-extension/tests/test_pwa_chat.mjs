@@ -275,14 +275,19 @@ test("chat.js cannot open a teammate's link without a click (D-22-02)", () => {
   );
 });
 
-test("no deferred surface leaked into the PWA", () => {
+test("chat.js is the chat, and the other surfaces live elsewhere", () => {
+  // The board, the catch-me-up banner and the web clipper are still out of the
+  // PWA. The members and invite overlays are IN — but they belong to panels.js,
+  // which owns their ids and their state. A chat file that starts binding
+  // #invite-code-row is a chat file on its way to owning everything.
   const chat = readFileSync(join(APP_DIR, "chat.js"), "utf8");
-  for (const marker of ["catchup", "invite-code", "/boards", "clip-overlay"]) {
-    assert.ok(
-      !chat.includes(marker),
-      `chat.js references "${marker}" — the board, invite, people, summary and clipper surfaces are deferred out of the PWA (27-CONTEXT)`,
-    );
+  for (const marker of ["catchup", "invite-code", "/boards", "clip-overlay", "people-list"]) {
+    assert.ok(!chat.includes(marker), `chat.js references "${marker}"`);
   }
+  assert.ok(
+    chat.includes('from "./panels.js"'),
+    "chat.js must reach the overlays through panels.js rather than reimplementing them",
+  );
 });
 
 // ---- 5. The precache list matches what actually ships -------------------

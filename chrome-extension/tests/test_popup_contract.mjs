@@ -120,6 +120,12 @@ const FROZEN_CLASSES = [
   "xb-msg-chip",
   "xb-msg-savetag",
   "xb-msg-daysep",
+  // Telegram grouping — the name is per-run, the time is per-message. The
+  // invisible spacer is the one that must never be dropped as "unused": without
+  // a rule for it the reserved width is zero and the timestamp lands on top of
+  // the last word.
+  "is-run-follower",
+  "xb-msg-timespace",
 ];
 
 // shadcn Neutral tokens — exact CONTEXT light-palette hex.
