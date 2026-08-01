@@ -346,6 +346,19 @@ class Settings(BaseSettings):
     PUSH_SUBSCRIBE_RATE_LIMIT: str = "20/minute"
 
     @property
+    def vapid_is_signable(self) -> bool:
+        """True when a signing key is configured — WITHOUT handing the key out.
+
+        app/routes/push.py must be able to answer "is push actually usable?" (a public
+        key with nothing to sign with delivers nothing, so advertising it would make the
+        client raise a permission prompt for a channel that cannot work). But that module
+        is source-scanned by tests/test_push_endpoint_safety.py and must not so much as
+        NAME the private half. This property is the sanctioned read: it returns a boolean
+        and never the value, so the only place the secret is named stays this file.
+        """
+        return bool(self.VAPID_PRIVATE_KEY)
+
+    @property
     def admin_user_subs(self) -> set[str]:
         return {s.strip() for s in self.ADMIN_USER_SUBS.split(",") if s.strip()}
 
