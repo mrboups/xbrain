@@ -182,6 +182,27 @@ Sizing: modest phase, dominated by the identity-pairing work — but blocked on 
 
 ---
 
+## The server suite carries 54 pre-existing failures across 15 files — 2026-08-02
+
+Measured, not estimated. `python -m pytest tests/` in `apps/memory-api` with Docker up
+reports **54 failed / 817 passed**. Running the same 15 files at `b6af939` — before the
+Phase-27 profile work — produces the **identical 54**, so none of it is recent damage.
+
+Distribution: `test_external_sessions` 10, `test_phase12_webhook` 8,
+`test_soft_delete_regression` 6, `test_phase10_auth` 6, `test_team_context_cache` 5,
+`test_admin_wipe` 4, `test_media` 3, then singles and pairs across
+`test_phase10_repos`, `test_migration_0019`, `test_brain_events_list`,
+`test_phase12_*`, `test_github_sync`, `test_admin_brain`.
+
+**Why this matters more than the individual failures.** A suite that is 54-red at rest is
+a suite where the 55th failure is invisible. Every phase gate in this project has had to
+name a hand-picked subset of files precisely because `pytest tests/` cannot be used as a
+signal — which means the gates only ever check what someone remembered to list. That is
+the same class of blind spot the gates exist to close.
+
+The item below (6 failures from stale Phase-12 fixtures) is a subset of this, kept for
+its diagnosis.
+
 ## test_phase10_auth.py — 6 pre-existing failures from stale Phase-12 fixtures
 
 **Found:** 2026-07-13, by the Phase 18 code review + gate build. NOT Phase 18's — logged for a dedicated pass.
