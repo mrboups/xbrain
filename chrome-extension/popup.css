@@ -867,11 +867,50 @@ html, body {
   color: var(--fg);
 }
 .xb-msg-author.is-agent { color: var(--fg); }
+
+/* THE NAME IS PER-RUN, THE TIME IS PER-MESSAGE.
+   render.js marks every bubble after the first of a run .is-run-follower; the
+   name is introduced once, at the top of the run, and the avatar closes it at
+   the bottom. Your OWN messages carry neither — they are right-aligned, and
+   "You" on every line of your own chat is the least useful string on screen. */
+.xb-msg.is-run-follower .xb-msg-author,
+.xb-msg.is-self .xb-msg-author { display: none; }
+/* With the name gone the meta row is usually empty and must stop reserving a
+   line. The :has() refinement gives the margin back on the rows that still
+   carry a provenance chip; a browser without :has() simply keeps it flush. */
+.xb-msg.is-run-follower .xb-msg-meta,
+.xb-msg.is-self .xb-msg-meta { margin-bottom: 0; }
+.xb-msg.is-run-follower .xb-msg-meta:has(.xb-msg-provenance),
+.xb-msg.is-self .xb-msg-meta:has(.xb-msg-provenance) { margin-bottom: 3px; }
+
+/* Timestamp — out of flow, in the bubble's bottom-right corner. */
 .xb-msg-time {
+  position: absolute;
+  right: 10px;                     /* the bubble's own horizontal padding */
+  bottom: 7px;                     /* ... and its vertical one */
   font-family: var(--mono);
   font-size: 10px;
+  line-height: 1;
   color: var(--muted-fg);
+  white-space: nowrap;
+  pointer-events: none;
 }
+/* An INVISIBLE copy of the same string, last in the bubble's flow. It reserves
+   exactly the width the absolute timestamp is about to paint over — so a long
+   final word wraps above the time instead of sliding under it, for every label
+   formatRelative can produce ("just now" and "5m" are not the same width).
+   visibility:hidden also keeps it out of the accessibility tree, so the time is
+   not announced twice. */
+.xb-msg-timespace {
+  display: inline-block;
+  visibility: hidden;
+  font-family: var(--mono);
+  font-size: 10px;
+  padding-left: 12px;
+  user-select: none;
+}
+/* On your own bubble the fill is --primary, where --muted-fg has no contrast. */
+.xb-msg.is-self .xb-msg-time { color: var(--primary-fg); opacity: 0.7; }
 
 /* Provenance (via Pro/Max · via team API) — mono micro badge, no green/blue. */
 .xb-msg-provenance {
@@ -892,6 +931,9 @@ html, body {
 
 /* Bubble body (mockup .bubble) — others' default; own/agent override below. */
 .xb-msg-bubble {
+  /* The positioning context for .xb-msg-time, which sits in the bottom-right
+     corner of THIS box rather than on a line of its own. */
+  position: relative;
   max-width: 78%;
   padding: 7px 10px;
   background: var(--muted);

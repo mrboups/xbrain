@@ -104,11 +104,12 @@ export function createRenderer(opts) {
     const wrapper = buildBubbleNode(msg);
     if (prepend) listEl.insertBefore(wrapper, listEl.firstChild);
     else listEl.appendChild(wrapper);
-    // Grouping depends on the row AFTER this one, so inserting anywhere can
+    // Grouping depends on the rows AROUND this one, so inserting anywhere can
     // change a neighbour's answer. Reconciled here rather than left to the
     // caller: a live arrival that forgot to re-run it would strand the avatar
-    // on the second-to-last bubble of the run, permanently.
-    syncAvatarGrouping();
+    // on the second-to-last bubble of the run, permanently — and now the NAME
+    // on the wrong bubble too.
+    syncRunGrouping();
   }
 
   function renderAgentBubble({ id, agent_name, routed_via, streaming }) {
@@ -140,7 +141,7 @@ export function createRenderer(opts) {
     // Day-separator input (syncDaySeparators reads this off the DOM).
     if (msg.created_at) wrapper.dataset.createdAt = msg.created_at;
     // Who this row belongs to, for run detection. Read off the DOM by
-    // syncAvatarGrouping so grouping stays correct for rows that were built
+    // syncRunGrouping so grouping stays correct for rows that were built
     // before the ones around them arrived.
     wrapper.dataset.authorKey = authorKey(msg);
 
@@ -188,12 +189,6 @@ export function createRenderer(opts) {
       author.addEventListener("click", () => onAuthorClick(msg.author_user_id));
     }
     meta.appendChild(author);
-
-    const time = doc.createElement("span");
-    time.className = "xb-msg-time";
-    time.textContent = formatRelative(msg.created_at);
-    time.title = new Date(msg.created_at).toLocaleString();
-    meta.appendChild(time);
 
     const prov = provenanceLabel(msg.routed_via);
     if (prov) {
@@ -249,6 +244,34 @@ export function createRenderer(opts) {
         body.appendChild(buildSourcesNode(summaryLabel, msg.metadata.sources));
       }
     }
+
+    // Time — INSIDE the bubble, pinned bottom-right, on EVERY message including
+    // the un-named middle ones of a run. Identity is per-run; time is per
+    // message, and a run of six with one timestamp answers "when did they say
+    // THAT one" for exactly one of them.
+    //
+    // Two nodes, and the second is the load-bearing one. `.xb-msg-time` is taken
+    // out of flow by CSS so it can sit in the bubble's bottom corner; on its own
+    // that means a long final word slides underneath it and becomes unreadable.
+    // `.xb-msg-timespace` is an inline box carrying the SAME string, made
+    // invisible — so the width reserved on the last line is exactly the width
+    // that will be painted over it, for every label formatRelative can produce
+    // ("just now" and "5m" are not the same size). It is the LAST child of the
+    // bubble, which puts it on whatever the final line turns out to be: beside
+    // the text for a text message, on its own line under an image or under the
+    // agent's sources row.
+    const timeText = formatRelative(msg.created_at);
+
+    const spacer = doc.createElement("span");
+    spacer.className = "xb-msg-timespace";
+    spacer.textContent = timeText;
+    body.appendChild(spacer);
+
+    const time = doc.createElement("span");
+    time.className = "xb-msg-time";
+    time.textContent = timeText;
+    time.title = new Date(msg.created_at).toLocaleString();
+    body.appendChild(time);
 
     wrapper.appendChild(body);
 
@@ -340,43 +363,66 @@ export function createRenderer(opts) {
     // recomputed after they land, not before. Without this, a batch that
     // rendered rows first and separators second would leave the last row above
     // a date heading grouped, with its avatar stranded on the row below it.
-    syncAvatarGrouping();
+    syncRunGrouping();
   }
 
   /**
-   * Reconcile Telegram-style avatar grouping across the whole thread.
+   * Reconcile Telegram-style run grouping across the whole thread.
    *
-   * THE RULE: a run of consecutive messages from one author shows the avatar
-   * ONCE, on the LAST message of the run — the newest bubble, at the bottom of
-   * the group, where the eye already is. Six messages from one teammate render
-   * five avatar-less rows and one with the avatar, not six identical faces.
+   * TWO RULES, ONE PASS. Both boundaries of a run of consecutive messages from
+   * one author are decided here, because both are answers about NEIGHBOURS and
+   * a second reconciler would be a second chance to disagree with this one:
+   *
+   *   HEAD — the sender's NAME appears once, on the FIRST message of the run.
+   *          The name answers "who is talking"; asking it again three bubbles
+   *          later is noise, and it is the same noise six times in a row when
+   *          somebody sends six lines.
+   *   TAIL — the AVATAR appears once, on the LAST message of the run: the
+   *          newest bubble, at the bottom of the group, where the eye already
+   *          is.
+   *
+   * The two land on opposite ends on purpose. The name introduces the run from
+   * the top, the face closes it at the bottom, and the bubbles between them
+   * carry neither — which is what makes a long run read as one turn instead of
+   * six.
    *
    * Recomputed from the DOM rather than tracked incrementally, for the same
    * reason syncDaySeparators is: one function has to be correct for the append
    * path, the prepend pagination path AND live inserts, and the answer for any
-   * row depends on the row that comes AFTER it — which may not have existed
-   * when that row was built.
+   * row depends on rows that may not have existed when it was built. A message
+   * arriving over the websocket therefore re-evaluates its neighbours here
+   * rather than stranding a name or a face on the wrong bubble.
    *
-   * A day separator ENDS a run. Two messages either side of midnight are not
-   * visually consecutive, and stranding the group's only avatar above a date
-   * heading reads as a rendering fault.
+   * A day separator ENDS a run on both sides. Two messages either side of
+   * midnight are not visually consecutive, so the one below the heading gets
+   * its name back and the one above keeps its avatar.
    *
    * Grouped rows keep their gutter (the avatar is hidden, not removed) so every
    * bubble in a run stays on the same left edge. Removing it would shift the
    * whole run left and turn a quiet visual grouping into a jagged one.
    */
-  function syncAvatarGrouping() {
+  function syncRunGrouping() {
     const rows = Array.from(listEl.children);
     for (let i = 0; i < rows.length; i += 1) {
       const row = rows[i];
       if (!row.dataset || !row.dataset.msgId) continue; // a separator
-      // The next element decides. A separator, or the end of the list, means
-      // this row is the tail of its run.
+      // The neighbours decide. A separator, or the end of the list, is not a
+      // neighbour — which is what makes a date heading break the run.
+      const before = rows[i - 1];
+      const prev = before && before.dataset && before.dataset.msgId ? before : null;
       const after = rows[i + 1];
       const next = after && after.dataset && after.dataset.msgId ? after : null;
+
+      const isHead = !prev || prev.dataset.authorKey !== row.dataset.authorKey;
       const isTail = !next || next.dataset.authorKey !== row.dataset.authorKey;
+
       if (isTail) row.classList.remove("is-grouped");
       else row.classList.add("is-grouped");
+      // `is-run-follower` — everything after the first bubble of a run. CSS
+      // hides the name on these; the class is named for the fact rather than
+      // for the effect, so the stylesheet stays free to answer it differently.
+      if (isHead) row.classList.remove("is-run-follower");
+      else row.classList.add("is-run-follower");
     }
   }
 
@@ -481,7 +527,7 @@ export function createRenderer(opts) {
     renderAgentBubble,
     buildBubbleNode,
     syncDaySeparators,
-    syncAvatarGrouping,
+    syncRunGrouping,
     streamTextTarget,
     clearStreaming,
     scrollToBottom,

@@ -769,5 +769,182 @@ test("both stylesheets hide the grouped avatar with visibility, never display", 
   }
 });
 
+// ---- (h) the OTHER end of the run: the name -------------------------------
+//
+// The avatar closes a run at the bottom; the name introduces it at the top. Both
+// answers depend on a NEIGHBOUR, which is why they are decided in one pass — a
+// second reconciler would be a second chance to disagree with the first.
+
+/** true where the row is a follower (its sender's name is suppressed). */
+function followerFlags(listEl) {
+  return rowsOf(listEl).map((r) => r.classList.contains("is-run-follower"));
+}
+
+test("a run of six shows the NAME once, on the FIRST row", () => {
+  const { listEl } = renderRun([
+    msg("m1", "u-mate", 0),
+    msg("m2", "u-mate", 1),
+    msg("m3", "u-mate", 2),
+    msg("m4", "u-mate", 3),
+    msg("m5", "u-mate", 4),
+    msg("m6", "u-mate", 5),
+  ]);
+  assert.deepEqual(
+    followerFlags(listEl),
+    [false, true, true, true, true, true],
+    "the name introduces the run from the top; repeating it five more times is noise",
+  );
+  // The two ends really are opposite ends, not the same row twice.
+  assert.deepEqual(groupedFlags(listEl), [true, true, true, true, true, false]);
+});
+
+test("every bubble in a run still carries its own timestamp", () => {
+  // Identity is per-run, time is per-message. A run of six with one timestamp
+  // answers "when did they say THAT one" for exactly one of them.
+  const { listEl } = renderRun([
+    msg("m1", "u-mate", 0),
+    msg("m2", "u-mate", 1),
+    msg("m3", "u-mate", 2),
+  ]);
+  for (const row of rowsOf(listEl)) {
+    const time = row.querySelector(".xb-msg-time");
+    assert.ok(time, `${row.dataset.msgId} lost its timestamp`);
+    assert.ok(time.textContent.length > 0, `${row.dataset.msgId} has an empty timestamp`);
+  }
+  // ... including the middle one, which carries no name and no avatar.
+  const middle = rowsOf(listEl)[1];
+  assert.ok(middle.classList.contains("is-run-follower"));
+  assert.ok(middle.classList.contains("is-grouped"));
+  assert.ok(middle.querySelector(".xb-msg-time"));
+});
+
+test("the timestamp lives INSIDE the bubble, not on the meta line above it", () => {
+  const { renderer } = makeHarness();
+  const node = renderer.buildBubbleNode(msg("m1", "u-mate"));
+  const bubble = node.querySelector(".xb-msg-bubble");
+  assert.ok(bubble.querySelector(".xb-msg-time"), "the time belongs to the bubble");
+  assert.equal(
+    node.querySelector(".xb-msg-meta").querySelector(".xb-msg-time"),
+    null,
+    "it must have left the meta row — that row is identity, and it disappears on a follower",
+  );
+});
+
+test("the bubble reserves the timestamp's own width at the end of its text", () => {
+  // THE FAILURE THIS PINS: the timestamp is taken out of flow by CSS. Without a
+  // spacer of exactly its width as the last thing in the bubble, a long final
+  // word runs underneath it and neither can be read.
+  const { renderer } = makeHarness();
+  const node = renderer.buildBubbleNode(msg("m1", "u-mate"));
+  const bubble = node.querySelector(".xb-msg-bubble");
+  const spacer = bubble.querySelector(".xb-msg-timespace");
+  const time = bubble.querySelector(".xb-msg-time");
+  assert.ok(spacer, "the bubble must reserve room for the timestamp");
+  assert.equal(
+    spacer.textContent,
+    time.textContent,
+    'the reserved width must be the SAME string — "just now" and "5m" are not the same size',
+  );
+  // Last in flow, so it lands on whatever the final line turns out to be.
+  const flow = bubble.children.filter((c) => c.className !== "xb-msg-time");
+  assert.equal(
+    flow[flow.length - 1],
+    spacer,
+    "the spacer must be the last thing in the bubble's flow",
+  );
+});
+
+test("a live arrival re-evaluates the NAME on its neighbour too", () => {
+  // Same failure as the avatar's, at the other end of the run: the second
+  // message must give up its own name when it turns out to continue the first.
+  const h = makeHarness();
+  h.renderer.renderMessage(msg("m1", "u-mate", 0), { prepend: false });
+  assert.deepEqual(followerFlags(h.listEl), [false], "alone, it is its own head");
+
+  h.renderer.renderMessage(msg("m2", "u-mate", 1), { prepend: false });
+  assert.deepEqual(
+    followerFlags(h.listEl),
+    [false, true],
+    "the arrival continues m1's run, so it carries no name of its own",
+  );
+
+  h.renderer.renderMessage(msg("m3", "u-other", 2), { prepend: false });
+  assert.deepEqual(
+    followerFlags(h.listEl),
+    [false, true, false],
+    "a different author starts a new run and is named",
+  );
+});
+
+test("prepending an older page moves the name UP to the new first row", () => {
+  const h = makeHarness();
+  h.renderer.renderMessage(msg("m2", "u-mate", 1), { prepend: false });
+  assert.deepEqual(followerFlags(h.listEl), [false]);
+  h.renderer.renderMessage(msg("m1", "u-mate", 0), { prepend: true });
+  assert.deepEqual(
+    followerFlags(h.listEl),
+    [false, true],
+    "the older message is now the head of the run and m2 gives its name up",
+  );
+});
+
+test("a day separator gives the name back on the far side of midnight", () => {
+  const h = makeHarness();
+  h.renderer.renderMessage(
+    { id: "m1", kind: "user", author_user_id: "u-mate", content: "a", created_at: "2026-07-31T22:00:00Z" },
+    { prepend: false },
+  );
+  h.renderer.renderMessage(
+    { id: "m2", kind: "user", author_user_id: "u-mate", content: "b", created_at: "2026-08-01T09:00:00Z" },
+    { prepend: false },
+  );
+  h.renderer.syncDaySeparators();
+  assert.deepEqual(
+    followerFlags(h.listEl),
+    [false, false],
+    "two messages either side of a date heading are not one run",
+  );
+});
+
+test("both stylesheets suppress the name on a follower and on your own row", () => {
+  for (const rel of [
+    join("chrome-extension", "popup.css"),
+    join("app-site", "app", "app.css"),
+  ]) {
+    const css = readFileSync(join(REPO_ROOT, rel), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    assert.match(
+      css,
+      /\.xb-msg\.is-run-follower\s+\.xb-msg-author\s*,\s*\.xb-msg\.is-self\s+\.xb-msg-author\s*\{[^}]*display:\s*none/,
+      `${rel} must hide the author on a follower row AND on your own row`,
+    );
+    // The timestamp is only allowed out of flow if the space is reserved.
+    const timeRule = /(^|[};])\s*\.xb-msg-time\s*\{([^}]*)\}/.exec(css);
+    assert.ok(timeRule, `${rel} has no .xb-msg-time rule`);
+    assert.match(
+      timeRule[2],
+      /position:\s*absolute/,
+      `${rel}: the timestamp must sit in the bubble's corner, not on the meta line`,
+    );
+    const spacerRule = /(^|[};])\s*\.xb-msg-timespace\s*\{([^}]*)\}/.exec(css);
+    assert.ok(
+      spacerRule,
+      `${rel} has no .xb-msg-timespace rule — the reserved width would be zero and the last word would run under the time`,
+    );
+    assert.match(
+      spacerRule[2],
+      /visibility:\s*hidden/,
+      `${rel}: the spacer reserves width and must not be readable — visibility, so it is out of the a11y tree too`,
+    );
+    assert.ok(
+      !/display:\s*none/.test(spacerRule[2]),
+      `${rel}: display:none reserves nothing, which is the whole failure this element exists to stop`,
+    );
+    assert.ok(
+      /\.xb-msg-bubble\s*\{[^}]*position:\s*relative/.test(css),
+      `${rel}: .xb-msg-bubble must be the positioning context, or the time escapes to the page corner`,
+    );
+  }
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
