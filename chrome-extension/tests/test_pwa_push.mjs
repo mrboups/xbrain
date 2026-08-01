@@ -135,7 +135,26 @@ function browser(opts = {}) {
   const log = [];
   const requests = [];
   const listeners = {};
-  let current = existing;
+  let current = null;
+
+  /**
+   * A real browser drops the subscription it just released, so the stub must
+   * too: leaving it readable would let a test "pass" while the button reported
+   * a device that is no longer subscribed.
+   */
+  function track(sub) {
+    const inner = sub.unsubscribe.bind(sub);
+    sub.unsubscribe = async () => {
+      const result = await inner();
+      if (current === sub) current = null;
+      return result;
+    };
+    return sub;
+  }
+
+  if (existing) {
+    current = track(makeSubscription(existing.endpoint, existing.key, log));
+  }
 
   const registration = {
     pushManager: {
@@ -148,10 +167,8 @@ function browser(opts = {}) {
             options.applicationServerKey ? options.applicationServerKey.length : 0
           }`,
         );
-        current = makeSubscription(
-          "https://push.example.test/fresh",
-          config.vapid_public_key,
-          log,
+        current = track(
+          makeSubscription("https://push.example.test/fresh", config.vapid_public_key, log),
         );
         return current;
       },
@@ -248,15 +265,23 @@ test("urlBase64ToUint8Array decodes a real VAPID public key to 65 bytes", () => 
 
 test("urlBase64ToUint8Array tolerates missing padding and the URL-safe alphabet", () => {
   const { urlBase64ToUint8Array } = mod();
-  // "-" and "_" must become "+" and "/" or the decode silently yields garbage.
+  // A real VAPID key happens to contain "-" but not always "_", so the alphabet
+  // swap is pinned against a fixture chosen to contain BOTH. Without the swap
+  // atob throws or, worse, decodes to the wrong bytes on some inputs.
+  const bytes = [0xfa, 0xfb, 0xfc, 0xfd, 0xfe];
+  const b64url = "-vv8_f4";
   assert.ok(
-    VAPID_KEY.includes("-") && VAPID_KEY.includes("_"),
+    b64url.includes("-") && b64url.includes("_"),
     "the fixture must exercise both URL-safe characters or this test is inert",
   );
-  assert.equal(VAPID_KEY.length % 4, 3, "the fixture must be unpadded to exercise the pad step");
-  const withPadding = urlBase64ToUint8Array(`${VAPID_KEY}=`);
-  const without = urlBase64ToUint8Array(VAPID_KEY);
-  assert.deepEqual([...withPadding], [...without], "padding must not change the bytes");
+  assert.equal(b64url.length % 4, 3, "the fixture must be unpadded to exercise the pad step");
+  assert.deepEqual([...urlBase64ToUint8Array(b64url)], bytes, "URL-safe alphabet + padding");
+  assert.deepEqual(
+    [...urlBase64ToUint8Array(`${b64url}=`)],
+    bytes,
+    "an already-padded input must decode to the same bytes",
+  );
+  assert.ok(VAPID_KEY.includes("-"), "the real-key fixture still exercises the '-' swap");
 });
 
 // ---- 2. enablePush: every refusal happens BEFORE the ask ----------------
@@ -381,14 +406,10 @@ testAsync("a failed registration rolls the browser subscription back", async () 
 // ---- 4. Key rotation self-heal ------------------------------------------
 
 testAsync("a subscription made with an old server key is replaced, not reused", async () => {
-  const log = [];
-  const stale = makeSubscription("https://push.example.test/stale", OTHER_KEY, log);
-  const b = browser({ permission: "granted", existing: stale });
-  // Route the stale subscription's own log into the browser's ordered log.
-  stale.unsubscribe = async () => {
-    b.log.push("browser-unsubscribe:https://push.example.test/stale");
-    return true;
-  };
+  const b = browser({
+    permission: "granted",
+    existing: { endpoint: "https://push.example.test/stale", key: OTHER_KEY },
+  });
 
   const result = await mod().enablePush(b.api);
   assert.equal(result.ok, true, `expected a repaired subscription, got ${JSON.stringify(result)}`);
@@ -411,7 +432,7 @@ testAsync("a subscription made with an old server key is replaced, not reused", 
 testAsync("a subscription that already matches the server key is not churned", async () => {
   const b = browser({
     permission: "granted",
-    existing: makeSubscription("https://push.example.test/good", VAPID_KEY, []),
+    existing: { endpoint: "https://push.example.test/good", key: VAPID_KEY },
   });
   const result = await mod().enablePush(b.api);
   assert.equal(result.ok, true);
@@ -428,13 +449,8 @@ testAsync("a subscription that already matches the server key is not churned", a
 testAsync("disablePush prunes the server BEFORE dropping the browser subscription", async () => {
   const b = browser({
     permission: "granted",
-    existing: makeSubscription("https://push.example.test/live", VAPID_KEY, []),
+    existing: { endpoint: "https://push.example.test/live", key: VAPID_KEY },
   });
-  const sub = b.current;
-  sub.unsubscribe = async () => {
-    b.log.push("browser-unsubscribe:https://push.example.test/live");
-    return true;
-  };
 
   const result = await mod().disablePush(b.api);
   assert.equal(result.ok, true);
@@ -468,7 +484,7 @@ testAsync("refreshPushButton reflects the real state and never asks", async () =
     [
       {
         permission: "granted",
-        existing: makeSubscription("https://push.example.test/on", VAPID_KEY, []),
+        existing: { endpoint: "https://push.example.test/on", key: VAPID_KEY },
       },
       "on",
       "Notifications on",
@@ -536,9 +552,15 @@ testAsync("the click handler toggles, and wiring twice does not double-toggle", 
   wirePushButton(b.api, btn, hint);
   wirePushButton(b.api, btn, hint);
   assert.ok(btn.listeners.click, "a click listener must be attached");
+  assert.equal(
+    b.log.filter((e) => e === "sw-listener:message").length,
+    1,
+    "the rotation listener must be attached exactly once",
+  );
 
   // Nothing may have happened yet: wiring is not consent.
   assert.ok(!b.log.includes("ask-permission"), "wiring must not prompt");
+  assert.equal(b.requests.length, 0, "wiring must not talk to the server either");
 
   await btn.listeners.click();
   assert.equal(
