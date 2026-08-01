@@ -776,17 +776,17 @@ Plans:
   3. Realtime is real: with two clients on one team, a message sent by one appears in the OTHER without a reload (assert arrival, not absence of error).
   4. Push is real and opt-in: the permission prompt fires only on an explicit click; a stored subscription turns a server-side send into a visible notification; and an endpoint answering 404/410 is PRUNED server-side rather than retried. Push fires on @mention and on a Phase-22 nudge — not on every team message.
 
-**Plans:** 9 plans (waves 1 -> 2 -> 3 -> 4 -> 5 -> 6)
+**Plans:** 8/9 plans executed
 
 Plans:
-- [ ] 27-01-PLAN.md — packages/chat-core: the platform shim contract, the API client, the three pure module moves, the sync + drift gate (wave 1)
-- [ ] 27-02-PLAN.md — extract render / publication / realtime out of popup.js into chat-core; the ws URL can only come from the API (wave 2)
-- [ ] 27-03-PLAN.md — pywebpush (dual-arch proven) + VAPID knobs + migration 0029 push_subscriptions + subscribe/unsubscribe/config (wave 1)
-- [ ] 27-04-PLAN.md — web_push send service with the 404/410 prune, human-mention detection, wired to @mention and nudge ONLY (wave 2)
-- [ ] 27-05-PLAN.md — PWA shell: manifest, icons, service worker (never caches an authenticated response), web shim, /join/ sign-in reused (wave 2)
-- [ ] 27-06-PLAN.md — PWA chat: team picker, history, composer, live publications, all on chat-core; a fork test proves nothing was duplicated (wave 3)
-- [ ] 27-07-PLAN.md — PWA push opt-in: one click-gated permission call site, subscribe/unsubscribe, rotation self-heal (wave 4)
-- [ ] 27-08-PLAN.md — verify-phase27.sh + the realtime arrival probe + the real-socket push/prune probe (SKIP=FAIL) (wave 5)
+- [x] 27-01-PLAN.md — packages/chat-core: the platform shim contract, the API client, the three pure module moves, the sync + drift gate (wave 1)
+- [x] 27-02-PLAN.md — extract render / publication / realtime out of popup.js into chat-core; the ws URL can only come from the API (wave 2)
+- [x] 27-03-PLAN.md — pywebpush (dual-arch proven) + VAPID knobs + migration 0029 push_subscriptions + subscribe/unsubscribe/config (wave 1)
+- [x] 27-04-PLAN.md — web_push send service with the 404/410 prune, human-mention detection, wired to @mention and nudge ONLY (wave 2)
+- [x] 27-05-PLAN.md — PWA shell: manifest, icons, service worker (never caches an authenticated response), web shim, /join/ sign-in reused (wave 2)
+- [x] 27-06-PLAN.md — PWA chat: team picker, history, composer, live publications, all on chat-core; a fork test proves nothing was duplicated (wave 3)
+- [x] 27-07-PLAN.md — PWA push opt-in: one click-gated permission call site, subscribe/unsubscribe, rotation self-heal (wave 4)
+- [x] 27-08-PLAN.md — verify-phase27.sh + the realtime arrival probe + the real-socket push/prune probe (SKIP=FAIL) (wave 5)
 - [ ] 27-09-PLAN.md — deploy both halves, run the gate against the deployed origin, human device verification (wave 6)
 
 **UI hint**: yes (a new hosted chat surface reusing the extension's shadcn Neutral tokens)

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Open-Core Edition
-status: executing
-stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
-last_updated: "2026-08-01T07:50:21.582Z"
-last_activity: 2026-08-01 -- Phase 27 execution started
+status: completed
+stopped_at: Completed 27-08-PLAN.md — the Phase 27 acceptance gate + its two probes. The gate is red today by design (the PWA is not deployed); 27-09 deploys it and runs it.
+last_updated: "2026-08-01T10:56:06.826Z"
+last_activity: 2026-08-01
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 34
-  completed_plans: 25
-  percent: 74
+  completed_plans: 33
+  percent: 86
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 ## Current Position
 
 Phase: 27 (PWA + Web Push) — EXECUTING
-Plan: 1 of 9
-Status: Executing Phase 27
-Last activity: 2026-08-01 -- Phase 27 execution started
+Plan: 9 of 9
+Status: Ready to execute (27-01..27-08 complete; 27-09 deploys the PWA and runs the gate)
+Last activity: 2026-08-01
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Last activity: 2026-08-01 -- Phase 27 execution started
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 27 P08 | 95min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -118,6 +119,9 @@ Recent decisions affecting current work:
 - 2026-05-24 (13-01): Relevance classifier = Claude 4.5 Haiku (`claude-haiku-4-5-20251001`) with ephemeral prompt cache + per-team daily token budget (50K input tokens/day default); fail-soft to ≥15-char heuristic on Haiku error/timeout/budget exhaustion
 - 2026-05-24 (13-03): native_provider.upsert now uses INSERT … ON CONFLICT (id) DO UPDATE — fixes SELECT+INSERT race exposed by deterministic UUID5 idempotency keys
 - 2026-05-24 (13-05/06): Per-turn enrichment uses min_level=VALIDATED (>= semantics: includes VALIDATED+CANONICAL+PUBLIC); CHAT07_TOP_K=5 default; env vars CHAT07_TOP_K + CHAT07_TRUTH_FILTER_MIN_LEVEL configurable per deployment
+- [Phase ?]: 2026-08-01 (27-08): the Phase 27 gate treats SKIP as FAIL structurally — exit 0 requires FAIL == 0 AND SKIP == 0, and no branch of verify-phase27.sh calls skip(); a check that cannot run records ko naming exactly what to export or start
+- [Phase 27]: 2026-08-01 (27-08): the push probe writes its loopback endpoint through the push_subscriptions REPO rather than POST /v1/push/subscribe — the route SSRF guard keeps its own test, and the probe needs a socket whose response status it controls (410/404/500 cannot be requested from a real push service)
+- [Phase 27]: 2026-08-01 (27-08): gate check (j) runs the server suite in the memory-api container only when that image can host it — the runtime stage ships neither tests/ nor pytest — and otherwise against the checkout, printing which. The deployment's own dependency set is proven by check (g) instead, which no checkout can satisfy
 
 ### Pending Todos
 
@@ -163,8 +167,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-05-17
-Stopped at: Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6).
+Last session: 2026-08-01T10:56:06.812Z
+Stopped at: Completed 27-08-PLAN.md — the Phase 27 acceptance gate + its two probes. The gate is red today by design (the PWA is not deployed); 27-09 deploys it and runs it.
 Resume file: None
 
 ### Quick Tasks Completed

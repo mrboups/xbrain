@@ -53,3 +53,24 @@ would take a list of user_ids and loop inside one session.
 
 **Where it belongs:** a chat-post rate limit (the real bound), or a batched sender.
 Worth raising at the 27-09 gate rather than mid-wave.
+
+## The memory-api runtime image cannot host its own test suite — OBSERVATION
+
+**Found during:** plan 27-08, Task 3 (2026-08-01), while implementing gate check (j).
+
+**Fact:** `apps/memory-api/Dockerfile`'s `runtime` stage COPYs `app/` and `alembic/` but
+not `tests/`, and `pip install --target=/build/deps -e .` installs the project's runtime
+dependencies only — `pytest` lives in `[project.optional-dependencies].dev`. So
+`docker compose exec -T memory-api python -m pytest tests/...` fails twice over: no test
+tree, no runner.
+
+**Consequence for the gate:** check (j) probes for a test-capable image and uses one when
+present, and otherwise runs the same four files against the checkout, printing which
+runner it used. That is not a hole — check (g) proves the deployment's OWN dependency set
+by driving real pywebpush inside the real container, and no checkout can satisfy it.
+
+**Where it belongs:** a `test` stage in `apps/memory-api/Dockerfile` (installing `[dev]`
+and COPYing `tests/`), mirroring what `apps/hocuspocus` already does for the Phase 26
+gate (`docker build --target gate`). Then check (j)'s container branch lights up on its
+own with no edit to the gate. Out of scope for 27-08, whose changed-file set is the gate
+and its two probes.
