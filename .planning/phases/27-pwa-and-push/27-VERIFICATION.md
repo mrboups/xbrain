@@ -167,6 +167,34 @@ at once and posted a message. Verdict — `delivered by CLIENT-SIDE subscription
 ever asking about. A barrier that reports a healthy system as broken is as much a defect as one
 that reports the reverse.
 
+**(c) a naive comment stripper deleted the rest of the document.** Found on the re-run after
+the PWA adopted the extension's composer. The stripper's block-comment range was
+`/\/\*/,/\*\//` — unanchored, so it also matches `/*` anywhere on a line. The composer's file
+input carries `accept="image/*,application/pdf,…"`, which opened a range that never found a
+closing `*/`, so `sed` deleted **everything after it** — including the `serviceWorker.register`
+call the very next assertion looks for. The gate reported a missing service worker on a page
+that registers it perfectly well.
+
+Anchored the opener to the start of a line (leading whitespace allowed), which is how a block
+comment is actually written. Re-verified that the stripper is still doing its job rather than
+merely passing: 11323 → 6623 bytes on the served page, and `serviceWorker` still drops from 3
+raw occurrences to 2, so prose still cannot satisfy a code assertion.
+
+Three instrument defects in one phase is a pattern worth naming: each one made the gate report a
+**healthy** system as broken. That direction is the safer failure, but it is still a defect —
+a gate that cries wolf gets ignored, and an ignored gate is a gate that no longer catches the
+real thing.
+
+## The gate now cleans up after itself
+
+Checks (e) and (f) post real messages into a real team, because that is the only honest way to
+prove a message travels end to end. The owner opened the chat and found six probe lines burying
+the actual conversation. The gate now soft-deletes its own probe messages once the checks that
+needed them are done — recoverable, nothing erased. It records no PASS and no FAIL, so tidiness
+can never turn a green run red, but an unreachable database prints the manual SQL instead of
+failing quietly. Confirmed live: the run above reported *"2 probe message(s) hidden"* and the
+team chat was left carrying only its real messages.
+
 ## Five environment variables recovered from silent loss
 
 `CORS_ALLOWED_ORIGIN_REGEX`, `EDITION`, `AGENT_MENTION_ALIASES`, `COMPOSE_PROFILES` and

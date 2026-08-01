@@ -269,8 +269,18 @@ strip_js() {
 }
 
 # strip_html FILE_IN FILE_OUT — the same, plus HTML comments.
+# Remove commentary so an assertion cannot be satisfied by prose that merely MENTIONS
+# the thing. The block-comment opener is anchored to the start of a line (leading
+# whitespace allowed), which is how a block comment is actually written.
+#
+# Unanchored, `/\/\*/` also matches `/*` anywhere on a line — and on 2026-08-01 it did:
+# `<input type="file" accept="image/*,application/pdf,…">` in the PWA composer opened a
+# range that never found a closing `*/`, so sed deleted THE ENTIRE REST OF THE DOCUMENT,
+# including the `serviceWorker.register` call the next check was looking for. The gate
+# reported a missing service worker on a page that registers it perfectly well. A
+# legitimate product change tripped a naive stripper; the stripper was wrong, not the page.
 strip_html() {
-  sed -e '/<!--/,/-->/d' -e 's://.*::' -e '/\/\*/,/\*\//d' "$1" > "$2"
+  sed -e '/<!--/,/-->/d' -e 's://.*::' -e '/^[[:space:]]*\/\*/,/\*\//d' "$1" > "$2"
 }
 
 # bytes FILE -> byte count
