@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Open-Core Edition
 status: executing
-stopped_at: "Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6)."
-last_updated: "2026-08-01T07:50:21.582Z"
-last_activity: 2026-08-01 -- Phase 27 execution started
+stopped_at: "Phase 27 plans 01-08 shipped and merged; 27-09 deployed both halves and the gate PASSES 50/50 with SKIP 0 (see 27-VERIFICATION.md). BLOCKED on 27-09 task 3 — a human must confirm on a real phone that no permission prompt fires on load and that a push becomes a visible notification. PWA-01 and PUSH-01 stay unchecked until then. The nine-step script is in 27-09-PLAN.md."
+last_updated: "2026-08-01T11:45:00.000Z"
+last_activity: 2026-08-01 -- Phase 27 deployed and gated; awaiting device verification
 progress:
   total_phases: 7
   completed_phases: 6
@@ -25,10 +25,13 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 
 ## Current Position
 
-Phase: 27 (PWA + Web Push) — EXECUTING
-Plan: 1 of 9
-Status: Executing Phase 27
-Last activity: 2026-08-01 -- Phase 27 execution started
+Phase: 27 (PWA + Web Push) — DEPLOYED, AWAITING DEVICE VERIFICATION
+Plan: 9 of 9 (tasks 1-2 done, task 3 is a blocking human checkpoint)
+Status: https://grooveos.app/app/ is live and memory-api runs at head 0029 with push wired.
+        `make verify-phase27` passes 50/50 against the deployed origin with zero skips.
+        What remains needs a phone, not a script: no prompt on load, and a push that
+        becomes a notification a person actually sees.
+Last activity: 2026-08-01 -- Phase 27 deployed and gated; awaiting device verification
 
 ## Performance Metrics
 
