@@ -45,6 +45,7 @@ from app.services import (
     team_chat_agent,
     team_context_cache,
     url_safety,
+    web_push,
 )
 
 log = structlog.get_logger(__name__)
@@ -276,6 +277,50 @@ async def post_team_message(
             agent=mention["agent_name"],
         )
 
+    # Phase 27 (D-27-06) — push on the two events that already matter, and ONLY those.
+    # NOT on every team message: a group chat that pushes every message trains people to
+    # turn notifications off, and then the two that mattered are lost along with the
+    # noise. The other event is the Phase-22 nudge, wired in nudge_open below.
+    #
+    # Placement is load-bearing: this runs AFTER session.commit() (the message row must
+    # exist before anyone is told about it) and every send is a create_task, so a slow
+    # or failing push service can neither delay nor fail the send. The "@" pre-check
+    # keeps the member query off the hot path for the ~all messages that mention nobody
+    # — the detector cannot match without one.
+    if "@" in body.content and web_push.push_is_configured():
+        try:
+            rows = await teams_repo.list_members_with_user_info(session, team_id=team_id)
+            members = [
+                {
+                    "user_id": str(u.id),
+                    "display_name": u.display_name,
+                    "email": u.email,
+                    "github_username": u.github_username,
+                }
+                for (m, u, _b) in rows
+                if m.blocked_at is None  # a blocked member is not a notification target
+            ]
+            for mentioned_id in mention_detector.detect_user_mentions(body.content, members):
+                if mentioned_id == str(user.id):
+                    continue  # never push someone their own message
+                asyncio.create_task(
+                    web_push.send_to_user_bg(
+                        user_id=UUID(mentioned_id),
+                        payload=web_push.build_mention_payload(
+                            team_slug=team.slug,
+                            # From the AUTHENTICATED sender's row, never the request body:
+                            # a forged name on a lock screen is a phishing surface.
+                            author_label=user.display_name or user.email or "A teammate",
+                            content=body.content,
+                            url=f"{settings.APP_PUBLIC_URL.rstrip('/')}/app/",
+                        ),
+                    )
+                )
+        except Exception as exc:  # noqa: BLE001
+            # The message is committed and published by now. A notification problem must
+            # never turn a delivered message into a 500 for the person who sent it.
+            log.warning("team_chat.mention_push_failed", team_id=str(team_id), err=str(exc))
+
     return payload
 
 
@@ -495,6 +540,26 @@ async def nudge_open(
                 "team_id": str(team_id),
                 "team_slug": team.slug,
             },
+        )
+    )
+
+    # Phase 27 (D-27-06) — the second and LAST event that sends a push: the recipient may
+    # not have the app open, which is the whole reason a nudge exists.
+    #
+    # The notification's `url` is the APP, never `body.url`. An OS notification that
+    # navigated straight to a teammate-supplied link on tap would bypass the consent gate
+    # D-22-02 exists to enforce — a message from another user never moves the recipient's
+    # browser without their click on a surface that showed them the destination. The link
+    # travels as the notification BODY (so they see it), and the tap lands them in the app
+    # on the existing consent prompt.
+    asyncio.create_task(
+        web_push.send_to_user_bg(
+            user_id=target.id,
+            payload=web_push.build_nudge_payload(
+                sender_label=sender.display_name or sender.source_user_id,
+                target_url=body.url,
+                app_url=f"{settings.APP_PUBLIC_URL.rstrip('/')}/app/",
+            ),
         )
     )
     log.info(

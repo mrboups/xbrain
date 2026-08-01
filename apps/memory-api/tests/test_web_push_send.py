@@ -425,6 +425,271 @@ async def test_send_to_user_bg_opens_no_session_when_push_is_off(monkeypatch):
     assert await web_push.send_to_user_bg(user_id=uuid4(), payload={}) is None
 
 
+# ── Wiring: the two events that send, and the ones that must not ─────────────
+#
+# D-27-06 is a product decision, so it is asserted as one: the route functions are driven
+# for real (membership, mention detection, the blocked-member filter and the self-mention
+# skip all execute) with ONLY the terminal `send_to_user_bg` replaced by a recorder. An
+# empty recorder is therefore proof that nothing would have been sent.
+
+
+class _StubTeam:
+    slug = "team-a"
+    agent_aliases = None
+
+    def __init__(self, team_id):
+        self.id = team_id
+
+
+def _fake_message(team_id, author_id, content):
+    from datetime import UTC, datetime
+
+    return types.SimpleNamespace(
+        id=uuid4(),
+        team_id=team_id,
+        author_user_id=author_id,
+        agent_name=None,
+        kind="user",
+        content=content,
+        created_at=datetime.now(UTC),
+        routed_via=None,
+        metadata_=None,
+        parent_message_id=None,
+        edited_at=None,
+    )
+
+
+def _member_row(user, *, blocked: bool = False):
+    """One (TeamMember, User, blocker) tuple as list_members_with_user_info returns it."""
+    membership = types.SimpleNamespace(user_id=user.id, blocked_at="2026-01-01" if blocked else None)
+    return (membership, user, None)
+
+
+def _user(display_name, email, github_username=None):
+    return types.SimpleNamespace(
+        id=uuid4(),
+        source_user_id=f"{display_name.lower()}-sub",
+        display_name=display_name,
+        email=email,
+        github_username=github_username,
+    )
+
+
+@pytest.fixture
+def pushes(monkeypatch):
+    """Recorder for the ONE terminal call, plus silence for the other fire-and-forget work."""
+    sent: list[dict] = []
+
+    async def _recorder(*, user_id, payload):
+        sent.append({"user_id": user_id, "payload": payload})
+
+    async def _noop(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("app.services.web_push.send_to_user_bg", _recorder)
+    monkeypatch.setattr("app.services.brain_ingest.ingest_team_message", _noop)
+    monkeypatch.setattr("app.services.centrifugo_client.publish", _noop)
+    monkeypatch.setattr("app.services.team_chat_agent.handle_claude_mention", _noop)
+    return sent
+
+
+async def _post(monkeypatch, *, content, sender, member_rows):
+    """Drive the REAL post_team_message with stubbed persistence, then flush the loop."""
+    import asyncio
+
+    from app.routes import team_chat
+
+    team_id = uuid4()
+    team = _StubTeam(team_id)
+
+    async def _resolve(session, user_id, tid):
+        return team
+
+    async def _insert(session, **kw):
+        return _fake_message(team_id, kw.get("author_user_id"), kw.get("content"))
+
+    async def _members(session, *, team_id):
+        return member_rows
+
+    monkeypatch.setattr(team_chat, "_resolve_team_and_check_membership", _resolve)
+    monkeypatch.setattr("app.repos.team_messages.insert_user_message", _insert)
+    monkeypatch.setattr("app.repos.teams.list_members_with_user_info", _members)
+
+    body = team_chat.PostMessageBody(content=content)
+    await team_chat.post_team_message(
+        team_id,
+        body,
+        principal={"kind": "user", "user": sender},
+        session=_StubSession(),
+    )
+    for _ in range(5):  # let the create_tasks run
+        await asyncio.sleep(0)
+    return team
+
+
+async def test_a_message_mentioning_nobody_sends_no_push(configured, pushes, monkeypatch):
+    """THE D-27-06 assertion. Ordinary chat must be silent — this is the test that fails
+    the day someone "improves" push by notifying the whole team on every message."""
+    alice = _user("Alice", "alice@x.com")
+    bob = _user("Bob", "bob@x.com")
+
+    await _post(
+        monkeypatch,
+        content="deploying in five minutes",
+        sender=alice,
+        member_rows=[_member_row(alice), _member_row(bob)],
+    )
+
+    assert pushes == [], "an unmentioning message pushed to somebody"
+
+
+async def test_a_message_mentioning_a_member_pushes_exactly_that_member(
+    configured, pushes, monkeypatch
+):
+    alice = _user("Alice", "alice@x.com")
+    bob = _user("Bob", "bob@x.com")
+
+    team = await _post(
+        monkeypatch,
+        content="@bob can you review this",
+        sender=alice,
+        member_rows=[_member_row(alice), _member_row(bob)],
+    )
+
+    assert len(pushes) == 1, f"expected one push, got {pushes!r}"
+    assert pushes[0]["user_id"] == bob.id
+    payload = pushes[0]["payload"]
+    assert payload["kind"] == "mention"
+    assert payload["title"] == "Alice mentioned you"
+    assert payload["body"] == "@bob can you review this"
+    assert payload["tag"] == f"mention:{team.slug}"
+    assert "token" not in json.dumps(payload).lower()
+
+
+async def test_mentioning_yourself_pushes_nobody(configured, pushes, monkeypatch):
+    """Your own phone buzzing for a message you just typed is pure noise.
+
+    Bob is mentioned in the same sentence and DOES get pushed, which is what proves the
+    silence for Alice comes from the self-mention skip rather than from detection
+    quietly failing on the whole message."""
+    alice = _user("Alice", "alice@x.com")
+    bob = _user("Bob", "bob@x.com")
+
+    await _post(
+        monkeypatch,
+        content="note to @alice: ask @bob first",
+        sender=alice,
+        member_rows=[_member_row(alice), _member_row(bob)],
+    )
+
+    assert [p["user_id"] for p in pushes] == [bob.id]
+
+
+async def test_a_blocked_member_is_never_a_push_target(configured, pushes, monkeypatch):
+    """T-27-04-05. A blocked membership already fails every read gate; a notification
+    would be the one channel still reaching them.
+
+    Carol is mentioned in the same message and is not blocked, so her push proves the
+    blocked member's silence is the filter working, not the detector failing."""
+    alice = _user("Alice", "alice@x.com")
+    bob = _user("Bob", "bob@x.com")
+    carol = _user("Carol", "carol@x.com")
+
+    await _post(
+        monkeypatch,
+        content="@bob @carol are you there",
+        sender=alice,
+        member_rows=[_member_row(alice), _member_row(bob, blocked=True), _member_row(carol)],
+    )
+
+    assert [p["user_id"] for p in pushes] == [carol.id]
+
+
+async def test_no_push_is_attempted_when_the_install_has_no_keys(pushes, monkeypatch):
+    """A zero-key OSS install must not even query the member list per message."""
+    monkeypatch.setattr("app.config.settings.VAPID_PRIVATE_KEY", "")
+    monkeypatch.setattr("app.config.settings.VAPID_PUBLIC_KEY", "")
+    alice = _user("Alice", "alice@x.com")
+    bob = _user("Bob", "bob@x.com")
+
+    await _post(
+        monkeypatch,
+        content="@bob hello",
+        sender=alice,
+        member_rows=[_member_row(alice), _member_row(bob)],
+    )
+
+    assert pushes == []
+
+
+async def test_the_nudge_pushes_the_target_and_opens_the_app(configured, pushes, monkeypatch):
+    """T-27-04-02. The nudge reaches the target, and what the OS would open on a tap is
+    the app — the supplied link only ever appears as text they can read first."""
+    import asyncio
+
+    from app.routes import team_chat
+    from app.services import rate_limit
+
+    rate_limit._storage.reset()
+    monkeypatch.setattr("app.config.settings.APP_PUBLIC_URL", "https://app.example")
+
+    sender = _user("Alice", "alice@x.com")
+    target = _user("Bob", "bob@x.com")
+    team_id = uuid4()
+    team = _StubTeam(team_id)
+
+    async def _resolve(session, user_id, tid):
+        return team
+
+    async def _get_user(session, user_id):
+        return target
+
+    async def _get_membership(session, *, user_id, team_slug):
+        return types.SimpleNamespace(blocked_at=None)
+
+    monkeypatch.setattr(team_chat, "_resolve_team_and_check_membership", _resolve)
+    monkeypatch.setattr("app.repos.users.get_user_by_id", _get_user)
+    monkeypatch.setattr("app.repos.teams.get_membership", _get_membership)
+
+    body = team_chat.PostNudgeBody(target_user_id=target.id, url="https://example.com/spec#top")
+    result = await team_chat.nudge_open(
+        team_id, body, principal={"kind": "user", "user": sender}, session=_StubSession()
+    )
+    for _ in range(5):
+        await asyncio.sleep(0)
+
+    assert result == {"status": "accepted"}
+    assert len(pushes) == 1, f"expected one push, got {pushes!r}"
+    assert pushes[0]["user_id"] == target.id
+    payload = pushes[0]["payload"]
+    assert payload["kind"] == "nudge"
+    assert payload["title"] == "Alice wants to open a link"
+    assert payload["url"] == "https://app.example/app/", "the tap must land in the app"
+    assert payload["url"] != "https://example.com/spec#top"
+    assert "example.com/spec" in payload["body"], "the recipient must see the destination"
+
+
+def test_exactly_two_code_paths_send_a_push():
+    """D-27-06 as a structural gate. Every additional call site is a new class of
+    notification the product did not decide to send, so the COUNT is the assertion."""
+    import ast
+    from pathlib import Path
+
+    from app.routes import team_chat
+
+    tree = ast.parse(Path(team_chat.__file__).read_text(encoding="utf-8"))
+    call_sites = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "send_to_user_bg"
+    ]
+    assert len(call_sites) == 2, (
+        f"expected exactly 2 push send sites (an @mention and a nudge), found {len(call_sites)}"
+    )
+
+
 # ── Structural guarantees ─────────────────────────────────────────────────────
 
 
