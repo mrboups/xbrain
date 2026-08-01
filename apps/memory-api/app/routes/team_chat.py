@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.deps import get_current_principal, get_session
 from app.models.team import Team
+from app.models.user import User
 from app.repos import team_messages as tm_repo
 from app.repos import teams as teams_repo
 from app.repos import users as users_repo
@@ -47,6 +48,7 @@ from app.services import (
     url_safety,
     web_push,
 )
+from app.services.user_label import LAST_RESORT_LABEL, resolve_user_label
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
@@ -88,12 +90,51 @@ async def _resolve_team_and_check_membership(
     return team
 
 
-def _serialize_message(m, team_slug: str = "") -> dict[str, Any]:
+async def _author_labels_for(session: AsyncSession, messages) -> dict[str, str]:
+    """Resolve every author's chat label in ONE query, keyed by user id string.
+
+    Two properties this shape buys, both load-bearing:
+
+    * **No N+1 and no lazy load.** TeamMessage has no `author` relationship, and
+      adding one would not help: a lazy attribute touched on a detached instance
+      inside async SQLAlchemy raises MissingGreenlet, which this codebase has
+      already been bitten by. One explicit `IN (...)` select over the distinct
+      author ids sidesteps both.
+    * **It queries `users`, never `team_members`.** A person who has LEFT the
+      team, or who has been blocked, still authored their past messages and
+      those messages keep their name. Blocking hides someone from the roster; it
+      does not rewrite history. This is precisely the case a client-side name
+      cache built from GET /members can never handle, because the author is not
+      in that list any more.
+    """
+    ids = {m.author_user_id for m in messages if m.author_user_id is not None}
+    if not ids:
+        return {}
+    rows = (await session.execute(select(User).where(User.id.in_(ids)))).scalars().all()
+    return {str(u.id): resolve_user_label(u) for u in rows}
+
+
+def _serialize_message(
+    m, team_slug: str = "", author_labels: dict[str, str] | None = None
+) -> dict[str, Any]:
     """Serialize a TeamMessage row to a dict suitable for API responses.
 
     When team_slug is provided and the message metadata contains a media item,
     a fresh signed URL is minted so the client can render the attachment with a
     bare <img src> (no Bearer header required).
+
+    `author_label` (resolved through app/services/user_label.py, supplied via
+    `author_labels` keyed by author id) makes a message SELF-DESCRIBING. Before
+    it, the payload carried only `author_user_id` and every client had to
+    resolve names out of band from GET /v1/teams/{id}/members into a local
+    cache — a race the client cannot win (the cache is filled after an await, so
+    history that renders first renders nameless) and one that fails permanently
+    for an author who has since left. Both are why "Teammate" was reaching the
+    screen for accounts that have a perfectly good name.
+
+    The label is the ONLY identity field added here: it is the string chat
+    already displays. No email, no bio, nothing else about the author travels
+    with a message.
     """
     raw_metadata: dict[str, Any] = dict(m.metadata_) if m.metadata_ else {}
 
@@ -109,10 +150,23 @@ def _serialize_message(m, team_slug: str = "") -> dict[str, Any]:
             raw_metadata = dict(raw_metadata)
             raw_metadata["media"] = enriched_media
 
+    # Agent frames are labelled by the client from `agent_name` (🤖 prefix), so a
+    # human label would be meaningless there — null, not a guess.
+    author_label: str | None = None
+    if m.kind != "agent":
+        author_label = (author_labels or {}).get(
+            str(m.author_user_id) if m.author_user_id else "",
+            # Reached only when the author row is gone entirely (account deleted →
+            # author_user_id SET NULL). A nameless record is exactly what the
+            # last-resort string is for.
+            LAST_RESORT_LABEL,
+        )
+
     return {
         "id": str(m.id),
         "team_id": str(m.team_id),
         "author_user_id": str(m.author_user_id) if m.author_user_id else None,
+        "author_label": author_label,
         "agent_name": m.agent_name,
         "kind": m.kind,
         "content": m.content,
@@ -175,8 +229,9 @@ async def list_team_messages(
     messages = await tm_repo.list_messages(
         session, team_id=team_id, before_created_at=before, limit=limit
     )
+    labels = await _author_labels_for(session, messages)
     return {
-        "messages": [_serialize_message(m, team.slug) for m in messages],
+        "messages": [_serialize_message(m, team.slug, labels) for m in messages],
         "next_before": messages[-1].created_at.isoformat() if messages else None,
     }
 
@@ -223,7 +278,12 @@ async def post_team_message(
         metadata={"media": body.media} if body.media else None,
     )
     await session.commit()
-    payload = _serialize_message(msg, team.slug)
+    # The author is the authenticated caller, already loaded — no query needed, and
+    # resolved through the SAME helper the history path uses so the frame that
+    # arrives live carries the identical label to the one a reload produces.
+    payload = _serialize_message(
+        msg, team.slug, {str(user.id): resolve_user_label(user)}
+    )
 
     # Resolve THIS team's effective mention aliases ONCE (env defaults ∪
     # team.agent_aliases; @agent always, @claude never) — used by BOTH the brain
@@ -310,7 +370,7 @@ async def post_team_message(
                             team_slug=team.slug,
                             # From the AUTHENTICATED sender's row, never the request body:
                             # a forged name on a lock screen is a phishing surface.
-                            author_label=user.display_name or user.email or "A teammate",
+                            author_label=resolve_user_label(user),
                             content=body.content,
                             url=f"{settings.APP_PUBLIC_URL.rstrip('/')}/app/",
                         ),
@@ -556,7 +616,7 @@ async def nudge_open(
         web_push.send_to_user_bg(
             user_id=target.id,
             payload=web_push.build_nudge_payload(
-                sender_label=sender.display_name or sender.source_user_id,
+                sender_label=resolve_user_label(sender),
                 target_url=body.url,
                 app_url=f"{settings.APP_PUBLIC_URL.rstrip('/')}/app/",
             ),
@@ -607,11 +667,12 @@ async def get_agent_context_bundle(
     recent = await tm_repo.get_recent_messages_chronological(
         session, team_id=team.id, limit=20
     )
+    labels = await _author_labels_for(session, recent)
     return {
         "memory_block": bundle["bundle"],
         "memory_item_count": bundle["item_count"],
         "memory_cached": bundle["cached"],
-        "last_messages": [_serialize_message(m, team.slug) for m in recent],
+        "last_messages": [_serialize_message(m, team.slug, labels) for m in recent],
         "team": {
             "id": str(team.id),
             "slug": team.slug,
