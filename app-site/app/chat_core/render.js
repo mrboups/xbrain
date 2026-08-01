@@ -104,6 +104,11 @@ export function createRenderer(opts) {
     const wrapper = buildBubbleNode(msg);
     if (prepend) listEl.insertBefore(wrapper, listEl.firstChild);
     else listEl.appendChild(wrapper);
+    // Grouping depends on the row AFTER this one, so inserting anywhere can
+    // change a neighbour's answer. Reconciled here rather than left to the
+    // caller: a live arrival that forgot to re-run it would strand the avatar
+    // on the second-to-last bubble of the run, permanently.
+    syncAvatarGrouping();
   }
 
   function renderAgentBubble({ id, agent_name, routed_via, streaming }) {
@@ -120,12 +125,12 @@ export function createRenderer(opts) {
       wrapper.querySelector(".xb-msg-bubble").classList.add("streaming");
     }
     listEl.appendChild(wrapper);
-    syncDaySeparators();
+    syncDaySeparators(); // which reconciles the grouping too
   }
 
   function buildBubbleNode(msg) {
-    // Row layout (mockup .row) — 2-col grid: avatar | (meta + bubble [+ savetag]).
-    // .is-self mirrors the columns so the avatar/bubble sit on the right.
+    // Row layout (mockup .row) — avatar | (meta + bubble [+ savetag]).
+    // .is-self mirrors the columns so the bubble hugs the right edge.
     const self = getSelfUserId();
     const nameCache = getNameCache();
     const rowClass = bubbleClass(msg, self); // is-self / is-user / is-agent
@@ -134,17 +139,27 @@ export function createRenderer(opts) {
     wrapper.dataset.msgId = msg.id;
     // Day-separator input (syncDaySeparators reads this off the DOM).
     if (msg.created_at) wrapper.dataset.createdAt = msg.created_at;
+    // Who this row belongs to, for run detection. Read off the DOM by
+    // syncAvatarGrouping so grouping stays correct for rows that were built
+    // before the ones around them arrived.
+    wrapper.dataset.authorKey = authorKey(msg);
 
-    // Avatar — letter for users, 🤖 for agents
-    const avatar = doc.createElement("div");
-    avatar.className = "xb-msg-avatar";
-    if (msg.kind === "agent") {
-      avatar.textContent = "🤖";
-    } else {
-      const label = authorLabel({ msg, selfUserId: self, nameCache });
-      avatar.textContent = (label[0] || "?").toUpperCase();
+    // Avatar — letter for users, 🤖 for agents.
+    //
+    // YOUR OWN messages get none at all. They are right-aligned, and that
+    // alignment already says whose they are; a second marker on every row is
+    // noise, and it is your own face on every line of your own chat.
+    if (rowClass !== "is-self") {
+      const avatar = doc.createElement("div");
+      avatar.className = "xb-msg-avatar";
+      if (msg.kind === "agent") {
+        avatar.textContent = "🤖";
+      } else {
+        const label = authorLabel({ msg, selfUserId: self, nameCache });
+        avatar.textContent = (label[0] || "?").toUpperCase();
+      }
+      wrapper.appendChild(avatar);
     }
-    wrapper.appendChild(avatar);
 
     // Meta row (sender + time + provenance)
     const meta = doc.createElement("div");
@@ -321,6 +336,48 @@ export function createRenderer(opts) {
       }
       prevIso = iso;
     }
+    // Separators BREAK runs, and they are inserted here — so grouping has to be
+    // recomputed after they land, not before. Without this, a batch that
+    // rendered rows first and separators second would leave the last row above
+    // a date heading grouped, with its avatar stranded on the row below it.
+    syncAvatarGrouping();
+  }
+
+  /**
+   * Reconcile Telegram-style avatar grouping across the whole thread.
+   *
+   * THE RULE: a run of consecutive messages from one author shows the avatar
+   * ONCE, on the LAST message of the run — the newest bubble, at the bottom of
+   * the group, where the eye already is. Six messages from one teammate render
+   * five avatar-less rows and one with the avatar, not six identical faces.
+   *
+   * Recomputed from the DOM rather than tracked incrementally, for the same
+   * reason syncDaySeparators is: one function has to be correct for the append
+   * path, the prepend pagination path AND live inserts, and the answer for any
+   * row depends on the row that comes AFTER it — which may not have existed
+   * when that row was built.
+   *
+   * A day separator ENDS a run. Two messages either side of midnight are not
+   * visually consecutive, and stranding the group's only avatar above a date
+   * heading reads as a rendering fault.
+   *
+   * Grouped rows keep their gutter (the avatar is hidden, not removed) so every
+   * bubble in a run stays on the same left edge. Removing it would shift the
+   * whole run left and turn a quiet visual grouping into a jagged one.
+   */
+  function syncAvatarGrouping() {
+    const rows = Array.from(listEl.children);
+    for (let i = 0; i < rows.length; i += 1) {
+      const row = rows[i];
+      if (!row.dataset || !row.dataset.msgId) continue; // a separator
+      // The next element decides. A separator, or the end of the list, means
+      // this row is the tail of its run.
+      const after = rows[i + 1];
+      const next = after && after.dataset && after.dataset.msgId ? after : null;
+      const isTail = !next || next.dataset.authorKey !== row.dataset.authorKey;
+      if (isTail) row.classList.remove("is-grouped");
+      else row.classList.add("is-grouped");
+    }
   }
 
   /**
@@ -424,10 +481,26 @@ export function createRenderer(opts) {
     renderAgentBubble,
     buildBubbleNode,
     syncDaySeparators,
+    syncAvatarGrouping,
     streamTextTarget,
     clearStreaming,
     scrollToBottom,
   };
+}
+
+/**
+ * Who a row belongs to, for run detection.
+ *
+ * The prefix matters: a teammate whose user id happened to equal an agent's
+ * name would otherwise group with it. Agents are keyed by NAME so two different
+ * agents answering in sequence each keep their own avatar.
+ *
+ * @param {{kind?: string, agent_name?: string, author_user_id?: string}} msg
+ * @returns {string}
+ */
+function authorKey(msg) {
+  if (msg.kind === "agent") return `agent:${msg.agent_name || "agent"}`;
+  return `user:${msg.author_user_id || ""}`;
 }
 
 /**

@@ -37,7 +37,7 @@ import {
   mintAndConnect as mintAndConnectPure,
   disconnectAuth as disconnectAuthPure,
 } from "./onboarding.js";
-import { loadSettings, SETTINGS_KEY } from "./settings.js";
+import { loadSettings, SETTINGS_KEY, notificationsEnabled } from "./settings.js";
 
 const MEMORY_API_URL = "https://api.grooveos.app/v1/memory/upsert";
 // Phase 10 GHA-07 — base URL for memory-api. Used by linkGithubFlow,
@@ -1250,8 +1250,16 @@ function _buildRightClickPayload(info, tab) {
   };
 }
 
-function _notify(title, message) {
+/**
+ * Raise a desktop notification, unless the user turned them off.
+ *
+ * Every notification the service worker raises goes through here — a call site
+ * that skipped it would keep firing after the toggle was switched off, which is
+ * the failure that makes a person distrust the whole settings page.
+ */
+async function _notify(title, message) {
   if (!chrome.notifications || !chrome.notifications.create) return;
+  if (!(await notificationsEnabled(chrome.storage.sync))) return;
   chrome.notifications.create({
     type: "basic",
     iconUrl: "icon128.png",
@@ -1277,7 +1285,7 @@ chrome.contextMenus &&
       const teamScope = id.slice(CONTEXT_MENU_TEAM_PREFIX.length);
       const payload = _buildRightClickPayload(info, tab);
       if (!payload.content.trim()) {
-        _notify("xbrain — nothing to clip", "No URL, title, selection or image found.");
+        await _notify("xbrain — nothing to clip", "No URL, title, selection or image found.");
         return;
       }
 
@@ -1320,10 +1328,10 @@ chrome.contextMenus &&
             : payload.mode === "selection"
             ? "Selection"
             : "Page";
-        _notify(`xbrain — ${modeLabel} clipped ✓`, `Sent to ${teamScope}`);
+        await _notify(`xbrain — ${modeLabel} clipped ✓`, `Sent to ${teamScope}`);
       } catch (e) {
         console.warn("[xbrain] right-click clip failed:", e);
-        _notify("xbrain — clip failed", String(e && e.message ? e.message : e));
+        await _notify("xbrain — clip failed", String(e && e.message ? e.message : e));
       }
       return;
     }
@@ -1359,15 +1367,12 @@ async function openPanelOrPopup(tab) {
       e && e.message ? e.message : e,
     );
   }
-  if (chrome.notifications && chrome.notifications.create) {
-    chrome.notifications.create({
-      type: "basic",
-      iconUrl: "icon128.png",
-      title: "xbrain — selection captured",
-      message: "Click the xbrain icon to send it to your brain.",
-      priority: 1,
-    });
-  }
+  // Same gate as everywhere else: this is a notification, and the toggle means
+  // all of them.
+  await _notify(
+    "xbrain — selection captured",
+    "Click the xbrain icon to send it to your brain.",
+  );
 }
 
 // ── Push-a-link (Phase 22, Plan 22-03): the consent gesture ──────────────────

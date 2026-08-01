@@ -29,10 +29,11 @@ import {
   resolveInitialTheme,
   applyTheme,
 } from "./chat_core/theme.js";
-import { createApi } from "./chat_core/api.js";
+import { createApi, MAX_MEDIA_BYTES } from "./chat_core/api.js";
 import { createRenderer } from "./chat_core/render.js";
 import { createPublicationRouter } from "./chat_core/publication.js";
 import { connectRealtime } from "./chat_core/realtime.js";
+import { createTeamRail } from "./chat_core/team_rail.js";
 import { chromePlatform } from "./platform_chrome.js";
 
 const MEMORY_API_BASE = "https://api.grooveos.app";
@@ -231,6 +232,7 @@ function wireHeader() {
       switchTeam(id);
     }
   });
+  wireNotificationToggle();
   $("btn-settings").addEventListener("click", () => {
     chrome.runtime.openOptionsPage();
   });
@@ -499,20 +501,10 @@ function pickFileForMember(member) {
     }
     setPeopleStatus(`Uploading ${file.name}…`, "loading");
     try {
-      // Multipart stays on raw fetch: the browser must set Content-Type itself
-      // so the boundary is correct. The token still comes from the shim.
-      const { xbt_token } = await chromePlatform.storage.get(["xbt_token"]);
-      const form = new FormData();
-      form.append("file", file);
-      form.append("caption", file.name);
-      const up = await fetch(`${MEMORY_API_BASE}/v1/media/upload`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${xbt_token}`,
-          "X-Team-Scope": team.slug,
-        },
-        body: form,
-      });
+      // The RAW variant, because the branch below needs the status code: an
+      // exception would collapse 413 ("too large" — actionable) and 500 into
+      // one message. chat-core still builds the multipart body.
+      const up = await api.uploadMediaRaw(team.slug, file, { caption: file.name });
       if (up.status !== 201) {
         setPeopleStatus(
           up.status === 413
@@ -1108,6 +1100,78 @@ async function wireTheme() {
   if (darkBtn) darkBtn.addEventListener("click", () => set("dark", true));
 }
 
+/**
+ * The bell — mute every desktop notification this extension raises.
+ *
+ * It edits ONE setting, which every call site consults (settings.js's
+ * notificationsEnabled). The alternative — muting only what the popup itself
+ * raises — would leave clip results and "selection captured" arriving from a
+ * switch the person had just turned off, and that is worse than no switch.
+ *
+ * The stored value is read on open, not assumed: chrome.storage.sync means the
+ * choice may have been made on another machine, or on the options page a moment
+ * ago. Both bells are already in the markup; only the data-state moves.
+ */
+function wireNotificationToggle() {
+  const btn = $("btn-notifications");
+  if (!btn) return;
+
+  const paint = (on) => {
+    const label = on ? "Notifications on" : "Notifications off";
+    btn.setAttribute("data-state", on ? "on" : "off");
+    btn.setAttribute("aria-pressed", String(on));
+    btn.title = label;
+    btn.setAttribute("aria-label", label);
+  };
+
+  // Reflect what is actually stored. On a read failure the default (ON) stands,
+  // which is also what every call site falls back to — so the icon still tells
+  // the truth about what will happen.
+  loadSettings(chrome.storage.sync)
+    .then((s) => paint(s.showNotifications !== false))
+    .catch(() => paint(true));
+
+  btn.addEventListener("click", async () => {
+    const next = btn.getAttribute("data-state") !== "on";
+    paint(next); // optimistic: the click must feel instant
+    try {
+      await saveSettings(chrome.storage.sync, { showNotifications: next });
+    } catch (e) {
+      console.warn("[xbrain] notification setting not saved:", e);
+      paint(!next); // roll the icon back rather than lie about what was stored
+    }
+  });
+}
+
+/**
+ * The rail, built by the SHARED module (D-27-04).
+ *
+ * Everything it needs is read late — the team list and the active id both change
+ * after boot — so one instance serves the whole session and nothing here has to
+ * remember to rebuild it.
+ *
+ * The unread lookup goes through rawFetch rather than api.unreadSummary because a
+ * badge must never surface an error: a non-200 answers "no badge" and the next
+ * team is still tried.
+ */
+const teamRail = createTeamRail({
+  doc: document,
+  railEl: $("team-rail"),
+  storage: chromePlatform.storage,
+  getTeams: () => state.teams,
+  getActiveTeamId: () => state.activeTeamId,
+  onSelectTeam: (id) => switchTeam(id),
+  getUnreadCount: async (teamId) => {
+    // Phase 23's unread-summary — the same cursor the catch-me-up banner reads.
+    const { xbt_token: token } = await chromePlatform.storage.get(["xbt_token"]);
+    if (!token) return null;
+    const res = await api.rawFetch(`/v1/teams/${teamId}/unread-summary`);
+    if (!res.ok) return null;
+    const { count } = await res.json();
+    return count;
+  },
+});
+
 function renderTeamSelector() {
   const sel = $("teamSelector");
   sel.innerHTML = "";
@@ -1121,162 +1185,7 @@ function renderTeamSelector() {
   // Fire-and-forget: the rail reads the saved order from storage, so it paints a tick
   // later than the (hidden) select. Caught so a storage hiccup can't surface as an
   // unhandled rejection — a rail that fails to paint must not break the chat.
-  renderTeamRail().catch(() => {});
-}
-
-/** Two-letter mark for a team square — initials of the first two words, else the
- *  first two characters. Falls back to "?" so a nameless team still renders. */
-function teamInitials(name) {
-  const words = String(name || "").trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
-
-const TEAM_ORDER_KEY = "xbrain_team_order_v1";
-
-/**
- * Order the rail: teams the user has explicitly arranged keep their position, and
- * anything not in that list (a team just created or just joined) goes to the END —
- * so a new square appears to the RIGHT of the newest rather than jumping into the
- * middle because the API happened to sort differently.
- */
-function orderTeams(teams, order) {
-  if (!Array.isArray(order) || !order.length) return teams.slice();
-  const rank = new Map(order.map((id, i) => [id, i]));
-  return teams
-    .slice()
-    .sort((a, b) => {
-      const ra = rank.has(a.id) ? rank.get(a.id) : Number.MAX_SAFE_INTEGER;
-      const rb = rank.has(b.id) ? rank.get(b.id) : Number.MAX_SAFE_INTEGER;
-      return ra - rb;   // ties (both unknown) keep the API's own order
-    });
-}
-
-async function loadTeamOrder() {
-  try {
-    const got = await chromePlatform.storage.get([TEAM_ORDER_KEY]);
-    const v = got && got[TEAM_ORDER_KEY];
-    return Array.isArray(v) ? v : [];
-  } catch {
-    return [];
-  }
-}
-
-async function saveTeamOrder(ids) {
-  try {
-    await chromePlatform.storage.set({ [TEAM_ORDER_KEY]: ids });
-  } catch {
-    /* an unsaved order is a cosmetic loss, never a blocker */
-  }
-}
-
-/** Persist whatever order the rail currently shows. */
-async function persistRailOrder(rail) {
-  const ids = Array.from(rail.querySelectorAll(".xb-team-icon"))
-    .map((el) => el.dataset.teamId)
-    .filter(Boolean);
-  await saveTeamOrder(ids);
-}
-
-/**
- * Render one square per team. Clicking a square switches the chat; the active one
- * is filled. Unread counts are badged onto the square itself so a team with new
- * messages is visible without opening anything — which a <select> could not do.
- * Squares are draggable so the user can arrange them.
- */
-async function renderTeamRail() {
-  const rail = $("team-rail");
-  if (!rail) return;
-  rail.innerHTML = "";
-  const ordered = orderTeams(state.teams, await loadTeamOrder());
-  for (const t of ordered) {
-    const name = t.display_name || t.slug;
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "xb-team-icon";
-    btn.setAttribute("role", "tab");
-    btn.setAttribute("aria-selected", String(t.id === state.activeTeamId));
-    btn.title = name;
-    btn.setAttribute("aria-label", name);
-    btn.dataset.teamId = t.id;
-    btn.textContent = teamInitials(name);
-    btn.addEventListener("click", () => {
-      if (t.id !== state.activeTeamId) switchTeam(t.id);
-    });
-
-    // Drag to rearrange. Native HTML5 DnD keeps this to a few handlers and no
-    // pointer-math; the drop target moves the dragged square before or after
-    // itself depending on which half was entered, then the new order is saved.
-    btn.draggable = true;
-    btn.addEventListener("dragstart", (e) => {
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", t.id);
-      btn.classList.add("is-dragging");
-    });
-    btn.addEventListener("dragend", () => btn.classList.remove("is-dragging"));
-    btn.addEventListener("dragover", (e) => {
-      e.preventDefault();                       // required to allow a drop
-      e.dataTransfer.dropEffect = "move";
-    });
-    btn.addEventListener("drop", async (e) => {
-      e.preventDefault();
-      const draggedId = e.dataTransfer.getData("text/plain");
-      if (!draggedId || draggedId === t.id) return;
-      const dragged = rail.querySelector(`[data-team-id="${CSS.escape(draggedId)}"]`);
-      if (!dragged) return;
-      const rect = btn.getBoundingClientRect();
-      const after = e.clientX > rect.left + rect.width / 2;
-      rail.insertBefore(dragged, after ? btn.nextSibling : btn);
-      await persistRailOrder(rail);
-    });
-
-    rail.appendChild(btn);
-  }
-  refreshTeamBadges();
-}
-
-/**
- * Badge each INACTIVE team with its unread count (Phase 23's unread-summary, the
- * same cursor the catch-me-up banner reads). The active team is skipped on purpose:
- * you are looking at it, and switchTeam marks it read a moment later, so a badge
- * there would flash and vanish. Fail-soft — a badge is a nicety, never a blocker.
- */
-async function refreshTeamBadges() {
-  const rail = $("team-rail");
-  if (!rail) return;
-  let token;
-  try {
-    ({ xbt_token: token } = await chromePlatform.storage.get(["xbt_token"]));
-  } catch { return; }
-  if (!token) return;
-
-  for (const btn of rail.querySelectorAll(".xb-team-icon")) {
-    const id = btn.dataset.teamId;
-    if (!id || id === state.activeTeamId) {
-      const old = btn.querySelector(".xb-team-badge");
-      if (old) old.remove();
-      continue;
-    }
-    try {
-      const res = await api.rawFetch(`/v1/teams/${id}/unread-summary`);
-      if (!res.ok) continue;
-      const { count } = await res.json();
-      let badge = btn.querySelector(".xb-team-badge");
-      if (!count) {
-        if (badge) badge.remove();
-        continue;
-      }
-      if (!badge) {
-        badge = document.createElement("span");
-        badge.className = "xb-team-badge";
-        btn.appendChild(badge);
-      }
-      badge.textContent = count > 99 ? "99+" : String(count);
-    } catch {
-      /* one team's badge failing must not stop the others */
-    }
-  }
+  teamRail.render().catch(() => {});
 }
 
 function setPresence(n) {
@@ -1474,8 +1383,10 @@ async function handleUserPublication(data) {
   try {
     await handleOpenUrl(data, {
       getSettings: () => loadSettings(chrome.storage.sync),
-      notify: (opts) =>
-        new Promise((resolve) => chrome.notifications.create(opts, resolve)),
+      // Through the shim, not a bare create: that is the one place the popup
+      // raises a notification, and the one place the mute setting is honoured.
+      // A null id (muted) is a case handleOpenUrl already handles.
+      notify: (opts) => chromePlatform.notify(opts),
       persistPending: (id, url) =>
         chrome.storage.session.set({ ["nudge_" + id]: url }),
       // Used only when the recipient opted into auto-open. Re-validates at the
@@ -1906,12 +1817,11 @@ function openFilePicker() {
 
 /**
  * Upload a file to /v1/media/upload and post a media message into team chat.
- * Uses raw fetch (not the shared client) because multipart requires the browser
- * to set the Content-Type boundary automatically — never set it manually.
+ * The transport lives in chat-core's client (api.uploadMedia) so the PWA sends
+ * the same request rather than growing a second multipart call site.
  */
 async function uploadFile(file) {
-  const MAX_BYTES = 25 * 1024 * 1024; // 25 MB — must match backend constant
-  if (file.size > MAX_BYTES) {
+  if (file.size > MAX_MEDIA_BYTES) {
     console.warn("[xbrain] file too large:", file.size);
     // Surface inline error in the composer area without an alert.
     const statusEl = document.querySelector(".xb-composer");
@@ -1931,38 +1841,11 @@ async function uploadFile(file) {
     return;
   }
 
-  const { xbt_token } = await chromePlatform.storage.get(["xbt_token"]);
-  if (!xbt_token) {
-    console.warn("[xbrain] uploadFile: no xbt_token");
-    return;
-  }
-
   const clipBtn = $("btn-clip");
   if (clipBtn) clipBtn.disabled = true;
 
   try {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("source_surface", "extension");
-    fd.append("truth_level", "WORKING");
-
-    const resp = await fetch(`${MEMORY_API_BASE}/v1/media/upload`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${xbt_token}`,
-        "X-Team-Scope": team.slug,
-        // NOTE: Do NOT set Content-Type — let the browser set it with the
-        //       multipart boundary automatically.
-      },
-      body: fd,
-    });
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      throw new Error(`HTTP ${resp.status}: ${text.slice(0, 200)}`);
-    }
-
-    const item = await resp.json();
+    const item = await api.uploadMedia(team.slug, file, "extension");
     await postMediaMessage(item, file.name);
   } catch (e) {
     console.warn("[xbrain] uploadFile failed:", e);

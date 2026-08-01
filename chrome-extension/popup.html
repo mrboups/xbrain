@@ -10,20 +10,13 @@
     /* Design tokens now live in popup.css (Plan 20-01 - shadcn "Neutral",
        single source of truth). These inline rules only reset box-sizing and
        style the scrollbars + GitHub sign-in buttons; they consume the same
-       var(--xb-*) names, which popup.css aliases to the new shadcn tokens. */
+       var(--xb-*) names, which popup.css aliases to the new shadcn tokens.
+
+       The html/body box moved to popup.css. It used to live here, AFTER the
+       stylesheet link, which meant the shell's height was declared in one file
+       and everything that depends on it in another - with the inline copy
+       silently winning. One owner now. */
     *, *::before, *::after { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      min-width: 320px;
-      height: 100vh;
-      background: var(--xb-bg);
-      color: var(--xb-text);
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 13px;
-      overflow: hidden;
-    }
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: var(--xb-bg); }
     ::-webkit-scrollbar-thumb { background: var(--xb-border-2); border-radius: 4px; }
@@ -109,6 +102,15 @@
         </button>
         <button type="button" id="btn-board" class="xb-icon-btn" title="Open the team's collaborative board" aria-label="Open the board">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M9 21V9"/></svg>
+        </button>
+        <!-- Notifications on/off for this browser. Both bells ship and popup.css
+             shows one, keyed off [data-state], so the state never needs a markup
+             assignment to paint and cannot disagree with the stored setting. The
+             markup starts in the ON default because that is what the setting
+             defaults to; popup.js corrects it from storage on open. -->
+        <button type="button" id="btn-notifications" class="xb-icon-btn" data-state="on" aria-pressed="true" title="Notifications on" aria-label="Notifications on">
+          <svg class="xb-ico-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          <svg class="xb-ico-bell-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.73 21a2 2 0 01-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0118 8"/><path d="M6.26 6.26A5.86 5.86 0 006 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 00-9.33-5"/><path d="M1 1l22 22"/></svg>
         </button>
         <button type="button" id="btn-settings" class="xb-icon-btn" title="Settings" aria-label="Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>

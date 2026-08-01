@@ -154,45 +154,124 @@ body {
 
 /* ---- Header ---------------------------------------------------------- */
 
+/* Same shape as the extension's header: a left group and a right group pushed
+   apart, no product name in between. */
 .xb-header {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 8px;
   padding: 10px 13px;
   padding-top: calc(10px + env(safe-area-inset-top));
   border-bottom: 1px solid var(--border);
   background: var(--card);
 }
 
-.xb-brand {
+.xb-header-left,
+.xb-header-right {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--fg);
 }
-.xb-brand-mark {
-  width: 16px;
-  height: 16px;
-  border-radius: var(--radius);
-  background: var(--primary);
+/* The rail is the only part of the header that may need the room. */
+.xb-header-left { min-width: 0; flex: 1 1 auto; }
+.xb-header-right { flex-shrink: 0; }
+
+/* ---- Team rail ------------------------------------------------------- */
+
+/* Copied rule-for-rule from chrome-extension/popup.css so the same shared
+   module renders identically on both surfaces. The only intentional difference
+   is max-width: the popup is a fixed 320px panel, a phone is not. */
+.xb-team-rail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;          /* the rail scrolls, but a bar here is noise */
+  min-width: 0;
+}
+.xb-team-rail::-webkit-scrollbar { display: none; }
+
+.xb-team-icon {
+  position: relative;
   flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted-fg);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.xb-team-icon:hover { background: var(--muted); color: var(--fg); }
+.xb-team-icon:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+/* The active team is the filled one — same signal as the group avatar it replaces. */
+.xb-team-icon[aria-selected="true"] {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-color: var(--primary);
+}
+.xb-team-icon.is-dragging { opacity: 0.4; }
+
+/* Unread count rides the icon itself, so an unattended team is visible without
+   opening anything. Hidden at zero rather than showing a "0". */
+.xb-team-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--destructive, #dc2626);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  pointer-events: none;
 }
 
-#team-selector {
-  margin-left: auto;
-  max-width: 46%;
-  padding: 6px 8px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--fg);
-  background: var(--bg);
-  border: 1px solid var(--input);
+/* ---- Header icon buttons --------------------------------------------- */
+
+.xb-icon-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
   border-radius: var(--radius);
+  padding: 0;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--muted-fg);
+  transition: background 0.14s, color 0.14s;
+  line-height: 1;
 }
-#team-selector:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+/* Inline SVGs carry a viewBox but no intrinsic size, so without this they render at
+   the UA default (~300x150) and blow the header apart — which is exactly what the
+   icon-only header did. 15px keeps them on the shadcn scale next to 28px buttons. */
+.xb-icon-btn svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+.xb-icon-btn:hover { background: var(--muted); color: var(--fg); }
+.xb-icon-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.xb-icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ---- Buttons --------------------------------------------------------- */
 
@@ -221,42 +300,103 @@ body {
 /* ---- Notification opt-in (27-07) ------------------------------------- */
 
 /*
- * push.js swaps this button's label with its state, and the widest one
- * ("Notifications blocked in browser settings") is roughly four times the
- * narrowest. Cap and ellipsize rather than let the header wrap or push the
- * sign-out button off a narrow phone; the full sentence is in the title
- * attribute and, for the states that need action, in #push-hint.
+ * The bell's two glyphs both ship in the markup and CSS shows exactly one, keyed
+ * off the data-state push.js writes. Doing it here rather than by swapping DOM
+ * means push.js never assigns markup, and the icon can never disagree with the
+ * state attribute the tests assert on — they are the same fact.
+ *
+ * Only "on" rings. Blocked, install_required and unsupported are all states in
+ * which nothing arrives, so they get the struck bell too.
  */
-#btn-enable-push {
-  max-width: 36%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+#btn-enable-push .xb-ico-bell { display: none; }
+#btn-enable-push .xb-ico-bell-off { display: block; }
+#btn-enable-push[data-state="on"] .xb-ico-bell { display: block; }
+#btn-enable-push[data-state="on"] .xb-ico-bell-off { display: none; }
 
-/* On reads as the filled/primary state, the same way the send button does. */
-#btn-enable-push[data-state="on"] {
-  background: var(--primary);
-  color: var(--primary-fg);
-  border-color: var(--primary);
-}
-#btn-enable-push[data-state="on"]:hover:not(:disabled) {
-  opacity: 0.88;
-  background: var(--primary);
-}
+/* On is the only state that reads as active. */
+#btn-enable-push[data-state="on"] { color: var(--fg); }
 
 /*
  * The three states nothing in this app can change. They are not "off" - they
- * are unavailable - so they read as muted with a dashed edge rather than as a
- * control someone should keep pressing. (:disabled already dims them; this is
- * what distinguishes them from a button that is merely busy.)
+ * are unavailable - so they dim rather than invite another press. (:disabled
+ * already sets the cursor; this is what makes it visible.)
  */
 #btn-enable-push[data-state="blocked"],
 #btn-enable-push[data-state="install_required"],
 #btn-enable-push[data-state="unsupported"] {
   color: var(--muted-fg);
-  border-style: dashed;
+  opacity: 0.5;
 }
+
+/* ---- Settings panel --------------------------------------------------- */
+
+/* A strip under the header, not a page: two facts fit, and a route would cost
+   the chat its scroll position on every visit. */
+.xb-settings-panel {
+  flex-shrink: 0;
+  padding: 10px 13px 12px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
+.xb-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.xb-settings-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-fg);
+}
+
+.xb-settings-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.xb-settings-label { font-size: 12.5px; color: var(--fg); }
+.xb-settings-value {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted-fg);
+  text-align: right;
+}
+
+/* Segmented light/dark theme toggle — the same control the extension's options
+   page carries, pinned top-right because it is a display mode, not an item to
+   read past. shadcn style, radius 0; the pressed segment fills with --primary. */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.seg button {
+  width: 28px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  color: var(--muted-fg);
+  border: none;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s;
+}
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button svg { width: 15px; height: 15px; display: block; }
+.seg button:hover { background: var(--muted); color: var(--fg); }
+.seg button[aria-pressed="true"] { background: var(--primary); color: var(--primary-fg); }
+.seg button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 
 /* The explanation strip, shown only for those same states and after a failed
    toggle. [hidden] at the top of this file already forces display:none. */
@@ -446,36 +586,137 @@ body {
   border-top: 1px solid var(--destructive);
 }
 
+/* The pill, copied from chrome-extension/popup.css: one bordered surface that
+   houses the "+", the textarea and the "›", flush, with no inner borders. The
+   focus ring lifts the whole pill rather than the field inside it. */
+
 .xb-composer {
   flex-shrink: 0;
   display: flex;
+  /* wrap so an upload error can take a full row above the pill instead of
+     squeezing it sideways */
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 8px;
-  padding: 9px 11px;
+  padding: 10px 12px 14px;
   /* The home-indicator strip on a notched phone sits over the bottom edge; without
      this the send button ends up underneath it. */
-  padding-bottom: calc(9px + env(safe-area-inset-bottom));
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
-  background: var(--card);
+  background: var(--bg);
 }
 
-#composer-input {
-  flex: 1 1 auto;
-  min-height: 38px;
-  max-height: 120px;
-  padding: 9px 10px;
-  resize: none;
-  font-family: var(--sans);
-  font-size: 16px;
-  line-height: 1.4;
-  color: var(--fg);
+.xb-composer-pill {
+  flex: 1;
+  display: flex;
+  /* center, not flex-end: at one row everything shares the same baseline box, and
+     once the textarea grows the buttons stay optically centred against it. */
+  align-items: center;
+  gap: 4px;
   background: var(--bg);
   border: 1px solid var(--input);
   border-radius: var(--radius);
+  padding: 4px 4px 4px 6px;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-#composer-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 0; }
+.xb-composer-pill:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 30%, transparent);
+}
 
-#btn-send { flex-shrink: 0; }
+/* A text "+" replaces a paperclip: an emoji renders in its own colour and ignores
+   the Neutral palette. Sized up because a bare plus reads smaller at 15px. */
+.xb-clip-btn {
+  flex-shrink: 0;
+  background: transparent;
+  color: var(--muted-fg);
+  border: none;
+  border-radius: var(--radius);
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1;
+  padding: 0;
+}
+.xb-clip-btn:hover { background: var(--muted); color: var(--fg); }
+.xb-clip-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.xb-clip-btn:disabled {
+  color: var(--muted-fg);
+  background: transparent;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* The chevron is optically light, so it takes more size and a 1px left nudge to
+   sit centred in the square. */
+.xb-send-btn {
+  flex-shrink: 0;
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  line-height: 1;
+  padding: 0 0 0 1px;
+}
+.xb-send-btn:hover { opacity: 0.9; }
+.xb-send-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.xb-send-btn:disabled {
+  background: var(--muted);
+  color: var(--muted-fg);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+
+#composer-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  color: var(--fg);
+  border: none;
+  border-radius: 0;
+  padding: 8px 4px;
+  /* 16px minimum: anything smaller makes iOS Safari zoom the whole page on
+     focus, which then leaves the layout scrolled sideways. */
+  font-size: 16px;
+  font-family: var(--sans);
+  outline: none;
+  resize: none;
+  /* ONE row at rest, so the field, the "+" and the "›" sit on a single line and
+     the pill is only as tall as it needs to be. JS grows it as the text wraps,
+     up to 8 rows. line-height-based so the math survives a font change. */
+  min-height: calc(1.5em + 16px);
+  max-height: calc(1.5em * 8 + 16px);
+  line-height: 1.5;
+  /* No visible scrollbar at min-height. JS bumps to `auto` once content
+     overflows the max-height. */
+  overflow-y: hidden;
+}
+#composer-input.is-overflowing { overflow-y: auto; }
+#composer-input::placeholder { color: var(--muted-fg); }
+
+/* An upload that failed says so above the pill, in the same place a failed send
+   does — never in a dialog a standalone PWA has no chrome to dismiss. */
+.xb-upload-error {
+  flex: 1 1 100%;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--destructive);
+}
 
 /* ========================================================================
  * Messages — the classes chat-core's renderer emits
@@ -501,12 +742,19 @@ body {
 .xb-msg.is-agent { background: transparent; margin-top: 11px; }
 
 .xb-msg.is-self {
-  /* Mirror the row instead of re-declaring columns: the avatar ends up on the
-     right, the bubble hugs the right edge, and the flex rule above stays the
-     single source of truth for spacing. */
+  /* Mirror the row: the bubble hugs the right edge and the flex rule above
+     stays the single source of truth for spacing. Your own rows carry NO
+     avatar at all — the right alignment already says whose they are, and your
+     own face on every line of your own chat is noise. */
   flex-direction: row-reverse;
   background: transparent;
 }
+
+/* Telegram grouping: a run of consecutive messages from one author shows the
+   avatar once, on the LAST row of the run.
+   visibility, NOT display — the gutter has to stay reserved or every bubble in
+   the run shifts left and the group reads as ragged instead of quiet. */
+.xb-msg.is-grouped .xb-msg-avatar { visibility: hidden; }
 .xb-msg.is-self .xb-msg-meta { justify-content: flex-end; }
 .xb-msg.is-self .xb-msg-bubble {
   background: var(--primary);

@@ -16,6 +16,7 @@
 
 import { assertPlatform } from "./chat_core/platform.js";
 import { isSafeHttpUrl } from "./chat_core/nudge_open.js";
+import { notificationsEnabled } from "./settings.js";
 
 /** @type {import("./chat_core/platform.js").Platform} */
 export const chromePlatform = {
@@ -46,16 +47,23 @@ export const chromePlatform = {
   /**
    * Raise an OS notification, promise-wrapped so chat-core can await an id.
    *
+   * Gated on the user's showNotifications setting. Returning null when it is off
+   * is not a silent failure — it is the contract chat-core already handles:
+   * `handleOpenUrl` falls back to in-page UI when no notification id comes back,
+   * so a muted teammate still SEES the link request, just not as a popup.
+   *
    * @param {{title: string, message: string, iconUrl?: string, type?: string, priority?: number}} opts
-   * @returns {Promise<string|null>} the notification id
+   * @returns {Promise<string|null>} the notification id, or null when muted
    */
-  notify: (opts) =>
-    new Promise((resolve) =>
+  notify: async (opts) => {
+    if (!(await notificationsEnabled(chrome.storage.sync))) return null;
+    return new Promise((resolve) =>
       chrome.notifications.create(
         { type: "basic", iconUrl: "icon128.png", ...opts },
         resolve,
       ),
-    ),
+    );
+  },
 };
 
 // Fail at import, not at first use.

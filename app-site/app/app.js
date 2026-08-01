@@ -55,7 +55,8 @@ function showSignedOut() {
   el("chat-scroll").hidden = true;
   el("composer").hidden = true;
   el("btn-sign-out").hidden = true;
-  el("team-selector").hidden = true;
+  el("btn-settings").hidden = true;
+  el("settings-panel").hidden = true;
   // Every push endpoint is user-gated, so a signed-out click on this could only
   // produce an unexplained failure. Offering a control that cannot work is
   // worse than not offering it.
@@ -68,13 +69,64 @@ function showSignedIn(identity) {
   el("chat-scroll").hidden = false;
   el("composer").hidden = false;
   el("btn-sign-out").hidden = false;
-  el("team-selector").hidden = false;
+  el("btn-settings").hidden = false;
   el("btn-enable-push").hidden = false;
   // The hint stays hidden until refreshPushButton decides there is something
   // worth saying; revealing it here would flash whatever it last held.
   el("push-hint").hidden = true;
   const who = el("account-identity");
   if (who) who.textContent = identity || "";
+}
+
+/**
+ * The settings panel — open and shut, nothing more.
+ *
+ * It starts closed on every open. A panel that remembers being open would cover
+ * the newest message every single launch, which is the opposite of what a chat
+ * wants its first screen to be.
+ */
+function wireSettingsPanel() {
+  const btn = el("btn-settings");
+  const panel = el("settings-panel");
+  if (!btn || !panel) return;
+  btn.addEventListener("click", () => {
+    const open = panel.hidden;
+    panel.hidden = !open;
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+}
+
+/**
+ * Light/dark, on the same key and the same helpers the extension uses, so a
+ * person moving between the two products sees one product.
+ *
+ * The stored choice wins; an untouched install follows the OS. Persisting is
+ * best-effort: a theme that could not be saved still applies for this session
+ * rather than snapping back mid-click.
+ */
+function wireThemeToggle() {
+  const lightBtn = el("btn-theme-light");
+  const darkBtn = el("btn-theme-dark");
+  if (!lightBtn || !darkBtn) return;
+
+  const paint = (mode) => {
+    applyTheme(document.documentElement, mode);
+    lightBtn.setAttribute("aria-pressed", String(mode === "light"));
+    darkBtn.setAttribute("aria-pressed", String(mode === "dark"));
+  };
+
+  const choose = async (mode) => {
+    paint(mode);
+    try {
+      await webPlatform.storage.set({ [THEME_STORAGE_KEY]: mode });
+    } catch (e) {
+      console.warn("[xbrain] theme persist failed:", e);
+    }
+  };
+
+  paint(document.documentElement.getAttribute("data-theme") || "light");
+  lightBtn.addEventListener("click", () => choose("light"));
+  darkBtn.addEventListener("click", () => choose("dark"));
 }
 
 /**
@@ -111,14 +163,15 @@ async function startChat(identity) {
 
   const pushBtn = el("btn-enable-push");
   const pushHint = el("push-hint");
+  const pushState = el("settings-push-state");
 
   // Attaching a listener asks for nothing; the click does. Wiring twice (a
   // re-sign-in runs this again) is a no-op inside push.js.
-  wirePushButton(api, pushBtn, pushHint);
+  wirePushButton(api, pushBtn, pushHint, pushState);
 
   // Safe on load precisely because it only READS the permission and the
   // existing subscription. It never prompts and never writes.
-  await refreshPushButton(api, pushBtn, pushHint);
+  await refreshPushButton(api, pushBtn, pushHint, pushState);
 
   // Repair on open: a subscription the browser rotated while the app was
   // closed, or a server row that no longer exists. Does nothing at all unless
@@ -126,12 +179,14 @@ async function startChat(identity) {
   // it cannot be the thing that raises a prompt. Fire-and-forget - a push
   // repair must never delay or break the chat.
   resyncPush(api)
-    .then(() => refreshPushButton(api, pushBtn, pushHint))
+    .then(() => refreshPushButton(api, pushBtn, pushHint, pushState))
     .catch(() => {});
 }
 
 async function boot() {
   await bootTheme();
+  wireThemeToggle();
+  wireSettingsPanel();
 
   const signOutBtn = el("btn-sign-out");
   if (signOutBtn) {

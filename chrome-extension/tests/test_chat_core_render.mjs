@@ -543,5 +543,231 @@ test("anti-fork: popup.js no longer defines the moved render/route functions", (
   }
 });
 
+// ===========================================================================
+// Avatar rules — Telegram grouping.
+//
+// This is layout logic, which is exactly the kind that regresses silently: a
+// stranded avatar or a shifted bubble looks like "the CSS is a bit off" rather
+// than like a bug, so nobody files it and nobody fixes it. Both rules are
+// pinned here.
+//
+//   1. Your OWN messages carry no avatar at all.
+//   2. A run of consecutive messages from one author shows the avatar ONCE, on
+//      the LAST message of the run.
+// ===========================================================================
+
+/** A user message, minimal. `t` is minutes past NOW, for ordering/day tests. */
+function msg(id, author, t = 0) {
+  return {
+    id,
+    kind: "user",
+    author_user_id: author,
+    content: id,
+    created_at: new Date(Date.parse(NOW) + t * 60000).toISOString(),
+  };
+}
+
+/** Render a list in order and report, per row, whether its avatar is grouped. */
+function renderRun(messages, opts = {}) {
+  const h = makeHarness(opts);
+  for (const m of messages) h.renderer.renderMessage(m, { prepend: false });
+  return h;
+}
+
+/** The rows (not the day separators), in DOM order. */
+function rowsOf(listEl) {
+  return listEl.children.filter((c) => c.dataset && c.dataset.msgId);
+}
+
+/** true where the row's avatar is suppressed by grouping. */
+function groupedFlags(listEl) {
+  return rowsOf(listEl).map((r) => r.classList.contains("is-grouped"));
+}
+
+test("your own messages carry NO avatar element at all", () => {
+  const { renderer } = makeHarness();
+  const node = renderer.buildBubbleNode(msg("m1", "u-self"));
+  assert.equal(node.className, "xb-msg is-self");
+  assert.equal(
+    node.querySelector(".xb-msg-avatar"),
+    null,
+    "right alignment already says the row is yours; a second marker on every line is noise",
+  );
+});
+
+test("a teammate's message still carries one", () => {
+  const { renderer } = makeHarness();
+  const node = renderer.buildBubbleNode(msg("m1", "u-mate"));
+  const avatar = node.querySelector(".xb-msg-avatar");
+  assert.ok(avatar, "other people's rows need a face");
+  assert.equal(avatar.textContent, "M", "first letter of the cached display name");
+});
+
+test("the agent's message carries its own avatar", () => {
+  const { renderer } = makeHarness();
+  const node = renderer.buildBubbleNode({
+    id: "a1",
+    kind: "agent",
+    agent_name: "chad",
+    content: "hi",
+    created_at: NOW,
+  });
+  assert.equal(node.querySelector(".xb-msg-avatar").textContent, "🤖");
+});
+
+test("a run of six from one teammate shows the avatar ONCE, on the last row", () => {
+  const { listEl } = renderRun([
+    msg("m1", "u-mate", 0),
+    msg("m2", "u-mate", 1),
+    msg("m3", "u-mate", 2),
+    msg("m4", "u-mate", 3),
+    msg("m5", "u-mate", 4),
+    msg("m6", "u-mate", 5),
+  ]);
+  assert.deepEqual(
+    groupedFlags(listEl),
+    [true, true, true, true, true, false],
+    "the avatar belongs at the BOTTOM of the group, beside the newest bubble",
+  );
+});
+
+test("a single message is its own run and keeps its avatar", () => {
+  const { listEl } = renderRun([msg("m1", "u-mate")]);
+  assert.deepEqual(groupedFlags(listEl), [false]);
+});
+
+test("a different author ends the run", () => {
+  const { listEl } = renderRun([
+    msg("m1", "u-mate", 0),
+    msg("m2", "u-mate", 1),
+    msg("m3", "u-other", 2),
+    msg("m4", "u-mate", 3),
+  ]);
+  // m1 is followed by the same author, so it hides; m2 is the tail of that run;
+  // m3 and m4 are runs of one.
+  assert.deepEqual(groupedFlags(listEl), [true, false, false, false]);
+});
+
+test("two agents answering in sequence do not group together", () => {
+  // Keyed by agent NAME, so a second agent's reply keeps its own avatar.
+  const { listEl } = renderRun([
+    { id: "a1", kind: "agent", agent_name: "chad", content: "x", created_at: NOW },
+    { id: "a2", kind: "agent", agent_name: "chad", content: "y", created_at: NOW },
+    { id: "a3", kind: "agent", agent_name: "other", content: "z", created_at: NOW },
+  ]);
+  assert.deepEqual(groupedFlags(listEl), [true, false, false]);
+});
+
+test("a live arrival RE-EVALUATES the row before it", () => {
+  // THE FAILURE THIS PINS: grouping depends on the NEXT row's author, which did
+  // not exist when this row was built. Without reconciliation on insert, the
+  // avatar stays stranded on the second-to-last bubble of the run forever.
+  const h = makeHarness();
+  h.renderer.renderMessage(msg("m1", "u-mate", 0), { prepend: false });
+  assert.deepEqual(groupedFlags(h.listEl), [false], "alone, it is the tail");
+
+  h.renderer.renderMessage(msg("m2", "u-mate", 1), { prepend: false });
+  assert.deepEqual(
+    groupedFlags(h.listEl),
+    [true, false],
+    "the new arrival takes over as the tail, and m1 gives up its avatar",
+  );
+
+  h.renderer.renderMessage(msg("m3", "u-other", 2), { prepend: false });
+  assert.deepEqual(
+    groupedFlags(h.listEl),
+    [true, false, false],
+    "a different author ends the run at m2, which keeps its avatar",
+  );
+});
+
+test("prepending an older page re-evaluates the join between the pages", () => {
+  const h = makeHarness();
+  h.renderer.renderMessage(msg("m3", "u-mate", 2), { prepend: false });
+  // An older message from the SAME author, prepended: it is now the row before
+  // m3, so it must give up its avatar.
+  h.renderer.renderMessage(msg("m2", "u-mate", 1), { prepend: true });
+  assert.deepEqual(groupedFlags(h.listEl), [true, false]);
+  // An older one from someone else does not group.
+  h.renderer.renderMessage(msg("m1", "u-other", 0), { prepend: true });
+  assert.deepEqual(groupedFlags(h.listEl), [false, true, false]);
+});
+
+test("a day separator BREAKS the run", () => {
+  // Two messages either side of midnight are not visually consecutive, and an
+  // avatar stranded above a date heading reads as a rendering fault.
+  const yesterday = "2026-07-31T22:00:00Z";
+  const today = "2026-08-01T09:00:00Z";
+  const h = makeHarness();
+  h.renderer.renderMessage(
+    { id: "m1", kind: "user", author_user_id: "u-mate", content: "a", created_at: yesterday },
+    { prepend: false },
+  );
+  h.renderer.renderMessage(
+    { id: "m2", kind: "user", author_user_id: "u-mate", content: "b", created_at: today },
+    { prepend: false },
+  );
+  h.renderer.syncDaySeparators();
+  assert.equal(
+    h.listEl.querySelectorAll(".xb-msg-daysep").length,
+    2,
+    "one separator per day, so the fixture really does span midnight",
+  );
+  assert.deepEqual(
+    groupedFlags(h.listEl),
+    [false, false],
+    "the last row of yesterday keeps its avatar even though today continues the same author",
+  );
+});
+
+test("grouping survives syncDaySeparators being run after a whole batch", () => {
+  // The batch path renders every row first and inserts separators afterwards.
+  // Reconciling only at insert time would leave the pre-separator state.
+  const h = makeHarness();
+  for (const m of [msg("m1", "u-mate", 0), msg("m2", "u-mate", 1), msg("m3", "u-mate", 2)]) {
+    h.renderer.renderMessage(m, { prepend: false });
+  }
+  h.renderer.syncDaySeparators();
+  assert.deepEqual(groupedFlags(h.listEl), [true, true, false]);
+});
+
+test("your own run needs no grouping work — there is nothing to hide", () => {
+  const { listEl } = renderRun([msg("m1", "u-self", 0), msg("m2", "u-self", 1)]);
+  for (const row of rowsOf(listEl)) {
+    assert.equal(row.querySelector(".xb-msg-avatar"), null);
+  }
+});
+
+test("a grouped row HIDES its avatar, it does not remove it", () => {
+  // The gutter must stay reserved or every bubble in the run shifts left.
+  const { listEl } = renderRun([msg("m1", "u-mate", 0), msg("m2", "u-mate", 1)]);
+  const first = rowsOf(listEl)[0];
+  assert.ok(first.classList.contains("is-grouped"));
+  assert.ok(
+    first.querySelector(".xb-msg-avatar"),
+    "the element must still be there — CSS hides it with visibility, keeping the column",
+  );
+});
+
+test("both stylesheets hide the grouped avatar with visibility, never display", () => {
+  for (const rel of [
+    join("chrome-extension", "popup.css"),
+    join("app-site", "app", "app.css"),
+  ]) {
+    const css = readFileSync(join(REPO_ROOT, rel), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const m = /\.xb-msg\.is-grouped\s+\.xb-msg-avatar\s*\{([^}]*)\}/.exec(css);
+    assert.ok(m, `${rel} has no .xb-msg.is-grouped .xb-msg-avatar rule`);
+    assert.match(
+      m[1],
+      /visibility:\s*hidden/,
+      `${rel} must hide the avatar with visibility`,
+    );
+    assert.ok(
+      !/display:\s*none/.test(m[1]),
+      `${rel} uses display:none — that collapses the gutter and shifts every bubble in the run left`,
+    );
+  }
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

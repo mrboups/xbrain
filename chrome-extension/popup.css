@@ -5,7 +5,9 @@
  * still consume var(--xb-*), which are aliased to the new tokens. Layout
  * strategy:
  *
- *   #app  — flex column, fills 100% of body (which is fixed to 100vh).
+ *   #app  — flex column, fills 100% of body, with a min-height floor so the
+ *           popup entry point (which has no viewport of its own) still opens
+ *           at a usable size. See the shell block below.
  *           header (auto)  +  chat-body (1fr scrollable)  +  composer (auto)
  *   chat-body scrolls; header + composer stay pinned. Overflow:hidden on
  *   body so the only scrollbar is the chat history.
@@ -131,15 +133,47 @@
 }
 
 /* ========================================================================
- * App shell
+ * App shell — ONE stylesheet, TWO entry points
+ *
+ * popup.html is both the manifest's `default_popup` and its `side_panel`
+ * default_path, and those two contexts size themselves in opposite directions.
+ *
+ * A side panel is a real, full-height viewport: height:100% fills it.
+ *
+ * An extension POPUP has no height of its own — Chrome sizes the window to
+ * whatever the document turns out to be. So a viewport-relative height (the
+ * 100vh that used to be here, and in an inline <style> in popup.html) resolves
+ * against a viewport that barely exists yet, and the flex column collapses to a
+ * ~100px strip. That is not a cosmetic bug: .xb-chat-empty is
+ * `position: absolute; inset: 0` inside `.xb-chat-body`, so the moment the
+ * shell collapses the empty-state text lands ON TOP of the composer.
+ *
+ * min-height is what gives the popup something to grow to. Chrome caps a popup
+ * at 600x800, so 560 is a full panel with room to spare; the side panel is
+ * taller than 560, which means height:100% keeps winning there and it is
+ * untouched by this. Verify BOTH after any edit here.
  * ====================================================================== */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 320px;
+  background: var(--xb-bg);
+  color: var(--xb-text);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  overflow: hidden;
+}
 
 #app {
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100vh;
-  min-width: 320px;
+  height: 100%;
+  min-height: 560px;
+  min-width: 360px;
 }
 
 /* ========================================================================
@@ -358,6 +392,17 @@
   outline: 2px solid var(--ring);
   outline-offset: 1px;
 }
+
+/* The notification bell ships BOTH glyphs and CSS shows one, keyed off the
+   [data-state] popup.js writes. Doing it here rather than by swapping DOM means
+   the icon and the stored setting are the same fact, not two copies of it. */
+#btn-notifications .xb-ico-bell { display: none; }
+#btn-notifications .xb-ico-bell-off { display: block; }
+#btn-notifications[data-state="on"] .xb-ico-bell { display: block; }
+#btn-notifications[data-state="on"] .xb-ico-bell-off { display: none; }
+/* Muted is the state worth noticing, so it dims; on sits at the header's
+   ordinary icon weight. */
+#btn-notifications[data-state="off"] { opacity: 0.55; }
 
 /* Segmented light/dark theme toggle (shadcn style, radius 0). The pressed
    segment uses --primary/--primary-fg; focus-visible draws the --ring. */
@@ -681,14 +726,24 @@
 .xb-msg.is-user  { background: transparent; }
 .xb-msg.is-agent { background: transparent; margin-top: 11px; }
 
-/* === Own messages — mockup .row.mine: avatar right, bubble right-aligned === */
+/* === Own messages — bubble right-aligned, and NO avatar at all ===
+   The right alignment already says whose the row is; a second marker on every
+   line is noise, and it is your own face on every line of your own chat. The
+   renderer emits no avatar element for these rows. */
 .xb-msg.is-self {
-  /* Mirror the row instead of re-declaring grid columns: avatar ends up on the
-     right, bubble hugs the right edge, and the flex layout above stays the single
-     source of truth for spacing. */
+  /* Mirror the row instead of re-declaring grid columns: the bubble hugs the
+     right edge and the flex layout above stays the single source of truth for
+     spacing. */
   flex-direction: row-reverse;
   background: transparent;
 }
+
+/* Telegram grouping: a run of consecutive messages from one author shows the
+   avatar once, on the LAST row of the run — the newest bubble, where the eye
+   already is.
+   visibility, NOT display — the gutter has to stay reserved or every bubble in
+   the run shifts left and the group reads as ragged instead of quiet. */
+.xb-msg.is-grouped .xb-msg-avatar { visibility: hidden; }
 .xb-msg.is-self .xb-msg-meta {
   justify-content: flex-end;
 }

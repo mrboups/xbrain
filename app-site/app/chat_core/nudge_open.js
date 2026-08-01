@@ -97,6 +97,12 @@ export async function handleOpenUrl(data, deps) {
     priority: 2,
   });
 
+  // No id means no notification was raised — the surface muted them, or the
+  // browser never granted access. There is nothing for a click handler to
+  // resolve, so persisting here would leave a pending destination in session
+  // storage that nothing will ever consume or clear.
+  if (!id) return null;
+
   // Stash id → url so the click handler (Plan 22-03) knows which URL to open.
   if (deps.persistPending) await deps.persistPending(id, data.url);
 

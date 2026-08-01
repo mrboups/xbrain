@@ -22,10 +22,11 @@
  * upload. The team switcher, history, the composer and realtime are the slice.
  */
 
-import { createApi } from "./chat_core/api.js";
+import { createApi, MAX_MEDIA_BYTES } from "./chat_core/api.js";
 import { createRenderer } from "./chat_core/render.js";
 import { createPublicationRouter } from "./chat_core/publication.js";
 import { connectRealtime } from "./chat_core/realtime.js";
+import { createTeamRail } from "./chat_core/team_rail.js";
 import { StreamBuffer } from "./chat_core/chat_stream.js";
 import { handleOpenUrl, isSafeHttpUrl } from "./chat_core/nudge_open.js";
 import { webPlatform } from "./platform_web.js";
@@ -167,37 +168,35 @@ function renderEmptyTeams() {
       "You are not a member of any team yet. Ask a teammate to invite you.";
     empty.hidden = false;
   }
-  const selector = el("team-selector");
-  if (selector) selector.hidden = true;
   const composer = el("composer");
   if (composer) composer.hidden = true;
 }
 
 // ---------- Teams ----------
 
-let selectorWired = false;
-
-/** Fill the header's team picker from state.teams. */
-function renderTeamSelector() {
-  const selector = el("team-selector");
-  if (!selector) return;
-  while (selector.firstChild) selector.removeChild(selector.firstChild);
-  for (const team of state.teams) {
-    const option = document.createElement("option");
-    option.value = team.id;
-    // textContent, never markup: a team name is a string somebody typed.
-    option.textContent = team.display_name || team.slug || "team";
-    selector.appendChild(option);
-  }
-  selector.value = state.activeTeamId || state.teams[0].id;
-  selector.hidden = false;
-  if (!selectorWired) {
-    selector.addEventListener("change", (event) => {
-      switchTeam(event.target.value);
-    });
-    selectorWired = true;
-  }
-}
+/**
+ * The header's team rail — the SAME module the extension renders, not a picker
+ * of its own (D-27-04). It replaces the <select> outright rather than shadowing
+ * it: two controls writing one activeTeamId is exactly the drift this phase
+ * exists to avoid, and a dropdown could not show which team has unread messages
+ * anyway.
+ *
+ * Everything is read late, so one instance serves the whole session.
+ */
+const teamRail = createTeamRail({
+  doc: document,
+  railEl: el("team-rail"),
+  storage: webPlatform.storage,
+  getTeams: () => state.teams,
+  getActiveTeamId: () => state.activeTeamId,
+  onSelectTeam: (id) => switchTeam(id),
+  // A badge must never surface an error, so a failed lookup answers "no badge"
+  // and the next team is still tried.
+  getUnreadCount: async (teamId) => {
+    const summary = await api.unreadSummary(teamId);
+    return summary ? summary.count : null;
+  },
+});
 
 /**
  * The remembered team, but only if the person is STILL a member of it.
@@ -240,8 +239,19 @@ async function switchTeam(teamId) {
   if (state.realtime) state.realtime.subscribeTeam(teamId);
 
   await webPlatform.storage.set({ [TEAM_STORAGE_KEY]: teamId });
+  // Repaint the rail so the filled square follows the switch, and so the team
+  // just left picks up a badge if anything lands in it.
+  await teamRail.render();
   await refreshNameCache();
   await loadInitialHistory();
+
+  // Advance this user's read cursor for the team they are now looking at.
+  // Without it the rail's badges would only ever grow: the counts come from the
+  // same server cursor, and a badge that never clears is a badge people learn
+  // to ignore. Fire-and-forget — a read cursor is never worth a failed switch.
+  api.markRead(teamId)
+    .then(() => teamRail.refreshBadges())
+    .catch(() => {});
 }
 
 /**
@@ -337,9 +347,18 @@ async function loadOlderPage() {
 
 // ---------- Composer ----------
 
+let composerWired = false;
+
 function wireComposer() {
+  // bootChat runs again after a re-sign-in; a second set of listeners would
+  // send every message twice.
+  if (composerWired) return;
+  composerWired = true;
+
   const input = el("composer-input");
   const sendBtn = el("btn-send");
+  const clipBtn = el("btn-clip");
+  const picker = el("file-picker");
   const scrollEl = el("chat-scroll");
 
   if (input) {
@@ -354,6 +373,18 @@ function wireComposer() {
   }
   if (sendBtn) sendBtn.addEventListener("click", () => sendMessage());
 
+  // "+" opens the OS picker; the picker's change event does the upload. The
+  // button never touches a file itself, so there is exactly one upload path.
+  if (clipBtn && picker) {
+    clipBtn.addEventListener("click", () => picker.click());
+    picker.addEventListener("change", async (event) => {
+      const file = event.target.files && event.target.files[0];
+      // Cleared FIRST, so picking the same file twice in a row still fires.
+      event.target.value = "";
+      if (file) await uploadFile(file);
+    });
+  }
+
   if (scrollEl) {
     scrollEl.addEventListener("scroll", () => {
       if (scrollEl.scrollTop < 80) loadOlderPage();
@@ -361,13 +392,78 @@ function wireComposer() {
   }
 }
 
-/** Grow the textarea with its content, up to the ceiling CSS declares. */
+/**
+ * Grow the textarea with its content, up to the ceiling CSS declares.
+ *
+ * The height is reset to auto first so scrollHeight reports the true content
+ * size rather than the box's current one, and the scrollbar is only allowed to
+ * appear once the ceiling is actually reached — at rest the pill is one clean
+ * line with the "+" and the "›".
+ */
 function autoResize(input) {
   input.style.height = "auto";
   const view = document.defaultView;
   const maxHeight =
-    (view && parseFloat(view.getComputedStyle(input).maxHeight)) || 120;
+    (view && parseFloat(view.getComputedStyle(input).maxHeight)) || 200;
   input.style.height = `${Math.min(input.scrollHeight, maxHeight)}px`;
+  if (input.scrollHeight > maxHeight) input.classList.add("is-overflowing");
+  else input.classList.remove("is-overflowing");
+}
+
+/**
+ * Upload a file into the active team, then post it as a chat message.
+ *
+ * The transport is chat-core's api.uploadMedia — the same call the extension
+ * makes — so there is one multipart request in the product, not two. The size
+ * check is client-side courtesy only; the server holds the real ceiling.
+ */
+async function uploadFile(file) {
+  const team = state.teams.find((t) => t.id === state.activeTeamId);
+  if (!team) return;
+
+  if (file.size > MAX_MEDIA_BYTES) {
+    showUploadError(`File too large (max 25 MB): ${file.name}`);
+    return;
+  }
+
+  const clipBtn = el("btn-clip");
+  if (clipBtn) clipBtn.disabled = true;
+  try {
+    const item = await api.uploadMedia(team.slug, file, "pwa");
+    const sent = await api.postMessage(state.activeTeamId, {
+      content: file.name,
+      media: {
+        item_id: item.item_id,
+        mime: item.mime,
+        size: item.size,
+        filename: file.name,
+      },
+    });
+    // Optimistic render, same as a text send: the websocket echo carries the
+    // same id and renderMessage de-dupes it.
+    if (sent && sent.id) {
+      renderer.renderMessage(sent, { prepend: false });
+      renderer.syncDaySeparators();
+      renderer.scrollToBottom();
+      const empty = el("chat-empty");
+      if (empty) empty.hidden = true;
+    }
+  } catch (e) {
+    showUploadError(`Upload failed: ${e.message}`);
+  } finally {
+    if (clipBtn) clipBtn.disabled = false;
+  }
+}
+
+/** A transient line above the pill. Same place a failed send reports. */
+function showUploadError(message) {
+  const composer = el("composer");
+  if (!composer) return;
+  const node = document.createElement("p");
+  node.className = "xb-upload-error";
+  node.textContent = message;
+  composer.insertBefore(node, composer.firstChild);
+  window.setTimeout(() => node.remove(), 4000);
 }
 
 async function sendMessage() {
@@ -530,9 +626,10 @@ export async function bootChat(refs = {}) {
     return;
   }
 
-  // 4. The picker, defaulting to the team they read last.
+  // 4. The rail, defaulting to the team they read last. Painted before the
+  //    socket so the header is never empty while a network call is in flight.
   state.activeTeamId = (await preferredTeamId()) || state.teams[0].id;
-  renderTeamSelector();
+  await teamRail.render();
 
   // 5. Connect. The socket target is whatever POST /v1/me/centrifugo-token
   //    returned — this file names no host and no scheme (D-27-03).
