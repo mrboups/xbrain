@@ -742,12 +742,19 @@ body {
 .xb-msg.is-agent { background: transparent; margin-top: 11px; }
 
 .xb-msg.is-self {
-  /* Mirror the row instead of re-declaring columns: the avatar ends up on the
-     right, the bubble hugs the right edge, and the flex rule above stays the
-     single source of truth for spacing. */
+  /* Mirror the row: the bubble hugs the right edge and the flex rule above
+     stays the single source of truth for spacing. Your own rows carry NO
+     avatar at all — the right alignment already says whose they are, and your
+     own face on every line of your own chat is noise. */
   flex-direction: row-reverse;
   background: transparent;
 }
+
+/* Telegram grouping: a run of consecutive messages from one author shows the
+   avatar once, on the LAST row of the run.
+   visibility, NOT display — the gutter has to stay reserved or every bubble in
+   the run shifts left and the group reads as ragged instead of quiet. */
+.xb-msg.is-grouped .xb-msg-avatar { visibility: hidden; }
 .xb-msg.is-self .xb-msg-meta { justify-content: flex-end; }
 .xb-msg.is-self .xb-msg-bubble {
   background: var(--primary);

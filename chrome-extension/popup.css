@@ -692,14 +692,24 @@
 .xb-msg.is-user  { background: transparent; }
 .xb-msg.is-agent { background: transparent; margin-top: 11px; }
 
-/* === Own messages — mockup .row.mine: avatar right, bubble right-aligned === */
+/* === Own messages — bubble right-aligned, and NO avatar at all ===
+   The right alignment already says whose the row is; a second marker on every
+   line is noise, and it is your own face on every line of your own chat. The
+   renderer emits no avatar element for these rows. */
 .xb-msg.is-self {
-  /* Mirror the row instead of re-declaring grid columns: avatar ends up on the
-     right, bubble hugs the right edge, and the flex layout above stays the single
-     source of truth for spacing. */
+  /* Mirror the row instead of re-declaring grid columns: the bubble hugs the
+     right edge and the flex layout above stays the single source of truth for
+     spacing. */
   flex-direction: row-reverse;
   background: transparent;
 }
+
+/* Telegram grouping: a run of consecutive messages from one author shows the
+   avatar once, on the LAST row of the run — the newest bubble, where the eye
+   already is.
+   visibility, NOT display — the gutter has to stay reserved or every bubble in
+   the run shifts left and the group reads as ragged instead of quiet. */
+.xb-msg.is-grouped .xb-msg-avatar { visibility: hidden; }
 .xb-msg.is-self .xb-msg-meta {
   justify-content: flex-end;
 }
