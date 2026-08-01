@@ -134,6 +134,13 @@ services:
       UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       BRIDGE_SHARED_SECRET: ${BRIDGE_SHARED_SECRET}
+      # Phase 26 board handoff. memory-api is the service that BUILDS the board
+      # open_url, so these have to reach THIS container — not just the board/hocuspocus
+      # ones. Without them it falls back to the compiled dev default
+      # (http://board.localhost) and every "open board" click lands on nothing, which is
+      # exactly what happened on the VM until 2026-08-01.
+      BOARD_PUBLIC_BASE_URL: ${BOARD_PUBLIC_BASE_URL:-http://board.localhost}
+      BOARD_WS_URL_PUBLIC: ${BOARD_WS_URL_PUBLIC:-ws://board.localhost/collab}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       ADMIN_USER_SUBS: ${ADMIN_USER_SUBS:-}
