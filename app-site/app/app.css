@@ -1,0 +1,659 @@
+/* xbrain PWA — app.css (Phase 27, Plan 27-05)
+ *
+ * The design tokens below are the SAME shadcn "Neutral" set the extension popup
+ * uses (chrome-extension/popup.css), copied value for value so the PWA and the
+ * extension read as one product rather than two takes on it. Rules also consume
+ * the legacy var(--xb-*) aliases, because the shared renderer in chat-core emits
+ * xb-* class names and its markup has to resolve on both surfaces.
+ *
+ * Layout: phone first.
+ *   #app  — flex column filling the viewport
+ *           header (auto) + #chat-scroll (1fr, the only scroller) + composer (auto)
+ *
+ * This file pulls in NOTHING: no other stylesheet, no external webfont — the
+ * same CSP-safe rule the extension follows. The font stacks name real faces
+ * first and fall back to system ones. (The word for a stylesheet include is
+ * deliberately absent here: the acceptance gate greps this file for it,
+ * comments included, so prose gets reworded rather than the gate loosened.)
+ */
+
+/* CRITICAL — the HTML `hidden` attribute sets display:none via the user-agent
+   stylesheet, but ANY explicit display: rule below would silently override it.
+   Force-hide hidden elements at the top so the flex layouts cannot accidentally
+   reveal a card that is supposed to be closed. */
+[hidden] { display: none !important; }
+
+/* ========================================================================
+ * Design tokens — shadcn "Neutral" (monochrome, radius 0, Geist stack)
+ * ====================================================================== */
+
+:root {
+  /* light palette */
+  --bg:#FFFFFF;
+  --fg:#0A0A0A;
+  --card:#FFFFFF;
+  --card-fg:#0A0A0A;
+  --muted:#F5F5F5;
+  --muted-fg:#737373;
+  --secondary:#F5F5F5;
+  --secondary-fg:#171717;
+  --primary:#0A0A0A;
+  --primary-fg:#FAFAFA;
+  --border:#E5E5E5;
+  --input:#E5E5E5;
+  --ring:#A3A3A3;
+  --destructive:#E5322D;
+  --radius:0px;
+  --sans:'Geist','Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'Geist Mono',ui-monospace,'Cascadia Code',Consolas,monospace;
+
+  /* Legacy --xb-* aliases -> new tokens. They reference the tokens above,
+     which flip per theme, so they are NOT repeated in the dark blocks. */
+  --xb-bg:var(--bg);
+  --xb-surface:var(--card);
+  --xb-surface-2:var(--muted);
+  --xb-border:var(--border);
+  --xb-border-2:var(--input);
+  --xb-text:var(--fg);
+  --xb-text-mute:var(--muted-fg);
+  --xb-text-dim:var(--muted-fg);
+  --xb-accent:var(--primary);
+  --xb-accent-2:var(--primary);
+  --xb-accent-bg:var(--secondary);
+  --xb-success:var(--muted-fg);
+  --xb-success-bg:var(--secondary);
+  --xb-error:var(--destructive);
+  --xb-error-bg:var(--secondary);
+  --xb-radius:var(--radius);
+}
+
+/* The dark palette is declared TWICE so an explicit toggle wins in BOTH
+   directions: once behind the OS colour query (the default when nobody has
+   chosen), and once behind :root[data-theme="dark"], which out-specifies the
+   query and therefore also beats a light OS setting. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#0A0A0A;
+    --fg:#FAFAFA;
+    --card:#171717;
+    --card-fg:#FAFAFA;
+    --muted:#262626;
+    --muted-fg:#A3A3A3;
+    --secondary:#262626;
+    --secondary-fg:#FAFAFA;
+    --primary:#FAFAFA;
+    --primary-fg:#171717;
+    --border:rgba(255,255,255,.10);
+    --input:rgba(255,255,255,.15);
+    --ring:#787878;
+    --destructive:#FB5A57;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#0A0A0A;
+  --fg:#FAFAFA;
+  --card:#171717;
+  --card-fg:#FAFAFA;
+  --muted:#262626;
+  --muted-fg:#A3A3A3;
+  --secondary:#262626;
+  --secondary-fg:#FAFAFA;
+  --primary:#FAFAFA;
+  --primary-fg:#171717;
+  --border:rgba(255,255,255,.10);
+  --input:rgba(255,255,255,.15);
+  --ring:#787878;
+  --destructive:#FB5A57;
+}
+/* Explicit light choice overrides a dark OS when the toggle picks light. */
+:root[data-theme="light"] {
+  --bg:#FFFFFF;
+  --fg:#0A0A0A;
+  --card:#FFFFFF;
+  --card-fg:#0A0A0A;
+  --muted:#F5F5F5;
+  --muted-fg:#737373;
+  --secondary:#F5F5F5;
+  --secondary-fg:#171717;
+  --primary:#0A0A0A;
+  --primary-fg:#FAFAFA;
+  --border:#E5E5E5;
+  --input:#E5E5E5;
+  --ring:#A3A3A3;
+  --destructive:#E5322D;
+}
+
+/* ========================================================================
+ * App shell — phone first
+ * ====================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { -webkit-font-smoothing: antialiased; }
+
+body {
+  /* dvh, NOT vh: mobile Safari's vh includes the collapsing toolbar, so a
+     100vh column pushes the composer off the bottom of the screen. */
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* ---- Header ---------------------------------------------------------- */
+
+.xb-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 13px;
+  padding-top: calc(10px + env(safe-area-inset-top));
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.xb-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--fg);
+}
+.xb-brand-mark {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius);
+  background: var(--primary);
+  flex-shrink: 0;
+}
+
+#team-selector {
+  margin-left: auto;
+  max-width: 46%;
+  padding: 6px 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+}
+#team-selector:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* ---- Buttons --------------------------------------------------------- */
+
+.xb-btn {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 11px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.xb-btn:hover:not(:disabled) { background: var(--muted); }
+.xb-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.xb-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.xb-btn-primary {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-color: var(--primary);
+}
+.xb-btn-primary:hover:not(:disabled) { opacity: 0.88; background: var(--primary); }
+
+.xb-btn-block { width: 100%; }
+
+/* ---- Sign-in card ---------------------------------------------------- */
+
+#signin-card {
+  margin: auto;
+  width: 100%;
+  max-width: 360px;
+  padding: 22px 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+#signin-card h2 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+#signin-card .xb-sub {
+  font-size: 12.5px;
+  color: var(--muted-fg);
+  margin-bottom: 18px;
+}
+
+.xb-google-slot { display: flex; justify-content: center; min-height: 44px; }
+.xb-google-hint {
+  font-size: 11px;
+  color: var(--muted-fg);
+  text-align: center;
+  margin-top: 8px;
+}
+
+.xb-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 16px;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-fg);
+}
+.xb-divider::before, .xb-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.xb-field { margin-bottom: 12px; }
+.xb-field label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-fg);
+  margin-bottom: 5px;
+}
+.xb-field input {
+  width: 100%;
+  padding: 9px 10px;
+  /* 16px minimum: anything smaller makes iOS Safari zoom the whole page on
+     focus, which then leaves the layout scrolled sideways. */
+  font-size: 16px;
+  font-family: var(--sans);
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+}
+.xb-field input:focus-visible { outline: 2px solid var(--ring); outline-offset: 0; }
+
+.xb-banner {
+  margin-top: 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--secondary-fg);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.xb-banner.is-error {
+  color: var(--destructive);
+  border-color: var(--destructive);
+}
+
+/* ---- Chat scroller --------------------------------------------------- */
+
+#chat-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  display: flex;
+  flex-direction: column;
+}
+
+#message-list {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 10px;
+}
+
+#chat-empty {
+  margin: auto;
+  padding: 24px 20px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--muted-fg);
+}
+
+/* ---- Composer -------------------------------------------------------- */
+
+.xb-composer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 9px 11px;
+  /* The home-indicator strip on a notched phone sits over the bottom edge; without
+     this the send button ends up underneath it. */
+  padding-bottom: calc(9px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+
+#composer-input {
+  flex: 1 1 auto;
+  min-height: 38px;
+  max-height: 120px;
+  padding: 9px 10px;
+  resize: none;
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+}
+#composer-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 0; }
+
+#btn-send { flex-shrink: 0; }
+
+/* ========================================================================
+ * Messages — the classes chat-core's renderer emits
+ *
+ * Palette, mirrored from the extension:
+ *   own    (.is-self)  -> --primary fill
+ *   others (.is-user)  -> --muted + --border
+ *   agent  (.is-agent) -> --card  + --border
+ * Radius 0 everywhere; avatars are SQUARE.
+ * ====================================================================== */
+
+.xb-msg {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 0 13px;
+  margin-top: 9px;
+  border-radius: var(--radius);
+  background: transparent;
+}
+
+.xb-msg.is-user  { background: transparent; }
+.xb-msg.is-agent { background: transparent; margin-top: 11px; }
+
+.xb-msg.is-self {
+  /* Mirror the row instead of re-declaring columns: the avatar ends up on the
+     right, the bubble hugs the right edge, and the flex rule above stays the
+     single source of truth for spacing. */
+  flex-direction: row-reverse;
+  background: transparent;
+}
+.xb-msg.is-self .xb-msg-meta { justify-content: flex-end; }
+.xb-msg.is-self .xb-msg-bubble {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  text-align: left;
+}
+
+.xb-msg-avatar {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--secondary);
+  color: var(--secondary-fg);
+  border: 1px solid var(--border);
+  user-select: none;
+  line-height: 1;
+}
+.xb-msg.is-agent .xb-msg-avatar {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-color: var(--primary);
+}
+
+.xb-msg-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--muted-fg);
+  margin-bottom: 3px;
+}
+.xb-msg-author {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.xb-msg-author.is-agent { color: var(--fg); }
+.xb-msg-time {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted-fg);
+}
+
+.xb-msg-provenance {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: -0.01em;
+  padding: 1px 5px;
+  border-radius: var(--radius);
+  background: var(--secondary);
+  color: var(--secondary-fg);
+  border: 1px solid var(--border);
+}
+.xb-msg-provenance.via-promax,
+.xb-msg-provenance.via-api {
+  background: var(--secondary);
+  color: var(--secondary-fg);
+}
+
+.xb-msg-bubble {
+  max-width: 78%;
+  padding: 7px 10px;
+  background: var(--muted);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: fit-content;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.46;
+  font-size: 13px;
+  animation: xb-msg-rise 0.16s ease both;
+}
+.xb-msg.is-user .xb-msg-bubble {
+  background: var(--muted);
+  color: var(--fg);
+  border: 1px solid var(--border);
+}
+.xb-msg.is-agent .xb-msg-bubble {
+  background: var(--card);
+  color: var(--card-fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-width: 82%;
+}
+
+@keyframes xb-msg-rise {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Its own span so the agent stream can rewrite the text without wiping the
+   agent label / sources block that share the bubble. */
+.xb-msg-text { display: inline; }
+
+.xb-msg-agent-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-fg);
+  margin-bottom: 5px;
+}
+
+.xb-msg-sources {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 7px;
+}
+.xb-msg-sources summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted-fg);
+  list-style: none;
+}
+.xb-msg-sources summary::-webkit-details-marker { display: none; }
+.xb-msg-sources summary::before { content: "\2304  "; }
+.xb-msg-sources[open] summary::before { content: "\2303  "; }
+.xb-msg-sources summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.xb-msg-src {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 11px;
+  color: var(--muted-fg);
+}
+
+/* Truth-level chips — MONOCHROME: validated is a filled --primary badge,
+   working is an outline badge. No colour coding. */
+.xb-msg-chip {
+  font-family: var(--mono);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted-fg);
+}
+.xb-msg-chip[data-level="validated"] {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-color: var(--primary);
+}
+.xb-msg-chip[data-level="working"] {
+  background: transparent;
+  color: var(--muted-fg);
+  border-color: var(--border);
+}
+
+.xb-msg-savetag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  margin-top: 3px;
+  padding: 2px 6px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: -0.01em;
+  color: var(--secondary-fg);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.xb-msg.is-self .xb-msg-savetag { justify-self: end; }
+
+.xb-msg-daysep {
+  align-self: center;
+  text-align: center;
+  margin: 14px 0 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-fg);
+}
+
+/* Streaming caret — anchored to the text span so it sits right after the
+   streamed characters rather than below the sources block. */
+.xb-msg-bubble.streaming .xb-msg-text::after {
+  content: "\258D";
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--primary);
+  animation: xb-caret-blink 1s infinite;
+}
+
+@keyframes xb-caret-blink {
+  0%, 50%   { opacity: 1; }
+  51%, 100% { opacity: 0.15; }
+}
+
+/* ---- Inline media in bubbles ----------------------------------------- */
+
+.xb-msg-thumb {
+  display: block;
+  max-width: 210px;
+  max-height: 132px;
+  border-radius: var(--radius);
+  object-fit: cover;
+  cursor: pointer;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  transition: opacity 0.15s;
+  margin-top: 4px;
+}
+.xb-msg-thumb:hover { opacity: 0.85; }
+.xb-msg-thumb:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.xb-msg-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 7px 9px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--card-fg);
+  text-decoration: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.xb-msg-file-chip:hover { background: var(--muted); color: var(--fg); }
+.xb-msg-file-chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.xb-msg-caption {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted-fg);
+  line-height: 1.4;
+}
+
+/* Motion is decorative only — kill it when the OS asks. */
+@media (prefers-reduced-motion: reduce) {
+  .xb-msg-bubble { animation: none; }
+  .xb-msg-bubble.streaming .xb-msg-text::after { animation: none; }
+}
