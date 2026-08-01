@@ -17,7 +17,18 @@
  * outside `install`. A response can only be served from cache if it was in SHELL.
  */
 
-const CACHE = "xb-app-shell-v1";
+/**
+ * Bumped whenever the shell's CONTENT changes, not just its file list.
+ *
+ * Re-adding the same entries into the same cache would already refresh them at
+ * install, so this is not load-bearing — it is auditable. A new name means
+ * `activate` deletes the previous shell outright, so there is no window in which
+ * a half-updated mix of old and new files can be served together.
+ *
+ * v2 — the header adopted the extension's design (team rail, icon actions,
+ * settings panel, composer pill).
+ */
+const CACHE = "xb-app-shell-v2";
 
 /**
  * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07

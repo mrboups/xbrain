@@ -477,31 +477,32 @@ testAsync("disablePush with nothing subscribed is a no-op, not an error", async 
 
 // ---- 6. refreshPushButton reads, and only reads --------------------------
 
-testAsync("refreshPushButton reflects the real state and never asks", async () => {
-  const cases = [
-    [{ hasPushManager: false }, "unsupported", "Notifications unavailable"],
-    [{ permission: "denied" }, "blocked", "Notifications blocked in browser settings"],
-    [{ permission: "default" }, "off", "Notifications off"],
-    [
-      {
-        permission: "granted",
-        existing: { endpoint: "https://push.example.test/on", key: VAPID_KEY },
-      },
-      "on",
-      "Notifications on",
-    ],
-    [
-      {
-        hasPushManager: false,
-        standalone: false,
-        userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) Safari/605.1.15",
-      },
-      "install_required",
-      "Notifications need the installed app",
-    ],
-  ];
+/** The five states, with the accessible name and the settings line each shows. */
+const STATE_CASES = [
+  [{ hasPushManager: false }, "unsupported", "Notifications unavailable"],
+  [{ permission: "denied" }, "blocked", "Notifications blocked in browser settings"],
+  [{ permission: "default" }, "off", "Notifications off"],
+  [
+    {
+      permission: "granted",
+      existing: { endpoint: "https://push.example.test/on", key: VAPID_KEY },
+    },
+    "on",
+    "Notifications on",
+  ],
+  [
+    {
+      hasPushManager: false,
+      standalone: false,
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) Safari/605.1.15",
+    },
+    "install_required",
+    "Notifications need the installed app",
+  ],
+];
 
-  for (const [opts, expectedState, expectedLabel] of cases) {
+testAsync("refreshPushButton reflects the real state and never asks", async () => {
+  for (const [opts, expectedState, expectedLabel] of STATE_CASES) {
     const b = browser(opts);
     const btn = fakeEl();
     const hint = fakeEl();
@@ -511,7 +512,14 @@ testAsync("refreshPushButton reflects the real state and never asks", async () =
       expectedState,
       `state for ${JSON.stringify(opts)}`,
     );
-    assert.equal(btn.textContent, expectedLabel, `label for ${expectedState}`);
+    // The control is an icon, so the state's words live in the accessible name
+    // rather than on the face of the button. A struck bell with no name is
+    // ambiguous to everyone and unusable with a screen reader.
+    assert.equal(
+      btn.getAttribute("aria-label"),
+      expectedLabel,
+      `accessible name for ${expectedState}`,
+    );
     assert.ok(hint.textContent.length > 0, `a state with no explanation is a dead end (${expectedState})`);
     assert.ok(
       !b.log.includes("ask-permission"),
@@ -523,6 +531,28 @@ testAsync("refreshPushButton reflects the real state and never asks", async () =
       "refreshPushButton must not write anything; it reports what is already true",
     );
   }
+});
+
+testAsync("the settings line is written from the SAME read as the bell", async () => {
+  // Two reads would be two chances to disagree, and the one people would trust
+  // is whichever they looked at last.
+  for (const [opts, expectedState, expectedLabel] of STATE_CASES) {
+    const b = browser(opts);
+    const btn = fakeEl();
+    const stateEl = fakeEl();
+    await mod().refreshPushButton(b.api, btn, fakeEl(), stateEl);
+    assert.equal(stateEl.textContent, expectedLabel, `settings line for ${expectedState}`);
+    assert.equal(btn.getAttribute("aria-label"), stateEl.textContent);
+  }
+});
+
+testAsync("painting the bell never assigns to the button's text", async () => {
+  // The two bell glyphs are in the markup and CSS picks one off data-state.
+  // Writing textContent would delete both and leave an empty square.
+  const b = browser({ permission: "default" });
+  const btn = fakeEl();
+  await mod().refreshPushButton(b.api, btn, fakeEl());
+  assert.equal(btn.textContent, "", "push.js must not overwrite the button's children");
 });
 
 testAsync("only a real, usable state leaves the button clickable", async () => {

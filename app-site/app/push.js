@@ -42,7 +42,14 @@ const PUSH_ROTATED_MESSAGE = "xbrain-push-rotated";
  */
 const REGISTRATION_TIMEOUT_MS = 5000;
 
-/** Button copy per state. English only, and short enough to fit the header. */
+/**
+ * State copy. English only.
+ *
+ * The control is an icon now, so these no longer sit ON the button as text -
+ * they become its accessible name, its tooltip and the line in the settings
+ * panel. An icon-only toggle with no name is unusable with a screen reader and
+ * ambiguous with one: a struck bell could equally mean "muted" or "broken".
+ */
 const BUTTON_LABELS = {
   on: "Notifications on",
   off: "Notifications off",
@@ -428,13 +435,26 @@ async function readPushState() {
   return sub ? "on" : "off";
 }
 
-function paintButton(btnEl, hintEl, state) {
+/**
+ * @param {HTMLElement} btnEl
+ * @param {HTMLElement|null} hintEl
+ * @param {string} state
+ * @param {HTMLElement|null} [stateEl] the settings panel's read-only line
+ */
+function paintButton(btnEl, hintEl, state, stateEl) {
+  const label = BUTTON_LABELS[state] || BUTTON_LABELS.off;
+  // data-state is the ONLY thing that decides which bell is drawn: both glyphs
+  // ship in the markup and app.css shows one. Nothing here assigns markup, and
+  // the icon therefore cannot drift from the state the tests assert on.
   btnEl.setAttribute("data-state", state);
-  btnEl.textContent = BUTTON_LABELS[state] || BUTTON_LABELS.off;
+  btnEl.setAttribute("aria-label", label);
   btnEl.disabled = !ACTIONABLE.has(state);
   btnEl.setAttribute("aria-pressed", state === "on" ? "true" : "false");
   const hint = STATE_HINTS[state] || "";
   btnEl.title = hint;
+  // The settings panel repeats the state in words. It is written from THIS
+  // read, not from a second one, so the bell and the line cannot disagree.
+  if (stateEl) stateEl.textContent = label;
   if (hintEl) {
     // The text is always written (the title carries it, and assistive tech
     // reads it) but only SHOWN when the person has to do something this app
@@ -462,8 +482,9 @@ function paintButton(btnEl, hintEl, state) {
  *   true by construction rather than by review.
  * @param {HTMLElement} btnEl
  * @param {HTMLElement} [hintEl]
+ * @param {HTMLElement} [stateEl]
  */
-export async function refreshPushButton(api, btnEl, hintEl) {
+export async function refreshPushButton(api, btnEl, hintEl, stateEl) {
   if (!btnEl) return;
   let state = "off";
   try {
@@ -473,7 +494,7 @@ export async function refreshPushButton(api, btnEl, hintEl) {
     // is still available and it re-checks everything from scratch.
     state = "off";
   }
-  paintButton(btnEl, hintEl, state);
+  paintButton(btnEl, hintEl, state, stateEl);
 }
 
 /**
@@ -492,8 +513,9 @@ export async function refreshPushButton(api, btnEl, hintEl) {
  * @param {{request: (path: string, opts?: Object) => Promise<any>}} api
  * @param {HTMLElement} btnEl
  * @param {HTMLElement} [hintEl]
+ * @param {HTMLElement} [stateEl]
  */
-export function wirePushButton(api, btnEl, hintEl) {
+export function wirePushButton(api, btnEl, hintEl, stateEl) {
   if (!btnEl) return;
   if (btnEl.dataset && btnEl.dataset.pushWired === "1") return;
   if (btnEl.dataset) btnEl.dataset.pushWired = "1";
@@ -509,7 +531,7 @@ export function wirePushButton(api, btnEl, hintEl) {
     }
     // Repaint from the real state first, then say why it did not change - the
     // repaint owns the hint, so an explanation written before it would vanish.
-    await refreshPushButton(api, btnEl, hintEl);
+    await refreshPushButton(api, btnEl, hintEl, stateEl);
     if (!result.ok && hintEl) {
       hintEl.textContent = FAILURE_HINTS[result.reason] || FAILURE_HINTS.server_error;
       hintEl.hidden = false;
@@ -526,7 +548,7 @@ export function wirePushButton(api, btnEl, hintEl) {
       const data = event && event.data;
       if (!data || data.type !== PUSH_ROTATED_MESSAGE) return;
       resyncPush(api)
-        .then(() => refreshPushButton(api, btnEl, hintEl))
+        .then(() => refreshPushButton(api, btnEl, hintEl, stateEl))
         .catch(() => {
           // Best effort; the next app open runs the same repair.
         });

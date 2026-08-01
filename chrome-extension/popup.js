@@ -29,7 +29,7 @@ import {
   resolveInitialTheme,
   applyTheme,
 } from "./chat_core/theme.js";
-import { createApi } from "./chat_core/api.js";
+import { createApi, MAX_MEDIA_BYTES } from "./chat_core/api.js";
 import { createRenderer } from "./chat_core/render.js";
 import { createPublicationRouter } from "./chat_core/publication.js";
 import { connectRealtime } from "./chat_core/realtime.js";
@@ -500,20 +500,10 @@ function pickFileForMember(member) {
     }
     setPeopleStatus(`Uploading ${file.name}…`, "loading");
     try {
-      // Multipart stays on raw fetch: the browser must set Content-Type itself
-      // so the boundary is correct. The token still comes from the shim.
-      const { xbt_token } = await chromePlatform.storage.get(["xbt_token"]);
-      const form = new FormData();
-      form.append("file", file);
-      form.append("caption", file.name);
-      const up = await fetch(`${MEMORY_API_BASE}/v1/media/upload`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${xbt_token}`,
-          "X-Team-Scope": team.slug,
-        },
-        body: form,
-      });
+      // The RAW variant, because the branch below needs the status code: an
+      // exception would collapse 413 ("too large" — actionable) and 500 into
+      // one message. chat-core still builds the multipart body.
+      const up = await api.uploadMediaRaw(team.slug, file, { caption: file.name });
       if (up.status !== 201) {
         setPeopleStatus(
           up.status === 413
@@ -1781,12 +1771,11 @@ function openFilePicker() {
 
 /**
  * Upload a file to /v1/media/upload and post a media message into team chat.
- * Uses raw fetch (not the shared client) because multipart requires the browser
- * to set the Content-Type boundary automatically — never set it manually.
+ * The transport lives in chat-core's client (api.uploadMedia) so the PWA sends
+ * the same request rather than growing a second multipart call site.
  */
 async function uploadFile(file) {
-  const MAX_BYTES = 25 * 1024 * 1024; // 25 MB — must match backend constant
-  if (file.size > MAX_BYTES) {
+  if (file.size > MAX_MEDIA_BYTES) {
     console.warn("[xbrain] file too large:", file.size);
     // Surface inline error in the composer area without an alert.
     const statusEl = document.querySelector(".xb-composer");
@@ -1806,38 +1795,11 @@ async function uploadFile(file) {
     return;
   }
 
-  const { xbt_token } = await chromePlatform.storage.get(["xbt_token"]);
-  if (!xbt_token) {
-    console.warn("[xbrain] uploadFile: no xbt_token");
-    return;
-  }
-
   const clipBtn = $("btn-clip");
   if (clipBtn) clipBtn.disabled = true;
 
   try {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("source_surface", "extension");
-    fd.append("truth_level", "WORKING");
-
-    const resp = await fetch(`${MEMORY_API_BASE}/v1/media/upload`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${xbt_token}`,
-        "X-Team-Scope": team.slug,
-        // NOTE: Do NOT set Content-Type — let the browser set it with the
-        //       multipart boundary automatically.
-      },
-      body: fd,
-    });
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      throw new Error(`HTTP ${resp.status}: ${text.slice(0, 200)}`);
-    }
-
-    const item = await resp.json();
+    const item = await api.uploadMedia(team.slug, file, "extension");
     await postMediaMessage(item, file.name);
   } catch (e) {
     console.warn("[xbrain] uploadFile failed:", e);
