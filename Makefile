@@ -153,6 +153,10 @@ verify-phase16:  ## Phase 16 acceptance gate — clean-install: real core boot +
 verify-phase26:  ## Phase 26a acceptance gate — real board boot: convergence + team-scope + persistence + Phase-16 green
 	@bash infrastructure/scripts/verify-phase26.sh
 
+.PHONY: verify-phase27
+verify-phase27:  ## Phase 27 acceptance gate — deployed PWA origin + real CORS/realtime/push (SKIP=FAIL)
+	@bash infrastructure/scripts/verify-phase27.sh
+
 # Phase 17 (CI lockstep). These cover what is provable WITHOUT a GitHub-Actions run: the
 # pipeline is well-formed and correctly wired, and migrations apply under both editions.
 # They do NOT prove the workflow runs — see docs/ci-lockstep.md for the residual.
