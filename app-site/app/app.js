@@ -56,6 +56,11 @@ function showSignedOut() {
   el("composer").hidden = true;
   el("btn-sign-out").hidden = true;
   el("team-selector").hidden = true;
+  // Every push endpoint is user-gated, so a signed-out click on this could only
+  // produce an unexplained failure. Offering a control that cannot work is
+  // worse than not offering it.
+  el("btn-enable-push").hidden = true;
+  el("push-hint").hidden = true;
 }
 
 function showSignedIn(identity) {
@@ -64,6 +69,10 @@ function showSignedIn(identity) {
   el("composer").hidden = false;
   el("btn-sign-out").hidden = false;
   el("team-selector").hidden = false;
+  el("btn-enable-push").hidden = false;
+  // The hint stays hidden until refreshPushButton decides there is something
+  // worth saying; revealing it here would flash whatever it last held.
+  el("push-hint").hidden = true;
   const who = el("account-identity");
   if (who) who.textContent = identity || "";
 }

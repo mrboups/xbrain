@@ -825,18 +825,28 @@ test("the push toggle and its hint are hidden on the signed-out surface", () => 
   const app = stripComments(readFileSync(join(APP_DIR, "app.js"), "utf8"));
   const out = functionBody(app, "showSignedOut").text;
   const inn = functionBody(app, "showSignedIn").text;
+
   for (const id of ["btn-enable-push", "push-hint"]) {
     assert.match(
       out,
       new RegExp(`el\\("${id}"\\)[\\s\\S]{0,40}?hidden\\s*=\\s*true`),
-      `showSignedOut must hide #${id} - every push endpoint is user-gated, so a signed-out click can only produce an unexplained failure`,
-    );
-    assert.match(
-      inn,
-      new RegExp(`el\\("${id}"\\)[\\s\\S]{0,40}?hidden\\s*=\\s*false`),
-      `showSignedIn must reveal #${id}`,
+      `showSignedOut must hide #${id} - every push endpoint is user-gated, so a signed-out click can only produce an unexplained failure, and a hint left over from the previous session outlives its meaning`,
     );
   }
+
+  assert.match(
+    inn,
+    /el\("btn-enable-push"\)[\s\S]{0,40}?hidden\s*=\s*false/,
+    "showSignedIn must reveal the toggle",
+  );
+  // The hint is NOT revealed here: push.js decides when there is something
+  // worth saying, and revealing it on sign-in would flash whatever it last
+  // held before that decision is made.
+  assert.match(
+    inn,
+    /el\("push-hint"\)[\s\S]{0,40}?hidden\s*=\s*true/,
+    "showSignedIn must leave #push-hint hidden - push.js owns when it appears",
+  );
 });
 
 test("every id app.js reads is declared in index.html", () => {
