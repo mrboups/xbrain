@@ -764,6 +764,21 @@ Plans:
 
 **UI hint**: yes (a new board web app + an "Open board" action in the extension chat)
 
+### Phase 27: PWA + Web Push
+
+**Goal**: The team chat is reachable from any browser — including a phone — as an installable PWA, and it can notify. Today the chat exists only inside the Chrome extension and notifications only as `chrome.notifications`; a teammate without the extension has no way in and receives nothing. Hosted as static files on the existing Firebase site, so it adds zero infrastructure.
+**Depends on**: Phase 25 (the web Google sign-in proven on /join/), Phase 22 (the nudge event push rides on).
+**Requirements**: PWA-01, PUSH-01
+**Success Criteria** (what must be TRUE):
+
+  1. The PWA is installable and served from the deployed origin: `manifest.webmanifest` parses, its `start_url`/`scope`/icons all resolve 200 over HTTPS, and a service worker registers.
+  2. Sign in with Google on `https://grooveos.app/app/` mints an `xbt_` via the same flow /join/ uses, and the team chat loads history and sends a message against the REAL API — CORS included, proven from that origin rather than from a local file.
+  3. Realtime is real: with two clients on one team, a message sent by one appears in the OTHER without a reload (assert arrival, not absence of error).
+  4. Push is real and opt-in: the permission prompt fires only on an explicit click; a stored subscription turns a server-side send into a visible notification; and an endpoint answering 404/410 is PRUNED server-side rather than retried. Push fires on @mention and on a Phase-22 nudge — not on every team message.
+
+**Plans**: TBD (populated by `/gsd:plan-phase 27`)
+**UI hint**: yes (a new hosted chat surface reusing the extension's shadcn Neutral tokens)
+
 ## Progress
 
 **Execution Order:**
