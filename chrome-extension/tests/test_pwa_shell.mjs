@@ -17,7 +17,7 @@
  */
 
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -54,7 +54,9 @@ function readApp(relPath) {
  * shipped. That way the exemption cannot quietly outlive its reason.
  */
 const PENDING_SHELL_ENTRIES = new Set([
-  "/app/push.js", // 27-07 — the click-gated push opt-in
+  // Empty since 27-07 shipped /app/push.js. Kept rather than deleted: the
+  // mechanism is what stops the NEXT precache-ahead entry from becoming
+  // permanent.
 ]);
 
 /** Map a shell URL onto the file it must resolve to on disk. */
@@ -97,16 +99,42 @@ test("the SW is registered exactly once across index.html and app.js", () => {
   assert.equal(total, 1, "exactly one registration call must exist across the shell");
 });
 
-test("no shell file can raise a permission prompt on load (D-27-05)", () => {
-  for (const file of ["index.html", "app.js", "auth.js"]) {
+/**
+ * The one file allowed to reach the permission prompt (D-27-05, shipped 27-07).
+ *
+ * Before 27-07 this test named three files by hand. That list was correct while
+ * nothing owned the prompt, but it would have gone quietly out of date the
+ * moment a fourth file appeared. It now walks the directory instead, so a new
+ * shell file is covered on the day it is written rather than on the day someone
+ * remembers to add it here.
+ */
+const PROMPT_OWNER = "push.js";
+
+test("no shell file except push.js can raise a permission prompt (D-27-05)", () => {
+  const files = readdirSync(APP_DIR)
+    .filter((f) => f.endsWith(".js") && f !== PROMPT_OWNER)
+    .concat(["index.html"]);
+  assert.ok(files.length >= 4, `expected several shell files to check, found ${files.length}`);
+  for (const file of files) {
     const src = readApp(file);
     assert.ok(
       !/requestPermission/.test(src),
-      `${file} must not reference the notification permission request — 27-07 owns the one click-gated call site`,
+      `${file} must not reference the notification permission request — push.js owns the one click-gated call site`,
     );
     assert.ok(
-      !/pushManager/.test(src),
-      `${file} must not touch pushManager — subscribing implies a prompt`,
+      !/pushManager\.subscribe/.test(src),
+      `${file} must not subscribe to push — subscribing implies a prompt`,
+    );
+  }
+});
+
+test("push.js holds exactly one of each, so the check above is not vacuous", () => {
+  const src = readApp(PROMPT_OWNER);
+  for (const api of ["requestPermission", "pushManager.subscribe"]) {
+    assert.equal(
+      src.split(api).length - 1,
+      1,
+      `push.js must contain exactly one "${api}"; if it contained none, the exclusion above would be hiding nothing and the prompt would live somewhere unchecked`,
     );
   }
 });
@@ -221,6 +249,15 @@ test("the pending-entry exemption list has not gone stale", () => {
       `${url} has shipped — remove it from PENDING_SHELL_ENTRIES so it is checked like every other entry`,
     );
   }
+  // An empty list makes the loop above vacuous, so state what emptying it
+  // bought: the last exemption is now under the existence check like anything
+  // else. Without this, deleting the entry and deleting the file would look the
+  // same to this test.
+  assert.ok(entries.has("/app/push.js"), "/app/push.js must still be precached");
+  assert.ok(
+    !PENDING_SHELL_ENTRIES.has("/app/push.js"),
+    "/app/push.js shipped in 27-07 — it must be checked, not exempted",
+  );
 });
 
 test("sw.js cannot cache an authenticated response", () => {

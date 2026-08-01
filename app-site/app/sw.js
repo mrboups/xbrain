@@ -20,11 +20,12 @@
 const CACHE = "xb-app-shell-v1";
 
 /**
- * The shell. Plans 27-06 (chat surface) and 27-07 (push opt-in) add some of
- * these files; they are listed now so the precache list does not need editing
- * twice. A missing entry must NOT brick the install, so each URL is added
- * individually via allSettled instead of `cache.addAll`, which rejects the whole
- * batch on a single 404.
+ * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07
+ * push.js), and both PWA test files assert that in each direction: nothing
+ * shipped is missing from this list, and nothing on this list is missing from
+ * disk. Each URL is still added individually via allSettled rather than
+ * `cache.addAll`, which rejects the whole batch on a single 404 - one bad entry
+ * must degrade the offline shell, not brick the install.
  */
 const SHELL = [
   "/app/",
@@ -148,6 +149,45 @@ self.addEventListener("push", (event) => {
       badge: "/app/icons/icon-192.png",
       data: { url: safeAppPath(payload.url) },
     }),
+  );
+});
+
+/**
+ * The browser rotated this device's subscription.
+ *
+ * It may do that on its own, at any time, with no user action - and a rotated
+ * subscription is a device that silently stops receiving anything while the
+ * button still says notifications are on. Nothing reports it.
+ *
+ * This worker deliberately does NOT re-subscribe and does NOT call memory-api:
+ * a worker holds no bearer token, so an unauthenticated write is the only thing
+ * it could attempt, and it would be rejected. It also must not take a
+ * subscription of its own - the app has exactly one place allowed to do that,
+ * and it is not here (D-27-05).
+ *
+ * So it tells whoever is listening. push.js re-runs the authenticated repair on
+ * that message. If no window is open, the next app open runs the same repair,
+ * and the stale endpoint is pruned server-side on its first 404/410 (27-04).
+ * Strictly best effort: this handler must never throw.
+ */
+self.addEventListener("pushsubscriptionchange", (event) => {
+  const oldEndpoint =
+    (event.oldSubscription && event.oldSubscription.endpoint) || null;
+
+  event.waitUntil(
+    (async () => {
+      try {
+        const clientList = await self.clients.matchAll({
+          type: "window",
+          includeUncontrolled: true,
+        });
+        for (const client of clientList) {
+          client.postMessage({ type: "xbrain-push-rotated", oldEndpoint });
+        }
+      } catch (e) {
+        console.warn("[xbrain] could not report a rotated subscription:", e);
+      }
+    })(),
   );
 });
 

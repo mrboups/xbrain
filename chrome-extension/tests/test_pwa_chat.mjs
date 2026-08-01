@@ -302,7 +302,9 @@ const NEVER_PRECACHED = new Set(["/app/sw.js"]);
  * still be absent — the day it lands, this list has to shrink.
  */
 const PENDING_SHELL_ENTRIES = new Set([
-  "/app/push.js", // 27-07 — the click-gated push opt-in
+  // Empty since 27-07 shipped /app/push.js. Kept rather than deleted: the
+  // mechanism is what stops the NEXT precache-ahead entry from becoming
+  // permanent.
 ]);
 
 function shellEntries() {
@@ -363,6 +365,15 @@ test("the pending-entry exemption list has not gone stale", () => {
       `${url} has shipped — remove it from PENDING_SHELL_ENTRIES so it is checked like every other entry`,
     );
   }
+  // An empty list makes the loop above vacuous, so state what emptying it
+  // bought: the last exemption is now under the existence check like anything
+  // else. Without this, deleting the entry and deleting the file would look the
+  // same to this test.
+  assert.ok(shell.has("/app/push.js"), "/app/push.js must still be precached");
+  assert.ok(
+    !PENDING_SHELL_ENTRIES.has("/app/push.js"),
+    "/app/push.js shipped in 27-07 — it must be checked, not exempted",
+  );
 });
 
 // ---- 6. English-only product strings ------------------------------------
