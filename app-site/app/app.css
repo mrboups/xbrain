@@ -302,6 +302,45 @@ body {
   border-color: var(--destructive);
 }
 
+/* ---- Connection + nudge banners -------------------------------------- */
+
+/* Both sit between the header and the scroller, so they push the thread down
+   instead of covering the newest message. flex-shrink: 0 keeps them from being
+   squeezed to nothing when the message list is long. */
+
+#connection-banner {
+  flex-shrink: 0;
+  padding: 6px 13px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-fg);
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+#nudge-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 9px 13px;
+  background: var(--secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+/* The full URL is the point of this banner, so it wraps rather than truncating:
+   an ellipsis is exactly how somebody agrees to open a host they never saw. */
+.xb-nudge-text {
+  flex: 1 1 100%;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--secondary-fg);
+  word-break: break-all;
+}
+
 /* ---- Chat scroller --------------------------------------------------- */
 
 #chat-scroll {
@@ -328,7 +367,31 @@ body {
   color: var(--muted-fg);
 }
 
+/* Older-page spinner text. It is INSIDE the scroller and above the list, which
+   is where the pull happens, and it takes no height while hidden so the
+   scrollTop re-anchoring arithmetic in chat.js stays honest. */
+#history-loader {
+  flex-shrink: 0;
+  padding: 8px 13px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--muted-fg);
+}
+
 /* ---- Composer -------------------------------------------------------- */
+
+/* A failed send says so right above the box that still holds the text, instead
+   of in a dialog that would steal focus on a phone and dismiss to nowhere. */
+.xb-composer-error {
+  flex-shrink: 0;
+  padding: 7px 13px;
+  font-size: 12px;
+  color: var(--destructive);
+  background: var(--secondary);
+  border-top: 1px solid var(--destructive);
+}
 
 .xb-composer {
   flex-shrink: 0;

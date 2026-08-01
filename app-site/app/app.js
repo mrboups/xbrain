@@ -5,8 +5,7 @@
  *   1. stamp the theme before anything paints, so there is no light flash on a
  *      dark device;
  *   2. decide signed-in vs signed-out and show the matching surface;
- *   3. hand the chat over to bootChat(), which plan 27-06 replaces with the
- *      real thing.
+ *   3. hand the chat over to chat.js, which owns everything from there.
  *
  * The service worker is registered by index.html, not here - see the comment on
  * that block for why it sits inline.
@@ -20,6 +19,7 @@
 import { THEME_STORAGE_KEY, resolveInitialTheme, applyTheme } from "./chat_core/theme.js";
 import { webPlatform } from "./platform_web.js";
 import { getToken, getUserSub, signOut, mountSignIn } from "./auth.js";
+import { bootChat } from "./chat.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -55,22 +55,30 @@ function showSignedIn(identity) {
 }
 
 /**
- * Placeholder chat frame.
+ * Show the sign-in card and wire it.
  *
- * Plan 27-06 replaces this with the real surface (team list, history, realtime
- * subscription, send). It deliberately renders a plain, honest message rather
- * than fake message rows: a mocked-up conversation would make a broken build
- * look healthy in a screenshot.
- *
- * @param {string|null} identity
+ * Reached from two places: a boot with no token, and a boot whose stored token
+ * the API rejected. chat.js calls it through the onSignedOut hook rather than
+ * owning any sign-in markup itself.
  */
-function bootChat(identity) {
+function showSignInCard() {
+  showSignedOut();
+  mountSignIn({
+    slotEl: el("google-btn"),
+    hintEl: el("google-hint"),
+    formEl: el("signin-form"),
+    emailEl: el("email"),
+    passwordEl: el("password"),
+    submitEl: el("signin-btn"),
+    bannerEl: el("signin-banner"),
+    onSignedIn: (identity) => startChat(identity),
+  });
+}
+
+/** Reveal the chat frame, then hand it to the surface that fills it. */
+async function startChat(identity) {
   showSignedIn(identity);
-  const empty = el("chat-empty");
-  if (empty) {
-    empty.textContent = "Signed in. The team chat arrives in the next update.";
-    empty.hidden = false;
-  }
+  await bootChat({ onSignedOut: showSignInCard });
 }
 
 async function boot() {
@@ -85,21 +93,11 @@ async function boot() {
   }
 
   if (await getToken()) {
-    bootChat(await getUserSub());
+    await startChat(await getUserSub());
     return;
   }
 
-  showSignedOut();
-  mountSignIn({
-    slotEl: el("google-btn"),
-    hintEl: el("google-hint"),
-    formEl: el("signin-form"),
-    emailEl: el("email"),
-    passwordEl: el("password"),
-    submitEl: el("signin-btn"),
-    bannerEl: el("signin-banner"),
-    onSignedIn: (identity) => bootChat(identity),
-  });
+  showSignInCard();
 }
 
 boot().catch((e) => {

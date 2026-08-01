@@ -24,7 +24,10 @@
 
 import { createApi } from "./chat_core/api.js";
 import { createRenderer } from "./chat_core/render.js";
+import { createPublicationRouter } from "./chat_core/publication.js";
+import { connectRealtime } from "./chat_core/realtime.js";
 import { StreamBuffer } from "./chat_core/chat_stream.js";
+import { handleOpenUrl, isSafeHttpUrl } from "./chat_core/nudge_open.js";
 import { webPlatform } from "./platform_web.js";
 import { MEMORY_API_BASE, getToken, signOut } from "./auth.js";
 
@@ -78,6 +81,21 @@ const streamBufferFacade = {
   get: (id) => state.streamBuffer.get(id),
   finalize: (id, text) => state.streamBuffer.finalize(id, text),
 };
+
+/**
+ * Every frame on `team:<id>` — messages and agent streams alike — goes through
+ * chat-core's router, which is the same code path the extension runs. The
+ * surface only supplies the renderer, the buffer and the one fact the router
+ * cannot know: which element says "no messages yet".
+ */
+const handleTeamPublication = createPublicationRouter({
+  renderer,
+  streamBuffer: streamBufferFacade,
+  onNonEmpty: () => {
+    const empty = el("chat-empty");
+    if (empty) empty.hidden = true;
+  },
+});
 
 // ---------- Small surface helpers ----------
 
@@ -380,6 +398,93 @@ async function sendMessage() {
   }
 }
 
+// ---------- Personal channel: a teammate pushing a link (Phase 22) ----------
+
+/**
+ * In-page fallback for a nudge, used when no OS notification could be raised.
+ *
+ * `webPlatform.notify` returns null unless notification access was already
+ * granted, and this surface never asks for it on its own (D-27-05 puts that
+ * prompt behind one explicit click, owned by plan 27-07). Without this banner a
+ * nudge would simply vanish for everyone who has not opted in.
+ *
+ * It shows the sender and the FULL, unshortened destination (T-22-10): a
+ * truncated or prettified link is exactly how somebody gets talked into opening
+ * something they would have refused had they read it.
+ */
+function showNudgeBanner(sender, url) {
+  const banner = el("nudge-banner");
+  if (!banner) return;
+  while (banner.firstChild) banner.removeChild(banner.firstChild);
+
+  const line = document.createElement("span");
+  line.className = "xb-nudge-text";
+  // textContent, never markup — this string came from another user.
+  line.textContent = `${sender} wants to open: ${url}`;
+  banner.appendChild(line);
+
+  const open = document.createElement("button");
+  open.type = "button";
+  open.className = "xb-btn";
+  open.textContent = "Open";
+  open.addEventListener("click", () => {
+    banner.hidden = true;
+    // Re-validated AT THE POINT OF ACTION, not merely on arrival. A URL is never
+    // trusted because it passed a check upstream; the platform shim checks it a
+    // third time before the browser ever sees it.
+    if (!isSafeHttpUrl(url)) return;
+    webPlatform.openUrl(url);
+  });
+  banner.appendChild(open);
+
+  const dismiss = document.createElement("button");
+  dismiss.type = "button";
+  dismiss.className = "xb-btn";
+  dismiss.textContent = "Dismiss";
+  dismiss.addEventListener("click", () => {
+    banner.hidden = true;
+  });
+  banner.appendChild(dismiss);
+
+  banner.hidden = false;
+}
+
+/**
+ * Frames on the caller's own `user:<sub>` channel.
+ *
+ * This surface handles exactly ONE type — the Phase-22 link nudge — and ignores
+ * every other frame. The personal-summary frames the extension renders have no
+ * panel here (27-CONTEXT defers them out of the PWA), and an unknown frame from
+ * a newer server must never throw in an older client.
+ *
+ * No opener is handed to handleOpenUrl, so this surface has no capability to
+ * move the browser on its own: a teammate's link can only be reached through a
+ * click, which is the whole of D-22-02.
+ */
+async function handleUserPublication(data) {
+  if (!data || data.type !== "open_url") return;
+  try {
+    const notified = await handleOpenUrl(data, {
+      getSettings: async () => ({
+        allowOpenLinkRequests: true,
+        autoOpenLinkRequests: false,
+      }),
+      notify: (opts) =>
+        webPlatform.notify({ title: opts.title, message: opts.message }),
+    });
+    // A null result means no notification was shown. That is either "access not
+    // granted" (fall back to the banner) or "the URL failed validation" — and
+    // the second must NOT produce a banner offering to open it, so the check is
+    // repeated here rather than inferred from the null.
+    if (!notified && isSafeHttpUrl(data.url)) {
+      const from = data.from || {};
+      showNudgeBanner(from.display_name || from.sub || "A teammate", data.url);
+    }
+  } catch (e) {
+    console.warn("[xbrain] link nudge handling failed:", e);
+  }
+}
+
 // ---------- Boot ----------
 
 /**
@@ -424,7 +529,32 @@ export async function bootChat(refs = {}) {
   state.activeTeamId = (await preferredTeamId()) || state.teams[0].id;
   renderTeamSelector();
 
-  // 5. Realtime is wired in the next commit of this plan.
+  // 5. Connect. The socket target is whatever POST /v1/me/centrifugo-token
+  //    returned — this file names no host and no scheme (D-27-03).
+  //    A failure here must cost live updates and nothing else: the token mint is
+  //    a network call, and letting it throw would take history and sending down
+  //    with it.
+  try {
+    state.realtime = await connectRealtime({
+      // The vendored client publishes a global; chat-core never reaches for one,
+      // so the surface that loaded it hands the constructor in.
+      Centrifuge: globalThis.Centrifuge,
+      api,
+      getUserSub: () => (state.me && state.me.source_user_id) || null,
+      onTeamPublication: handleTeamPublication,
+      onUserPublication: handleUserPublication,
+      // No onPresenceChange: this surface has no presence badge, and wiring the
+      // callback would ship handlers that recompute nothing.
+      onConnected: () => setConnectionBanner(null),
+      onError: () => setConnectionBanner("Reconnecting..."),
+    });
+  } catch (e) {
+    console.warn("[xbrain] realtime unavailable:", e);
+    state.realtime = null;
+  }
+  if (!state.realtime) {
+    setConnectionBanner("Live updates are off - reload to retry.");
+  }
 
   // 6. Claim the channel and load the thread.
   wireComposer();
