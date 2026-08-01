@@ -26,7 +26,7 @@
         GrooveOS
       </div>
 
-      <!-- 27-06 fills this with the teams from /v1/me/teams. -->
+      <!-- Filled from /v1/teams/my-teams; changing it switches the thread. -->
       <select id="team-selector" aria-label="Team" hidden></select>
 
       <!-- Disabled on purpose. Plan 27-07 wires the opt-in behind this click,
@@ -71,11 +71,24 @@
       <div id="signin-banner" class="xb-banner" hidden></div>
     </div>
 
-    <!-- Signed in: the chat. 27-06 fills #message-list. -->
+    <!-- Connection state. Empty and hidden until the socket says otherwise. -->
+    <p id="connection-banner" class="xb-connection-banner" role="status" hidden></p>
+
+    <!--
+      A teammate asking to open a link, shown in-page when no OS notification
+      could be raised. It carries the full destination and an explicit Open
+      button: nothing here moves the browser without a click (D-22-02).
+    -->
+    <div id="nudge-banner" class="xb-nudge-banner" role="alert" hidden></div>
+
+    <!-- Signed in: the chat. chat.js fills #message-list. -->
     <div id="chat-scroll" hidden>
+      <p id="history-loader" class="xb-history-loader" hidden>Loading older messages...</p>
       <div id="message-list"></div>
       <p id="chat-empty" hidden></p>
     </div>
+
+    <p id="composer-error" class="xb-composer-error" role="alert" hidden></p>
 
     <div id="composer" class="xb-composer" hidden>
       <textarea id="composer-input" rows="1" placeholder="Message your team"
@@ -110,6 +123,13 @@
     }
   </script>
 
+  <!--
+    The vendored Centrifugo client (MIT), byte-identical to the extension's copy.
+    It is a classic script, not a module, and it must run BEFORE ./app.js so
+    globalThis.Centrifuge exists by the time chat.js hands the constructor to
+    chat-core. A module script is deferred, so plain ordering is enough.
+  -->
+  <script src="./vendor/centrifuge.js"></script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>

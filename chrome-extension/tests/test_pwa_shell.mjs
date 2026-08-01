@@ -54,12 +54,7 @@ function readApp(relPath) {
  * shipped. That way the exemption cannot quietly outlive its reason.
  */
 const PENDING_SHELL_ENTRIES = new Set([
-  "/app/chat.js", // 27-06 — the chat surface
   "/app/push.js", // 27-07 — the click-gated push opt-in
-  "/app/vendor/centrifuge.js", // 27-06 — the realtime client
-  "/app/chat_core/render.js", // 27-02 — shared renderer
-  "/app/chat_core/publication.js", // 27-02 — shared realtime payload handling
-  "/app/chat_core/realtime.js", // 27-02 — shared realtime wiring
 ]);
 
 /** Map a shell URL onto the file it must resolve to on disk. */
