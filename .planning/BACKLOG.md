@@ -202,9 +202,15 @@ own pass. They have been part of the "57 failed" pre-existing baseline all along
 
 ---
 
-## Team join-by-code (Slack/Discord-style invite link)
+## ~~Team join-by-code (Slack/Discord-style invite link)~~ — SHIPPED 2026-07-31 (Phase 25)
 
-**Requested:** 2026-07-13. Checked against live code — genuinely net-new (no code/token concept exists on teams).
+**Resolved:** invite codes are hashed at rest (sha256) and redeemed through a conditional
+UPDATE (`redeem_atomic`) so a race cannot over-consume a single-use code. The one-click
+landing page is `app-site/join/`, live at https://grooveos.app/join/, and it accepts both
+Google sign-in and email/password. The code travels in the URL **fragment** (`#c=`), never
+the query string, and is stripped from history on arrival.
+
+### Original
 
 **What the user wants:** on creating a team, generate a code; anyone who submits that code joins the
 team chat, without an individual invite. The current model has NO such concept — only:
@@ -231,9 +237,18 @@ Sizing: small phase / slice. Blocked on nothing; schedule after v2.0 (16, 17) or
 
 ---
 
-## Push-a-link — nudge a specific member to open a page in their browser
+## ~~Push-a-link — nudge a specific member to open a page in their browser~~ — SHIPPED 2026-07-31 (Phase 22)
 
-**Requested:** 2026-07-18. Fits the existing architecture (Centrifugo + the extension) — no new infra.
+**Resolved:** `POST /v1/teams/{id}/nudge-open` with a single `target_user_id`, delivered over
+the existing Centrifugo `user:<sub>` channel. Per the owner's ruling the nudge **notifies and
+invites** — it never auto-opens unless the recipient has opted in via the
+`autoOpenLinkRequests` setting (default off). Reachable from the people overlay and from a
+click on a member in the chat.
+
+**Still open:** the team-wide send is a CLIENT fan-out — see "Team-wide nudge belongs
+server-side" below.
+
+### Original
 
 **What the user wants:** from the chat, target a specific member with a URL. That member gets a
 notification ("someone wants to open a page"), and on their confirmation it opens as a new tab in
@@ -265,9 +280,17 @@ with the popup closed). Delivery when the browser is fully closed is limited —
 
 ---
 
-## Catch me up — "summary since your last visit" on entering a busy chat
+## ~~Catch me up — "summary since your last visit" on entering a busy chat~~ — SHIPPED 2026-07-31 (Phase 23)
 
-**Requested:** 2026-07-18. Checked against live code — half the machinery already exists.
+**Resolved:** the read cursor this item said was missing now exists (`team_members.last_read_at`),
+with `/unread-summary` behind it — the same endpoint that feeds the unread badges on the team
+rail. The banner is non-intrusive and opt-in, per the original note.
+
+**Gate lesson recorded:** the first implementation silently swallowed its own banner —
+`scrollToBottom` fires a native scroll event, whose handler marked the chat read *before* the
+banner was captured. Fixed with a `readyForAutoMarkRead` flag; the ordering is now a test.
+
+### Original
 
 **What the user wants:** when a member opens the team chat and a lot has happened since they were
 last here, offer them a summary of the important things since their last visit.
@@ -304,9 +327,18 @@ ephemeral (a reply in-thread or a dismissible banner), not a persisted message e
 
 ---
 
-## Document body extraction on upload — `media.py` embeds only the caption, not the file content
+## ~~Document body extraction on upload — `media.py` embeds only the caption, not the file content~~ — SHIPPED 2026-07-31 (Phase 24)
 
-**Found:** 2026-07-18, by the Phase 16 clean-install gate (16-04). Real gap, surfaced by the SC#3 walk.
+**Resolved:** uploads now extract the document body (pdf/docx/md/txt), chunk it and embed the
+chunks, so a file's *contents* are recallable and not just its caption.
+
+**Two gate lessons recorded:** (1) the sync pypdf/python-docx parse ran on the event loop with
+`UVICORN_WORKERS=1`, freezing the whole API for the duration of a large PDF — now wrapped in
+`asyncio.to_thread`; (2) the `no_text_layer` patch was built from a closure snapshot while
+`provider.update()` replaces metadata wholesale, so it silently dropped concurrent writes — now
+a fresh `provider.get` then merge.
+
+### Original
 
 **The gap:** `apps/memory-api/app/routes/media.py:111` builds the embedded text from `caption or filename`.
 The uploaded **bytes go to MinIO and are never extracted or embedded**. So "upload a document and have it
