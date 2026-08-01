@@ -26,13 +26,26 @@ function showStatus(text) {
 }
 
 /**
- * Theme control — moved out of the chat header (it is a preference, not an action).
- * Stored under the SAME key the popup reads (THEME_STORAGE_KEY) so a change here is
- * what the chat picks up on its next open; unset still means "follow the system".
+ * Theme control — a segmented light/dark switch pinned to the top-right of the
+ * page, not a row in the settings list. It is a display mode you flip and see,
+ * not a preference to read past, and it is the same .seg control the chat
+ * surfaces carry so the product reads as one thing.
+ *
+ * Stored under the SAME key the popup reads (THEME_STORAGE_KEY) so a change here
+ * is what the chat picks up on its next open; unset still means "follow the
+ * system".
  */
 async function wireThemeToggle() {
-  const cb = document.getElementById("opt-dark-theme");
-  if (!cb) return;
+  const lightBtn = document.getElementById("btn-theme-light");
+  const darkBtn = document.getElementById("btn-theme-dark");
+  if (!lightBtn || !darkBtn) return;
+
+  const paint = (mode) => {
+    applyTheme(document.documentElement, mode);
+    lightBtn.setAttribute("aria-pressed", String(mode === "light"));
+    darkBtn.setAttribute("aria-pressed", String(mode === "dark"));
+  };
+
   let stored = null;
   try {
     const got = await chrome.storage.local.get([THEME_STORAGE_KEY]);
@@ -41,20 +54,19 @@ async function wireThemeToggle() {
     /* unreadable storage — fall back to the system preference below */
   }
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const mode = resolveInitialTheme({ storedTheme: stored, prefersDark });
-  cb.checked = mode === "dark";
-  applyTheme(document.documentElement, mode);
+  paint(resolveInitialTheme({ storedTheme: stored, prefersDark }));
 
-  cb.addEventListener("change", async () => {
-    const next = cb.checked ? "dark" : "light";
-    applyTheme(document.documentElement, next);
+  const choose = async (mode) => {
+    paint(mode);
     try {
-      await chrome.storage.local.set({ [THEME_STORAGE_KEY]: next });
-      showStatus(`Saved ✓  —  ${next} theme`);
+      await chrome.storage.local.set({ [THEME_STORAGE_KEY]: mode });
+      showStatus(`Saved ✓  —  ${mode} theme`);
     } catch {
       showStatus("Could not save the theme");
     }
-  });
+  };
+  lightBtn.addEventListener("click", () => choose("light"));
+  darkBtn.addEventListener("click", () => choose("dark"));
 }
 
 async function init() {
