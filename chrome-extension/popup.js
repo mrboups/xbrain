@@ -34,6 +34,9 @@ import { createRenderer } from "./chat_core/render.js";
 import { createPublicationRouter } from "./chat_core/publication.js";
 import { connectRealtime } from "./chat_core/realtime.js";
 import { createTeamRail } from "./chat_core/team_rail.js";
+import { createPeoplePanel } from "./chat_core/people.js";
+import { createInvitePanel } from "./chat_core/invite.js";
+import { renderTeamStarter } from "./chat_core/teams.js";
 import { chromePlatform } from "./platform_chrome.js";
 
 const MEMORY_API_BASE = "https://api.grooveos.app";
@@ -108,6 +111,13 @@ const $ = (id) => document.getElementById(id);
 let renderer = null;
 let routeTeamFrame = () => {};
 
+// The two overlays, also from packages/chat-core. They used to be ~450 lines of
+// popup-only code that the PWA had to either copy or go without; both surfaces
+// now drive the same modules and this file supplies only what is genuinely
+// local — its document, its element ids, its API origin and its platform shim.
+let peoplePanel = null;
+let invitePanel = null;
+
 // state.streamBuffer is REPLACED on every team switch (a fresh buffer per team).
 // The router is built once, so it reads the buffer through this facade rather
 // than capturing an instance a later switch would leave stale.
@@ -126,10 +136,10 @@ function buildChatCore() {
     apiBase: MEMORY_API_BASE,
     getSelfUserId: () => state.me?.id,
     getNameCache: () => state.nameCache,
-    // Extension-only affordance: click a teammate's name to open the people
-    // overlay on their row. The PWA ships no people overlay (27-CONTEXT deferred)
-    // and passes null, which leaves the name plain instead of dead-clickable.
-    onAuthorClick: (uid) => openPeople({ focusUserId: uid }),
+    // Click a teammate's name to open the people overlay on their row. Read
+    // late through the module-level binding: the panel is built in the same
+    // DOMContentLoaded pass, and a captured null would leave every name dead.
+    onAuthorClick: (uid) => peoplePanel && peoplePanel.open({ focusUserId: uid }),
   });
   routeTeamFrame = createPublicationRouter({
     renderer,
@@ -145,17 +155,69 @@ function buildChatCore() {
 /** The live team subscription — owned by the realtime handle, read for presence. */
 const teamSub = () => (state.realtime ? state.realtime.teamSubscription : null);
 
+/**
+ * Hand the two shared panels this surface's elements.
+ *
+ * Every id is written as a literal $() call, which is also what the popup
+ * contract test walks: an element the markup stopped shipping goes red here
+ * rather than at the click that needed it.
+ */
+function buildPanels() {
+  peoplePanel = createPeoplePanel({
+    doc: document,
+    api,
+    apiBase: MEMORY_API_BASE,
+    // The extension CAN see the page you are looking at, so the URL field
+    // arrives pre-filled. The shared panel writes the hint that says so — and
+    // writes the "paste a link" one on a surface that cannot (the PWA).
+    platform: chromePlatform,
+    els: {
+      panel: $("people-panel"),
+      list: $("people-list"),
+      urlInput: $("people-url"),
+      status: $("people-status"),
+      hint: $("people-hint"),
+      filePicker: $("people-file"),
+    },
+    getActiveTeamId: () => state.activeTeamId,
+    getTeams: () => state.teams,
+    getTeamSubscription: teamSub,
+  });
+
+  invitePanel = createInvitePanel({
+    doc: document,
+    api,
+    apiBase: MEMORY_API_BASE,
+    els: {
+      panel: $("invite-panel"),
+      codeRow: $("invite-code-row"),
+      codeOutput: $("invite-code-output"),
+      status: $("invite-status"),
+      emailInput: $("invite-email"),
+      emailStatus: $("invite-email-status"),
+      joinInput: $("invite-join-code"),
+      joinStatus: $("invite-join-status"),
+      mintBtn: $("btn-invite-mint"),
+      emailBtn: $("btn-invite-email"),
+      joinBtn: $("btn-invite-join"),
+    },
+    getActiveTeamId: () => state.activeTeamId,
+    onJoined: refreshTeamsAfterJoin,
+  });
+}
+
 // ---------- Boot ----------
 
 document.addEventListener("DOMContentLoaded", async () => {
   // Apply the theme before anything paints so there is no light/dark flash.
   await wireTheme();
+  buildPanels();
   buildChatCore();
   wireHeader();
   wireConnectionCard();
   wireComposer();
   wireClipOverlay();
-  wireSendLink();
+  wirePeople();
   wireInvite();
   wireCatchup();
   await boot();
@@ -319,673 +381,50 @@ function flashBoardError(btn) {
   }, 2000);
 }
 
-// ---------- Send-link affordance (Phase 22, D-22-05) ----------
+/// ---------- People + invite overlays (Phase 22 D-22-05, Phase 25 JOINCODE-01) ----------
 //
-// A small no-navigation control in the header opens an overlay to pick a
-// SAME-TEAM member + a URL and POST the Plan-01 nudge-open endpoint. Every
-// server-side check (target membership, url scheme, per-sender rate limit) is
-// authoritative; the client isSafeHttpUrl pre-check is UX only, NOT the security
-// boundary (T-22-13). The recipient still has to click their notification for a
-// tab to open (D-22-02) — this control only sends the request.
+// Both overlays are packages/chat-core modules now (D-27-04). What used to live
+// here — the member list, the presence dots, the nudge fan-out, the file upload,
+// the mint/copy/join/email flows and their six status helpers — was ~450 lines
+// that the PWA could only have by copying them. The rules inside are not
+// re-derivable on a second reading (a self-nudge 422 is EXPECTED, an upload is
+// nudged by its signed URL because the recipient's browser sends no Bearer
+// header, the join code rides in the URL FRAGMENT so it never reaches a log),
+// which is exactly the kind of code that must not exist twice.
+//
+// This file keeps only what is local to the extension: which element is which,
+// and which of them opens what.
 
-function wireSendLink() {
-  // The header button is now the PEOPLE icon and opens the members overlay: you
-  // almost always mean "send this page to that person", so the recipient should be
-  // a click, not a form. The old URL-first sendlink overlay stays wired below as
-  // the mechanism the people overlay delegates to.
+function wirePeople() {
+  // The header button is the PEOPLE icon: you almost always mean "send this page
+  // to that person", so the recipient is a click, not a form.
   const openBtn = $("btn-send-link");
-  if (openBtn) openBtn.addEventListener("click", openPeople);
+  if (openBtn) openBtn.addEventListener("click", () => peoplePanel.open());
   const peopleClose = $("btn-people-close");
-  if (peopleClose) peopleClose.addEventListener("click", closePeople);
+  if (peopleClose) peopleClose.addEventListener("click", () => peoplePanel.close());
   const peopleCancel = $("btn-people-cancel");
-  if (peopleCancel) peopleCancel.addEventListener("click", closePeople);
+  if (peopleCancel) peopleCancel.addEventListener("click", () => peoplePanel.close());
   const sendAll = $("btn-people-send-all");
-  if (sendAll) sendAll.addEventListener("click", sendLinkToEveryone);
-  const closeBtn = $("btn-sendlink-close");
-  if (closeBtn) closeBtn.addEventListener("click", closeSendLink);
-  const cancelBtn = $("btn-sendlink-cancel");
-  if (cancelBtn) cancelBtn.addEventListener("click", closeSendLink);
-  const submitBtn = $("btn-sendlink-submit");
-  if (submitBtn) submitBtn.addEventListener("click", submitSendLink);
-}
-
-// ---------- People overlay (members + send a link/file) ----------
-
-function setPeopleStatus(text, type) {
-  const el = $("people-status");
-  if (!el) return;
-  if (!text) {
-    el.hidden = true;
-    el.textContent = "";
-    el.className = "";
-    return;
-  }
-  el.hidden = false;
-  el.textContent = text;
-  el.className = type || "";
-}
-
-function closePeople() {
-  const panel = $("people-panel");
-  if (panel) panel.hidden = true;
-  setPeopleStatus("", "");
-}
-
-/** Current tab URL — the default thing you want to send. Fail-soft: an unreadable
- *  tab just leaves the field empty rather than blocking the overlay. */
-async function currentTabUrl() {
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    return tab && tab.url && /^https?:/i.test(tab.url) ? tab.url : "";
-  } catch {
-    return "";
+  if (sendAll) {
+    sendAll.addEventListener("click", () => peoplePanel.sendToEveryone(sendAll));
   }
 }
-
-async function openPeople(opts) {
-  const panel = $("people-panel");
-  if (!panel) return;
-  if (!state.activeTeamId) {
-    setPeopleStatus("No active team.", "error");
-    return;
-  }
-  panel.hidden = false;
-  setPeopleStatus("", "");
-  const urlInput = $("people-url");
-  if (urlInput && !urlInput.value) urlInput.value = await currentTabUrl();
-  await renderPeopleList(opts && opts.focusUserId);
-}
-
-/**
- * List the team's members, marking who is connected right now.
- *
- * Presence comes from Centrifugo's `presence()` RPC, which returns the connected
- * clients for the team channel. If the channel does not expose presence the list
- * still renders — every row simply shows no dot, because an invented "offline" is
- * worse than an absent one.
- */
-async function renderPeopleList(focusUserId) {
-  const list = $("people-list");
-  if (!list) return;
-  list.innerHTML = "";
-
-  let members = [];
-  try {
-    const res = await api.rawFetch(`/v1/teams/${state.activeTeamId}/members`);
-    if (!res.ok) {
-      setPeopleStatus(`Could not load members (HTTP ${res.status}).`, "error");
-      return;
-    }
-    members = await res.json();
-  } catch {
-    setPeopleStatus("Network error loading members.", "error");
-    return;
-  }
-
-  // Who is online — best effort, never fatal.
-  const online = new Set();
-  try {
-    const p = await teamSub().presence();
-    for (const c of Object.values(p.clients || {})) {
-      if (c && c.user) online.add(String(c.user));
-    }
-  } catch {
-    /* presence unavailable on this channel — rows render without a dot */
-  }
-
-  for (const m of members) {
-    const row = document.createElement("li");
-    row.className = "xb-people-row";
-    // Opened by clicking this person's name in the chat — mark their row so the
-    // overlay answers "that one" instead of making you find them again.
-    if (focusUserId && String(m.user_id || m.id) === String(focusUserId)) {
-      row.classList.add("is-focused");
-    }
-
-    const dot = document.createElement("span");
-    dot.className =
-      "xb-people-dot" + (online.has(String(m.source_user_id)) ? " is-online" : "");
-    dot.title = online.has(String(m.source_user_id)) ? "Active now" : "Not active";
-    row.appendChild(dot);
-
-    const name = document.createElement("span");
-    name.className = "xb-people-name";
-    // textContent — member names are user-supplied strings.
-    name.textContent = m.display_name || m.email || m.source_user_id || "member";
-    row.appendChild(name);
-
-    const linkBtn = document.createElement("button");
-    linkBtn.type = "button";
-    linkBtn.className = "xb-btn-secondary";
-    linkBtn.textContent = "Link";
-    linkBtn.title = "Send the link above to this person";
-    linkBtn.addEventListener("click", () => sendLinkToMember(m, linkBtn));
-    row.appendChild(linkBtn);
-
-    const fileBtn = document.createElement("button");
-    fileBtn.type = "button";
-    fileBtn.className = "xb-btn-secondary";
-    fileBtn.textContent = "File";
-    fileBtn.title = "Upload a file and send it to this person";
-    fileBtn.addEventListener("click", () => pickFileForMember(m));
-    row.appendChild(fileBtn);
-
-    list.appendChild(row);
-  }
-
-  if (!members.length) setPeopleStatus("No members yet.", "");
-}
-
-/**
- * Send a FILE to one member: upload it to the team, then nudge the signed URL the
- * upload returns.
- *
- * The file goes through the ordinary team media path — it becomes a team memory_item
- * like any other upload — and the recipient gets the same consent notification a link
- * gets. `signed_url` is used rather than `raw_path` because the recipient's browser
- * follows a bare URL and cannot send the Bearer header `raw_path` requires.
- */
-function pickFileForMember(member) {
-  const picker = $("people-file");
-  if (!picker) return;
-  picker.value = "";                       // re-picking the same file must re-fire
-  picker.onchange = async () => {
-    const file = picker.files && picker.files[0];
-    if (!file) return;
-    // X-Team-Scope is the team SLUG, not its id — derived from state.teams the same
-    // way uploadFile() does, so both upload paths agree on the scope they write to.
-    const team = state.teams.find((t) => t.id === state.activeTeamId);
-    if (!team) {
-      setPeopleStatus("No active team.", "error");
-      return;
-    }
-    setPeopleStatus(`Uploading ${file.name}…`, "loading");
-    try {
-      // The RAW variant, because the branch below needs the status code: an
-      // exception would collapse 413 ("too large" — actionable) and 500 into
-      // one message. chat-core still builds the multipart body.
-      const up = await api.uploadMediaRaw(team.slug, file, { caption: file.name });
-      if (up.status !== 201) {
-        setPeopleStatus(
-          up.status === 413
-            ? "That file is too large (25 MB max)."
-            : `Upload failed (HTTP ${up.status}).`,
-          "error",
-        );
-        return;
-      }
-      const { signed_url } = await up.json();
-      if (!signed_url) {
-        setPeopleStatus("Upload succeeded but returned no shareable link.", "error");
-        return;
-      }
-      const status = await postNudge(
-        member.user_id || member.id,
-        `${MEMORY_API_BASE}${signed_url}`,
-      );
-      setPeopleStatus(
-        status === 202
-          ? `Sent ${file.name} to ${member.display_name || "them"} ✓`
-          : mapNudgeError(status),
-        status === 202 ? "success" : "error",
-      );
-    } catch {
-      setPeopleStatus("Network error — try again.", "error");
-    }
-  };
-  picker.click();
-}
-
-/** Send the composed link to ONE member (Phase 22 nudge). */
-async function sendLinkToMember(member, btn) {
-  const url = ($("people-url") || {}).value || "";
-  if (!url.trim()) {
-    setPeopleStatus("Enter a link to send.", "error");
-    return;
-  }
-  if (btn) btn.disabled = true;
-  try {
-    const status = await postNudge(member.user_id || member.id, url.trim());
-    setPeopleStatus(
-      status === 202
-        ? `Sent to ${member.display_name || "them"} ✓`
-        : mapNudgeError(status),
-      status === 202 ? "success" : "error",
-    );
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
-/**
- * Send to the whole team.
- *
- * TODO(server): this fans out ONE request per member from the client because
- * /v1/teams/{id}/nudge-open takes a single target_user_id. That is fine for a small
- * team but it burns the caller's rate-limit budget and is not atomic — a proper
- * team-wide nudge belongs server-side (one call, one membership read, one publish
- * per member). Tracked in .planning/BACKLOG.md.
- */
-async function sendLinkToEveryone() {
-  const url = ($("people-url") || {}).value || "";
-  if (!url.trim()) {
-    setPeopleStatus("Enter a link to send.", "error");
-    return;
-  }
-  const btn = $("btn-people-send-all");
-  if (btn) btn.disabled = true;
-  setPeopleStatus("Sending…", "loading");
-  try {
-    const res = await api.rawFetch(`/v1/teams/${state.activeTeamId}/members`);
-    const members = res.ok ? await res.json() : [];
-    let sent = 0;
-    let failed = 0;
-    for (const m of members) {
-      const id = m.user_id || m.id;
-      if (!id) continue;
-      const status = await postNudge(id, url.trim());
-      // The server 422s a self-nudge; that is expected here and not a failure.
-      if (status === 202 || status === 422) sent += status === 202 ? 1 : 0;
-      else failed += 1;
-    }
-    setPeopleStatus(
-      failed ? `Sent to ${sent}, ${failed} failed.` : `Sent to ${sent} teammate${sent === 1 ? "" : "s"} ✓`,
-      failed ? "error" : "success",
-    );
-  } catch {
-    setPeopleStatus("Network error — try again.", "error");
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
-/** One nudge POST. Returns the HTTP status so callers can map it themselves. */
-async function postNudge(targetUserId, url) {
-  try {
-    // rawFetch, not request(): the caller maps 202/403/422/429 to copy, so an
-    // exception would destroy the very information it needs.
-    const res = await api.rawFetch(
-      `/v1/teams/${state.activeTeamId}/nudge-open`,
-      { method: "POST", body: { target_user_id: targetUserId, url } },
-    );
-    return res.status;
-  } catch {
-    return 0;
-  }
-}
-
-// mapNudgeError is shared with the sendlink overlay and defined further down —
-// same endpoint, same status codes, so one mapping serves both surfaces.
-
-async function openSendLink() {
-  const panel = $("sendlink-panel");
-  if (!panel) return;
-  panel.hidden = false;
-  setSendLinkStatus("", "");
-  await populateSendLinkMembers();
-}
-
-function closeSendLink() {
-  const panel = $("sendlink-panel");
-  if (panel) panel.hidden = true;
-}
-
-// Lazily fetch the active team's members and fill the picker, excluding the
-// current user (you cannot nudge yourself) and any blocked member.
-async function populateSendLinkMembers() {
-  const select = $("sendlink-member");
-  if (!select) return;
-  if (!state.activeTeamId) {
-    select.innerHTML = `<option value="" disabled selected>No active team</option>`;
-    return;
-  }
-  select.innerHTML = `<option value="" disabled selected>Loading members…</option>`;
-  try {
-    const members = await api.request(
-      `/v1/teams/${state.activeTeamId}/members`,
-    );
-    const myId = state.me && state.me.id;
-    const others = (Array.isArray(members) ? members : []).filter(
-      (m) => m.user_id !== myId && !m.blocked_at,
-    );
-    if (!others.length) {
-      select.innerHTML = `<option value="" disabled selected>No other members on this team</option>`;
-      return;
-    }
-    select.innerHTML = "";
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.disabled = true;
-    placeholder.selected = true;
-    placeholder.textContent = "Choose a member…";
-    select.appendChild(placeholder);
-    for (const m of others) {
-      const opt = document.createElement("option");
-      opt.value = m.user_id;
-      // display_name / email are server-provided; use textContent (no innerHTML).
-      opt.textContent = m.display_name || m.email || m.user_id;
-      select.appendChild(opt);
-    }
-  } catch (e) {
-    console.warn("[xbrain] send-link members fetch failed:", e);
-    select.innerHTML = `<option value="" disabled selected>Couldn't load members</option>`;
-  }
-}
-
-// Validate + POST the nudge. The client scheme pre-check blocks the obvious
-// cases early; the server re-validates and is the real boundary.
-async function submitSendLink() {
-  const select = $("sendlink-member");
-  const urlInput = $("sendlink-url");
-  const submitBtn = $("btn-sendlink-submit");
-  if (!select || !urlInput) return;
-
-  const targetUserId = select.value;
-  const url = urlInput.value.trim();
-  if (!targetUserId) {
-    setSendLinkStatus("Pick a team member first.", "error");
-    return;
-  }
-  if (!isSafeHttpUrl(url)) {
-    setSendLinkStatus("Enter a valid http or https link.", "error");
-    return;
-  }
-  if (!state.activeTeamId) {
-    setSendLinkStatus("No active team.", "error");
-    return;
-  }
-
-  if (submitBtn) submitBtn.disabled = true;
-  setSendLinkStatus("Sending…", "loading");
-  try {
-    const res = await api.rawFetch(
-      `/v1/teams/${state.activeTeamId}/nudge-open`,
-      { method: "POST", body: { target_user_id: targetUserId, url } },
-    );
-    if (res.status === 202) {
-      setSendLinkStatus("Sent ✓", "success");
-      urlInput.value = "";
-    } else {
-      setSendLinkStatus(mapNudgeError(res.status), "error");
-    }
-  } catch (e) {
-    console.warn("[xbrain] send-link POST failed:", e);
-    setSendLinkStatus("Network error — try again.", "error");
-  } finally {
-    if (submitBtn) submitBtn.disabled = false;
-  }
-}
-
-// Map the nudge-open endpoint's rejection codes to clear English text.
-function mapNudgeError(status) {
-  if (status === 403) return "That member is not on this team.";
-  if (status === 422) return "Rejected — that is you, or the link is not a plain http/https URL.";
-  if (status === 429) return "Too many link requests — wait a moment and retry.";
-  if (status === 404) return "Team not found.";
-  if (status === 0) return "Network error — try again.";
-  return `Could not send (HTTP ${status}).`;
-}
-
-function setSendLinkStatus(text, type) {
-  const el = $("sendlink-status");
-  if (!el) return;
-  if (!text) {
-    el.hidden = true;
-    el.textContent = "";
-    el.className = "";
-    return;
-  }
-  el.hidden = false;
-  el.textContent = text;
-  el.className = type || "";
-}
-
-// ---------- Invite-code affordance (Phase 25, JOINCODE-01) ----------
-//
-// A header "invite" control opens an overlay with two surfaces:
-//   1. ADMIN mint — POST /v1/teams/{activeTeamId}/invite-codes reveals the
-//      plaintext code ONCE (rendered via textContent, never innerHTML — T-25-17)
-//      with a Copy button. The client cannot reliably tell admin status from the
-//      my-teams payload, so it shows the action to everyone and surfaces the
-//      server's authoritative 403 as a clear message (T-25-16) — the server is
-//      the real authZ boundary.
-//   2. JOIN — POST /v1/teams/join-by-code {code} redeems a pasted code, then
-//      refreshes the team list so the newly-joined team appears.
-// The revealed code is cleared on close so the one-time secret does not linger in
-// the DOM across opens (T-25-19). popup.js hardcodes no code or team — it renders
-// only server responses (T-25-18).
 
 function wireInvite() {
   const openBtn = $("btn-invite");
-  if (openBtn) openBtn.addEventListener("click", openInvite);
+  if (openBtn) openBtn.addEventListener("click", () => invitePanel.open());
   const closeBtn = $("btn-invite-close");
-  if (closeBtn) closeBtn.addEventListener("click", closeInvite);
+  if (closeBtn) closeBtn.addEventListener("click", () => invitePanel.close());
   const cancelBtn = $("btn-invite-cancel");
-  if (cancelBtn) cancelBtn.addEventListener("click", closeInvite);
+  if (cancelBtn) cancelBtn.addEventListener("click", () => invitePanel.close());
   const mintBtn = $("btn-invite-mint");
-  if (mintBtn) mintBtn.addEventListener("click", mintInvite);
+  if (mintBtn) mintBtn.addEventListener("click", () => invitePanel.mint());
   const copyBtn = $("btn-invite-copy");
-  if (copyBtn) copyBtn.addEventListener("click", copyInvite);
+  if (copyBtn) copyBtn.addEventListener("click", () => invitePanel.copy());
   const joinBtn = $("btn-invite-join");
-  if (joinBtn) joinBtn.addEventListener("click", joinByCode);
+  if (joinBtn) joinBtn.addEventListener("click", () => invitePanel.join());
   const emailBtn = $("btn-invite-email");
-  if (emailBtn) emailBtn.addEventListener("click", inviteByEmail);
-}
-
-/**
- * ADMIN — add someone to the team by email.
- *
- * The endpoint resolves an EXISTING user row, so it 404s for anyone who has never
- * signed into xbrain. That is not an error to paper over: the copy points straight
- * back at the invite link, which is the path that works for a brand-new teammate.
- */
-async function inviteByEmail() {
-  if (!state.activeTeamId) {
-    setInviteEmailStatus("No active team.", "error");
-    return;
-  }
-  const input = $("invite-email");
-  const email = input ? input.value.trim() : "";
-  if (!email) {
-    setInviteEmailStatus("Enter an email address.", "error");
-    return;
-  }
-  const btn = $("btn-invite-email");
-  if (btn) btn.disabled = true;
-  setInviteEmailStatus("Adding...", "loading");
-  try {
-    const res = await api.rawFetch(
-      `/v1/teams/${state.activeTeamId}/invite`,
-      { method: "POST", body: { email, role: "member" } },
-    );
-    if (res.status === 201) {
-      if (input) input.value = "";
-      setInviteEmailStatus(`${email} added to the team ✓`, "success");
-    } else if (res.status === 404) {
-      setInviteEmailStatus(
-        "No xbrain account for that email — send them the invite link above instead.",
-        "error",
-      );
-    } else if (res.status === 403) {
-      setInviteEmailStatus("Only a team admin can add members.", "error");
-    } else if (res.status === 409) {
-      setInviteEmailStatus("They are already on this team.", "success");
-    } else {
-      setInviteEmailStatus(`Could not add them (HTTP ${res.status}).`, "error");
-    }
-  } catch (e) {
-    console.warn("[xbrain] invite by email failed");
-    setInviteEmailStatus("Network error — try again.", "error");
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
-function openInvite() {
-  const panel = $("invite-panel");
-  if (!panel) return;
-  panel.hidden = false;
-  setInviteStatus("", "");
-  setInviteJoinStatus("", "");
-  const row = $("invite-code-row");
-  if (row) row.hidden = true;
-}
-
-function closeInvite() {
-  const panel = $("invite-panel");
-  if (panel) panel.hidden = true;
-  // Clear the one-time revealed code so it does not persist across opens (T-25-19).
-  const out = $("invite-code-output");
-  if (out) out.textContent = "";
-  const row = $("invite-code-row");
-  if (row) row.hidden = true;
-  // WR-02: a PASTED code is a bearer secret too — clear the join input (and both status
-  // lines) so it does not survive closing the overlay unsubmitted.
-  const joinInput = $("invite-join-code");
-  if (joinInput) joinInput.value = "";
-  const emailInput = $("invite-email");
-  if (emailInput) emailInput.value = "";
-  const mintStatus = $("invite-status");
-  if (mintStatus) mintStatus.textContent = "";
-  const joinStatus = $("invite-join-status");
-  if (joinStatus) joinStatus.textContent = "";
-  const emailStatus = $("invite-email-status");
-  if (emailStatus) emailStatus.textContent = "";
-}
-
-// ADMIN action — mint an invite code and reveal the plaintext ONCE. The server
-// 403s non-admins; the client only presents the outcome (T-25-16).
-async function mintInvite() {
-  if (!state.activeTeamId) {
-    setInviteStatus("No active team.", "error");
-    return;
-  }
-  const mintBtn = $("btn-invite-mint");
-  if (mintBtn) mintBtn.disabled = true;
-  setInviteStatus("Creating...", "loading");
-  try {
-    const res = await api.rawFetch(
-      `/v1/teams/${state.activeTeamId}/invite-codes`,
-      { method: "POST", body: {} },
-    );
-    if (res.status === 201) {
-      const j = await res.json();
-      // textContent — never innerHTML — the code is an untrusted server string (T-25-17).
-      $("invite-code-output").textContent = j.code;
-      const row = $("invite-code-row");
-      if (row) row.hidden = false;
-      setInviteStatus("Code created — copy it now (shown once).", "success");
-    } else {
-      setInviteStatus(mapMintError(res.status), "error");
-    }
-  } catch (e) {
-    console.warn("[xbrain] mint invite failed:", e);
-    setInviteStatus("Network error — try again.", "error");
-  } finally {
-    if (mintBtn) mintBtn.disabled = false;
-  }
-}
-
-// Map the mint endpoint's rejection codes to clear English text.
-function mapMintError(status) {
-  if (status === 403) return "Only a team admin can create invite codes.";
-  if (status === 429) return "Too many requests — wait a moment.";
-  if (status === 404) return "Team not found.";
-  return `Could not create a code (HTTP ${status}).`;
-}
-
-/**
- * Build the shareable join link for an invite code.
- *
- * The code travels in the URL FRAGMENT (`#c=`), never a query string: a fragment is
- * never transmitted to a server, so the invite secret cannot land in hosting logs or
- * in a Referer header. app-site/join/ reads it and strips it on load.
- *
- * The origin is DERIVED from MEMORY_API_BASE (drop a leading `api.`) rather than
- * hardcoded a second time, so a rebrand of that one constant carries the join link
- * with it instead of silently pointing at the old domain.
- */
-function buildJoinLink(code) {
-  let origin;
-  try {
-    const u = new URL(MEMORY_API_BASE);
-    u.hostname = u.hostname.replace(/^api\./, "");
-    origin = u.origin;
-  } catch (e) {
-    return null;
-  }
-  return `${origin}/join/#c=${encodeURIComponent(code)}`;
-}
-
-// Copies the shareable LINK, not the bare code — the recipient clicks it and joins,
-// with no code to paste. The code stays visible above as the manual fallback.
-async function copyInvite() {
-  const out = $("invite-code-output");
-  const code = out ? out.textContent : "";
-  if (!code) {
-    setInviteStatus("Create a code first.", "error");
-    return;
-  }
-  const link = buildJoinLink(code);
-  if (!link) {
-    setInviteStatus("Could not build the link — copy the code instead.", "error");
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(link);
-    setInviteStatus("Invite link copied ✓ — share it, it joins in one click.", "success");
-  } catch (e) {
-    // Never log the link or the code — both carry the invite secret.
-    console.warn("[xbrain] copy invite link failed");
-    setInviteStatus("Copy failed — select the code manually.", "error");
-  }
-}
-
-// ANY MEMBER — redeem a pasted code. On success, refresh the team list so the
-// newly-joined team shows up in the selector.
-async function joinByCode() {
-  const input = $("invite-join-code");
-  const code = input ? input.value.trim() : "";
-  if (!code) {
-    setInviteJoinStatus("Paste a code first.", "error");
-    return;
-  }
-  const joinBtn = $("btn-invite-join");
-  if (joinBtn) joinBtn.disabled = true;
-  setInviteJoinStatus("Joining...", "loading");
-  try {
-    const res = await api.rawFetch("/v1/teams/join-by-code", {
-      method: "POST",
-      body: { code },
-    });
-    if (res.status === 200) {
-      const j = await res.json();
-      if (j.already_member) {
-        setInviteJoinStatus("You're already on that team.", "success");
-      } else {
-        // j.display_name is a server string; setInviteJoinStatus renders it via
-        // textContent (never innerHTML) — no XSS surface (T-25-17).
-        setInviteJoinStatus(`Joined ${j.display_name} ✓`, "success");
-      }
-      if (input) input.value = "";
-      await refreshTeamsAfterJoin();
-    } else {
-      setInviteJoinStatus(mapJoinError(res.status), "error");
-    }
-  } catch (e) {
-    console.warn("[xbrain] join-by-code failed:", e);
-    setInviteJoinStatus("Network error — try again.", "error");
-  } finally {
-    if (joinBtn) joinBtn.disabled = false;
-  }
-}
-
-// Map the join endpoint's rejection codes. The server returns a single generic
-// 404 for invalid/expired/revoked/exhausted (no oracle) — the client mirrors that.
-function mapJoinError(status) {
-  if (status === 404) return "That code is invalid, expired, or used up.";
-  if (status === 429) return "Too many attempts — wait a moment.";
-  return `Could not join (HTTP ${status}).`;
+  if (emailBtn) emailBtn.addEventListener("click", () => invitePanel.addByEmail());
 }
 
 // Refresh the team list after a successful join. If the popup had no active team
@@ -1006,51 +445,6 @@ async function refreshTeamsAfterJoin() {
   } catch (e) {
     console.warn("[xbrain] team refresh after join failed:", e);
   }
-}
-
-// Two single-target status helpers (mirror setSendLinkStatus) — one per status
-// div. Kept separate so both #invite-status and #invite-join-status are bound by
-// literal $() calls (the popup contract test freezes them).
-function setInviteStatus(text, type) {
-  const el = $("invite-status");
-  if (!el) return;
-  if (!text) {
-    el.hidden = true;
-    el.textContent = "";
-    el.className = "";
-    return;
-  }
-  el.hidden = false;
-  el.textContent = text;
-  el.className = type || "";
-}
-
-function setInviteJoinStatus(text, type) {
-  const el = $("invite-join-status");
-  if (!el) return;
-  if (!text) {
-    el.hidden = true;
-    el.textContent = "";
-    el.className = "";
-    return;
-  }
-  el.hidden = false;
-  el.textContent = text;
-  el.className = type || "";
-}
-
-function setInviteEmailStatus(text, type) {
-  const el = $("invite-email-status");
-  if (!el) return;
-  if (!text) {
-    el.hidden = true;
-    el.textContent = "";
-    el.className = "";
-    return;
-  }
-  el.hidden = false;
-  el.textContent = text;
-  el.className = type || "";
 }
 
 // ---------- Theme (in-popup light/dark toggle) ----------
@@ -1423,6 +817,7 @@ async function switchTeam(teamId) {
   const prevSummary = $("catchup-summary");
   if (prevSummary) prevSummary.hidden = true;
   renderer.clear();
+  resetChatEmpty();
   setPresence(0);
 
   // Claim the new team channel. The realtime handle owns the whole lifecycle —
@@ -2097,220 +1492,73 @@ async function submitClip() {
 // must own their Content-Type boundary.
 
 /**
- * Empty state — the product is a TEAM chat, so this proposes creating a team and
- * then immediately inviting people into it. It deliberately no longer offers a
- * "solo workspace": a chat with nobody in it is not the thing being sold, and the
- * old copy also pointed at a "link GitHub above" button that is now hidden.
+ * Put the ordinary "no messages yet" copy back into #chat-empty.
+ *
+ * The empty-TEAMS state renders the create-or-join panel into this SAME element,
+ * so without this the person who has just created their first team is shown a
+ * "Create team" form again — inside the empty chat they just created. Rebuilt
+ * from nodes rather than a markup string, because this element has just held a
+ * team name somebody typed.
+ *
+ * A no-op when the default copy is already there, so the ordinary team switch
+ * pays nothing for it.
+ */
+function resetChatEmpty() {
+  const el = $("chat-empty");
+  if (!el || !el.querySelector(".xb-starter")) return;
+  while (el.firstChild) el.removeChild(el.firstChild);
+  el.style.pointerEvents = "";
+  el.appendChild(
+    document.createTextNode("No messages yet. Be the first to say hello — or mention "),
+  );
+  const code = document.createElement("code");
+  code.textContent = "@agent";
+  el.appendChild(code);
+  el.appendChild(document.createTextNode(" to ask the team brain a question."));
+}
+
+/**
+ * Empty state — the product is a TEAM chat, so this offers the only two things
+ * a person with no team can do: create one, or redeem the invite they were
+ * sent. Both doors are chat-core's now (the PWA opens the same two), so what is
+ * left here is what belongs to THIS surface: the hidden <select> the popup
+ * still writes through, and what "the team exists now" means for an extension.
+ *
+ * The same panel is what the "+" beside the team rail shows — "add a team"
+ * means both, and a founder and an invitee should not need different doors.
  */
 function renderEmptyTeams() {
   $("teamSelector").innerHTML = `<option disabled selected>No teams yet</option>`;
   const emptyEl = $("chat-empty");
   emptyEl.hidden = false;
-  emptyEl.innerHTML = "";
-
-  const wrapper = document.createElement("div");
-  wrapper.style.cssText =
-    "display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;max-width:320px;";
-
-  const msg = document.createElement("p");
-  msg.style.cssText = "margin:0;color:var(--xb-text-mute);line-height:1.5;";
-  msg.textContent =
-    "Start your team chat. Create a team, then invite your teammates — everyone shares one memory, and @agent answers from it.";
-  wrapper.appendChild(msg);
-
-  const input = document.createElement("input");
-  input.type = "text";
-  input.id = "new-team-name";
-  input.placeholder = "Team name";
-  input.autocomplete = "off";
-  input.maxLength = 64;
-  input.style.cssText =
-    "width:100%;max-width:260px;padding:8px 10px;background:var(--xb-bg);color:var(--xb-text);" +
-    "border:1px solid var(--xb-border);font-family:inherit;font-size:inherit;outline:none;";
-  wrapper.appendChild(input);
-
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "connect-btn";
-  btn.style.maxWidth = "260px";
-  btn.textContent = "Create team";
-  btn.addEventListener("click", () => createTeam(btn, input));
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") createTeam(btn, input);
-  });
-  wrapper.appendChild(btn);
-
-  // Second first-class path: someone who was INVITED must be able to act right
-  // here. Burying it in a hint that points at another overlay makes the invited
-  // half of the audience hunt for the one thing they came to do.
-  const divider = document.createElement("p");
-  divider.style.cssText =
-    "margin:4px 0 0;font-size:11px;color:var(--xb-text-dim);letter-spacing:0.04em;";
-  divider.textContent = "— or join a team you were invited to —";
-  wrapper.appendChild(divider);
-
-  const codeInput = document.createElement("input");
-  codeInput.type = "text";
-  codeInput.id = "empty-join-code";
-  codeInput.placeholder = "Invite code (xbi_…)";
-  codeInput.autocomplete = "off";
-  codeInput.spellcheck = false;
-  codeInput.style.cssText = input.style.cssText;
-  wrapper.appendChild(codeInput);
-
-  const joinBtn = document.createElement("button");
-  joinBtn.type = "button";
-  joinBtn.className = "connect-btn";
-  joinBtn.style.maxWidth = "260px";
-  joinBtn.textContent = "Join team";
-  joinBtn.addEventListener("click", () => joinFromEmptyState(joinBtn, codeInput));
-  codeInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") joinFromEmptyState(joinBtn, codeInput);
-  });
-  wrapper.appendChild(joinBtn);
-
-  const hint = document.createElement("p");
-  hint.style.cssText =
-    "margin:0;font-size:11px;color:var(--xb-text-dim);line-height:1.45;";
-  hint.textContent =
-    "If you were sent an invite link, opening it joins you automatically.";
-  wrapper.appendChild(hint);
-
-  emptyEl.appendChild(wrapper);
   emptyEl.style.pointerEvents = "auto";
-  input.focus();
-}
 
-/**
- * Redeem an invite code straight from the empty state. Same endpoint the invite
- * overlay uses; kept separate so it can report inline instead of into the overlay
- * status line that is not on screen here.
- */
-async function joinFromEmptyState(btn, codeInput) {
-  const code = codeInput ? codeInput.value.trim() : "";
-  if (!code) {
-    codeInput.focus();
-    return;
-  }
-  btn.disabled = true;
-  const original = btn.textContent;
-  btn.textContent = "Joining…";
-  // The status line is created here and held in a closure rather than looked up by
-  // id: it belongs to this dynamically-built empty state, so it has no place in the
-  // static popup.html — and the popup contract test rightly refuses ids that are
-  // referenced but never declared there.
-  let statusLine = null;
-  const say = (text, isError) => {
-    if (!statusLine) {
-      statusLine = document.createElement("p");
-      statusLine.style.cssText = "margin:0;font-size:11px;line-height:1.45;";
-      btn.parentElement.appendChild(statusLine);
-    }
-    statusLine.style.color = isError
-      ? "var(--xb-danger,#f85149)"
-      : "var(--xb-text-mute)";
-    statusLine.textContent = text;
-  };
-  try {
-    const res = await api.rawFetch("/v1/teams/join-by-code", {
-      method: "POST",
-      body: { code },
-    });
-    if (res.status === 200) {
-      const j = await res.json();
-      btn.textContent = "Joined ✓";
-      say(`You are in ${j.display_name || j.slug || "the team"}.`, false);
+  renderTeamStarter({
+    doc: document,
+    hostEl: emptyEl,
+    api,
+    // Created: rebuild the right-click submenu so the new team shows up there
+    // too, boot so the rail and the chat have it, and then go STRAIGHT to
+    // inviting with a link already minted. A team of one is not the product,
+    // and leaving somebody alone in an empty room to work out the next step is
+    // how that happens.
+    onTeamCreated: async () => {
       chrome.runtime.sendMessage({ type: "REFRESH_TEAMS_MENU" }).catch(() => {});
       await boot();
-      return;
-    }
-    // 404 is the server's deliberate no-oracle answer for unknown/revoked/expired/
-    // used-up codes — do not guess which one it was.
-    say(
-      res.status === 404
-        ? "That code is not valid — ask for a new invite."
-        : res.status === 429
-          ? "Too many attempts — wait a moment."
-          : `Could not join (HTTP ${res.status}).`,
-      true,
-    );
-  } catch (e) {
-    console.warn("[xbrain] join from empty state failed");
-    say("Network error — try again.", true);
-  } finally {
-    if (btn.textContent === "Joining…") btn.textContent = original;
-    btn.disabled = false;
-  }
-}
-
-/**
- * Turn a typed team name into a slug the API accepts (`^[a-z][a-z0-9-]*$`, <=64).
- * Falls back to a generic base when the name has no usable ASCII letters, so a
- * name written entirely in another script still produces a valid slug.
- */
-function slugifyTeamName(name) {
-  let s = (name || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")   // strip accents
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 64);
-  if (!/^[a-z]/.test(s)) s = "team" + (s ? "-" + s : "");
-  return s.slice(0, 64).replace(/-+$/, "");
-}
-
-/**
- * Create the team, then go STRAIGHT to inviting — that is the first thing a new
- * team needs, so the invite overlay opens with a link already minted rather than
- * leaving the user in an empty room to figure out the next step.
- */
-async function createTeam(btn, input) {
-  const displayName = (input && input.value.trim()) || "My team";
-  btn.disabled = true;
-  const original = btn.textContent;
-  btn.textContent = "Creating…";
-  try {
-    const base = slugifyTeamName(displayName);
-    let res;
-    // One retry on a slug collision (409) with a short suffix — two people naming
-    // their team the same thing must not dead-end on an error they cannot act on.
-    for (const slug of [base, `${base}-${Math.random().toString(36).slice(2, 6)}`]) {
-      res = await api.rawFetch("/v1/teams/self", {
-        method: "POST",
-        body: { slug, display_name: displayName },
-      });
-      if (res.status !== 409) break;
-    }
-    if (!res || res.status !== 201) {
-      const code = res ? res.status : "network";
-      throw new Error(`HTTP ${code}`);
-    }
-
-    // Rebuild the right-click submenu so the new team shows up there too.
-    chrome.runtime.sendMessage({ type: "REFRESH_TEAMS_MENU" }).catch(() => {});
-
-    btn.textContent = "Ready ✓";
-    await boot();                       // team selector + chat now have the team
-    if (state.activeTeamId) {
-      openInvite();                     // first stop: bring people in
-      await mintInvite();               // link ready to copy, no extra click
-    }
-  } catch (e) {
-    console.warn("[xbrain] create team failed:", e && e.message ? e.message : e);
-    btn.disabled = false;
-    btn.textContent = original;
-    const hint = document.createElement("p");
-    hint.style.cssText = "margin:0;font-size:11px;color:var(--xb-danger,#f85149);";
-    hint.textContent = "Could not create the team — check your connection and try again.";
-    btn.parentElement.appendChild(hint);
-  }
+      if (state.activeTeamId) await invitePanel.openAndMint();
+    },
+    onTeamJoined: async () => {
+      chrome.runtime.sendMessage({ type: "REFRESH_TEAMS_MENU" }).catch(() => {});
+      await boot();
+    },
+  });
 }
 
 // createSoloTeam() lived here and posted to /v1/teams/self-solo. Removed with the
 // solo-workspace empty state: the product is a team chat, so the first action is
-// creating a TEAM and inviting people into it (see createTeam above). The endpoint
-// still exists server-side for the first-login path; nothing in the popup calls it.
+// creating a TEAM and inviting people into it (chat-core's teams.js owns both
+// doors now). The endpoint still exists server-side for the first-login path;
+// nothing in the popup calls it.
 
 // ---------- React to storage changes (token mint, GitHub link) ----------
 

@@ -271,43 +271,13 @@
     </div>
   </div>
 
-  <!-- Send-link overlay — opens on the header "send link" button (Phase 22, D-22-05).
-       Picks a same-team member + a URL and POSTs the nudge-open endpoint. The
-       recipient still has to click their notification to actually open the tab. -->
-  <div id="sendlink-panel" class="xb-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="sendlink-title">
-    <div class="xb-overlay-card">
-      <header class="xb-overlay-header">
-        <h3 id="sendlink-title">Send a link to a teammate</h3>
-        <button type="button" id="btn-sendlink-close" class="xb-icon-btn" title="Close">✕</button>
-      </header>
-
-      <div class="xb-overlay-body">
-        <div class="xb-field">
-          <label for="sendlink-member">Team member</label>
-          <select id="sendlink-member">
-            <option value="" disabled selected>Loading members…</option>
-          </select>
-        </div>
-
-        <div class="xb-field">
-          <label for="sendlink-url">Link (http / https)</label>
-          <input type="url" id="sendlink-url" placeholder="https://example.com/page" autocomplete="off" />
-        </div>
-
-        <p class="xb-hint">
-          They get a notification with your name and the full link, and the tab opens
-          only if they click it — nothing opens on its own.
-        </p>
-
-        <div id="sendlink-status" hidden></div>
-      </div>
-
-      <footer class="xb-overlay-footer">
-        <button type="button" id="btn-sendlink-cancel" class="xb-btn-secondary">Cancel</button>
-        <button type="button" id="btn-sendlink-submit" class="xb-btn-primary">Send link</button>
-      </footer>
-    </div>
-  </div>
+  <!-- The URL-first "send a link" overlay lived here (Phase 22, D-22-05): pick a
+       member from a <select>, type a URL, press Send. Its header button became
+       the people icon in Phase 22 and nothing has opened it since — you almost
+       always mean "send THIS page to THAT person", so the recipient is a click in
+       the people overlay below and the current tab is already in the field. The
+       markup and its ~100 lines of handlers are gone rather than left dormant;
+       the nudge endpoint and every status message it mapped are chat-core's now. -->
 
   <!-- Invite-code overlay — opens on the header "invite" button (Phase 25, JOINCODE-01).
        Two surfaces: an admin "Create invite code" action that mints and reveals the
@@ -382,7 +352,11 @@
         <div class="xb-field">
           <label for="people-url">Link to send</label>
           <input type="url" id="people-url" placeholder="https://example.com/page" autocomplete="off" />
-          <p class="xb-hint">Defaults to the page you are on. Sending shows the recipient a notification; it only opens if they allowed that.</p>
+          <!-- Written by chat-core's people panel, because what it should say
+               depends on whether the surface can see a current page: the
+               extension can, the PWA cannot. The markup below is the extension's
+               answer and is overwritten on every open. -->
+          <p id="people-hint" class="xb-hint">Defaults to the page you are on. Sending shows the recipient a notification; it only opens if they allowed that.</p>
         </div>
 
         <div class="xb-field">

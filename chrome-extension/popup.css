@@ -316,6 +316,76 @@ html, body {
 .xb-team-add:hover { background: var(--muted); color: var(--fg); border-style: solid; }
 .xb-team-add:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
+/* ── Create-or-join starter (chat-core teams.js) ───────────────────────────────
+   The panel a person with no team is shown, and what the "+" beside the rail
+   opens. Its markup is built by the SHARED module, so it can carry no inline
+   styles of its own — these rules are the extension's half of that trade, and
+   app-site/app/app.css carries the twin. Radius 0 throughout, like everything
+   else in the Neutral palette. */
+.xb-starter {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  text-align: center;
+  max-width: 320px;
+}
+.xb-starter-text {
+  margin: 0;
+  color: var(--muted-fg);
+  line-height: 1.5;
+}
+.xb-starter-input {
+  width: 100%;
+  max-width: 260px;
+  padding: 8px 10px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: inherit;
+  outline: none;
+}
+.xb-starter-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.xb-starter-input::placeholder { color: var(--muted-fg); }
+.xb-starter-btn {
+  width: 100%;
+  max-width: 260px;
+  padding: 8px 12px;
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.xb-starter-btn:hover:not(:disabled) { opacity: 0.9; }
+.xb-starter-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.xb-starter-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.xb-starter-divider {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted-fg);
+  letter-spacing: 0.04em;
+}
+.xb-starter-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted-fg);
+  line-height: 1.45;
+}
+.xb-starter-status {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted-fg);
+}
+.xb-starter-status.error { color: var(--destructive); }
+.xb-starter-status.success { color: var(--fg); }
+
 /* ── People overlay list ───────────────────────────────────────────────────── */
 .xb-people-list { list-style: none; margin: 0; padding: 0; }
 .xb-people-row {
