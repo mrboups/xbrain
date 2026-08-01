@@ -36,16 +36,27 @@ const el = (id) => document.getElementById(id);
  *   getActiveTeamId: () => (string|null),
  *   getTeams: () => Array<Object>,
  *   getTeamSubscription: () => (Object|null),
- *   onTeamsChanged: (preferTeamId?: string) => Promise<void>
+ *   onTeamsChanged: (preferTeamId?: string) => Promise<void>,
+ *   onStarterDismissed: () => void
  * }} refs
  *   getTeamSubscription — the live team channel, for presence. Best effort: a
  *     channel that exposes none still lists every member, without a dot.
  *   onTeamsChanged — the chat re-reads /v1/teams/my-teams and points itself at
  *     the new team. This module does not know what "switch team" means.
+ *   onStarterDismissed — put the chat's own empty-thread copy back. It lives in
+ *     chat.js because chat.js is where that sentence is written; a second copy
+ *     of the string here is a second copy to forget about.
  * @returns {{openPeople: Function, openStarter: Function, reveal: Function, hide: Function}}
  */
 export function bootPanels(refs) {
-  const { api, getActiveTeamId, getTeams, getTeamSubscription, onTeamsChanged } = refs;
+  const {
+    api,
+    getActiveTeamId,
+    getTeams,
+    getTeamSubscription,
+    onTeamsChanged,
+    onStarterDismissed,
+  } = refs;
 
   const people = createPeoplePanel({
     doc: document,
@@ -96,8 +107,13 @@ export function bootPanels(refs) {
    * Both doors are first-class: someone who was INVITED must be able to act
    * right here rather than hunting for another overlay. Which is also why the
    * "+" beside the rail opens this and not a create-only form.
+   *
+   * @param {boolean} [dismissible] true when this was opened by the "+" over a
+   *   chat somebody was reading. Without a way back, that "+" is a one-way
+   *   door; on the no-teams screen there is nothing behind it, so no control is
+   *   drawn and "Back to chat" cannot lead to an empty room.
    */
-  function openStarter() {
+  function openStarter(dismissible) {
     const host = el("chat-empty");
     if (!host) return;
     host.hidden = false;
@@ -105,6 +121,10 @@ export function bootPanels(refs) {
       doc: document,
       hostEl: host,
       api,
+      onCancel:
+        dismissible && typeof onStarterDismissed === "function"
+          ? () => onStarterDismissed()
+          : null,
       // A team of one is useless, so creating one goes STRAIGHT to inviting,
       // with a link already minted. Making that a second click after a "team
       // created" message is how people end up alone in an empty room.
@@ -136,7 +156,8 @@ export function bootPanels(refs) {
   wire("btn-invite-join", () => invite.join());
   wire("btn-invite-email", () => invite.addByEmail());
 
-  wire("btn-team-add", () => openStarter());
+  // Dismissible: this one is opened over a chat.
+  wire("btn-team-add", () => openStarter(true));
 
   /** Show the header controls. Called once the person is in at least one team. */
   function reveal() {

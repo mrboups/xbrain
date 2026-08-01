@@ -1528,7 +1528,13 @@ function resetChatEmpty() {
  * means both, and a founder and an invitee should not need different doors.
  */
 function renderEmptyTeams() {
-  $("teamSelector").innerHTML = `<option disabled selected>No teams yet</option>`;
+  // Two situations, one panel. With no teams this IS the screen; with teams it
+  // is what the "+" opened, over a chat somebody was reading — so the hidden
+  // selector keeps its real options, and there is a way back.
+  const hasTeams = state.teams.length > 0;
+  if (!hasTeams) {
+    $("teamSelector").innerHTML = `<option disabled selected>No teams yet</option>`;
+  }
   const emptyEl = $("chat-empty");
   emptyEl.hidden = false;
   emptyEl.style.pointerEvents = "auto";
@@ -1537,6 +1543,15 @@ function renderEmptyTeams() {
     doc: document,
     hostEl: emptyEl,
     api,
+    // Only when there is a chat behind this panel to go back to.
+    onCancel: hasTeams
+      ? () => {
+          resetChatEmpty();
+          // Hidden again, unless the thread really is empty — in which case the
+          // ordinary "no messages yet" copy is exactly what belongs here.
+          emptyEl.hidden = Boolean($("message-list").firstChild);
+        }
+      : null,
     // Created: rebuild the right-click submenu so the new team shows up there
     // too, boot so the rail and the chat have it, and then go STRAIGHT to
     // inviting with a link already minted. A team of one is not the product,

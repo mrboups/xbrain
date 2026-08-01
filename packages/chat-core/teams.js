@@ -77,8 +77,16 @@ export async function createTeam(api, displayName) {
  *   api: Object,
  *   onTeamCreated?: ((team: Object) => Promise<void>|void)|null,
  *   onTeamJoined?: ((result: Object) => Promise<void>|void)|null,
+ *   onCancel?: (() => void)|null,
  *   autofocus?: boolean
  * }} opts
+ *   onCancel — supplied ONLY when the reader already has somewhere to go back
+ *     to. This panel is both the no-teams screen and what the "+" beside the
+ *     rail opens, and those two are not the same situation: the first has no
+ *     way out because there is nothing behind it, but the second covers a chat
+ *     the person was reading, and without a way back the "+" is a one-way door.
+ *     Absent means no control is drawn — a "Back to chat" button on the
+ *     no-teams screen would lead to an empty room.
  * @returns {{focus: Function}}
  */
 export function renderTeamStarter(opts) {
@@ -95,6 +103,7 @@ export function renderTeamStarter(opts) {
     typeof cfg.onTeamCreated === "function" ? cfg.onTeamCreated : null;
   const onTeamJoined =
     typeof cfg.onTeamJoined === "function" ? cfg.onTeamJoined : null;
+  const onCancel = typeof cfg.onCancel === "function" ? cfg.onCancel : null;
 
   clearChildren(hostEl);
 
@@ -154,6 +163,16 @@ export function renderTeamStarter(opts) {
   status.className = "xb-starter-status";
   status.hidden = true;
   wrapper.appendChild(status);
+
+  // The way out, when there is one to offer. See onCancel in the docstring.
+  if (onCancel) {
+    const back = doc.createElement("button");
+    back.type = "button";
+    back.className = "xb-starter-cancel";
+    back.textContent = "Back to chat";
+    back.addEventListener("click", () => onCancel());
+    wrapper.appendChild(back);
+  }
 
   hostEl.appendChild(wrapper);
 

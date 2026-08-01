@@ -74,6 +74,7 @@ const panels = bootPanels({
   getTeams: () => state.teams,
   getTeamSubscription: () => (state.realtime ? state.realtime.teamSubscription : null),
   onTeamsChanged: (preferTeamId) => reloadTeams(preferTeamId),
+  onStarterDismissed: showEmptyThreadCopy,
 });
 
 const renderer = createRenderer({
@@ -236,6 +237,25 @@ async function reloadTeams(preferTeamId) {
   await switchTeam(wanted);
 }
 
+/**
+ * The ordinary empty-thread state — ONE owner for that sentence.
+ *
+ * Two callers need it: the history load that found nothing, and the "+"
+ * starter being dismissed over a thread that happens to be empty. A second copy
+ * of the string in panels.js is a second copy to forget about.
+ */
+function showEmptyThreadCopy() {
+  const empty = el("chat-empty");
+  const list = el("message-list");
+  if (!empty) return;
+  if (list && list.firstChild) {
+    empty.hidden = true;
+    return;
+  }
+  empty.textContent = "No messages in this team yet. Say something.";
+  empty.hidden = false;
+}
+
 /** Put the chat frame back after the no-teams state hid the composer. */
 function revealChat() {
   const composer = el("composer");
@@ -369,10 +389,7 @@ async function loadInitialHistory() {
   // The endpoint answers newest-first; the thread reads oldest-first.
   const messages = ((data && data.messages) || []).slice().reverse();
   if (messages.length === 0) {
-    if (empty) {
-      empty.textContent = "No messages in this team yet. Say something.";
-      empty.hidden = false;
-    }
+    showEmptyThreadCopy();
     return;
   }
   if (empty) empty.hidden = true;

@@ -385,6 +385,20 @@ html, body {
 }
 .xb-starter-status.error { color: var(--destructive); }
 .xb-starter-status.success { color: var(--fg); }
+/* The way back, drawn only when the panel was opened OVER a chat. Quiet on
+   purpose: it is an escape hatch, not one of the two things being offered. */
+.xb-starter-cancel {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  color: var(--muted-fg);
+  font-family: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.xb-starter-cancel:hover { color: var(--fg); }
+.xb-starter-cancel:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* ── People overlay list ───────────────────────────────────────────────────── */
 .xb-people-list { list-style: none; margin: 0; padding: 0; }

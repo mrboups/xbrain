@@ -29,6 +29,7 @@ import { dirname, join } from "node:path";
 
 import { createPeoplePanel } from "../../packages/chat-core/people.js";
 import { buildJoinLink } from "../../packages/chat-core/invite.js";
+import { renderTeamStarter } from "../../packages/chat-core/teams.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..", "..");
@@ -293,6 +294,72 @@ test("the join link carries the code in the FRAGMENT, never the query string", (
   // The origin is derived from the api base, so a rebrand carries the link with
   // it instead of silently pointing at the old domain.
   assert.ok(link.startsWith("https://example.test/join/"), link);
+});
+
+// ---- 4b. The "+" is not a one-way door ----------------------------------
+//
+// The same panel serves two situations. As the NO-TEAMS screen there is nothing
+// behind it, so there is nowhere to go back to. Opened by the "+", it covers a
+// chat somebody was reading — and it fills #chat-empty, which sits over the
+// thread, so without a way back the only escape is closing the whole surface.
+
+/** Every button label the starter rendered, in order. */
+function starterButtons(host) {
+  return host.findAll("xb-starter-btn").map((b) => b.textContent);
+}
+
+test("the no-teams screen offers the two doors and no way back", () => {
+  const host = new El("div");
+  renderTeamStarter({ doc, hostEl: host, api: {}, autofocus: false });
+  assert.deepEqual(starterButtons(host), ["Create team", "Join team"]);
+  assert.equal(
+    host.find("xb-starter-cancel"),
+    null,
+    '"Back to chat" here would lead to an empty room — there is no chat behind this screen',
+  );
+});
+
+test('opened over a chat, the starter draws a way back that actually fires', () => {
+  const host = new El("div");
+  let dismissed = 0;
+  renderTeamStarter({
+    doc,
+    hostEl: host,
+    api: {},
+    autofocus: false,
+    onCancel: () => {
+      dismissed += 1;
+    },
+  });
+  const back = host.find("xb-starter-cancel");
+  assert.ok(back, 'the "+" must not be a one-way door');
+  assert.equal(back.textContent, "Back to chat");
+  back.click();
+  assert.equal(dismissed, 1);
+});
+
+test('the PWA passes that way back only for the "+", and owns the copy it restores', () => {
+  assert.match(
+    panelsJs,
+    /wire\("btn-team-add",\s*\(\)\s*=>\s*openStarter\(true\)\)/,
+    'the "+" must open the starter in its dismissible form',
+  );
+  const chatJs = readFileSync(join(APP_DIR, "chat.js"), "utf8");
+  assert.ok(
+    chatJs.includes("onStarterDismissed"),
+    "chat.js must supply what to restore — the empty-thread sentence is written there",
+  );
+  assert.ok(
+    !panelsJs.includes("No messages in this team"),
+    "a second copy of that string here is a second copy to forget about",
+  );
+  for (const rel of [join("app-site", "app", "app.css"), join("chrome-extension", "popup.css")]) {
+    const sheet = readFileSync(join(REPO_ROOT, rel), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    assert.ok(
+      /\.xb-starter-cancel\s*\{/.test(sheet),
+      `${rel} has no .xb-starter-cancel rule — the control would render unstyled`,
+    );
+  }
 });
 
 // ---- 5. The two products ship the same icons ----------------------------
