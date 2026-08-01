@@ -436,8 +436,14 @@ function paintButton(btnEl, hintEl, state) {
   const hint = STATE_HINTS[state] || "";
   btnEl.title = hint;
   if (hintEl) {
+    // The text is always written (the title carries it, and assistive tech
+    // reads it) but only SHOWN when the person has to do something this app
+    // cannot do for them: allow the permission in the browser's own settings,
+    // or install the app first. On and off explain themselves through the
+    // label, and a permanent line of copy under the header for the state
+    // almost everyone is in is noise people learn to skip.
     hintEl.textContent = hint;
-    hintEl.hidden = hint === "";
+    hintEl.hidden = ACTIONABLE.has(state);
   }
 }
 

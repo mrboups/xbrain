@@ -29,16 +29,24 @@
       <!-- Filled from /v1/teams/my-teams; changing it switches the thread. -->
       <select id="team-selector" aria-label="Team" hidden></select>
 
-      <!-- Disabled on purpose. Plan 27-07 wires the opt-in behind this click,
-           which is the ONLY place the browser may be asked for notification
-           access (D-27-05). -->
-      <button type="button" id="btn-enable-push" class="xb-btn" disabled
-              title="Notifications arrive in the next update">
-        Notifications
+      <!-- The ONLY control in this app that may ask the browser for
+           notification access, and only from this click (D-27-05). push.js
+           owns the label, the data-state and whether it is disabled; the
+           markup starts in the honest default (off, clickable) so a person who
+           somehow never gets the first refresh still sees a working control
+           rather than a dead one. -->
+      <button type="button" id="btn-enable-push" class="xb-btn" data-state="off"
+              aria-pressed="false">
+        Notifications off
       </button>
 
       <button type="button" id="btn-sign-out" class="xb-btn" hidden>Sign out</button>
     </header>
+
+    <!-- Shown only when the notification state needs something this app cannot
+         do itself: allow the permission in the browser's settings, or install
+         the app on iOS. push.js owns the copy and the visibility. -->
+    <p id="push-hint" class="xb-push-hint" role="status" hidden></p>
 
     <!-- Signed out -->
     <div id="signin-card" hidden>

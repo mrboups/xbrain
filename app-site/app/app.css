@@ -218,6 +218,59 @@ body {
 }
 .xb-btn-primary:hover:not(:disabled) { opacity: 0.88; background: var(--primary); }
 
+/* ---- Notification opt-in (27-07) ------------------------------------- */
+
+/*
+ * push.js swaps this button's label with its state, and the widest one
+ * ("Notifications blocked in browser settings") is roughly four times the
+ * narrowest. Cap and ellipsize rather than let the header wrap or push the
+ * sign-out button off a narrow phone; the full sentence is in the title
+ * attribute and, for the states that need action, in #push-hint.
+ */
+#btn-enable-push {
+  max-width: 36%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* On reads as the filled/primary state, the same way the send button does. */
+#btn-enable-push[data-state="on"] {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-color: var(--primary);
+}
+#btn-enable-push[data-state="on"]:hover:not(:disabled) {
+  opacity: 0.88;
+  background: var(--primary);
+}
+
+/*
+ * The three states nothing in this app can change. They are not "off" - they
+ * are unavailable - so they read as muted with a dashed edge rather than as a
+ * control someone should keep pressing. (:disabled already dims them; this is
+ * what distinguishes them from a button that is merely busy.)
+ */
+#btn-enable-push[data-state="blocked"],
+#btn-enable-push[data-state="install_required"],
+#btn-enable-push[data-state="unsupported"] {
+  color: var(--muted-fg);
+  border-style: dashed;
+}
+
+/* The explanation strip, shown only for those same states and after a failed
+   toggle. [hidden] at the top of this file already forces display:none. */
+.xb-push-hint {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 8px 13px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted-fg);
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
 .xb-btn-block { width: 100%; }
 
 /* ---- Sign-in card ---------------------------------------------------- */
