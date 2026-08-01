@@ -54,3 +54,20 @@ class User(Base):
     github_access_token_hash: Mapped[str | None] = mapped_column(
         String(64), nullable=True
     )
+    # === Profile (migration 0030) ===
+    # preferred_name is the ONLY name column a user may write, and it is written
+    # exclusively by PATCH /v1/me/profile for the caller's own row. display_name
+    # above stays the identity provider's value and is never overwritten by a user
+    # edit — clearing preferred_name restores it (see app/services/user_label.py
+    # for the precedence ladder both chat and notifications resolve through).
+    preferred_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    bio: Mapped[str | None] = mapped_column(String(400), nullable=True)
+    # No ForeignKey by design — the media item lives in the pluggable MemoryProvider,
+    # which only reaches Postgres `memory_items` under the `native` backend. See the
+    # 0030_user_profile docstring. Existence is validated at write time instead.
+    avatar_media_id: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True), nullable=True
+    )
+    # The team_scope the avatar was uploaded under — required to mint a readable
+    # signed URL for a person who belongs to several teams.
+    avatar_media_team_scope: Mapped[str | None] = mapped_column(String(64), nullable=True)
