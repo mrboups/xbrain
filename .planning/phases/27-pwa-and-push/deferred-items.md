@@ -31,3 +31,25 @@ not a test edit to match the code.
 
 **Baseline:** 1 failed, 406 passed, 281 skipped (skips are the Docker-gated integration
 tests; Docker is not running on this executor host).
+
+**Still failing after 27-04**, unchanged: 1 failed, 449 passed, 281 skipped.
+
+## Mention fan-out opens one DB session per notified member — OBSERVATION
+
+**Found during:** plan 27-04, Task 3 (2026-08-01). Not a defect in this plan's changed
+set; the shape is exactly what 27-04 specifies (`asyncio.create_task` per mentioned
+member, each `send_to_user_bg` opening its own session).
+
+**Observation:** a message mentioning N members spawns N background tasks, each checking
+out a session from a pool sized 10 + 5 overflow. A message that mentions a large team
+would briefly queue real requests behind the notification fan-out. There is no rate limit
+on `POST /v1/teams/{id}/messages` today, so the multiplier is not bounded by anything
+except team size.
+
+**Why it is left alone here:** the plan's `key_links` pins the per-member create_task
+shape and an acceptance criterion counts the call sites, so batching the fan-out into one
+task is a structural change, not a fix. It is also cheap to do later — `send_to_user_bg`
+would take a list of user_ids and loop inside one session.
+
+**Where it belongs:** a chat-post rate limit (the real bound), or a batched sender.
+Worth raising at the 27-09 gate rather than mid-wave.
