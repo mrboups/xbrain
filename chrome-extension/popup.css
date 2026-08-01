@@ -869,7 +869,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  /* A text "+" replaces the old 📎: an emoji renders in its own colour and ignores
+     the Neutral palette. Sized up from the emoji's 15px because a bare plus reads
+     smaller at the same value. */
+  font-size: 20px;
+  font-weight: 400;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
   line-height: 1;
@@ -903,12 +907,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
-  font-weight: 700;
+  /* A text "›" replaces the old ↑, which rendered as a colour emoji and fought the
+     monochrome palette. The chevron is optically light, so it takes more size and
+     a 1px left nudge to sit centred in the square. */
+  font-size: 22px;
+  font-weight: 600;
   cursor: pointer;
   transition: opacity 0.15s;
   line-height: 1;
-  padding: 0;
+  padding: 0 0 0 1px;
 }
 .xb-send-btn:hover { opacity: 0.9; }
 .xb-send-btn:focus-visible {

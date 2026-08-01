@@ -134,6 +134,17 @@
     .steps { color: var(--muted); font-size: 12.5px; margin: 0 0 16px 18px; }
     .steps li { margin-bottom: 4px; }
 
+    .google-btn-slot { display: flex; justify-content: center; min-height: 44px; }
+    .google-hint { font-size: 11px; color: var(--dim); text-align: center; margin-top: 8px; }
+    .signin-divider {
+      display: flex; align-items: center; gap: 10px;
+      margin: 18px 0 16px; color: var(--dim); font-size: 11px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .signin-divider::before, .signin-divider::after {
+      content: ""; flex: 1; height: 1px; background: var(--border);
+    }
+
     .footnote { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 4px; }
     .footer {
       margin-top: 60px;
@@ -178,6 +189,12 @@
 
     <!-- State: signed out — sign in, then redeem automatically -->
     <div id="signin-card" class="card" hidden>
+      <!-- Google FIRST: the Chrome extension signs people in with Google, so an
+           account created there has NO password and could not authenticate here at
+           all if this page only offered email/password. -->
+      <div id="google-btn" class="google-btn-slot"></div>
+      <p id="google-hint" class="google-hint">Same account you use in the extension.</p>
+      <div class="signin-divider"><span>or</span></div>
       <form id="signin-form">
         <div class="field">
           <label for="email">Email</label>
@@ -213,6 +230,7 @@
     </footer>
   </div>
 
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
   (function () {
     "use strict";
@@ -220,6 +238,13 @@
     // Hardcoded API base — SAME pattern as every other account page
     // (login/index.html:234, teams.js:32, admin.js:30).
     const MEMORY_API_BASE = "https://api.grooveos.app";
+
+    // SAME OAuth client the Chrome extension uses, so a person who signed up there
+    // lands on the same user row here. `https://grooveos.app` is already registered
+    // under that client's Authorized JavaScript origins, which is what Google
+    // Identity Services checks.
+    const GOOGLE_CLIENT_ID =
+      "50097563098-rdh24v05dcp0ees8o4kqviuuoi5sup3n.apps.googleusercontent.com";
 
     // Canonical localStorage keys — SAME keys login/teams/admin use.
     const STORAGE_TOKEN = "xbt_token";
@@ -343,7 +368,89 @@
       subtitle.textContent = "Sign in to accept this invite. You will join the team right after.";
       signinCard.hidden = false;
       registerNote.hidden = false;
-      emailInput.focus();
+      mountGoogleButton();
+    }
+
+    /**
+     * Exchange a Google ID token for the xbt_ personal token, exactly the way the
+     * Chrome extension does (onboarding.js): POST /v1/me/api-token authenticated
+     * with the Google credential, then read /v1/me for the canonical source_user_id.
+     * Storing the same two keys the rest of app-site uses means a person who signs
+     * in here is also signed in on /account/teams/.
+     */
+    async function signInWithGoogleCredential(credential) {
+      showStatus("Signing you in…");
+      try {
+        const mintRes = await fetch(MEMORY_API_BASE + "/v1/me/api-token", {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + credential,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ team_scope: "default", name: "join-page" }),
+        });
+        if (!mintRes.ok) {
+          askToSignIn();
+          signinMsg.textContent =
+            "Google sign-in was rejected by the server (HTTP " + mintRes.status + ").";
+          signinBanner.className = "auth-banner is-error";
+          signinBanner.hidden = false;
+          return;
+        }
+        const mint = await mintRes.json();
+        if (!mint.token) throw new Error("mint response missing token");
+
+        const meRes = await fetch(MEMORY_API_BASE + "/v1/me", {
+          headers: { Authorization: "Bearer " + mint.token },
+        });
+        const me = meRes.ok ? await meRes.json() : {};
+
+        localStorage.setItem(STORAGE_TOKEN, mint.token);
+        localStorage.setItem(STORAGE_EMAIL, me.email || me.source_user_id || "");
+        await redeem();
+      } catch (err) {
+        askToSignIn();
+        signinMsg.textContent = "Could not complete Google sign-in. Try again.";
+        signinBanner.className = "auth-banner is-error";
+        signinBanner.hidden = false;
+      }
+    }
+
+    /**
+     * Render the Google button once GIS has loaded. The script tag is async, so this
+     * retries briefly rather than assuming `google` exists; if it never arrives
+     * (blocked script, offline), the email/password form below is still usable and
+     * the hint says Google is unavailable instead of leaving a blank gap.
+     */
+    let googleMounted = false;
+    function mountGoogleButton(attempt) {
+      if (googleMounted) return;
+      const slot = el("google-btn");
+      const g = window.google;
+      if (!g || !g.accounts || !g.accounts.id) {
+        const n = (attempt || 0) + 1;
+        if (n > 20) {                       // ~5s
+          el("google-hint").textContent =
+            "Google sign-in unavailable right now — use your email and password below.";
+          return;
+        }
+        setTimeout(function () { mountGoogleButton(n); }, 250);
+        return;
+      }
+      googleMounted = true;
+      g.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: function (resp) {
+          if (resp && resp.credential) signInWithGoogleCredential(resp.credential);
+        },
+      });
+      g.accounts.id.renderButton(slot, {
+        theme: "filled_black",
+        size: "large",
+        text: "signin_with",
+        shape: "rectangular",
+        width: 300,
+      });
     }
 
     /** POST the code. The team is decided by the code server-side — never by this page. */

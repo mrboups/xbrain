@@ -2250,16 +2250,112 @@ function renderEmptyTeams() {
   });
   wrapper.appendChild(btn);
 
+  // Second first-class path: someone who was INVITED must be able to act right
+  // here. Burying it in a hint that points at another overlay makes the invited
+  // half of the audience hunt for the one thing they came to do.
+  const divider = document.createElement("p");
+  divider.style.cssText =
+    "margin:4px 0 0;font-size:11px;color:var(--xb-text-dim);letter-spacing:0.04em;";
+  divider.textContent = "— or join a team you were invited to —";
+  wrapper.appendChild(divider);
+
+  const codeInput = document.createElement("input");
+  codeInput.type = "text";
+  codeInput.id = "empty-join-code";
+  codeInput.placeholder = "Invite code (xbi_…)";
+  codeInput.autocomplete = "off";
+  codeInput.spellcheck = false;
+  codeInput.style.cssText = input.style.cssText;
+  wrapper.appendChild(codeInput);
+
+  const joinBtn = document.createElement("button");
+  joinBtn.type = "button";
+  joinBtn.className = "connect-btn";
+  joinBtn.style.maxWidth = "260px";
+  joinBtn.textContent = "Join team";
+  joinBtn.addEventListener("click", () => joinFromEmptyState(joinBtn, codeInput));
+  codeInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") joinFromEmptyState(joinBtn, codeInput);
+  });
+  wrapper.appendChild(joinBtn);
+
   const hint = document.createElement("p");
   hint.style.cssText =
     "margin:0;font-size:11px;color:var(--xb-text-dim);line-height:1.45;";
   hint.textContent =
-    "Already invited? Use the invite link you were sent, or paste your code under “invite”.";
+    "If you were sent an invite link, opening it joins you automatically.";
   wrapper.appendChild(hint);
 
   emptyEl.appendChild(wrapper);
   emptyEl.style.pointerEvents = "auto";
   input.focus();
+}
+
+/**
+ * Redeem an invite code straight from the empty state. Same endpoint the invite
+ * overlay uses; kept separate so it can report inline instead of into the overlay
+ * status line that is not on screen here.
+ */
+async function joinFromEmptyState(btn, codeInput) {
+  const code = codeInput ? codeInput.value.trim() : "";
+  if (!code) {
+    codeInput.focus();
+    return;
+  }
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = "Joining…";
+  // The status line is created here and held in a closure rather than looked up by
+  // id: it belongs to this dynamically-built empty state, so it has no place in the
+  // static popup.html — and the popup contract test rightly refuses ids that are
+  // referenced but never declared there.
+  let statusLine = null;
+  const say = (text, isError) => {
+    if (!statusLine) {
+      statusLine = document.createElement("p");
+      statusLine.style.cssText = "margin:0;font-size:11px;line-height:1.45;";
+      btn.parentElement.appendChild(statusLine);
+    }
+    statusLine.style.color = isError
+      ? "var(--xb-danger,#f85149)"
+      : "var(--xb-text-mute)";
+    statusLine.textContent = text;
+  };
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    const res = await fetch(`${MEMORY_API_BASE}/v1/teams/join-by-code`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${xbt_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ code }),
+    });
+    if (res.status === 200) {
+      const j = await res.json();
+      btn.textContent = "Joined ✓";
+      say(`You are in ${j.display_name || j.slug || "the team"}.`, false);
+      chrome.runtime.sendMessage({ type: "REFRESH_TEAMS_MENU" }).catch(() => {});
+      await boot();
+      return;
+    }
+    // 404 is the server's deliberate no-oracle answer for unknown/revoked/expired/
+    // used-up codes — do not guess which one it was.
+    say(
+      res.status === 404
+        ? "That code is not valid — ask for a new invite."
+        : res.status === 429
+          ? "Too many attempts — wait a moment."
+          : `Could not join (HTTP ${res.status}).`,
+      true,
+    );
+  } catch (e) {
+    console.warn("[xbrain] join from empty state failed");
+    say("Network error — try again.", true);
+  } finally {
+    if (btn.textContent === "Joining…") btn.textContent = original;
+    btn.disabled = false;
+  }
 }
 
 /**
