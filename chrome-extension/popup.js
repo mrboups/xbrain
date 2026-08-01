@@ -316,7 +316,7 @@ async function currentTabUrl() {
   }
 }
 
-async function openPeople() {
+async function openPeople(opts) {
   const panel = $("people-panel");
   if (!panel) return;
   if (!state.activeTeamId) {
@@ -327,7 +327,7 @@ async function openPeople() {
   setPeopleStatus("", "");
   const urlInput = $("people-url");
   if (urlInput && !urlInput.value) urlInput.value = await currentTabUrl();
-  await renderPeopleList();
+  await renderPeopleList(opts && opts.focusUserId);
 }
 
 /**
@@ -338,7 +338,7 @@ async function openPeople() {
  * still renders — every row simply shows no dot, because an invented "offline" is
  * worse than an absent one.
  */
-async function renderPeopleList() {
+async function renderPeopleList(focusUserId) {
   const list = $("people-list");
   if (!list) return;
   list.innerHTML = "";
@@ -374,6 +374,11 @@ async function renderPeopleList() {
   for (const m of members) {
     const row = document.createElement("li");
     row.className = "xb-people-row";
+    // Opened by clicking this person's name in the chat — mark their row so the
+    // overlay answers "that one" instead of making you find them again.
+    if (focusUserId && String(m.user_id || m.id) === String(focusUserId)) {
+      row.classList.add("is-focused");
+    }
 
     const dot = document.createElement("span");
     dot.className =
@@ -395,10 +400,86 @@ async function renderPeopleList() {
     linkBtn.addEventListener("click", () => sendLinkToMember(m, linkBtn));
     row.appendChild(linkBtn);
 
+    const fileBtn = document.createElement("button");
+    fileBtn.type = "button";
+    fileBtn.className = "xb-btn-secondary";
+    fileBtn.textContent = "File";
+    fileBtn.title = "Upload a file and send it to this person";
+    fileBtn.addEventListener("click", () => pickFileForMember(m));
+    row.appendChild(fileBtn);
+
     list.appendChild(row);
   }
 
   if (!members.length) setPeopleStatus("No members yet.", "");
+}
+
+/**
+ * Send a FILE to one member: upload it to the team, then nudge the signed URL the
+ * upload returns.
+ *
+ * The file goes through the ordinary team media path — it becomes a team memory_item
+ * like any other upload — and the recipient gets the same consent notification a link
+ * gets. `signed_url` is used rather than `raw_path` because the recipient's browser
+ * follows a bare URL and cannot send the Bearer header `raw_path` requires.
+ */
+function pickFileForMember(member) {
+  const picker = $("people-file");
+  if (!picker) return;
+  picker.value = "";                       // re-picking the same file must re-fire
+  picker.onchange = async () => {
+    const file = picker.files && picker.files[0];
+    if (!file) return;
+    // X-Team-Scope is the team SLUG, not its id — derived from state.teams the same
+    // way uploadFile() does, so both upload paths agree on the scope they write to.
+    const team = state.teams.find((t) => t.id === state.activeTeamId);
+    if (!team) {
+      setPeopleStatus("No active team.", "error");
+      return;
+    }
+    setPeopleStatus(`Uploading ${file.name}…`, "loading");
+    try {
+      const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+      const form = new FormData();
+      form.append("file", file);
+      form.append("caption", file.name);
+      const up = await fetch(`${MEMORY_API_BASE}/v1/media/upload`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${xbt_token}`,
+          "X-Team-Scope": team.slug,
+        },
+        body: form,
+      });
+      if (up.status !== 201) {
+        setPeopleStatus(
+          up.status === 413
+            ? "That file is too large (25 MB max)."
+            : `Upload failed (HTTP ${up.status}).`,
+          "error",
+        );
+        return;
+      }
+      const { signed_url } = await up.json();
+      if (!signed_url) {
+        setPeopleStatus("Upload succeeded but returned no shareable link.", "error");
+        return;
+      }
+      const status = await postNudge(
+        member.user_id || member.id,
+        `${MEMORY_API_BASE}${signed_url}`,
+      );
+      setPeopleStatus(
+        status === 202
+          ? `Sent ${file.name} to ${member.display_name || "them"} ✓`
+          : mapNudgeError(status),
+        status === 202 ? "success" : "error",
+      );
+    } catch {
+      setPeopleStatus("Network error — try again.", "error");
+    }
+  };
+  picker.click();
 }
 
 /** Send the composed link to ONE member (Phase 22 nudge). */
@@ -1846,6 +1927,21 @@ function buildBubbleNode(msg) {
     selfUserId: state.me?.id,
     nameCache: state.nameCache,
   });
+  // Click a teammate's name to act on THEM: opens the people overlay with their row
+  // highlighted, so sending a link or a file starts from the message you are reading
+  // instead of reopening a list and finding them again. Skipped for the agent and for
+  // your own messages — neither is someone you send things to.
+  if (
+    msg.kind !== "agent" &&
+    msg.author_user_id &&
+    msg.author_user_id !== state.me?.id
+  ) {
+    author.style.cursor = "pointer";
+    author.title = "Send them a link or a file";
+    author.addEventListener("click", () =>
+      openPeople({ focusUserId: msg.author_user_id }),
+    );
+  }
   meta.appendChild(author);
 
   const time = document.createElement("span");

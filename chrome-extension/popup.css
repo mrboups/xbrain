@@ -1400,3 +1400,9 @@
   border-top: 1px solid var(--destructive);
   text-align: center;
 }
+
+/* The member you clicked in the chat — a quiet emphasis, not a selection state. */
+.xb-people-row.is-focused {
+  background: var(--muted);
+  box-shadow: inset 2px 0 0 var(--primary);
+}

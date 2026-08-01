@@ -394,7 +394,13 @@ makes one call and reports one result.
 
 ---
 
-## Send a FILE to a teammate — needs a client-mintable signed media URL — 2026-08-01
+## ~~Send a FILE to a teammate~~ — SHIPPED 2026-08-01 (commit d331e0c + client)
+
+**Resolved:** `POST /v1/media/upload` now returns `signed_url`; the people overlay uploads then
+nudges that URL. Save-to-device (`chrome.downloads` + the manifest permission) is STILL open.
+Original note below.
+
+### Original
 
 The people overlay can send a LINK today (Phase 22 nudge). Sending a FILE cannot work yet: the
 upload response returns `raw_path` (`/v1/media/{id}/raw`), which requires `Authorization` +
@@ -417,7 +423,12 @@ need the `drive.file` WRITE scope; the project only requests `drive.readonly` to
 
 ---
 
-## Click a member IN THE CHAT to send them a link/file — 2026-08-01
+## ~~Click a member IN THE CHAT~~ — SHIPPED 2026-08-01
+
+**Resolved:** clicking a teammate's name in the chat opens the people overlay with their row
+highlighted. Original note below.
+
+### Original
 
 Requested alongside the people overlay: clicking a message author should offer the same
 send-link / send-file actions the overlay provides, so you can act on the person you are reading
