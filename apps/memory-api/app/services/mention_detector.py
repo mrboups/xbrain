@@ -131,6 +131,123 @@ def starts_with_mention(content: str, aliases: list[str] | None = None) -> bool:
     return rx.match(content) is not None
 
 
+# ── Human mentions (Phase 27 / PUSH-01, D-27-06) ─────────────────────────────
+#
+# "Does this message mention THIS PERSON?" lives in this module, next to "does this
+# message summon the agent?", because the two questions share one answer: the
+# boundary-anchored regex above. A second regex elsewhere would drift, and the drift
+# would show up as an email address notifying whoever owns that local part, or as
+# `@adalovelace2` pinging Ada.
+
+# A handle must be typeable and unambiguous: lowercase [a-z0-9_-], at least 2 chars.
+_USER_TOKEN_RE = re.compile(r"^[a-z0-9_-]{2,}$")
+
+
+def user_mention_tokens(
+    *,
+    display_name: str | None = None,
+    email: str | None = None,
+    github_username: str | None = None,
+) -> list[str]:
+    """The handles a person can be @mentioned by. Lowercase, [a-z0-9_-] only.
+
+    DERIVED, never stored: the product has no @handle field, so a mention has to resolve
+    against the identities a member already has. Four sources, in priority order:
+
+      * ``github_username`` — the closest thing to a real handle
+      * the email LOCAL part, with any ``+tag`` suffix dropped (`ada+xbrain@x.com` is
+        the same person as `ada@x.com`, and nobody types the tag)
+      * the display name with whitespace removed  ("Ada Lovelace" -> "adalovelace")
+      * the display name's FIRST word             ("Ada Lovelace" -> "ada")
+
+    Anything outside the charset is DROPPED rather than stripped down to fit: mangling
+    "José" into "jos" would invent a handle that matches text the person never chose,
+    and a dotted email local (`ada.lovelace@x.com`) is left to the display name instead
+    of being reshaped. Single characters are dropped too — a one-character handle fires
+    on far too much ordinary text.
+
+    Order is significant for regex alternation, but `_build_mention_regex` re-sorts
+    longest-first, so callers get longest-wins for free. Deduplicated case-insensitively;
+    the result is deterministic, which matters because `_regex_for` keys its cache on it.
+    """
+    candidates: list[str] = []
+    if github_username:
+        candidates.append(github_username)
+    if email:
+        local = email.split("@", 1)[0]
+        candidates.append(local.split("+", 1)[0])
+    if display_name and display_name.strip():
+        words = display_name.split()
+        candidates.append("".join(words))
+        candidates.append(words[0])
+
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for raw in candidates:
+        tok = raw.strip().lower()
+        if tok in seen or not _USER_TOKEN_RE.match(tok):
+            continue
+        seen.add(tok)
+        tokens.append(tok)
+    return tokens
+
+
+def detect_user_mentions(content: str, members: list[dict]) -> list[str]:
+    """Return the user_ids of the team members this message @mentions, in text order.
+
+    `members` is `[{"user_id", "display_name", "email", "github_username"}]` — already
+    scoped to one team and already filtered by the caller (a blocked member is not a
+    notification target). Detection runs through `_regex_for`, the SAME cached,
+    boundary-anchored, `re.escape`'d compiler the agent detector uses, so
+    `alice@groove.com` and `@adalovelace2` are non-matches here for exactly the same
+    reason they are non-matches there.
+
+    ONE regex is built over the union of every member's tokens, and each captured token
+    is mapped back to the user_ids that own it. Compiling per member would mean 50
+    patterns per message on a 50-person team; and a token owned by two people must
+    notify BOTH — an ambiguous mention that silently picks one is invisible to the
+    sender, who believes they reached someone.
+
+    Tokens colliding with the reserved agent aliases (`effective_aliases(None)` plus
+    "claude") are excluded: `@agent` summons the agent, never a person, even if someone's
+    display name is literally "Agent".
+    """
+    if not content or not members:
+        return []
+
+    reserved = {a.lower() for a in effective_aliases(None)} | _RESERVED
+    token_owners: dict[str, list[str]] = {}
+    for member in members:
+        user_id = member.get("user_id")
+        if not user_id:
+            continue
+        user_id = str(user_id)
+        for token in user_mention_tokens(
+            display_name=member.get("display_name"),
+            email=member.get("email"),
+            github_username=member.get("github_username"),
+        ):
+            if token in reserved:
+                continue
+            owners = token_owners.setdefault(token, [])
+            if user_id not in owners:
+                owners.append(user_id)
+
+    if not token_owners:
+        return []
+
+    # sorted() so a given team's token set has ONE cache key regardless of member order.
+    regex = _regex_for(sorted(token_owners))
+    mentioned: list[str] = []
+    seen: set[str] = set()
+    for match in regex.finditer(content):
+        for user_id in token_owners.get(match.group(1).lower(), ()):
+            if user_id not in seen:
+                seen.add(user_id)
+                mentioned.append(user_id)
+    return mentioned
+
+
 class Mention(TypedDict):
     agent_name: str  # canonical: claude-sonnet-4-6
     trigger: str  # the literal alias that matched
