@@ -297,23 +297,38 @@
   <div id="invite-panel" class="xb-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="invite-title">
     <div class="xb-overlay-card">
       <header class="xb-overlay-header">
-        <h3 id="invite-title">Team invite code</h3>
+        <h3 id="invite-title">Invite teammates</h3>
         <button type="button" id="btn-invite-close" class="xb-icon-btn" title="Close">✕</button>
       </header>
 
       <div class="xb-overlay-body">
-        <!-- ADMIN: mint + reveal once + copy -->
+        <!-- ADMIN, PRIMARY PATH: an invite link works for ANYONE, including people who
+             have never opened xbrain — they sign in on the landing page and land in the
+             team. That is why this comes first and email comes second. -->
         <div class="xb-field">
-          <label>Create an invite code</label>
+          <label>Share an invite link</label>
           <p class="xb-hint">
-            Share this code with people you want on this team. It is shown once — copy it now.
+            Works for anyone — they sign in and join in one click. The code is shown once.
           </p>
-          <button type="button" id="btn-invite-mint" class="xb-btn-primary">Create invite code</button>
+          <button type="button" id="btn-invite-mint" class="xb-btn-primary">Create invite link</button>
           <div id="invite-code-row" class="xb-invite-code-row" hidden>
             <code id="invite-code-output" class="xb-invite-code"></code>
             <button type="button" id="btn-invite-copy" class="xb-btn-secondary" title="Copy a link that joins the team in one click">Copy link</button>
           </div>
           <div id="invite-status" hidden></div>
+        </div>
+
+        <!-- ADMIN, SECONDARY PATH: invite-by-email only resolves someone who ALREADY has
+             an xbrain account (the endpoint 404s otherwise), so the copy says so up front
+             instead of letting the user discover it through an error. -->
+        <div class="xb-field">
+          <label for="invite-email">Or add someone by email</label>
+          <p class="xb-hint">
+            Only works if they already have an xbrain account. Otherwise send them the link above.
+          </p>
+          <input type="email" id="invite-email" placeholder="teammate@example.com" autocomplete="off" />
+          <button type="button" id="btn-invite-email" class="xb-btn-secondary">Add to team</button>
+          <div id="invite-email-status" hidden></div>
         </div>
 
         <!-- ANY MEMBER: paste a code to join -->

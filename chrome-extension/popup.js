@@ -427,6 +427,65 @@ function wireInvite() {
   if (copyBtn) copyBtn.addEventListener("click", copyInvite);
   const joinBtn = $("btn-invite-join");
   if (joinBtn) joinBtn.addEventListener("click", joinByCode);
+  const emailBtn = $("btn-invite-email");
+  if (emailBtn) emailBtn.addEventListener("click", inviteByEmail);
+}
+
+/**
+ * ADMIN — add someone to the team by email.
+ *
+ * The endpoint resolves an EXISTING user row, so it 404s for anyone who has never
+ * signed into xbrain. That is not an error to paper over: the copy points straight
+ * back at the invite link, which is the path that works for a brand-new teammate.
+ */
+async function inviteByEmail() {
+  if (!state.activeTeamId) {
+    setInviteEmailStatus("No active team.", "error");
+    return;
+  }
+  const input = $("invite-email");
+  const email = input ? input.value.trim() : "";
+  if (!email) {
+    setInviteEmailStatus("Enter an email address.", "error");
+    return;
+  }
+  const btn = $("btn-invite-email");
+  if (btn) btn.disabled = true;
+  setInviteEmailStatus("Adding...", "loading");
+  try {
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    const res = await fetch(
+      `${MEMORY_API_BASE}/v1/teams/${state.activeTeamId}/invite`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${xbt_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, role: "member" }),
+      },
+    );
+    if (res.status === 201) {
+      if (input) input.value = "";
+      setInviteEmailStatus(`${email} added to the team ✓`, "success");
+    } else if (res.status === 404) {
+      setInviteEmailStatus(
+        "No xbrain account for that email — send them the invite link above instead.",
+        "error",
+      );
+    } else if (res.status === 403) {
+      setInviteEmailStatus("Only a team admin can add members.", "error");
+    } else if (res.status === 409) {
+      setInviteEmailStatus("They are already on this team.", "success");
+    } else {
+      setInviteEmailStatus(`Could not add them (HTTP ${res.status}).`, "error");
+    }
+  } catch (e) {
+    console.warn("[xbrain] invite by email failed");
+    setInviteEmailStatus("Network error — try again.", "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 function openInvite() {
@@ -451,10 +510,14 @@ function closeInvite() {
   // lines) so it does not survive closing the overlay unsubmitted.
   const joinInput = $("invite-join-code");
   if (joinInput) joinInput.value = "";
+  const emailInput = $("invite-email");
+  if (emailInput) emailInput.value = "";
   const mintStatus = $("invite-status");
   if (mintStatus) mintStatus.textContent = "";
   const joinStatus = $("invite-join-status");
   if (joinStatus) joinStatus.textContent = "";
+  const emailStatus = $("invite-email-status");
+  if (emailStatus) emailStatus.textContent = "";
 }
 
 // ADMIN action — mint an invite code and reveal the plaintext ONCE. The server
@@ -648,6 +711,20 @@ function setInviteStatus(text, type) {
 
 function setInviteJoinStatus(text, type) {
   const el = $("invite-join-status");
+  if (!el) return;
+  if (!text) {
+    el.hidden = true;
+    el.textContent = "";
+    el.className = "";
+    return;
+  }
+  el.hidden = false;
+  el.textContent = text;
+  el.className = type || "";
+}
+
+function setInviteEmailStatus(text, type) {
+  const el = $("invite-email-status");
   if (!el) return;
   if (!text) {
     el.hidden = true;
@@ -2129,6 +2206,12 @@ async function fetchJson(url, token, method = "GET", body = null) {
   return r.json();
 }
 
+/**
+ * Empty state — the product is a TEAM chat, so this proposes creating a team and
+ * then immediately inviting people into it. It deliberately no longer offers a
+ * "solo workspace": a chat with nobody in it is not the thing being sold, and the
+ * old copy also pointed at a "link GitHub above" button that is now hidden.
+ */
 function renderEmptyTeams() {
   $("teamSelector").innerHTML = `<option disabled selected>No teams yet</option>`;
   const emptyEl = $("chat-empty");
@@ -2142,65 +2225,116 @@ function renderEmptyTeams() {
   const msg = document.createElement("p");
   msg.style.cssText = "margin:0;color:var(--xb-text-mute);line-height:1.5;";
   msg.textContent =
-    "You don't belong to a team yet. Create your solo workspace to start clipping memory and chatting with Claude — you can invite teammates later.";
+    "Start your team chat. Create a team, then invite your teammates — everyone shares one memory, and @agent answers from it.";
   wrapper.appendChild(msg);
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.id = "new-team-name";
+  input.placeholder = "Team name";
+  input.autocomplete = "off";
+  input.maxLength = 64;
+  input.style.cssText =
+    "width:100%;max-width:260px;padding:8px 10px;background:var(--xb-bg);color:var(--xb-text);" +
+    "border:1px solid var(--xb-border);font-family:inherit;font-size:inherit;outline:none;";
+  wrapper.appendChild(input);
 
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "connect-btn";
   btn.style.maxWidth = "260px";
-  btn.textContent = "✨ Create my solo workspace";
-  btn.addEventListener("click", () => createSoloTeam(btn));
+  btn.textContent = "Create team";
+  btn.addEventListener("click", () => createTeam(btn, input));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") createTeam(btn, input);
+  });
   wrapper.appendChild(btn);
 
   const hint = document.createElement("p");
   hint.style.cssText =
     "margin:0;font-size:11px;color:var(--xb-text-dim);line-height:1.45;";
-  hint.innerHTML =
-    "If you're part of a GitHub org, <strong>link GitHub above</strong> to discover org teams automatically.";
+  hint.textContent =
+    "Already invited? Use the invite link you were sent, or paste your code under “invite”.";
   wrapper.appendChild(hint);
 
   emptyEl.appendChild(wrapper);
   emptyEl.style.pointerEvents = "auto";
+  input.focus();
 }
 
-async function createSoloTeam(btn) {
+/**
+ * Turn a typed team name into a slug the API accepts (`^[a-z][a-z0-9-]*$`, <=64).
+ * Falls back to a generic base when the name has no usable ASCII letters, so a
+ * name written entirely in another script still produces a valid slug.
+ */
+function slugifyTeamName(name) {
+  let s = (name || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")   // strip accents
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+  if (!/^[a-z]/.test(s)) s = "team" + (s ? "-" + s : "");
+  return s.slice(0, 64).replace(/-+$/, "");
+}
+
+/**
+ * Create the team, then go STRAIGHT to inviting — that is the first thing a new
+ * team needs, so the invite overlay opens with a link already minted rather than
+ * leaving the user in an empty room to figure out the next step.
+ */
+async function createTeam(btn, input) {
+  const displayName = (input && input.value.trim()) || "My team";
   btn.disabled = true;
+  const original = btn.textContent;
   btn.textContent = "Creating…";
   try {
-    // /v1/teams/self-solo requires kind=user (Google ID token), NOT xbt_.
-    // Reuse the SW silent path that already mints Google tokens for the
-    // mint-and-connect flow.
-    const tokenResp = await chrome.runtime.sendMessage({
-      type: "GET_ID_TOKEN",
-      silent: false,
-    });
-    const idToken = tokenResp && tokenResp.idToken;
-    if (!idToken) {
-      throw new Error(
-        (tokenResp && tokenResp.error) || "could not get Google token",
-      );
+    const { xbt_token } = await chrome.storage.local.get(["xbt_token"]);
+    const base = slugifyTeamName(displayName);
+    let res;
+    // One retry on a slug collision (409) with a short suffix — two people naming
+    // their team the same thing must not dead-end on an error they cannot act on.
+    for (const slug of [base, `${base}-${Math.random().toString(36).slice(2, 6)}`]) {
+      res = await fetch(`${MEMORY_API_BASE}/v1/teams/self`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${xbt_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ slug, display_name: displayName }),
+      });
+      if (res.status !== 409) break;
     }
-    await fetchJson(
-      `${MEMORY_API_BASE}/v1/teams/self-solo`,
-      idToken,
-      "POST",
-      {},
-    );
-    // Tell the SW to rebuild the CortX OS right-click submenu so the new
-    // solo team appears there too. Fire-and-forget — the menu refresh is
-    // a nice-to-have, not blocking the popup reboot.
+    if (!res || res.status !== 201) {
+      const code = res ? res.status : "network";
+      throw new Error(`HTTP ${code}`);
+    }
+
+    // Rebuild the right-click submenu so the new team shows up there too.
     chrome.runtime.sendMessage({ type: "REFRESH_TEAMS_MENU" }).catch(() => {});
-    // Re-boot so the new team appears in the selector and the chat connects.
+
     btn.textContent = "Ready ✓";
-    setTimeout(() => boot(), 500);
+    await boot();                       // team selector + chat now have the team
+    if (state.activeTeamId) {
+      openInvite();                     // first stop: bring people in
+      await mintInvite();               // link ready to copy, no extra click
+    }
   } catch (e) {
-    console.warn("[xbrain] self-solo failed:", e);
-    alert(`Could not create solo workspace: ${e.message}`);
+    console.warn("[xbrain] create team failed:", e && e.message ? e.message : e);
     btn.disabled = false;
-    btn.textContent = "✨ Create my solo workspace";
+    btn.textContent = original;
+    const hint = document.createElement("p");
+    hint.style.cssText = "margin:0;font-size:11px;color:var(--xb-danger,#f85149);";
+    hint.textContent = "Could not create the team — check your connection and try again.";
+    btn.parentElement.appendChild(hint);
   }
 }
+
+// createSoloTeam() lived here and posted to /v1/teams/self-solo. Removed with the
+// solo-workspace empty state: the product is a team chat, so the first action is
+// creating a TEAM and inviting people into it (see createTeam above). The endpoint
+// still exists server-side for the first-login path; nothing in the popup calls it.
 
 // ---------- React to storage changes (token mint, GitHub link) ----------
 
