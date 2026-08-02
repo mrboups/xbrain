@@ -729,6 +729,95 @@ body {
   border-radius: var(--radius);
 }
 
+/* ---- The iPhone Shortcut setup screen --------------------------------- */
+
+/* Not a chrome-less block of prose: it is a procedure, and it reads as one.
+   Boxed off from the import form above it so nobody mistakes step 1 for
+   something they have to do before importing on this device. */
+.xb-import-shortcut {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.xb-import-shortcut-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+/* The control that reveals it on anything that is not an iPhone. Underlined
+   text, not a button-looking box: it opens instructions, it does nothing. */
+.xb-import-link {
+  align-self: flex-start;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--muted-fg);
+  font-family: var(--sans);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.xb-import-link:hover { color: var(--fg); }
+.xb-import-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.xb-import-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--fg);
+}
+.xb-import-steps li { padding-left: 2px; }
+/* A step the server cannot serve yet. Dimmed rather than removed: the
+   procedure keeps its numbering, and the reason is written underneath it. */
+.xb-import-steps li.is-unavailable { opacity: 0.55; }
+
+/* A value plus the control that copies it. Wraps rather than clipping: an
+   endpoint and a token are both long, and a half-visible token is a token
+   somebody half-copies. */
+.xb-import-value-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.xb-import-value {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  /* One tap selects the WHOLE value - a half-copied token fails with a 401
+     that says nothing about why. */
+  user-select: all;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+#import-shortcut-status {
+  display: block;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  font-size: 12px;
+}
+#import-shortcut-status.loading { background: var(--bg); color: var(--muted-fg); border: 1px solid var(--border); }
+#import-shortcut-status.error { background: transparent; color: var(--destructive); border: 1px solid var(--destructive); }
+
 /* Status pill, keyed off the className setStatusLine writes. */
 #import-status {
   padding: 6px 8px;

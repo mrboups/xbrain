@@ -38,7 +38,14 @@
  */
 
 import { setStatusLine, clearChildren } from "./chat_core/dom.js";
-import { MAX_IMPORT_BYTES, summarizeImport } from "./chat_core/api.js";
+import {
+  IMPORT_TEAM_HEADER,
+  IMPORT_TEXT_CONTENT_TYPE,
+  MAX_IMPORT_BYTES,
+  importTranscriptTextPath,
+  summarizeImport,
+} from "./chat_core/api.js";
+import { MEMORY_API_BASE } from "./auth.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -256,6 +263,28 @@ export function describeImportResult(summary) {
     return `Imported ${countLabel(kept, "turn")}.`;
   }
   return `Imported ${countLabel(kept, "turn")}, and skipped ${countLabel(dupes, "turn")} already in this team's brain.`;
+}
+
+/**
+ * Is this a device where the share sheet is reached through Shortcuts?
+ *
+ * Safari does not implement `share_target` — it has the Web Share API for
+ * sharing OUT, never for receiving — so an iPhone cannot put this app in its
+ * share sheet at all. Apple's Shortcuts app can, and the setup screen is how
+ * that gets built. Nothing here claims otherwise.
+ *
+ * Takes the navigator as an argument so this is testable, and reads
+ * maxTouchPoints because an iPad on iPadOS 13+ reports itself as a Mac.
+ *
+ * @param {{userAgent?: string, platform?: string, maxTouchPoints?: number}} nav
+ * @returns {boolean}
+ */
+export function isShortcutPlatform(nav) {
+  if (!nav) return false;
+  if (/iPhone|iPad|iPod/.test(String(nav.userAgent || ""))) return true;
+  return (
+    String(nav.platform || "") === "MacIntel" && Number(nav.maxTouchPoints || 0) > 1
+  );
 }
 
 /** What the server's rejection means to the person holding the file. */
@@ -553,9 +582,172 @@ function closeImport() {
   if (!panel || panel.hidden) return;
   panel.hidden = true;
   view.isOpen = false;
+  // A minted token is a bearer secret sitting in the DOM. It leaves with the
+  // sheet, the way the invite panel drops its code.
+  clearMintedToken();
   const back = view.opener;
   if (back && !back.hidden && typeof back.focus === "function") back.focus();
   view.opener = null;
+}
+
+/* ---- The iPhone Shortcut setup screen ---------------------------------- */
+
+/**
+ * Fill in the exact values the Shortcuts app needs, from the SAME definitions
+ * the app itself posts with.
+ *
+ * If any of these were retyped here as literals, the screen would go on
+ * teaching last month's request long after the code changed — and a shortcut
+ * built from it fails on a phone, silently, with the person having no idea the
+ * instructions were the stale part.
+ */
+function paintShortcut() {
+  const chooser = el("import-team");
+  const slug = (chooser && chooser.value) || "your-team";
+
+  const endpoint = el("import-endpoint");
+  // The raw-text URL, not the JSON one: the same route accepts the transcript
+  // as the whole body with the format in the query, and that is one step in
+  // Shortcuts instead of four.
+  if (endpoint) {
+    endpoint.textContent = `${MEMORY_API_BASE}${importTranscriptTextPath()}`;
+  }
+
+  const auth = el("import-header-auth");
+  // The header NAME and the "Bearer " prefix, with the token left as a blank to
+  // paste into: printing them apart is how somebody ends up sending a bare
+  // token with no scheme and getting a 401 that explains nothing.
+  if (auth) auth.textContent = "Authorization: Bearer <your import token>";
+
+  const team = el("import-header-team");
+  if (team) team.textContent = `${IMPORT_TEAM_HEADER}: ${slug}`;
+
+  const type = el("import-header-type");
+  // Not decoration: this header is what selects the raw-text body shape. Sent
+  // as JSON, the transcript would be parsed as a request object and rejected.
+  if (type) type.textContent = `Content-Type: ${IMPORT_TEXT_CONTENT_TYPE}`;
+}
+
+/**
+ * Copy one of those values.
+ *
+ * The value comes from the element's own text, so what is copied is exactly
+ * what is on screen — there is no second string to fall out of step with the
+ * one being read.
+ *
+ * @param {Element} btn a control carrying data-xb-copy="<element id>"
+ */
+async function copyValue(btn) {
+  const source = el(btn.getAttribute("data-xb-copy"));
+  if (!source) return;
+  const text = source.textContent || "";
+  const label = btn.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = "Copied";
+  } catch (e) {
+    // No permission, or an insecure context. Select it instead so one gesture
+    // still gets the whole value — a half-copied token fails with a 401 that
+    // says nothing about why.
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(source);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      btn.textContent = "Selected - copy it";
+    } catch (e2) {
+      btn.textContent = "Copy failed";
+    }
+  }
+  window.setTimeout(() => {
+    btn.textContent = label;
+  }, 1600);
+}
+
+/** Forget a minted token. Called on close: it is a bearer secret in the DOM. */
+function clearMintedToken() {
+  const row = el("import-token-row");
+  const value = el("import-token-value");
+  if (value) value.textContent = "";
+  if (row) row.hidden = true;
+}
+
+/**
+ * Mint the credential the shortcut carries.
+ *
+ * WHY A DEDICATED TOKEN. A shortcut lives on the phone and can be shared like
+ * any other shortcut. Putting the account token in it would hand the whole
+ * account to whoever receives it; this one can do nothing but import.
+ *
+ * SHOWN ONCE, and the screen says so. If the endpoint is not deployed yet the
+ * step degrades to "unavailable" and every other instruction above it stays
+ * correct — a setup screen that throws takes the import view down with it, over
+ * a step that is one of nine.
+ */
+async function mintImportToken(api) {
+  const status = el("import-shortcut-status");
+  const btn = el("btn-import-token");
+  const row = el("import-token-row");
+  const value = el("import-token-value");
+  const chooser = el("import-team");
+  const slug = chooser && chooser.value;
+
+  if (!slug) {
+    // The token is bound to one team and minting requires membership of it, so
+    // there is nothing to mint against yet. Saying so beats a 403 from a field
+    // the person never knew was involved.
+    setStatusLine(status, "Choose a team above first - the token is bound to one.", "error");
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  setStatusLine(status, "Creating a token...", "loading");
+  try {
+    const res = await api.mintImportTokenRaw(slug, "iPhone Shortcut");
+    if (res.status === 404 || res.status === 405 || res.status === 501) {
+      // Not deployed here. Not an error the person caused, and not something a
+      // second press will fix.
+      setStatusLine(
+        status,
+        "Import tokens are not available on this server yet. Every other step above is still correct - come back for this one.",
+        "error",
+      );
+      const step = el("import-step-token");
+      if (step) step.classList.add("is-unavailable");
+      return;
+    }
+    if (!res.ok) {
+      setStatusLine(
+        status,
+        res.status === 403
+          ? "You are not a member of that team, so no token can be issued for it."
+          : `Could not create a token (HTTP ${res.status}).`,
+        "error",
+      );
+      if (btn) btn.disabled = false;
+      return;
+    }
+    const body = await res.json().catch(() => null);
+    const token = body && (body.token || body.api_token || body.value);
+    if (!token) {
+      setStatusLine(status, "The server created a token but did not return it.", "error");
+      if (btn) btn.disabled = false;
+      return;
+    }
+    if (value) value.textContent = token;
+    if (row) row.hidden = false;
+    setStatusLine(status, "", "");
+    // A person who navigates away without copying must be able to mint another
+    // rather than be stuck with a step they cannot complete.
+    if (btn) {
+      btn.textContent = "Create another token";
+      btn.disabled = false;
+    }
+  } catch (e) {
+    setStatusLine(status, "Network error - no token was created.", "error");
+    if (btn) btn.disabled = false;
+  }
 }
 
 /**
@@ -624,6 +816,7 @@ export function hideImport() {
     result.hidden = true;
   }
   setStatusLine(el("import-status"), "", "");
+  clearMintedToken();
   disarmContent();
 }
 
@@ -730,15 +923,56 @@ export async function mountImport(api, refs = {}) {
     const format = el("import-format");
     if (format) format.addEventListener("change", refreshArmed);
     const teamChooser = el("import-team");
-    if (teamChooser) teamChooser.addEventListener("change", refreshArmed);
+    if (teamChooser) {
+      teamChooser.addEventListener("change", () => {
+        refreshArmed();
+        // The Shortcut's team header is whatever is selected here; a stale one
+        // would build a shortcut that quietly posts into the wrong team.
+        paintShortcut();
+      });
+    }
 
     const sendBtn = el("btn-import-send");
     if (sendBtn) sendBtn.addEventListener("click", () => sendImport(api));
+
+    // Every "Copy" in the setup screen, through one delegated listener, so a
+    // new value row needs no new wiring.
+    panel.addEventListener("click", (event) => {
+      const target = event.target;
+      const btn = target && target.closest ? target.closest("[data-xb-copy]") : null;
+      if (btn) copyValue(btn);
+    });
+
+    const tokenBtn = el("btn-import-token");
+    if (tokenBtn) tokenBtn.addEventListener("click", () => mintImportToken(api));
+    const tokenCopy = el("btn-import-token-copy");
+    if (tokenCopy) {
+      tokenCopy.setAttribute("data-xb-copy", "import-token-value");
+    }
+
+    // On an iPhone the setup screen is the whole point, so it is open. Anywhere
+    // else it is behind a control, because people set their phone up from a
+    // laptop and hiding it there would mean it could not be reached at all.
+    const shortcut = el("import-shortcut");
+    const shortcutBtn = el("btn-import-shortcut-show");
+    if (shortcut) {
+      const onPhone = isShortcutPlatform(navigator);
+      shortcut.hidden = !onPhone;
+      if (shortcutBtn) {
+        shortcutBtn.hidden = onPhone;
+        shortcutBtn.addEventListener("click", () => {
+          shortcut.hidden = false;
+          shortcutBtn.hidden = true;
+        });
+      }
+    }
   }
 
   if (openBtn) openBtn.hidden = false;
   await fillTeamChooser(api, refs.getTeamSlug);
   refreshArmed();
+  // After the team is known: every value on the setup screen depends on it.
+  paintShortcut();
 
   // Last, and only after the team chooser is filled: a share that opened the
   // view before there was a team to pick would ask for a confirmation the

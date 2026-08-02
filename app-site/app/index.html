@@ -352,6 +352,94 @@
              many were skipped because they were already there. Without the
              second number, a re-import and a no-op look the same. -->
         <p id="import-result" class="xb-import-result" role="status" hidden></p>
+
+        <!--
+          THE iPHONE ROUTE, and an honest description of what it is.
+
+          Safari does not implement share_target - it has the Web Share API for
+          sharing OUT, not for receiving - so this app cannot join the iOS share
+          sheet itself, and saying otherwise would be a promise the browser
+          cannot keep. Apple's Shortcuts app can: a shortcut accepts Share Sheet
+          input and posts it. The cost is a one-time setup, which is what this
+          block is.
+
+          Shown automatically on an iPhone or iPad; reachable on anything else
+          through the button below it, because people set their phone up from a
+          laptop.
+        -->
+        <button type="button" id="btn-import-shortcut-show" class="xb-import-link" hidden>
+          Set this up for an iPhone
+        </button>
+
+        <section id="import-shortcut" class="xb-import-shortcut" hidden
+                 aria-labelledby="import-shortcut-title">
+          <h3 id="import-shortcut-title" class="xb-import-shortcut-title">Add xbrain to the iPhone share sheet</h3>
+          <p class="xb-hint">
+            iOS does not let a web app join the share sheet. Apple's Shortcuts app can:
+            this is a one-time setup that adds "Save to xbrain" to the sheet, so sharing
+            a conversation from ChatGPT sends it straight to your team.
+          </p>
+
+          <ol class="xb-import-steps">
+            <li id="import-step-token">
+              Start with the credential the shortcut will carry. It is an import token,
+              not your account token: it can do one thing - import into this team - and
+              cannot read the chat, the brain or your account.
+              <span class="xb-import-value-row">
+                <button type="button" id="btn-import-token" class="xb-btn xb-btn-primary">Create import token</button>
+              </span>
+              <span id="import-token-row" class="xb-import-value-row" hidden>
+                <code id="import-token-value" class="xb-import-value"></code>
+                <button type="button" id="btn-import-token-copy" class="xb-btn xb-btn-primary">Copy token</button>
+              </span>
+              <span class="xb-hint">
+                <strong>Shown once.</strong> Copy it now. If you leave without it, press the
+                button again for a new one - the one you lost keeps working until you revoke it.
+              </span>
+              <span id="import-shortcut-status" hidden></span>
+            </li>
+            <li>Open <strong>Shortcuts</strong>, tap <strong>+</strong>, then the
+                <strong>(i)</strong> button and turn on <strong>Show in Share Sheet</strong>.</li>
+            <li>Under <strong>Receive</strong>, choose <strong>Text</strong> and
+                <strong>URLs</strong> from the share sheet.</li>
+            <li>Add the action <strong>Get Contents of URL</strong> and expand it with the arrow.</li>
+            <li>
+              Set the <strong>URL</strong> to:
+              <span class="xb-import-value-row">
+                <code id="import-endpoint" class="xb-import-value"></code>
+                <button type="button" class="xb-btn" data-xb-copy="import-endpoint">Copy</button>
+              </span>
+            </li>
+            <li>Set <strong>Method</strong> to <strong>POST</strong>.</li>
+            <li>
+              Add three <strong>Headers</strong> - the first one takes the token from step 1:
+              <span class="xb-import-value-row">
+                <code id="import-header-auth" class="xb-import-value"></code>
+                <button type="button" class="xb-btn" data-xb-copy="import-header-auth">Copy</button>
+              </span>
+              <span class="xb-import-value-row">
+                <code id="import-header-team" class="xb-import-value"></code>
+                <button type="button" class="xb-btn" data-xb-copy="import-header-team">Copy</button>
+              </span>
+              <span class="xb-import-value-row">
+                <code id="import-header-type" class="xb-import-value"></code>
+                <button type="button" class="xb-btn" data-xb-copy="import-header-type">Copy</button>
+              </span>
+              <span class="xb-hint">The team is the one selected above. Change that value to point the shortcut at another team.</span>
+            </li>
+            <li>
+              Set <strong>Request Body</strong> to <strong>File</strong>, and drop the
+              <strong>Shortcut Input</strong> variable into it. The shared conversation
+              IS the body - there is no JSON to build.
+            </li>
+            <li>Name it <strong>Save to xbrain</strong>. Sharing from ChatGPT now offers it.</li>
+          </ol>
+          <p class="xb-hint">
+            One thing it cannot do: a bare share link. The server will not open a link on
+            your behalf, so share the conversation's <strong>text</strong> - copy it in
+            ChatGPT and share that.
+          </p>
+        </section>
       </div>
     </div>
   </div>

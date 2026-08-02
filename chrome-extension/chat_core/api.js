@@ -177,12 +177,19 @@ export function createApi({ baseUrl, getToken } = {}) {
         body: importTranscriptBody({ format, content }),
       }),
 
-    // The credential the iOS Shortcut carries, minted on request and shown once.
-    // Raw again, and for a sharper reason: a build without this endpoint answers
-    // 404, and the setup screen must degrade to instructions rather than throw
-    // inside the settings sheet.
-    mintImportTokenRaw: (name) =>
-      rawFetch(IMPORT_TOKEN_PATH, { method: "POST", body: { name } }),
+    // The credential the iOS Shortcut carries, minted on request and returned in
+    // plaintext exactly once. It is capability-scoped to importing and bound to
+    // ONE team — minting requires membership of that team, which is why the
+    // scope is a parameter and not an afterthought.
+    //
+    // Raw again, and for a sharper reason: a build whose API has not been
+    // redeployed answers 404, and the setup screen must degrade to instructions
+    // rather than throw inside the settings sheet.
+    mintImportTokenRaw: (teamScope, name) =>
+      rawFetch(IMPORT_TOKEN_PATH, {
+        method: "POST",
+        body: { team_scope: teamScope, name },
+      }),
 
     // ---- Media ----
     uploadMediaRaw,
@@ -274,6 +281,37 @@ export const IMPORT_TEAM_HEADER = "X-Team-Scope";
  * drift within a release. All this list does is name what may be declared.
  */
 export const IMPORT_FORMATS = ["claude-code", "chatgpt"];
+
+/**
+ * The format the server works out for itself, and the default everywhere.
+ *
+ * Its detection is the same code that parses the file, so it cannot disagree
+ * with the parser the way a client-side guess can. The named formats stay
+ * available as an override for the case where a person knows better.
+ */
+export const IMPORT_FORMAT_AUTO = "auto";
+
+/**
+ * The URL for the OTHER accepted body shape: the transcript posted as raw text,
+ * with the format in the query.
+ *
+ * This is the iOS Shortcut's path. Shortcuts can attach the Share Sheet input
+ * to a request as text in one step; building a JSON object around it is three
+ * more steps and the place people give up. Both shapes reach the same route, so
+ * there is no second endpoint to keep alive.
+ *
+ * @param {string} [format]
+ * @returns {string}
+ */
+export function importTranscriptTextPath(format = IMPORT_FORMAT_AUTO) {
+  return `${IMPORT_TRANSCRIPT_PATH}?format=${encodeURIComponent(format)}`;
+}
+
+/**
+ * The content type that selects that shape. Anything other than JSON makes the
+ * whole body the transcript, and this is the honest name for a pasted chat.
+ */
+export const IMPORT_TEXT_CONTENT_TYPE = "text/plain";
 
 /**
  * The client-side ceiling on a transcript, checked BEFORE the file is read.

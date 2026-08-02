@@ -629,7 +629,188 @@ test("the share query is dropped once it has been read", () => {
   );
 });
 
-// ---- 7. The shell ships it ----------------------------------------------
+// ---- 7. The iPhone Shortcut setup screen --------------------------------
+
+test("an iPhone and an iPad are recognised, a desktop is not", () => {
+  assert.equal(mod.isShortcutPlatform({ userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)" }), true);
+  assert.equal(mod.isShortcutPlatform({ userAgent: "Mozilla/5.0 (iPad; CPU OS 18_0)" }), true);
+  // iPadOS 13+ reports itself as a Mac; the touch count is what gives it away.
+  assert.equal(
+    mod.isShortcutPlatform({ userAgent: "Mozilla/5.0 (Macintosh)", platform: "MacIntel", maxTouchPoints: 5 }),
+    true,
+    "an iPad pretending to be a Mac still needs the Shortcut - it still has no share_target",
+  );
+  assert.equal(
+    mod.isShortcutPlatform({ userAgent: "Mozilla/5.0 (Macintosh)", platform: "MacIntel", maxTouchPoints: 0 }),
+    false,
+  );
+  assert.equal(mod.isShortcutPlatform({ userAgent: "Mozilla/5.0 (Windows NT 10.0)" }), false);
+  assert.equal(mod.isShortcutPlatform({ userAgent: "Mozilla/5.0 (Linux; Android 14)" }), false);
+  assert.equal(mod.isShortcutPlatform(null), false);
+});
+
+test("the screen is honest about what it is", () => {
+  const section = /<section[^>]*id="import-shortcut"[\s\S]*?<\/section>/.exec(HTML)[0];
+  const words = section.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+  assert.match(
+    words,
+    /iOS does not let a web app join the share sheet/i,
+    "it must say plainly that this app cannot join the iOS share sheet - Safari has no share_target and claiming one is a promise the browser will not keep",
+  );
+  assert.match(words, /one-time setup/i, "and that the Shortcut is what makes it possible");
+  assert.match(words, /Shortcuts/, "by name, since that is the app they have to open");
+});
+
+test("the steps match what the Shortcuts app actually shows", () => {
+  const section = /<section[^>]*id="import-shortcut"[\s\S]*?<\/section>/.exec(HTML)[0];
+  const steps = [...section.matchAll(/<li[\s\S]*?<\/li>/g)].map((m) =>
+    m[0].replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+  );
+  assert.ok(steps.length >= 6, `expected a real procedure, found ${steps.length} step(s)`);
+  const all = steps.join(" | ");
+  for (const phrase of [
+    "Show in Share Sheet",
+    "Get Contents of URL",
+    "Method",
+    "POST",
+    "Headers",
+    "Request Body",
+    "Shortcut Input",
+  ]) {
+    assert.ok(
+      all.includes(phrase),
+      `the steps must name "${phrase}" - a step that does not match a control in Shortcuts is a step people give up on`,
+    );
+  }
+});
+
+test("every value the Shortcut needs is on screen, and copyable", () => {
+  const section = /<section[^>]*id="import-shortcut"[\s\S]*?<\/section>/.exec(HTML)[0];
+  for (const id of [
+    "import-endpoint",
+    "import-header-auth",
+    "import-header-team",
+    "import-header-type",
+  ]) {
+    assert.ok(section.includes(`id="${id}"`), `#${id} must be shown`);
+    assert.ok(
+      section.includes(`data-xb-copy="${id}"`),
+      `#${id} needs its own copy control - retyping an endpoint or a scope on a phone is where this goes wrong`,
+    );
+  }
+  const code = stripComments(importSrc);
+  assert.ok(
+    /getAttribute\("data-xb-copy"\)/.test(code),
+    "one delegated handler must serve every copy control",
+  );
+  assert.ok(
+    /clipboard\.writeText/.test(code) && /selectNodeContents/.test(code),
+    "and fall back to selecting the whole value where writing is not permitted - a half-copied token fails with a 401 that explains nothing",
+  );
+});
+
+test("the values are built from the shared definitions, not retyped", () => {
+  // A literal here would keep teaching last month's request long after the
+  // code changed, and the shortcut built from it would fail on a phone.
+  const code = stripComments(importSrc);
+  const paint = braceBlock(code, code.indexOf("function paintShortcut"));
+  assert.ok(paint, "import.js must declare paintShortcut");
+  assert.ok(
+    /importTranscriptTextPath\(\)/.test(paint),
+    "the URL must come from the shared path builder",
+  );
+  assert.ok(
+    /MEMORY_API_BASE/.test(paint),
+    "and the origin from auth.js, which is the one module that knows where the API lives",
+  );
+  assert.ok(
+    /\$\{IMPORT_TEAM_HEADER\}/.test(paint),
+    "the scope header must be named from the shared constant",
+  );
+  assert.ok(
+    /IMPORT_TEXT_CONTENT_TYPE/.test(paint),
+    "and the content type too - it is what selects the raw-text body shape",
+  );
+  assert.ok(
+    !/v1\/import|X-Team-Scope:/.test(paint),
+    "no route or header name may be retyped in this file",
+  );
+});
+
+test("the token is bound to the chosen team, and shown once", () => {
+  const code = stripComments(importSrc);
+  const mint = braceBlock(code, code.indexOf("async function mintImportToken"));
+  assert.ok(
+    /mintImportTokenRaw\(slug,/.test(mint),
+    "the token is issued for ONE team; minting without the chosen slug would bind it to the wrong one",
+  );
+  assert.ok(
+    /Choose a team above first/.test(mint),
+    "with no team chosen it must say so, not send a request that 403s on a field the person never saw",
+  );
+  const section = /<section[^>]*id="import-shortcut"[\s\S]*?<\/section>/.exec(HTML)[0];
+  const words = section.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+  assert.match(words, /Shown once/i, "the screen must say the token is shown once");
+  assert.match(
+    words,
+    /press the button again|create another/i,
+    "and that a person who left without copying can mint another - being stuck is not an option",
+  );
+  assert.match(
+    words,
+    /cannot read the chat/i,
+    "and that it is capability-scoped to importing, which is why it is safe on a phone",
+  );
+  assert.ok(
+    /clearMintedToken\(\)/.test(braceBlock(code, code.indexOf("function closeImport"))),
+    "closing must drop the minted token out of the DOM - it is a bearer secret",
+  );
+});
+
+test("the screen degrades when the token endpoint is absent", () => {
+  const code = stripComments(importSrc);
+  const mint = braceBlock(code, code.indexOf("async function mintImportToken"));
+  assert.ok(
+    /res\.status === 404/.test(mint),
+    "an API that has not been redeployed answers 404 - exactly when somebody is on this screen",
+  );
+  assert.ok(
+    /not available on this server yet/.test(mint),
+    "it must say the step is unavailable rather than throwing inside the settings sheet",
+  );
+  assert.ok(
+    /Every other step above is still correct/.test(mint),
+    "the other eight steps are still true, and hiding them would waste the visit",
+  );
+  assert.ok(
+    /classList\.add\("is-unavailable"\)/.test(mint),
+    "the step marks itself, so the procedure keeps its numbering",
+  );
+  assert.ok(
+    /catch \(e\)[\s\S]{0,200}Network error - no token was created/.test(mint),
+    "a throw must land as a sentence, not as an unhandled rejection",
+  );
+  assert.ok(
+    props(selectorBlock(css, ".xb-import-steps li.is-unavailable"))["opacity"],
+    "app.css must dim an unavailable step, or the class says nothing on screen",
+  );
+});
+
+test("it is shown on iOS, and reachable everywhere else", () => {
+  const code = stripComments(importSrc);
+  assert.ok(
+    /isShortcutPlatform\(navigator\)/.test(code),
+    "the section must open itself on a phone",
+  );
+  assert.ok(
+    HTML.includes('id="btn-import-shortcut-show"'),
+    "and be reachable from a laptop, because that is where people set their phone up",
+  );
+  const open = /<section[^>]*id="import-shortcut"[^>]*>/.exec(HTML)[0];
+  assert.match(open, /\bhidden\b/, "it must start closed - the markup cannot know the platform");
+});
+
+// ---- 8. The shell ships it ----------------------------------------------
 
 test("import.js is precached with the rest of the shell", () => {
   const block = /const SHELL = \[([\s\S]*?)\];/.exec(sw);

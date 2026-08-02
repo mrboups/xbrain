@@ -26,11 +26,14 @@ import assert from "node:assert/strict";
 import {
   createApi,
   IMPORT_FORMATS,
+  IMPORT_FORMAT_AUTO,
   IMPORT_TEAM_HEADER,
+  IMPORT_TEXT_CONTENT_TYPE,
   IMPORT_TOKEN_PATH,
   IMPORT_TRANSCRIPT_PATH,
   MAX_IMPORT_BYTES,
   importTranscriptBody,
+  importTranscriptTextPath,
   summarizeImport,
 } from "../../packages/chat-core/api.js";
 import { assertPlatform } from "../../packages/chat-core/platform.js";
@@ -304,20 +307,39 @@ await test("the import body shape is declared once and reused", () => {
   );
 });
 
-await test("mintImportTokenRaw hands back the response instead of throwing on 404", async () => {
+await test("mintImportTokenRaw binds the token to one team, and never throws on 404", async () => {
   await withFetch(
     () => fakeResponse({ status: 404, body: "Not Found" }),
     async (calls) => {
       const api = createApi({ baseUrl: BASE, getToken: async () => "t" });
-      const res = await api.mintImportTokenRaw("iPhone Shortcut");
+      const res = await api.mintImportTokenRaw("acme", "iPhone Shortcut");
       assert.equal(
         res.status,
         404,
-        "a build with no token endpoint must degrade the setup screen, not throw inside the settings sheet",
+        "an API that has not been redeployed must degrade the setup screen, not throw inside the settings sheet",
       );
       assert.equal(calls[0].url, `${BASE}${IMPORT_TOKEN_PATH}`);
-      assert.deepEqual(JSON.parse(calls[0].init.body), { name: "iPhone Shortcut" });
+      assert.deepEqual(JSON.parse(calls[0].init.body), {
+        team_scope: "acme",
+        name: "iPhone Shortcut",
+      });
     },
+  );
+});
+
+await test("the raw-text path carries the format in the query", () => {
+  // The iOS Shortcut's shape: the whole body IS the transcript, which is one
+  // step in Shortcuts instead of building a JSON object around a variable.
+  assert.equal(importTranscriptTextPath(), `${IMPORT_TRANSCRIPT_PATH}?format=auto`);
+  assert.equal(
+    importTranscriptTextPath("claude-code"),
+    `${IMPORT_TRANSCRIPT_PATH}?format=claude-code`,
+  );
+  assert.equal(IMPORT_FORMAT_AUTO, "auto");
+  assert.equal(
+    IMPORT_TEXT_CONTENT_TYPE.includes("json"),
+    false,
+    "anything but JSON selects the raw-text shape; naming JSON here would send the transcript as a request object",
   );
 });
 
