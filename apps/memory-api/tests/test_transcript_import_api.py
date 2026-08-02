@@ -405,6 +405,38 @@ async def test_a_lying_content_length_does_not_get_past_the_cap(imports):
     assert resp.status_code == 413
 
 
+async def test_the_turn_budget_truncates_instead_of_fanning_out_forever(imports, monkeypatch):
+    """A crafted file must not turn one request into an unbounded fan-out."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "TRANSCRIPT_IMPORT_MAX_TURNS", 1)
+    with patch("app.routes.transcript_import.import_ingest.fan_out", new=AsyncMock()):
+        resp = await imports["client"].post(
+            "/v1/import/transcript",
+            headers={**_headers(imports["full_token"]), "Content-Type": "text/plain"},
+            content=_chatgpt_export("conv-budget"),
+        )
+    body = resp.json()
+    assert body["totals"]["turns"] == 2
+    assert body["totals"]["queued"] == 1
+
+
+async def test_a_second_conversation_past_the_budget_is_reported_over_limit(imports, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "TRANSCRIPT_IMPORT_MAX_TURNS", 2)
+    both = json.loads(_chatgpt_export("conv-first")) + json.loads(_chatgpt_export("conv-second"))
+    with patch("app.routes.transcript_import.import_ingest.fan_out", new=AsyncMock()):
+        resp = await imports["client"].post(
+            "/v1/import/transcript",
+            headers={**_headers(imports["full_token"]), "Content-Type": "text/plain"},
+            content=json.dumps(both),
+        )
+    totals = resp.json()["totals"]
+    assert totals["imported"] == 1
+    assert totals["over_limit"] == 1
+
+
 async def test_an_empty_body_is_refused(imports):
     resp = await imports["client"].post(
         "/v1/import/transcript",

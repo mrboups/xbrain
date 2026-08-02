@@ -51,7 +51,7 @@ async def _run(conv, *, team_scope="team-a", source_format="chatgpt", project_sc
         await import_ingest.fan_out(
             team_scope=team_scope,
             source_format=source_format,
-            pending=[(import_id, conv)],
+            pending=[(import_id, conv.dedupe_key(source_format), conv)],
             author_sub="alice-sub",
             project_scope=project_scope,
             concurrency=4,
@@ -130,6 +130,34 @@ async def test_the_idempotency_key_shape_is_stable():
     )
 
 
+async def test_the_key_carried_from_the_ledger_is_the_one_used():
+    """Not recomputed downstream — recomputing is quadratic on a long
+    conversation with no source id, and a budget-truncated conversation would
+    hash to a different fingerprint than the row already claimed."""
+    conv = _conversation(source_id=None)
+    captured = []
+
+    async def _capture(**kwargs):
+        captured.append(kwargs)
+
+    with patch(
+        "app.services.brain_ingest.ingest_external_message",
+        new=AsyncMock(side_effect=_capture),
+    ):
+        await import_ingest.fan_out(
+            team_scope="team-a",
+            source_format="chatgpt",
+            pending=[(uuid4(), "chatgpt:sha256:the-ledger-key", conv)],
+            author_sub=None,
+            project_scope=None,
+            concurrency=2,
+        )
+    assert [c["metadata"]["idempotency_key"] for c in captured] == [
+        "import:team-a:chatgpt:sha256:the-ledger-key#0",
+        "import:team-a:chatgpt:sha256:the-ledger-key#1",
+    ]
+
+
 async def test_the_truth_level_is_not_raised_by_importing():
     """The route advertises WORKING; the ingest path is what writes it.
 
@@ -151,7 +179,7 @@ async def test_the_fan_out_never_raises():
         result = await import_ingest.fan_out(
             team_scope="team-a",
             source_format="chatgpt",
-            pending=[(uuid4(), _conversation())],
+            pending=[(uuid4(), "chatgpt:conv-1", _conversation())],
             author_sub="alice-sub",
             project_scope=None,
             concurrency=2,
@@ -182,7 +210,7 @@ async def test_concurrency_is_bounded():
         await import_ingest.fan_out(
             team_scope="team-a",
             source_format="chatgpt",
-            pending=[(uuid4(), conv)],
+            pending=[(uuid4(), "chatgpt:conv-wide", conv)],
             author_sub=None,
             project_scope=None,
             concurrency=3,

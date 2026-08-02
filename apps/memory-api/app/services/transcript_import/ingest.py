@@ -88,8 +88,15 @@ class ImportPlan:
 
     source_format: str
     outcomes: list[ConversationOutcome] = field(default_factory=list)
-    # (import_id, conversation) pairs whose turns still have to be fanned out.
-    pending: list[tuple[UUID, ParsedConversation]] = field(default_factory=list)
+    # (import_id, dedupe_key, conversation) triples still to be fanned out.
+    #
+    # The key is carried rather than recomputed downstream for two reasons, both
+    # real: recomputing it per TURN is a sha256 over the whole transcript per
+    # turn (quadratic on a long conversation with no source id), and a
+    # conversation truncated by the turn budget would hash to a DIFFERENT
+    # fingerprint than the one claimed in the ledger — so its turns would land
+    # under idempotency keys no re-import could ever match.
+    pending: list[tuple[UUID, str, ParsedConversation]] = field(default_factory=list)
 
     @property
     def totals(self) -> dict[str, int]:
@@ -205,7 +212,7 @@ async def plan_import(
                 title=conv.title,
                 started_at=conv.started_at,
             )
-        plan.pending.append((import_id, conv))
+        plan.pending.append((import_id, key, conv))
 
     return plan
 
@@ -214,7 +221,7 @@ async def fan_out(
     *,
     team_scope: str,
     source_format: str,
-    pending: list[tuple[UUID, ParsedConversation]],
+    pending: list[tuple[UUID, str, ParsedConversation]],
     author_sub: str | None,
     project_scope: str | None,
     concurrency: int,
@@ -229,7 +236,9 @@ async def fan_out(
     semaphore = asyncio.Semaphore(max(1, concurrency))
     source = SOURCE_TAGS.get(source_format, f"import:{source_format}")[:128]
 
-    async def _one(import_id: UUID, conv: ParsedConversation, index: int, turn) -> None:
+    async def _one(
+        import_id: UUID, dedupe_key: str, conv: ParsedConversation, index: int, turn
+    ) -> None:
         async with semaphore:
             await brain_ingest.ingest_external_message(
                 team_scope=team_scope,
@@ -246,17 +255,15 @@ async def fan_out(
                     "turn_index": index,
                     "turn_role": turn.role,
                     "turn_timestamp": turn.timestamp.isoformat() if turn.timestamp else "",
-                    "idempotency_key": turn_idempotency_key(
-                        team_scope, conv.dedupe_key(source_format), index
-                    ),
+                    "idempotency_key": turn_idempotency_key(team_scope, dedupe_key, index),
                 },
             )
 
     try:
-        for import_id, conv in pending:
+        for import_id, dedupe_key, conv in pending:
             await asyncio.gather(
                 *(
-                    _one(import_id, conv, index, turn)
+                    _one(import_id, dedupe_key, conv, index, turn)
                     for index, turn in enumerate(conv.turns)
                 )
             )
