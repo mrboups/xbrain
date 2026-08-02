@@ -21,9 +21,10 @@ import { THEME_STORAGE_KEY, resolveInitialTheme, applyTheme } from "./chat_core/
 import { createApi } from "./chat_core/api.js";
 import { webPlatform } from "./platform_web.js";
 import { MEMORY_API_BASE, getToken, getUserSub, signOut, mountSignIn } from "./auth.js";
-import { bootChat } from "./chat.js";
+import { bootChat, activeTeamSlug } from "./chat.js";
 import { mountProfile, hideProfile } from "./profile.js";
 import { wirePushButton, refreshPushButton, resyncPush } from "./push.js";
+import { bindViewport } from "./viewport.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -83,20 +84,83 @@ function showSignedIn(identity) {
 }
 
 /**
- * The settings panel — open and shut, nothing more.
+ * The live visual-viewport binding, so a second call can take the first one
+ * down.
  *
- * It starts closed on every open. A panel that remembers being open would cover
- * the newest message every single launch, which is the opposite of what a chat
- * wants its first screen to be.
+ * boot() runs once, but nothing about this module guarantees that forever — a
+ * re-boot that attached a second pair of listeners would leave the first pair
+ * running for the rest of the session, on every keyboard frame, writing the
+ * same variable twice.
+ */
+let releaseViewport = null;
+
+/**
+ * Point the shell's height at what the person can actually see.
+ *
+ * Everything about how that is measured lives in viewport.js; this is the one
+ * call site, and it is idempotent.
+ */
+function wireViewport() {
+  if (releaseViewport) releaseViewport();
+  releaseViewport = bindViewport();
+}
+
+/**
+ * Settings — a full-screen sheet, opened and shut.
+ *
+ * It starts closed on every launch. A surface that remembered being open would
+ * cover the chat every single time, which is the opposite of what a chat wants
+ * its first screen to be.
+ *
+ * THREE THINGS THAT ARE NOT DECORATION:
+ *   - focus goes INTO the sheet on open and back to the button that opened it
+ *     on close. Without the second half, closing drops the caret at the top of
+ *     the document and a keyboard user has to walk the whole header again.
+ *   - it takes the close button, not the name field. Focusing a text input here
+ *     would raise the on-screen keyboard before anybody asked to type.
+ *   - Escape closes, and so does a tap on the scrim beside the sheet — but the
+ *     labelled close control is what makes it dismissible on a touch device,
+ *     which has neither.
+ *
+ * Nothing here touches the page's scroll position: the shell does not scroll at
+ * all (app.css), so the thread is exactly where it was when the sheet closes.
  */
 function wireSettingsPanel() {
   const btn = el("btn-settings");
   const panel = el("settings-panel");
   if (!btn || !panel) return;
+  const closeBtn = el("btn-settings-close");
+
+  const openSettings = () => {
+    panel.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    const first = closeBtn || panel;
+    if (first && typeof first.focus === "function") first.focus();
+  };
+
+  const closeSettings = () => {
+    if (panel.hidden) return;
+    panel.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+    if (typeof btn.focus === "function") btn.focus();
+  };
+
   btn.addEventListener("click", () => {
-    const open = panel.hidden;
-    panel.hidden = !open;
-    btn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (panel.hidden) openSettings();
+    else closeSettings();
+  });
+  if (closeBtn) closeBtn.addEventListener("click", closeSettings);
+
+  // The scrim, not the sheet: a click whose target IS the overlay element
+  // landed beside the sheet, which on a wide window is "outside".
+  panel.addEventListener("click", (event) => {
+    if (event.target === panel) closeSettings();
+  });
+
+  // From anywhere, including from inside the name field.
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || panel.hidden) return;
+    closeSettings();
   });
 }
 
@@ -168,7 +232,11 @@ async function startChat(identity) {
   // The account block at the top of Settings. Needs a token, like push, so it
   // waits for the chat to boot. It never throws: an endpoint that is not
   // deployed yet leaves the block read-only rather than taking the panel down.
-  mountProfile(api, identity).catch((e) => {
+  //
+  // The team slug goes in as a FUNCTION: a picture is uploaded into the team
+  // being read at that moment, and one captured here would be the wrong team by
+  // the first switch.
+  mountProfile(api, identity, { getTeamSlug: activeTeamSlug }).catch((e) => {
     console.warn("[xbrain] profile unavailable:", e);
   });
 
@@ -196,6 +264,9 @@ async function startChat(identity) {
 
 async function boot() {
   await bootTheme();
+  // Before anything measures itself: the shell's height is the frame every
+  // other layout below hangs off.
+  wireViewport();
   wireThemeToggle();
   wireSettingsPanel();
 

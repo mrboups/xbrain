@@ -291,6 +291,26 @@ const teamRail = createTeamRail({
 });
 
 /**
+ * The slug of the team being read right now, or null when there is none.
+ *
+ * Exported for ONE caller: the settings sheet's picture upload, which has to
+ * send `X-Team-Scope` for the team its media item was uploaded under. The SLUG
+ * and not the id, for the same reason api.uploadMedia takes a slug —
+ * /v1/media/upload is scoped through that header, unlike the chat endpoints
+ * which carry the id in the path, and passing an id uploads into a scope that
+ * does not exist.
+ *
+ * It is a function rather than a value because the active team changes under
+ * every caller: a slug read once at boot is the wrong team by the first switch.
+ */
+export function activeTeamSlug() {
+  const team = state.teams.find(
+    (t) => String(t.id) === String(state.activeTeamId),
+  );
+  return (team && team.slug) || null;
+}
+
+/**
  * The remembered team, but only if the person is STILL a member of it.
  * Membership can be revoked between two launches; a stale id would otherwise
  * produce a 403 on every history load with no way back to a working team.

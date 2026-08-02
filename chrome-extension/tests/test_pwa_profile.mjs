@@ -91,6 +91,10 @@ class El {
   async blur() {
     await this.fire("blur");
   }
+  /** What the two picture controls do to the file input: nothing but count. */
+  click() {
+    this.clicks = (this.clicks || 0) + 1;
+  }
 }
 
 const IDS = [
@@ -99,6 +103,9 @@ const IDS = [
   "profile-name",
   "profile-bio",
   "profile-status",
+  "profile-avatar-input",
+  "btn-profile-avatar",
+  "btn-profile-photo",
 ];
 
 function installDocument() {
@@ -360,6 +367,291 @@ testAsync("hideProfile takes the block away at sign-out", async () => {
   );
 });
 
+// ---- 3b. THE PICTURE -----------------------------------------------------
+//
+// An avatar is a MEDIA ITEM: it goes up through the same multipart call the
+// composer's "+" uses, and the profile is then pointed at the id that came
+// back. Two requests, and the second one is the fragile half — it carries
+// X-Team-Scope, and the route resolves that header through the membership check
+// the chat uses. Send the wrong slug, or none, and the picture silently does
+// not change, which is the worst outcome this flow has.
+
+/** A file, as much of one as this module ever touches. */
+function makeFile(over = {}) {
+  return { name: "me.png", type: "image/png", size: 64 * 1024, ...over };
+}
+
+const AVATAR_ITEM = { item_id: "11111111-2222-3333-4444-555555555555", mime: "image/png" };
+
+/**
+ * A client that records every call and answers each leg independently.
+ *
+ * @param {{
+ *   profiles?: Array<{status: number, body?: Object}>,
+ *   upload?: {status: number, body?: Object, throws?: boolean},
+ *   attach?: {status: number, body?: Object, throws?: boolean}
+ * }} opts
+ *   profiles — answers for successive GETs. The last one repeats, so a test
+ *     that does not care about the re-read passes exactly one.
+ */
+function makeMediaApi(opts = {}) {
+  const answers = opts.profiles || [{ status: 200, body: FULL }];
+  const queue = [...answers];
+  const respond = (answer) => {
+    if (answer.throws) throw new Error("network down");
+    return {
+      ok: answer.status >= 200 && answer.status < 300,
+      status: answer.status,
+      json: async () => answer.body,
+    };
+  };
+  const api = {
+    calls: [],
+    uploads: [],
+    rawFetch: async (path, o = {}) => {
+      const method = o.method || "GET";
+      api.calls.push({
+        path,
+        method,
+        body: o.body || null,
+        headers: o.headers || null,
+      });
+      if (method === "GET") return respond(queue.length > 1 ? queue.shift() : queue[0]);
+      if (method === "PUT") return respond(opts.attach || { status: 200, body: {} });
+      return respond({ status: 200, body: {} });
+    },
+    uploadMediaRaw: async (slug, file, fields) => {
+      api.uploads.push({ slug, file, fields });
+      return respond(opts.upload || { status: 201, body: AVATAR_ITEM });
+    },
+  };
+  return api;
+}
+
+const TEAM = "aibrussels";
+
+/** Mount with a live team, then hand over the picker to drive. */
+async function mountWithTeam(api, slug = TEAM) {
+  const nodes = installDocument();
+  const result = await profile.mountProfile(api, null, { getTeamSlug: () => slug });
+  return { nodes, result };
+}
+
+/** Choose a file, the way the OS picker reports it. */
+async function choose(nodes, file) {
+  await nodes["profile-avatar-input"].fire("change", {
+    target: { files: [file], value: "C:\\fake\\me.png" },
+  });
+}
+
+testAsync("a picture goes up as media, then the profile is pointed at it", async () => {
+  const api = makeMediaApi({
+    profiles: [
+      { status: 200, body: FULL },
+      { status: 200, body: { ...FULL, avatar_url: "/v1/media/new/img?t=fresh" } },
+    ],
+  });
+  const { nodes } = await mountWithTeam(api);
+  await choose(nodes, makeFile());
+
+  assert.equal(api.uploads.length, 1, "exactly one upload, through the shared multipart call site");
+  assert.equal(
+    api.uploads[0].slug,
+    TEAM,
+    "the media path is team-scoped by SLUG — an id uploads into a scope that does not exist",
+  );
+
+  const put = api.calls.filter((c) => c.method === "PUT");
+  assert.equal(put.length, 1);
+  assert.equal(put[0].path, "/v1/me/profile/avatar");
+  assert.deepEqual(
+    Object.keys(put[0].body),
+    ["media_item_id"],
+    "the route forbids extra fields outright",
+  );
+  assert.equal(put[0].body.media_item_id, AVATAR_ITEM.item_id, "the id the upload returned");
+  assert.equal(
+    put[0].headers && put[0].headers["X-Team-Scope"],
+    TEAM,
+    "X-Team-Scope is not optional: the route resolves it through the membership check, and the item is looked up INSIDE that scope",
+  );
+});
+
+testAsync("the new picture is READ back, not assumed", async () => {
+  const api = makeMediaApi({
+    profiles: [
+      { status: 200, body: FULL },
+      { status: 200, body: { ...FULL, avatar_url: "/v1/media/new/img?t=fresh" } },
+    ],
+  });
+  const { nodes } = await mountWithTeam(api);
+  await choose(nodes, makeFile());
+
+  const gets = api.calls.filter((c) => c.method === "GET");
+  assert.equal(gets.length, 2, "one at mount, one after the change");
+  assert.ok(
+    api.calls.indexOf(gets[1]) > api.calls.findIndex((c) => c.method === "PUT"),
+    "the re-read must come AFTER the PUT, or it paints the old picture",
+  );
+  const img = nodes["profile-avatar"].children[0];
+  assert.ok(img, "the square must hold an image now");
+  assert.ok(
+    img.src.endsWith("/v1/media/new/img?t=fresh"),
+    `the freshly minted URL must be the one painted; got ${img.src}`,
+  );
+  assert.equal(nodes["profile-status"].className, "success");
+});
+
+testAsync("a changed picture does not overwrite a name being typed", async () => {
+  const api = makeMediaApi({
+    profiles: [
+      { status: 200, body: FULL },
+      { status: 200, body: { ...FULL, preferred_name: "Ada", avatar_url: "/v1/media/n/img" } },
+    ],
+  });
+  const { nodes } = await mountWithTeam(api);
+  nodes["profile-name"].value = "Ada Lovelace";
+  await choose(nodes, makeFile());
+  assert.equal(
+    nodes["profile-name"].value,
+    "Ada Lovelace",
+    "repainting the whole block would throw away what they had typed but not yet saved",
+  );
+});
+
+testAsync("a file that is not an image never leaves the device", async () => {
+  const api = makeMediaApi();
+  const { nodes } = await mountWithTeam(api);
+  await choose(nodes, makeFile({ name: "contract.pdf", type: "application/pdf" }));
+  assert.deepEqual(api.uploads, [], "no upload at all");
+  assert.equal(nodes["profile-status"].className, "error");
+  assert.match(nodes["profile-status"].textContent, /image/i);
+});
+
+testAsync("an oversize picture is refused BEFORE the upload, not after a 413", async () => {
+  const api = makeMediaApi();
+  const { nodes } = await mountWithTeam(api);
+  await choose(nodes, makeFile({ size: 40 * 1024 * 1024 }));
+  assert.deepEqual(
+    api.uploads,
+    [],
+    "a phone camera file would spend a minute uploading to earn a 413 nobody surfaces",
+  );
+  assert.equal(nodes["profile-status"].className, "error");
+  assert.match(nodes["profile-status"].textContent, /too big|MB/);
+});
+
+testAsync("with no team there is nowhere to put it, and it says so", async () => {
+  const api = makeMediaApi();
+  const { nodes } = await mountWithTeam(api, null);
+  await choose(nodes, makeFile());
+  assert.deepEqual(api.uploads, []);
+  assert.equal(api.calls.filter((c) => c.method === "PUT").length, 0);
+  assert.equal(nodes["profile-status"].className, "error");
+  assert.match(nodes["profile-status"].textContent, /team/i);
+});
+
+testAsync("a failed upload says so, and points the profile at nothing", async () => {
+  const api = makeMediaApi({ upload: { status: 413 } });
+  const { nodes } = await mountWithTeam(api);
+  await choose(nodes, makeFile());
+  assert.equal(
+    api.calls.filter((c) => c.method === "PUT").length,
+    0,
+    "there is no id to attach — a PUT here would 404 and confuse the message",
+  );
+  assert.equal(nodes["profile-status"].className, "error");
+  assert.match(nodes["profile-status"].textContent, /too big|MB/);
+});
+
+testAsync("a rejected attach says so, and the picture on screen does not change", async () => {
+  const api = makeMediaApi({ attach: { status: 403 } });
+  const { nodes } = await mountWithTeam(api);
+  const before = nodes["profile-avatar"].children[0].src;
+  await choose(nodes, makeFile());
+  assert.equal(nodes["profile-status"].className, "error");
+  assert.match(nodes["profile-status"].textContent, /not allowed/i);
+  assert.equal(
+    nodes["profile-avatar"].children[0].src,
+    before,
+    "a picture that appears to change and did not is worse than one that plainly failed",
+  );
+});
+
+testAsync("a 404 attach reads as 'not right now', not as a bad photo", async () => {
+  // The endpoint may not be deployed, or the item may belong to another team —
+  // the route answers 404 for both on purpose. Neither is fixed by picking a
+  // different picture, so the message must not suggest it.
+  const api = makeMediaApi({ attach: { status: 404 } });
+  const { nodes } = await mountWithTeam(api);
+  await choose(nodes, makeFile());
+  assert.equal(nodes["profile-status"].className, "error");
+  assert.match(nodes["profile-status"].textContent, /right now/i);
+});
+
+testAsync("a network failure mid-flight is reported, not swallowed", async () => {
+  const api = makeMediaApi({ upload: { status: 0, throws: true } });
+  const { nodes } = await mountWithTeam(api);
+  await choose(nodes, makeFile());
+  assert.equal(nodes["profile-status"].className, "error");
+  assert.match(nodes["profile-status"].textContent, /Network/i);
+  // And the controls come back: a failure that leaves them disabled is a
+  // one-shot feature.
+  assert.equal(nodes["btn-profile-avatar"].disabled, false);
+  assert.equal(nodes["btn-profile-photo"].disabled, false);
+});
+
+testAsync("the change landed but the re-read did not: it must not read as failure", async () => {
+  const api = makeMediaApi({
+    profiles: [{ status: 200, body: FULL }, { status: 500 }],
+  });
+  const { nodes } = await mountWithTeam(api);
+  await choose(nodes, makeFile());
+  assert.equal(
+    nodes["profile-status"].className,
+    "success",
+    "the PUT was accepted — telling them it failed makes them upload it again",
+  );
+  assert.match(nodes["profile-status"].textContent, /saved/i);
+});
+
+testAsync("both controls open the SAME picker", async () => {
+  const api = makeMediaApi();
+  const { nodes, result } = await mountWithTeam(api);
+  assert.equal(result.photoEditable, true);
+  await nodes["btn-profile-avatar"].fire("click");
+  assert.equal(nodes["profile-avatar-input"].clicks, 1, "tapping the picture must open the picker");
+  await nodes["btn-profile-photo"].fire("click");
+  assert.equal(
+    nodes["profile-avatar-input"].clicks,
+    2,
+    "and so must the labelled control — one code path, two doors",
+  );
+});
+
+testAsync("mounting twice does not upload the picture twice", async () => {
+  // startChat runs mountProfile again after a re-sign-in, on the SAME elements.
+  // A second change listener would send the file twice and PUT it twice, and
+  // nothing on screen would say why.
+  const api = makeMediaApi();
+  const nodes = installDocument();
+  await profile.mountProfile(api, null, { getTeamSlug: () => TEAM });
+  await profile.mountProfile(api, null, { getTeamSlug: () => TEAM });
+  await choose(nodes, makeFile());
+  assert.equal(api.uploads.length, 1, "one file chosen, one upload");
+  assert.equal(api.calls.filter((c) => c.method === "PUT").length, 1);
+});
+
+testAsync("no endpoint means no picture controls either", async () => {
+  const api = makeMediaApi({ profiles: [{ status: 404 }] });
+  const { nodes, result } = await mountWithTeam(api);
+  assert.equal(result.photoEditable, false);
+  assert.equal(nodes["btn-profile-avatar"].disabled, true, "a control that can only fail is worse than an absent one");
+  assert.equal(nodes["btn-profile-photo"].hidden, true);
+  await choose(nodes, makeFile());
+  assert.deepEqual(api.uploads, [], "and it is wired to nothing, not merely greyed out");
+});
+
 // ---- 4. Where it sits, and what it is made of ---------------------------
 
 test("the profile block is the FIRST thing in the settings panel", () => {
@@ -394,6 +686,84 @@ test("the name is an input and the bio is not — one field is editable", () => 
   assert.ok(
     !/<input[^>]*id="profile-bio"/.test(html),
     "the bio is display-only for now — a PATCH the server half may not accept yet answers typing with a 422",
+  );
+});
+
+test("the picture is a real control, reachable without a mouse", () => {
+  const btn = /<button[^>]*id="btn-profile-avatar"[\s\S]*?<\/button>/.exec(html);
+  assert.ok(btn, "the avatar must be wrapped in a button — an image with a click handler is not reachable by keyboard and announces nothing");
+  assert.match(btn[0], /aria-label="[^"]+"/, "it carries no text, so it needs an accessible name");
+  assert.ok(btn[0].includes('id="profile-avatar"'), "the square itself belongs inside it");
+
+  const words = /<button[^>]*id="btn-profile-photo"[\s\S]*?<\/button>/.exec(html);
+  assert.ok(words, "a labelled control must exist beside the picture");
+  assert.ok(
+    words[0].replace(/<[^>]*>/g, "").trim().length > 0,
+    "the second control is the one that says what tapping the photo would do — it needs words",
+  );
+
+  const input = /<input[^>]*id="profile-avatar-input"[^>]*>/.exec(html);
+  assert.ok(input, "index.html must declare the file input the buttons open");
+  assert.match(input[0], /type="file"/);
+  assert.match(
+    input[0],
+    /accept="image\/[^"]*"/,
+    "the picker must offer images only — the server refuses anything else with a 422 nobody wants to explain",
+  );
+  assert.match(input[0], /\bhidden\b/, "the styled buttons are the control; the raw input is not");
+});
+
+test("the picture controls sit inside the account block, not somewhere else", () => {
+  const block = /<div[^>]*id="settings-profile"[\s\S]*?\n        <\/div>/.exec(
+    html.replace(/<!--[\s\S]*?-->/g, ""),
+  );
+  assert.ok(block, "index.html must declare #settings-profile");
+  for (const id of ["btn-profile-avatar", "profile-avatar-input", "btn-profile-photo"]) {
+    assert.ok(block[0].includes(`id="${id}"`), `#${id} belongs in the account block`);
+  }
+});
+
+test("the avatar URL is read, painted and forgotten", () => {
+  const code = profileJs.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  for (const sink of ["localStorage", "sessionStorage", "storage.set", "indexedDB"]) {
+    assert.ok(
+      !code.includes(sink),
+      `profile.js writes the profile to ${sink} — the signature in an avatar URL expires, so a stored copy is a picture that works right up until it silently stops`,
+    );
+  }
+  assert.ok(
+    code.includes("readProfile("),
+    "the fresh URL must come from a read, not from a value kept between calls",
+  );
+});
+
+test("the upload goes through the shared multipart call site, not a new one", () => {
+  const code = profileJs.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  assert.ok(
+    !code.includes("new FormData("),
+    "api.uploadMediaRaw is the one place in the product that builds a multipart body",
+  );
+  assert.ok(code.includes("uploadMediaRaw("), "profile.js must call the shared upload");
+  assert.ok(
+    code.includes("MAX_MEDIA_BYTES"),
+    "the client-side cap must be clamped by the server's own ceiling, or it can drift above it",
+  );
+  assert.ok(
+    /X-Team-Scope/.test(code),
+    "the PUT must name the team the item was uploaded under",
+  );
+});
+
+test("the shell hands the profile a LATE team slug, not one captured at boot", () => {
+  assert.match(
+    appJs,
+    /mountProfile\(api, identity, \{ getTeamSlug: activeTeamSlug \}\)/,
+    "a slug read once at boot is the wrong team by the first switch",
+  );
+  assert.match(
+    appJs,
+    /import \{ bootChat, activeTeamSlug \}/,
+    "the active team belongs to chat.js — a second copy here would drift",
   );
 });
 
