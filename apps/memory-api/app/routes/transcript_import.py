@@ -49,7 +49,7 @@ from app.audit import write_audit
 from app.config import settings
 from app.deps import get_current_principal, get_session
 from app.repos.teams import get_membership
-from app.services import token_capabilities
+from app.services import token_capabilities, url_safety
 from app.services.transcript_import import (
     SOURCE_TAGS,
     SUPPORTED_FORMATS,
@@ -181,6 +181,36 @@ def _decode_request(body: bytes, content_type: str, fallback_format: str) -> dic
     }
 
 
+def _reject_bare_link(body: bytes) -> None:
+    """A share URL is the likeliest wrong thing to send. Say so, don't fetch it.
+
+    Sharing from the ChatGPT app hands the share sheet a URL, not the
+    conversation, so this body shape will happen constantly. The server does
+    NOT fetch it — see the "no chatgpt-share-link parser" note in
+    app/services/transcript_import/__init__.py: url_safety is a lexical guard
+    with no DNS or IP-range check, and fetching a caller-supplied URL from this
+    VM reaches the GCP metadata server. ``is_safe_nudge_url`` is reused here
+    only to RECOGNISE a bare URL, never to authorise reaching one.
+    """
+    if len(body) > 2048:
+        return
+    try:
+        candidate = body.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        return
+    if "\n" in candidate or " " in candidate:
+        return
+    if not url_safety.is_safe_nudge_url(candidate):
+        return
+    raise HTTPException(
+        400,
+        "That is a link, not a conversation. This server never fetches a URL "
+        "on your behalf. Open the link, copy the conversation, and share the "
+        "text instead — or import the conversations.json file from your "
+        "ChatGPT data export.",
+    )
+
+
 @router.post("/import/transcript", status_code=202)
 async def import_transcript(
     request: Request,
@@ -203,6 +233,8 @@ async def import_transcript(
     body = await _read_capped_body(request, settings.TRANSCRIPT_IMPORT_MAX_BYTES)
     if not body.strip():
         raise HTTPException(400, "The request body is empty — there is nothing to import.")
+
+    _reject_bare_link(body)
 
     content_type = request.headers.get("content-type", "")
     try:

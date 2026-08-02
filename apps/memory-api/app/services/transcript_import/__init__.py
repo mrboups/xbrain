@@ -9,6 +9,27 @@ Public surface:
     ``parse_transcript(raw, source_format)`` — dispatch
     ``sniff_format(raw)`` — best-effort detection for ``format="auto"``
     ``TranscriptParseError`` — the only exception a parser raises
+
+Why there is no ``chatgpt-share-link`` parser
+---------------------------------------------
+A ``chatgpt.com/share/...`` URL is public HTML, so fetching it looks free. It
+is not. Fetching a client-supplied URL from memory-api is server-side request
+forgery unless the fetcher is hardened, and the guard this codebase has —
+``app/services/url_safety.py`` — is deliberately, documentedly LEXICAL: no DNS
+resolution, no IP-range check, no redirect control. ``http://169.254.169.254/``
+passes it (valid scheme, host present, no userinfo). On the GCP VM this
+deploys to, that address hands out service-account tokens to anything on the
+instance, so a naive fetch behind an authenticated endpoint would be an SSRF
+into cloud credentials. Doing it properly means host allow-listing, resolving
+DNS ourselves, rejecting non-public addresses, connecting to the PINNED ip so
+a rebind cannot slip between check and connect, refusing redirects, and
+capping response size and time — a component, not a helper. It would then
+still have to scrape an undocumented ``__NEXT_DATA__`` blob that changes
+without notice and is bot-gated for datacenter IPs.
+
+Paste and file already cover the case: the share page opens in the person's
+own browser, where copying the conversation costs one keystroke and forges
+nothing. The route turns a bare URL body into an explicit message saying so.
 """
 from __future__ import annotations
 

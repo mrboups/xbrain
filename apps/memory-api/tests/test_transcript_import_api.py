@@ -447,6 +447,50 @@ async def test_an_empty_body_is_refused(imports):
     assert "nothing to import" in resp.json()["detail"]
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://chatgpt.com/share/abc-123",
+        "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/",
+        "https://internal.corp.example/admin",
+    ],
+)
+async def test_a_bare_url_is_explained_never_fetched(imports, url):
+    """Sharing from the ChatGPT app hands over a URL, so this shape is routine.
+
+    The server must say what to do instead — and must not turn an
+    authenticated endpoint into an outbound fetcher pointed at the GCP
+    metadata address.
+    """
+    with patch("app.routes.transcript_import.import_ingest.fan_out", new=AsyncMock()) as fan:
+        resp = await imports["client"].post(
+            "/v1/import/transcript",
+            headers={**_headers(imports["full_token"]), "Content-Type": "text/plain"},
+            content=url.encode(),
+        )
+    assert resp.status_code == 400
+    assert "never fetches a URL" in resp.json()["detail"]
+    assert fan.call_count == 0
+
+
+async def test_the_import_route_contains_no_outbound_http_client():
+    """Grep-level guard: the moment someone adds httpx here, this fails.
+
+    Mirrors the source-scan pattern tests/test_push_endpoint_safety.py uses for
+    the VAPID private key — the cheapest way to keep a documented ban true.
+    """
+    import inspect
+
+    from app.routes import transcript_import as module
+
+    source = inspect.getsource(module)
+    for banned in ("httpx", "aiohttp", "requests.get", "urlopen"):
+        assert banned not in source, (
+            f"{banned} appears in the import route — fetching a caller-supplied "
+            f"URL from this VM reaches the GCP metadata server"
+        )
+
+
 async def test_an_unreadable_file_is_a_400_with_a_message_a_person_can_act_on(imports):
     resp = await imports["client"].post(
         "/v1/import/transcript",
