@@ -253,6 +253,16 @@
                two can never disagree. -->
           <span id="settings-push-state" class="xb-settings-value">Notifications off</span>
         </div>
+        <!--
+          Bringing a past conversation in. It opens its own full-screen sheet
+          rather than growing this one: the chooser, the paste box and the
+          result together are a page, and a page inside a settings list is a
+          list nobody can find the bottom of.
+        -->
+        <button type="button" id="btn-open-import" class="xb-settings-action" hidden>
+          Import a conversation
+        </button>
+
         <!-- LAST, and a full-width row rather than an icon. Signing out is a
              rare and deliberate act; in the header it sat in the tap target
              next to the controls people use constantly, wearing a glyph that
@@ -260,6 +270,88 @@
              sheet somebody opened on purpose, it is where it can be found and
              nowhere near anything else. -->
         <button type="button" id="btn-sign-out" class="xb-settings-signout" hidden>Sign out</button>
+      </div>
+    </div>
+  </div>
+
+  <!--
+    Import — bring a Claude Code session or a ChatGPT conversation into a team
+    brain.
+
+    It is built from the SAME rules as the settings sheet it opens from, and
+    reuses its classes rather than copying them: sized off the measured
+    viewport, so the on-screen keyboard cannot push this header off the top; one
+    scroller; a labelled way out. It sits ABOVE settings so closing it lands
+    back where it was opened from.
+
+    THE CLIENT NEVER PARSES A TRANSCRIPT. The file is read, declared and sent;
+    the parsers live server-side, where they are tested. import.js detects which
+    format this looks like so nobody has to classify their own export, and the
+    chooser below is how a wrong guess gets corrected.
+  -->
+  <div id="import-panel" class="xb-settings-overlay" hidden
+       role="dialog" aria-modal="true" aria-labelledby="import-title">
+    <div class="xb-settings-sheet">
+      <div class="xb-settings-sheet-head">
+        <h2 class="xb-settings-sheet-title" id="import-title">Import a conversation</h2>
+        <button type="button" id="btn-import-close" class="xb-icon-btn"
+                title="Close import" aria-label="Close import">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="xb-settings-body xb-import-body">
+        <!-- The team FIRST, because it is the one choice that cannot be undone
+             by pressing the button again: an import lands in one team's brain,
+             and everyone in that team sees it. -->
+        <div class="xb-field">
+          <label for="import-team">Import into</label>
+          <select id="import-team"></select>
+          <p id="import-team-hint" class="xb-hint"></p>
+        </div>
+
+        <!-- The file door. `accept` names both extensions plus the plain types,
+             because iOS Files greys out anything it cannot map to a known type
+             and a picker that shows no files reads as a broken app. -->
+        <div id="import-drop" class="xb-import-drop">
+          <p class="xb-import-drop-title">Drop a file here, or choose one</p>
+          <p class="xb-hint">A Claude Code session (.jsonl) or a ChatGPT export (.json). On a phone this opens Files.</p>
+          <button type="button" id="btn-import-pick" class="xb-btn">Choose a file</button>
+          <input type="file" id="import-file"
+                 accept=".jsonl,.json,application/json,text/plain" hidden />
+        </div>
+
+        <!-- ...and the paste door, for one conversation copied as text. -->
+        <div class="xb-field">
+          <label for="import-paste">Or paste a conversation</label>
+          <textarea id="import-paste" rows="5" spellcheck="false"
+                    class="xb-import-paste"
+                    placeholder="Paste the conversation, an export, or a share link"
+                    aria-label="Paste a conversation"></textarea>
+        </div>
+
+        <p id="import-source" class="xb-import-source" hidden></p>
+
+        <div class="xb-field">
+          <label for="import-format">Format</label>
+          <select id="import-format">
+            <option value="auto">Detect from the content</option>
+            <option value="claude-code">Claude Code session (.jsonl)</option>
+            <option value="chatgpt">ChatGPT conversation or export</option>
+          </select>
+          <p id="import-format-note" class="xb-hint" hidden></p>
+        </div>
+
+        <button type="button" id="btn-import-send" class="xb-btn xb-btn-primary xb-btn-block" disabled>
+          Import
+        </button>
+
+        <!-- Progress and failure. -->
+        <div id="import-status" hidden></div>
+        <!-- ...and what actually landed: how many turns were written and how
+             many were skipped because they were already there. Without the
+             second number, a re-import and a no-op look the same. -->
+        <p id="import-result" class="xb-import-result" role="status" hidden></p>
       </div>
     </div>
   </div>

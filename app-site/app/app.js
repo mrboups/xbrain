@@ -23,6 +23,7 @@ import { webPlatform } from "./platform_web.js";
 import { MEMORY_API_BASE, getToken, getUserSub, signOut, mountSignIn } from "./auth.js";
 import { bootChat, activeTeamSlug } from "./chat.js";
 import { mountProfile, hideProfile } from "./profile.js";
+import { mountImport, isImportOpen, hideImport } from "./import.js";
 import { wirePushButton, refreshPushButton, resyncPush } from "./push.js";
 import { bindViewport } from "./viewport.js";
 
@@ -65,8 +66,10 @@ function showSignedOut() {
   el("btn-enable-push").hidden = true;
   el("push-hint").hidden = true;
   // Signing out must not leave somebody's name and picture on the screen for
-  // whoever signs in next on the same device.
+  // whoever signs in next on the same device. Nor a transcript they had loaded
+  // but not yet sent.
   hideProfile();
+  hideImport();
 }
 
 function showSignedIn(identity) {
@@ -160,6 +163,10 @@ function wireSettingsPanel() {
   // From anywhere, including from inside the name field.
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || panel.hidden) return;
+    // The import sheet opens on TOP of this one and owns Escape while it is
+    // there. Closing the sheet underneath would leave a dialog floating over a
+    // chat nobody navigated back to.
+    if (isImportOpen()) return;
     closeSettings();
   });
 }
@@ -238,6 +245,15 @@ async function startChat(identity) {
   // the first switch.
   mountProfile(api, identity, { getTeamSlug: activeTeamSlug }).catch((e) => {
     console.warn("[xbrain] profile unavailable:", e);
+  });
+
+  // The import sheet, reached from Settings. Same contract as the profile
+  // block: it needs a token, so it waits for the chat to boot, and it never
+  // throws — an importer the server does not have yet must not take the
+  // settings sheet down with it. The team slug goes in as a FUNCTION for the
+  // same reason it does above: the active team changes under every caller.
+  mountImport(api, { getTeamSlug: activeTeamSlug }).catch((e) => {
+    console.warn("[xbrain] import unavailable:", e);
   });
 
   const pushBtn = el("btn-enable-push");

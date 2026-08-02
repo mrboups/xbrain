@@ -607,6 +607,138 @@ body {
   text-align: right;
 }
 
+/* A settings row that OPENS something rather than changing a value. Outlined
+   like the fields it sits among, never filled: it is a door, not the action
+   this sheet is for. */
+.xb-settings-action {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px 12px;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s;
+}
+.xb-settings-action:hover { background: var(--muted); }
+.xb-settings-action:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* ---- Import: the same sheet, one layer up ----------------------------- */
+
+/* It opens FROM settings and settings stays behind it, so it has to outrank
+   both that sheet (110) and the members/invite overlays (100). Everything else
+   about its frame - the measured height, the safe areas, the single scroller -
+   comes from the .xb-settings-* classes it shares, which is why there is no
+   second copy of those rules to drift. */
+#import-panel { z-index: 120; }
+
+.xb-import-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.xb-import-body .xb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 0;
+}
+.xb-import-body .xb-field > label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-fg);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.xb-import-body select,
+.xb-import-paste {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  font-family: inherit;
+  /* 16px, and not a pixel less: iOS Safari zooms the whole page in on a focused
+     field below that size, and it never zooms back out. */
+  font-size: 16px;
+  outline: none;
+}
+.xb-import-body select:focus-visible,
+.xb-import-paste:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.xb-import-body select:disabled { opacity: 0.5; cursor: not-allowed; }
+.xb-import-paste {
+  resize: vertical;
+  min-height: 92px;
+  line-height: 1.45;
+}
+.xb-import-paste::placeholder { color: var(--muted-fg); }
+
+/* The drop zone. Dashed on purpose: it is the one region of this sheet that
+   accepts something dragged onto it, and a solid box reads as another card. */
+.xb-import-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px;
+  border: 1px dashed var(--input);
+  border-radius: var(--radius);
+  background: var(--muted);
+}
+.xb-import-drop.is-dragover {
+  border-color: var(--primary);
+  border-style: solid;
+}
+.xb-import-drop-title {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+/* What is actually loaded. Monospaced because it is a file name and a size,
+   and it must be readable at a glance next to a button that sends it. */
+.xb-import-source {
+  margin: 0;
+  padding: 6px 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg);
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  word-break: break-all;
+}
+
+/* The outcome, kept visible after the form clears itself. */
+.xb-import-result {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--secondary-fg);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* Status pill, keyed off the className setStatusLine writes. */
+#import-status {
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  font-size: 12px;
+}
+#import-status.loading { background: var(--muted); color: var(--muted-fg); border: 1px solid var(--border); }
+#import-status.success { background: var(--secondary); color: var(--secondary-fg); border: 1px solid var(--border); }
+#import-status.error { background: transparent; color: var(--destructive); border: 1px solid var(--destructive); }
+
 /* Segmented light/dark theme toggle — the same control the extension's options
    page carries, pinned top-right because it is a display mode, not an item to
    read past. shadcn style, radius 0; the pressed segment fills with --primary. */
