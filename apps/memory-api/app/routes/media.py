@@ -37,10 +37,35 @@ from app.routes.media_helpers import (
     verify_media_token,
 )
 from app.services.doc_body_ingest import extract_and_ingest_body
+from app.services.image_describe import describe_and_ingest_image, is_image_mime
 
 log = structlog.get_logger(__name__)
 
 router = APIRouter()
+
+
+async def _run_image_describe(**kw: Any) -> None:
+    """Detached image-description task.
+
+    Scheduled fire-and-forget from upload_media AFTER the parent card item is committed,
+    for the same reason as _run_body_ingest below: a vision call takes seconds and may
+    fail, and neither may delay or fail the upload's 201.
+
+    Thin on purpose — describe_and_ingest_image already never raises, upserts the linked
+    description item, and flags the parent off a FRESH read on every exit path (including
+    its own failures). This wrapper exists only so a truly unexpected error (task
+    cancellation, an OOM inside the provider) still cannot surface as an unhandled
+    exception in a detached task.
+    """
+    try:
+        await describe_and_ingest_image(**kw)
+    except Exception as exc:  # detached task — never surface an unhandled exception
+        log.warning(
+            "media.image_describe_failed",
+            parent_item_id=kw.get("parent_item_id"),
+            error=str(exc),
+            exc_info=True,
+        )
 
 
 async def _run_body_ingest(*, provider: MemoryProvider, parent_metadata: dict[str, Any], **kw: Any) -> None:
@@ -201,6 +226,34 @@ async def upload_media(
                 visibility=item.visibility,
                 validation_status=item.validation_status,
                 confidence=item.confidence,
+                parent_metadata=item.metadata,
+            )
+        )
+
+    # An IMAGE has no text layer to extract, so the branch above leaves its contents
+    # invisible to recall — the item's content is just the caption or the filename. Ask a
+    # vision model what it shows and embed THAT as a linked child item, fire-and-forget
+    # after the 201 for the same reasons as the body path.
+    #
+    # The gate is any real image mime, not just the four the API accepts: an image/bmp
+    # upload SHOULD reach the service so it gets flagged "skipped (unsupported_image_mime)"
+    # rather than vanishing. A PDF must NOT — the document path owns it, and an
+    # image-description flag on it would be noise.
+    if settings.VISION_DESCRIBE_ENABLED and is_image_mime(mime):
+        asyncio.create_task(
+            _run_image_describe(
+                provider=provider,
+                data=data,
+                mime=mime,
+                filename=file.filename,
+                media_key=key,
+                parent_item_id=item_id,
+                team_scope=team_scope,
+                project_scope=project_scope,
+                truth_level=truth_level,
+                # Threaded explicitly so the description inherits the real upload values
+                # rather than defaults that merely happen to match today (MD-03).
+                visibility=item.visibility,
                 parent_metadata=item.metadata,
             )
         )
