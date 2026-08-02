@@ -153,6 +153,45 @@ export function createApi({ baseUrl, getToken } = {}) {
         body: { slug, display_name: displayName },
       }),
 
+    // ---- Importing a past conversation ----
+    //
+    // ONE call site for the whole feature, and one place that spells the path,
+    // the scope header and the body. The server half of this is being written
+    // in parallel, so a rename on that side has to cost a single edit HERE —
+    // not a hunt through a settings sheet, a share handler and a setup screen
+    // that each learned the shape for themselves.
+    //
+    // Raw, for the reason the invite calls are raw: the SERVER decides what a
+    // failure means, and the codes mean different things to the person holding
+    // the file. A 404 is "this build has no importer yet", a 413 is a file they
+    // can split, a 422 is a transcript that did not parse, a 403 is the wrong
+    // team. Collapsing those into one thrown sentence leaves every one of them
+    // reading "could not import".
+    //
+    // @param {string} teamSlug an import lands in ONE team; guessing is wrong
+    // @param {{format: string, content: string, projectScope?: string|null,
+    //          force?: boolean}} payload
+    importTranscriptRaw: (teamSlug, { format, content, projectScope, force } = {}) =>
+      rawFetch(IMPORT_TRANSCRIPT_PATH, {
+        method: "POST",
+        headers: { [IMPORT_TEAM_HEADER]: teamSlug },
+        body: importTranscriptBody({ format, content, projectScope, force }),
+      }),
+
+    // The credential the iOS Shortcut carries, minted on request and returned in
+    // plaintext exactly once. It is capability-scoped to importing and bound to
+    // ONE team — minting requires membership of that team, which is why the
+    // scope is a parameter and not an afterthought.
+    //
+    // Raw again, and for a sharper reason: a build whose API has not been
+    // redeployed answers 404, and the setup screen must degrade to instructions
+    // rather than throw inside the settings sheet.
+    mintImportTokenRaw: (teamScope, name) =>
+      rawFetch(IMPORT_TOKEN_PATH, {
+        method: "POST",
+        body: { team_scope: teamScope, name },
+      }),
+
     // ---- Media ----
     uploadMediaRaw,
 
@@ -213,3 +252,181 @@ export function createApi({ baseUrl, getToken } = {}) {
  * It is NOT the enforcement — the server's copy is.
  */
 export const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
+
+/* ==========================================================================
+ * Importing a past conversation into a team brain
+ *
+ * EVERYTHING THE SERVER SEES IS DECLARED IN THIS BLOCK. The route, the header,
+ * the two format names and the body shape — nothing else in either surface
+ * spells any of them. That is the whole point: the server half is being built
+ * in parallel and the names below are an ASSUMPTION, so reconciling them has to
+ * be an edit here and a re-sync, never a search.
+ * ======================================================================== */
+
+/** Where a transcript is posted. */
+export const IMPORT_TRANSCRIPT_PATH = "/v1/import/transcript";
+
+/** Where the iOS Shortcut's dedicated credential is minted. */
+export const IMPORT_TOKEN_PATH = "/v1/me/import-tokens";
+
+/**
+ * The scope header. An import lands in exactly one team, and the same header
+ * the media path uses is what says which one — the body carries no team at all,
+ * so there is no second place for the two to disagree.
+ */
+export const IMPORT_TEAM_HEADER = "X-Team-Scope";
+
+/**
+ * The formats the server parses. The client NEVER parses a transcript: the
+ * parsers live server-side, are tested there, and a second implementation would
+ * drift within a release. All this list does is name what may be declared.
+ */
+export const IMPORT_FORMATS = ["claude-code", "chatgpt"];
+
+/**
+ * The format the server works out for itself, and the default everywhere.
+ *
+ * Its detection is the same code that parses the file, so it cannot disagree
+ * with the parser the way a client-side guess can. The named formats stay
+ * available as an override for the case where a person knows better.
+ */
+export const IMPORT_FORMAT_AUTO = "auto";
+
+/**
+ * The URL for the OTHER accepted body shape: the transcript posted as raw text,
+ * with the format in the query.
+ *
+ * This is the iOS Shortcut's path. Shortcuts can attach the Share Sheet input
+ * to a request as text in one step; building a JSON object around it is three
+ * more steps and the place people give up. Both shapes reach the same route, so
+ * there is no second endpoint to keep alive.
+ *
+ * @param {string} [format]
+ * @returns {string}
+ */
+export function importTranscriptTextPath(format = IMPORT_FORMAT_AUTO) {
+  return `${IMPORT_TRANSCRIPT_PATH}?format=${encodeURIComponent(format)}`;
+}
+
+/**
+ * The content type that selects that shape. Anything other than JSON makes the
+ * whole body the transcript, and this is the honest name for a pasted chat.
+ */
+export const IMPORT_TEXT_CONTENT_TYPE = "text/plain";
+
+/**
+ * The transcript ceiling, mirrored from the server's own 413 threshold, and
+ * checked BEFORE the file is read.
+ *
+ * A full ChatGPT export is tens of megabytes; reading one into a string on a
+ * phone is how the tab gets killed with no message at all. Refusing on
+ * `file.size` costs nothing and explains itself; a 413 after a minute of upload
+ * does neither. It is NOT the enforcement — the server's copy is.
+ */
+export const MAX_IMPORT_BYTES = 25 * 1024 * 1024;
+
+/**
+ * The request body, in one place.
+ *
+ * `project_scope` is sent explicitly rather than omitted: it is part of the
+ * tagging contract every stored item carries, and a field that only ever
+ * appears by default is a field nobody remembers exists.
+ *
+ * `force` completes a half-finished import. It is safe to repeat — the server
+ * dedupes at turn level, so this is an upsert and not a second copy — and it is
+ * the only way out of a conversation that was interrupted partway through.
+ *
+ * @param {{format: string, content: string, projectScope?: string|null, force?: boolean}} payload
+ * @returns {{format: string, content: string, project_scope: string|null, force: boolean}}
+ */
+export function importTranscriptBody({
+  format,
+  content,
+  projectScope = null,
+  force = false,
+} = {}) {
+  return { format, content, project_scope: projectScope, force: Boolean(force) };
+}
+
+/** First numeric value among `keys`, or null when the body names none of them. */
+function firstCount(data, keys) {
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+/**
+ * Read the 202 an import answers with.
+ *
+ * The server reports per-conversation verdicts plus a `totals` block:
+ *
+ *   {status, format, team_scope, truth_level, truncated,
+ *    conversations: [{dedupe_key, status, turns, queued, import_id, title}],
+ *    totals: {conversations, imported, duplicates, over_limit, turns, queued}}
+ *
+ * WHAT MUST SURVIVE THE READ: what was written, and what was skipped because it
+ * was already there. Without the second number, "nothing happened" and "you
+ * already imported this" are the same blank screen, and the person imports it a
+ * third time. `over_limit` and `truncated` join them for the same reason — a
+ * conversation silently dropped for being too long is worse than one refused
+ * out loud.
+ *
+ * Totals are read first and the top level second, so a server that flattens the
+ * shape later still reports rather than falling silent. `reported` is the
+ * honest flag: false means nothing countable came back, which is NOT zero.
+ *
+ * @param {any} body the parsed JSON response
+ * @returns {{status: string|null, conversations: number|null, imported: number|null,
+ *            duplicates: number|null, overLimit: number|null, turns: number|null,
+ *            queued: number|null, truncated: boolean, reported: boolean}}
+ */
+export function summarizeImport(body) {
+  const data = body && typeof body === "object" ? body : {};
+  const totals = data.totals && typeof data.totals === "object" ? data.totals : {};
+  const pick = (keys) => {
+    const inTotals = firstCount(totals, keys);
+    return inTotals === null ? firstCount(data, keys) : inTotals;
+  };
+
+  const conversations = pick(["conversations"]);
+  const imported = pick(["imported", "imported_conversations", "conversations_imported"]);
+  const duplicates = pick(["duplicates", "skipped_duplicates", "skipped"]);
+  const overLimit = pick(["over_limit", "over_limit_conversations"]);
+  const turns = pick(["turns", "imported_turns", "turns_imported"]);
+  const queued = pick(["queued"]);
+
+  return {
+    status: typeof data.status === "string" ? data.status : null,
+    conversations,
+    imported,
+    duplicates,
+    overLimit,
+    turns,
+    queued,
+    truncated: data.truncated === true,
+    reported:
+      imported !== null ||
+      duplicates !== null ||
+      turns !== null ||
+      conversations !== null,
+  };
+}
+
+/**
+ * Did the server refuse this as something it already holds?
+ *
+ * Separate from the counts because it drives a control, not a sentence: a
+ * duplicate verdict is the one outcome with a next step (re-import with
+ * `force`), and a conversation interrupted halfway through is otherwise stuck
+ * looking exactly like one that imported cleanly.
+ *
+ * @param {{status: string|null, imported: number|null, duplicates: number|null}} summary
+ * @returns {boolean}
+ */
+export function isDuplicateImport(summary) {
+  if (!summary) return false;
+  if (summary.status === "duplicate") return true;
+  return (summary.duplicates || 0) > 0;
+}

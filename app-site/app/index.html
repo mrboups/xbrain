@@ -253,6 +253,16 @@
                two can never disagree. -->
           <span id="settings-push-state" class="xb-settings-value">Notifications off</span>
         </div>
+        <!--
+          Bringing a past conversation in. It opens its own full-screen sheet
+          rather than growing this one: the chooser, the paste box and the
+          result together are a page, and a page inside a settings list is a
+          list nobody can find the bottom of.
+        -->
+        <button type="button" id="btn-open-import" class="xb-settings-action" hidden>
+          Import a conversation
+        </button>
+
         <!-- LAST, and a full-width row rather than an icon. Signing out is a
              rare and deliberate act; in the header it sat in the tap target
              next to the controls people use constantly, wearing a glyph that
@@ -260,6 +270,184 @@
              sheet somebody opened on purpose, it is where it can be found and
              nowhere near anything else. -->
         <button type="button" id="btn-sign-out" class="xb-settings-signout" hidden>Sign out</button>
+      </div>
+    </div>
+  </div>
+
+  <!--
+    Import — bring a Claude Code session or a ChatGPT conversation into a team
+    brain.
+
+    It is built from the SAME rules as the settings sheet it opens from, and
+    reuses its classes rather than copying them: sized off the measured
+    viewport, so the on-screen keyboard cannot push this header off the top; one
+    scroller; a labelled way out. It sits ABOVE settings so closing it lands
+    back where it was opened from.
+
+    THE CLIENT NEVER PARSES A TRANSCRIPT. The file is read, declared and sent;
+    the parsers live server-side, where they are tested. import.js detects which
+    format this looks like so nobody has to classify their own export, and the
+    chooser below is how a wrong guess gets corrected.
+  -->
+  <div id="import-panel" class="xb-settings-overlay" hidden
+       role="dialog" aria-modal="true" aria-labelledby="import-title">
+    <div class="xb-settings-sheet">
+      <div class="xb-settings-sheet-head">
+        <h2 class="xb-settings-sheet-title" id="import-title">Import a conversation</h2>
+        <button type="button" id="btn-import-close" class="xb-icon-btn"
+                title="Close import" aria-label="Close import">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="xb-settings-body xb-import-body">
+        <!-- The team FIRST, because it is the one choice that cannot be undone
+             by pressing the button again: an import lands in one team's brain,
+             and everyone in that team sees it. -->
+        <div class="xb-field">
+          <label for="import-team">Import into</label>
+          <select id="import-team"></select>
+          <p id="import-team-hint" class="xb-hint"></p>
+        </div>
+
+        <!-- The file door. `accept` names both extensions plus the plain types,
+             because iOS Files greys out anything it cannot map to a known type
+             and a picker that shows no files reads as a broken app. -->
+        <div id="import-drop" class="xb-import-drop">
+          <p class="xb-import-drop-title">Drop a file here, or choose one</p>
+          <p class="xb-hint">A Claude Code session (.jsonl) or a ChatGPT export (.json). On a phone this opens Files.</p>
+          <button type="button" id="btn-import-pick" class="xb-btn">Choose a file</button>
+          <input type="file" id="import-file"
+                 accept=".jsonl,.json,application/json,text/plain" hidden />
+        </div>
+
+        <!-- ...and the paste door, for one conversation copied as text. -->
+        <div class="xb-field">
+          <label for="import-paste">Or paste a conversation</label>
+          <textarea id="import-paste" rows="5" spellcheck="false"
+                    class="xb-import-paste"
+                    placeholder="Paste the conversation, an export, or a share link"
+                    aria-label="Paste a conversation"></textarea>
+        </div>
+
+        <p id="import-source" class="xb-import-source" hidden></p>
+
+        <div class="xb-field">
+          <label for="import-format">Format</label>
+          <select id="import-format">
+            <option value="auto">Detect from the content</option>
+            <option value="claude-code">Claude Code session (.jsonl)</option>
+            <option value="chatgpt">ChatGPT conversation or export</option>
+          </select>
+          <p id="import-format-note" class="xb-hint" hidden></p>
+        </div>
+
+        <button type="button" id="btn-import-send" class="xb-btn xb-btn-primary xb-btn-block" disabled>
+          Import
+        </button>
+
+        <!-- Progress and failure. -->
+        <div id="import-status" hidden></div>
+        <!-- ...and what actually landed: how many conversations and turns were
+             written and how many were skipped because they were already there.
+             Without the second number, a re-import and a no-op look the same. -->
+        <p id="import-result" class="xb-import-result" role="status" hidden></p>
+        <!-- Shown only after a duplicate verdict. An import interrupted partway
+             through reports as a duplicate for ever after, and without this the
+             half-imported conversation is stuck with nothing to say so. Forcing
+             completes it rather than doubling it - the server dedupes at turn
+             level, so the re-send is an upsert. -->
+        <button type="button" id="btn-import-force" class="xb-btn xb-btn-block" hidden>
+          Re-import anyway
+        </button>
+
+        <!--
+          THE iPHONE ROUTE, and an honest description of what it is.
+
+          Safari does not implement share_target - it has the Web Share API for
+          sharing OUT, not for receiving - so this app cannot join the iOS share
+          sheet itself, and saying otherwise would be a promise the browser
+          cannot keep. Apple's Shortcuts app can: a shortcut accepts Share Sheet
+          input and posts it. The cost is a one-time setup, which is what this
+          block is.
+
+          Shown automatically on an iPhone or iPad; reachable on anything else
+          through the button below it, because people set their phone up from a
+          laptop.
+        -->
+        <button type="button" id="btn-import-shortcut-show" class="xb-import-link" hidden>
+          Set this up for an iPhone
+        </button>
+
+        <section id="import-shortcut" class="xb-import-shortcut" hidden
+                 aria-labelledby="import-shortcut-title">
+          <h3 id="import-shortcut-title" class="xb-import-shortcut-title">Add xbrain to the iPhone share sheet</h3>
+          <p class="xb-hint">
+            iOS does not let a web app join the share sheet. Apple's Shortcuts app can:
+            this is a one-time setup that adds "Save to xbrain" to the sheet, so sharing
+            a conversation from ChatGPT sends it straight to your team.
+          </p>
+
+          <ol class="xb-import-steps">
+            <li id="import-step-token">
+              Start with the credential the shortcut will carry. It is an import token,
+              not your account token: it can do one thing - import into this team - and
+              cannot read the chat, the brain or your account.
+              <span class="xb-import-value-row">
+                <button type="button" id="btn-import-token" class="xb-btn xb-btn-primary">Create import token</button>
+              </span>
+              <span id="import-token-row" class="xb-import-value-row" hidden>
+                <code id="import-token-value" class="xb-import-value"></code>
+                <button type="button" id="btn-import-token-copy" class="xb-btn xb-btn-primary">Copy token</button>
+              </span>
+              <span class="xb-hint">
+                <strong>Shown once.</strong> Copy it now. If you leave without it, press the
+                button again for a new one - the one you lost keeps working until you revoke it.
+              </span>
+              <span id="import-shortcut-status" hidden></span>
+            </li>
+            <li>Open <strong>Shortcuts</strong>, tap <strong>+</strong>, then the
+                <strong>(i)</strong> button and turn on <strong>Show in Share Sheet</strong>.</li>
+            <li>Under <strong>Receive</strong>, choose <strong>Text</strong> and
+                <strong>URLs</strong> from the share sheet.</li>
+            <li>Add the action <strong>Get Contents of URL</strong> and expand it with the arrow.</li>
+            <li>
+              Set the <strong>URL</strong> to:
+              <span class="xb-import-value-row">
+                <code id="import-endpoint" class="xb-import-value"></code>
+                <button type="button" class="xb-btn" data-xb-copy="import-endpoint">Copy</button>
+              </span>
+            </li>
+            <li>Set <strong>Method</strong> to <strong>POST</strong>.</li>
+            <li>
+              Add three <strong>Headers</strong> - the first one takes the token from step 1:
+              <span class="xb-import-value-row">
+                <code id="import-header-auth" class="xb-import-value"></code>
+                <button type="button" class="xb-btn" data-xb-copy="import-header-auth">Copy</button>
+              </span>
+              <span class="xb-import-value-row">
+                <code id="import-header-team" class="xb-import-value"></code>
+                <button type="button" class="xb-btn" data-xb-copy="import-header-team">Copy</button>
+              </span>
+              <span class="xb-import-value-row">
+                <code id="import-header-type" class="xb-import-value"></code>
+                <button type="button" class="xb-btn" data-xb-copy="import-header-type">Copy</button>
+              </span>
+              <span class="xb-hint">The team is the one selected above. Change that value to point the shortcut at another team.</span>
+            </li>
+            <li>
+              Set <strong>Request Body</strong> to <strong>File</strong>, and drop the
+              <strong>Shortcut Input</strong> variable into it. The shared conversation
+              IS the body - there is no JSON to build.
+            </li>
+            <li>Name it <strong>Save to xbrain</strong>. Sharing from ChatGPT now offers it.</li>
+          </ol>
+          <p class="xb-hint">
+            One thing it cannot do: a bare share link. The server will not open a link on
+            your behalf, so share the conversation's <strong>text</strong> - copy it in
+            ChatGPT and share that.
+          </p>
+        </section>
       </div>
     </div>
   </div>
