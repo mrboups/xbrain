@@ -348,10 +348,18 @@
 
         <!-- Progress and failure. -->
         <div id="import-status" hidden></div>
-        <!-- ...and what actually landed: how many turns were written and how
-             many were skipped because they were already there. Without the
-             second number, a re-import and a no-op look the same. -->
+        <!-- ...and what actually landed: how many conversations and turns were
+             written and how many were skipped because they were already there.
+             Without the second number, a re-import and a no-op look the same. -->
         <p id="import-result" class="xb-import-result" role="status" hidden></p>
+        <!-- Shown only after a duplicate verdict. An import interrupted partway
+             through reports as a duplicate for ever after, and without this the
+             half-imported conversation is stuck with nothing to say so. Forcing
+             completes it rather than doubling it - the server dedupes at turn
+             level, so the re-send is an upsert. -->
+        <button type="button" id="btn-import-force" class="xb-btn xb-btn-block" hidden>
+          Re-import anyway
+        </button>
 
         <!--
           THE iPHONE ROUTE, and an honest description of what it is.

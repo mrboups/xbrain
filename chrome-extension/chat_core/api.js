@@ -168,13 +168,14 @@ export function createApi({ baseUrl, getToken } = {}) {
     // team. Collapsing those into one thrown sentence leaves every one of them
     // reading "could not import".
     //
-    // @param {string} teamSlug         an import lands in ONE team; guessing is wrong
-    // @param {{format: string, content: string}} payload
-    importTranscriptRaw: (teamSlug, { format, content } = {}) =>
+    // @param {string} teamSlug an import lands in ONE team; guessing is wrong
+    // @param {{format: string, content: string, projectScope?: string|null,
+    //          force?: boolean}} payload
+    importTranscriptRaw: (teamSlug, { format, content, projectScope, force } = {}) =>
       rawFetch(IMPORT_TRANSCRIPT_PATH, {
         method: "POST",
         headers: { [IMPORT_TEAM_HEADER]: teamSlug },
-        body: importTranscriptBody({ format, content }),
+        body: importTranscriptBody({ format, content, projectScope, force }),
       }),
 
     // The credential the iOS Shortcut carries, minted on request and returned in
@@ -314,23 +315,37 @@ export function importTranscriptTextPath(format = IMPORT_FORMAT_AUTO) {
 export const IMPORT_TEXT_CONTENT_TYPE = "text/plain";
 
 /**
- * The client-side ceiling on a transcript, checked BEFORE the file is read.
+ * The transcript ceiling, mirrored from the server's own 413 threshold, and
+ * checked BEFORE the file is read.
  *
  * A full ChatGPT export is tens of megabytes; reading one into a string on a
- * phone is how the tab gets killed with no message at all. This number is a
- * guess at the server's own limit and is deliberately the stricter guess — it
- * is a courtesy check, not the enforcement.
+ * phone is how the tab gets killed with no message at all. Refusing on
+ * `file.size` costs nothing and explains itself; a 413 after a minute of upload
+ * does neither. It is NOT the enforcement — the server's copy is.
  */
-export const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
+export const MAX_IMPORT_BYTES = 25 * 1024 * 1024;
 
 /**
  * The request body, in one place.
  *
- * @param {{format: string, content: string}} payload
- * @returns {{format: string, content: string}}
+ * `project_scope` is sent explicitly rather than omitted: it is part of the
+ * tagging contract every stored item carries, and a field that only ever
+ * appears by default is a field nobody remembers exists.
+ *
+ * `force` completes a half-finished import. It is safe to repeat — the server
+ * dedupes at turn level, so this is an upsert and not a second copy — and it is
+ * the only way out of a conversation that was interrupted partway through.
+ *
+ * @param {{format: string, content: string, projectScope?: string|null, force?: boolean}} payload
+ * @returns {{format: string, content: string, project_scope: string|null, force: boolean}}
  */
-export function importTranscriptBody({ format, content } = {}) {
-  return { format, content };
+export function importTranscriptBody({
+  format,
+  content,
+  projectScope = null,
+  force = false,
+} = {}) {
+  return { format, content, project_scope: projectScope, force: Boolean(force) };
 }
 
 /** First numeric value among `keys`, or null when the body names none of them. */
@@ -343,44 +358,75 @@ function firstCount(data, keys) {
 }
 
 /**
- * Read the import response tolerantly.
+ * Read the 202 an import answers with.
  *
- * TWO NUMBERS MATTER AND BOTH MUST SURVIVE: what was written, and what was
- * skipped because it was already there. Without the second one, "nothing
- * happened" and "you already imported this" are the same blank screen, and the
- * person imports it a third time.
+ * The server reports per-conversation verdicts plus a `totals` block:
  *
- * Several plausible field names are accepted for each because the server half
- * has not settled on one yet. That costs nothing and removes a whole class of
- * silent zero. `reported` is the honest flag: false means the server said
- * nothing countable, which is NOT the same as zero.
+ *   {status, format, team_scope, truth_level, truncated,
+ *    conversations: [{dedupe_key, status, turns, queued, import_id, title}],
+ *    totals: {conversations, imported, duplicates, over_limit, turns, queued}}
+ *
+ * WHAT MUST SURVIVE THE READ: what was written, and what was skipped because it
+ * was already there. Without the second number, "nothing happened" and "you
+ * already imported this" are the same blank screen, and the person imports it a
+ * third time. `over_limit` and `truncated` join them for the same reason — a
+ * conversation silently dropped for being too long is worse than one refused
+ * out loud.
+ *
+ * Totals are read first and the top level second, so a server that flattens the
+ * shape later still reports rather than falling silent. `reported` is the
+ * honest flag: false means nothing countable came back, which is NOT zero.
  *
  * @param {any} body the parsed JSON response
- * @returns {{imported: number|null, skipped: number|null, conversations: number|null, reported: boolean}}
+ * @returns {{status: string|null, conversations: number|null, imported: number|null,
+ *            duplicates: number|null, overLimit: number|null, turns: number|null,
+ *            queued: number|null, truncated: boolean, reported: boolean}}
  */
 export function summarizeImport(body) {
   const data = body && typeof body === "object" ? body : {};
-  const imported = firstCount(data, [
-    "imported",
-    "imported_turns",
-    "turns_imported",
-    "messages_imported",
-  ]);
-  const skipped = firstCount(data, [
-    "skipped",
-    "skipped_duplicates",
-    "duplicates_skipped",
-    "duplicates",
-  ]);
-  const conversations = firstCount(data, [
-    "conversations",
-    "conversations_imported",
-    "imported_conversations",
-  ]);
-  return {
-    imported,
-    skipped,
-    conversations,
-    reported: imported !== null || skipped !== null,
+  const totals = data.totals && typeof data.totals === "object" ? data.totals : {};
+  const pick = (keys) => {
+    const inTotals = firstCount(totals, keys);
+    return inTotals === null ? firstCount(data, keys) : inTotals;
   };
+
+  const conversations = pick(["conversations"]);
+  const imported = pick(["imported", "imported_conversations", "conversations_imported"]);
+  const duplicates = pick(["duplicates", "skipped_duplicates", "skipped"]);
+  const overLimit = pick(["over_limit", "over_limit_conversations"]);
+  const turns = pick(["turns", "imported_turns", "turns_imported"]);
+  const queued = pick(["queued"]);
+
+  return {
+    status: typeof data.status === "string" ? data.status : null,
+    conversations,
+    imported,
+    duplicates,
+    overLimit,
+    turns,
+    queued,
+    truncated: data.truncated === true,
+    reported:
+      imported !== null ||
+      duplicates !== null ||
+      turns !== null ||
+      conversations !== null,
+  };
+}
+
+/**
+ * Did the server refuse this as something it already holds?
+ *
+ * Separate from the counts because it drives a control, not a sentence: a
+ * duplicate verdict is the one outcome with a next step (re-import with
+ * `force`), and a conversation interrupted halfway through is otherwise stuck
+ * looking exactly like one that imported cleanly.
+ *
+ * @param {{status: string|null, imported: number|null, duplicates: number|null}} summary
+ * @returns {boolean}
+ */
+export function isDuplicateImport(summary) {
+  if (!summary) return false;
+  if (summary.status === "duplicate") return true;
+  return (summary.duplicates || 0) > 0;
 }

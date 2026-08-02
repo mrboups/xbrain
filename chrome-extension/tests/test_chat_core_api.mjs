@@ -34,6 +34,7 @@ import {
   MAX_IMPORT_BYTES,
   importTranscriptBody,
   importTranscriptTextPath,
+  isDuplicateImport,
   summarizeImport,
 } from "../../packages/chat-core/api.js";
 import { assertPlatform } from "../../packages/chat-core/platform.js";
@@ -268,6 +269,8 @@ await test("importTranscriptRaw posts the declared body to the declared path", a
       assert.deepEqual(JSON.parse(calls[0].init.body), {
         format: "claude-code",
         content: '{"type":"user"}',
+        project_scope: null,
+        force: false,
       });
     },
   );
@@ -283,27 +286,51 @@ await test("the team rides in the scope HEADER, never in the body", async () => 
       const body = JSON.parse(calls[0].init.body);
       assert.deepEqual(
         Object.keys(body).sort(),
-        ["content", "format"],
-        "two fields and no more — a team named in two places is a team that can disagree with itself",
+        ["content", "force", "format", "project_scope"],
+        "the declared fields and no more",
+      );
+      for (const key of ["team", "team_scope", "team_slug"]) {
+        assert.equal(
+          key in body,
+          false,
+          `the team must not appear in the body as "${key}" — a team named in two places is a team that can disagree with itself`,
+        );
+      }
+    },
+  );
+});
+
+await test("force is sent explicitly, and defaults to off", async () => {
+  await withFetch(
+    () => fakeResponse({ status: 202, body: "{}" }),
+    async (calls) => {
+      const api = createApi({ baseUrl: BASE, getToken: async () => "t" });
+      await api.importTranscriptRaw("acme", { format: "auto", content: "x" });
+      await api.importTranscriptRaw("acme", { format: "auto", content: "x", force: true });
+      assert.equal(JSON.parse(calls[0].init.body).force, false);
+      assert.equal(
+        JSON.parse(calls[1].init.body).force,
+        true,
+        "forcing completes a half-finished import; it is an upsert, not a second copy",
       );
     },
   );
 });
 
 await test("the import body shape is declared once and reused", () => {
-  // The Shortcut setup screen prints this object for a person to retype into
-  // the Shortcuts app. If it built its own literal, the screen would keep
-  // teaching the old shape long after the request changed.
   assert.deepEqual(importTranscriptBody({ format: "chatgpt", content: "hi" }), {
     format: "chatgpt",
     content: "hi",
+    project_scope: null,
+    force: false,
   });
   assert.deepEqual(IMPORT_FORMATS, ["claude-code", "chatgpt"]);
   assert.equal(IMPORT_TRANSCRIPT_PATH.startsWith("/v1/"), true);
   assert.equal(IMPORT_TOKEN_PATH.startsWith("/v1/"), true);
-  assert.ok(
-    MAX_IMPORT_BYTES > 1024 * 1024 && MAX_IMPORT_BYTES <= 25 * 1024 * 1024,
-    "the transcript ceiling must be a real number of megabytes, and no larger than the media one",
+  assert.equal(
+    MAX_IMPORT_BYTES,
+    25 * 1024 * 1024,
+    "the client ceiling must be the server's own 413 threshold - a stricter one refuses files the server would take, a looser one wastes an upload",
   );
 });
 
@@ -343,24 +370,72 @@ await test("the raw-text path carries the format in the query", () => {
   );
 });
 
-await test("summarizeImport surfaces BOTH numbers, under any of their names", () => {
-  assert.deepEqual(summarizeImport({ imported: 12, skipped: 3 }), {
-    imported: 12,
-    skipped: 3,
-    conversations: null,
-    reported: true,
+/** The 202 the route actually answers with. */
+const IMPORT_202 = {
+  status: "accepted",
+  format: "chatgpt",
+  team_scope: "team-a",
+  truth_level: "WORKING",
+  conversations: [
+    {
+      dedupe_key: "chatgpt:conv-abc",
+      status: "imported",
+      turns: 42,
+      queued: 42,
+      import_id: "imp-1",
+      title: "A conversation",
+    },
+  ],
+  totals: { conversations: 1, imported: 1, duplicates: 0, over_limit: 0, turns: 42, queued: 42 },
+  truncated: false,
+};
+
+await test("summarizeImport reads the totals block the route returns", () => {
+  const summary = summarizeImport(IMPORT_202);
+  assert.equal(summary.status, "accepted");
+  assert.equal(summary.imported, 1, "conversations imported");
+  assert.equal(summary.turns, 42, "and the turns inside them - one long conversation is not one short one");
+  assert.equal(summary.duplicates, 0);
+  assert.equal(summary.overLimit, 0);
+  assert.equal(summary.conversations, 1);
+  assert.equal(summary.truncated, false);
+  assert.equal(summary.reported, true);
+  // `conversations` at the top level is an ARRAY of verdicts, not a count - it
+  // must not be mistaken for one.
+  assert.equal(typeof summary.conversations, "number");
+});
+
+await test("summarizeImport surfaces the duplicate verdict and what was dropped", () => {
+  const dupe = summarizeImport({
+    ...IMPORT_202,
+    status: "duplicate",
+    totals: { conversations: 1, imported: 0, duplicates: 1, over_limit: 0, turns: 42, queued: 0 },
   });
-  // The same two facts under the other names the server half might settle on.
-  assert.deepEqual(
-    summarizeImport({ imported_turns: 12, skipped_duplicates: 3, conversations: 1 }),
-    { imported: 12, skipped: 3, conversations: 1, reported: true },
-  );
+  assert.equal(dupe.duplicates, 1);
+  assert.equal(isDuplicateImport(dupe), true, "a duplicate is the one outcome with a next step");
+  assert.equal(isDuplicateImport(summarizeImport(IMPORT_202)), false);
+
+  const dropped = summarizeImport({
+    totals: { conversations: 3, imported: 2, duplicates: 0, over_limit: 1, turns: 10, queued: 10 },
+    truncated: true,
+  });
+  assert.equal(dropped.overLimit, 1, "a conversation dropped for length is silent data loss unless it is reported");
+  assert.equal(dropped.truncated, true);
+});
+
+await test("summarizeImport still reads a flattened body", () => {
+  // A server that drops the totals block later must not make this fall silent.
+  const flat = summarizeImport({ imported: 12, duplicates: 3, turns: 100 });
+  assert.equal(flat.imported, 12);
+  assert.equal(flat.duplicates, 3);
+  assert.equal(flat.turns, 100);
+  assert.equal(flat.reported, true);
 });
 
 await test("summarizeImport tells 'zero' apart from 'the server said nothing'", () => {
   // These two look identical to a person unless the UI is told which is which:
   // one is an empty transcript, the other is a response we could not read.
-  const zero = summarizeImport({ imported: 0, skipped: 0 });
+  const zero = summarizeImport({ totals: { imported: 0, duplicates: 0 } });
   assert.equal(zero.reported, true, "0 and 0 is an ANSWER");
   for (const body of [null, undefined, {}, "nope", 7]) {
     assert.equal(
@@ -369,8 +444,8 @@ await test("summarizeImport tells 'zero' apart from 'the server said nothing'", 
       `a body of ${JSON.stringify(body)} reports nothing countable, which is not the same as zero`,
     );
   }
-  assert.equal(summarizeImport({ skipped: 4 }).imported, null);
-  assert.equal(summarizeImport({ skipped: 4 }).reported, true);
+  assert.equal(summarizeImport({ totals: { duplicates: 4 } }).imported, null);
+  assert.equal(summarizeImport({ totals: { duplicates: 4 } }).reported, true);
 });
 
 // ---- createApi guards ----

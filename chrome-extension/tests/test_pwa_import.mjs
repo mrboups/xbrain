@@ -193,25 +193,50 @@ test("an ambiguous file is reported as unknown, not guessed", () => {
   assert.equal(mod.detectTranscriptFormat(null), null);
 });
 
-test("a ChatGPT share link reads as ChatGPT, and a lookalike host does not", () => {
-  // This is what an Android share from the ChatGPT app actually delivers.
+test("a bare link is recognised as a link, and refused before it is sent", () => {
+  // This is what an Android share from the ChatGPT app usually delivers, and
+  // the server answers it with a 400 ON PURPOSE: a service that fetches a
+  // user-supplied URL can be pointed at the cloud metadata address, which on
+  // the deployment VM hands out service-account credentials. So it is refused
+  // here too, one moment earlier and with the same answer.
   for (const url of [
     "https://chatgpt.com/share/68000000-0000-4000-8000-000000000000",
     "https://chat.openai.com/share/abc123",
+    "http://example.test/anything",
   ]) {
-    assert.equal(mod.detectTranscriptFormat(url), "chatgpt", url);
-  }
-  for (const url of [
-    "https://chatgpt.com.evil.test/share/x",
-    "http://chatgpt.com/share/x",
-    "https://notchatgpt.com/share/x",
-  ]) {
+    assert.equal(mod.isBareShareLink(url), true, url);
     assert.equal(
       mod.detectTranscriptFormat(url),
       null,
-      `${url} must not pass as a ChatGPT link - the host is parsed, not pattern-matched`,
+      "a link has no format - it is not a transcript at all",
     );
   }
+  for (const notALink of [
+    "look at https://chatgpt.com/share/x",
+    "just some text",
+    '{"type":"user"}',
+    "",
+    "   ",
+  ]) {
+    assert.equal(
+      mod.isBareShareLink(notALink),
+      false,
+      `${JSON.stringify(notALink)} is content, not a bare link - refusing it would block a real import`,
+    );
+  }
+  const code = stripComments(importSrc);
+  assert.ok(
+    /isBareShareLink\(armed\.content\)/.test(code),
+    "the refusal must be wired to what is armed, not merely exported",
+  );
+  assert.ok(
+    /sendBtn\.disabled = !armed\.content \|\| bareLink/.test(code),
+    "and it must disable Import - a send we know will 400 is a round trip that teaches nothing",
+  );
+  assert.ok(
+    !/fetch\(|XMLHttpRequest/.test(code),
+    "and the client must not fetch the link either - the same reasoning applies on this side",
+  );
 });
 
 // ---- 2. The size gate runs BEFORE the read ------------------------------
@@ -222,13 +247,18 @@ test("an oversize transcript is refused, with a number and a way forward", () =>
   assert.ok(refusal, "60 MB must be refused");
   assert.match(refusal, /conversations\.json/, "name the file - a person has several");
   assert.match(refusal, /\b60 MB\b/, "say how big it actually is");
-  assert.match(refusal, /\b10 MB\b/, "and what the limit is");
+  assert.match(refusal, /\b25 MB\b/, "and what the limit is - the server's own 413 threshold");
   assert.match(
     refusal,
     /single conversation/i,
     "a refusal with no way forward is a dead end - a whole export is not the only option",
   );
   assert.equal(mod.importSizeRefusal(1024, "small.jsonl"), null, "1 KB is fine");
+  assert.equal(
+    mod.importSizeRefusal(24 * 1024 * 1024, "big.json"),
+    null,
+    "under the server's ceiling must not be refused here - a stricter client limit rejects files the server would take",
+  );
   assert.equal(mod.importSizeRefusal(0, "empty.jsonl") === null, false, "0 bytes is not importable");
 });
 
@@ -271,32 +301,104 @@ test("the file is never poured into the paste box", () => {
 
 test("the result distinguishes imported, skipped, nothing, and no answer", () => {
   assert.equal(
-    mod.describeImportResult({ imported: 12, skipped: 0, reported: true }),
-    "Imported 12 turns.",
+    mod.describeImportResult({ imported: 1, turns: 42, reported: true }),
+    "Imported 1 conversation, 42 turns.",
+    "both counts - one conversation of four hundred turns and one of two are the same sentence otherwise",
   );
-  assert.equal(
-    mod.describeImportResult({ imported: 1, skipped: 0, reported: true }),
-    "Imported 1 turn.",
+  assert.match(
+    mod.describeImportResult({ imported: 1, turns: 1, reported: true }),
+    /1 conversation, 1 turn\./,
     "singular, so no sentence has to hedge with (s)",
   );
-  const both = mod.describeImportResult({ imported: 12, skipped: 3, reported: true });
-  assert.match(both, /12 turns/);
-  assert.match(both, /3 turns/, "the skipped count is the evidence a re-import did not double the brain");
+  const both = mod.describeImportResult({ imported: 2, duplicates: 3, turns: 80, reported: true });
+  assert.match(both, /Imported 2 conversations/);
+  assert.match(
+    both,
+    /3 conversations skipped as already imported/,
+    "the skipped count is the evidence a re-import did not double the brain",
+  );
 
-  const allDupes = mod.describeImportResult({ imported: 0, skipped: 9, reported: true });
+  const allDupes = mod.describeImportResult({ imported: 0, duplicates: 9, reported: true });
   assert.match(allDupes, /already/i, "'you already imported this' must not read as a failure");
-  assert.match(allDupes, /\b9 turns\b/);
+  assert.match(allDupes, /\b9 conversations\b/);
 
-  const empty = mod.describeImportResult({ imported: 0, skipped: 0, reported: true });
+  const empty = mod.describeImportResult({ imported: 0, duplicates: 0, reported: true });
   assert.match(empty, /Nothing was imported/i);
 
-  const silent = mod.describeImportResult({ imported: null, skipped: null, reported: false });
+  const silent = mod.describeImportResult({ imported: null, duplicates: null, reported: false });
   assert.match(
     silent,
     /reported no counts/i,
     "a server that said nothing countable must not be reported as zero - they are different facts",
   );
   assert.notEqual(silent, empty);
+});
+
+test("silent data loss is said out loud", () => {
+  const dropped = mod.describeImportResult({ imported: 2, overLimit: 1, turns: 30, reported: true });
+  assert.match(
+    dropped,
+    /too long and was not imported/i,
+    "a conversation the server refused for length must be reported, or two of three imports look like three",
+  );
+  const cut = mod.describeImportResult({ imported: 5, turns: 200, truncated: true, reported: true });
+  assert.match(
+    cut,
+    /only the start of it was taken/i,
+    "a file cut short is missing history nobody would know to look for",
+  );
+});
+
+test("a duplicate verdict offers the way through", () => {
+  // An import interrupted partway through reports as a duplicate for ever
+  // after. Without force, that conversation is stuck half-imported.
+  assert.ok(HTML.includes('id="btn-import-force"'), "index.html must carry the re-import control");
+  const forceBtn = /<button[^>]*id="btn-import-force"[\s\S]*?<\/button>/.exec(HTML)[0];
+  assert.match(forceBtn, /\bhidden\b/, "it must be hidden until there is a duplicate to act on");
+  assert.match(
+    forceBtn.replace(/<[^>]*>/g, " "),
+    /Re-import anyway/i,
+    "the label must say what it does",
+  );
+  const code = stripComments(importSrc);
+  const send = braceBlock(code, code.indexOf("async function sendImport"));
+  assert.ok(
+    /isDuplicateImport\(summary\)/.test(send),
+    "the verdict comes from the shared reader, not from re-deriving it here",
+  );
+  assert.ok(
+    /forceBtn\.hidden = false/.test(send),
+    "the control appears only after a duplicate verdict",
+  );
+  assert.ok(
+    /force: Boolean\(force\)/.test(send),
+    "and the re-send must actually carry force",
+  );
+  assert.ok(
+    /lastSent = payload/.test(send),
+    "what was sent has to survive the answer, or there is nothing to retry",
+  );
+});
+
+test("every server rejection gets its own sentence", () => {
+  const code = stripComments(importSrc);
+  const fn = braceBlock(code, code.indexOf("async function importError"));
+  assert.ok(fn, "import.js must map statuses to copy");
+  for (const status of ["400", "401", "403", "404", "413"]) {
+    assert.ok(
+      fn.includes(`=== ${status}`),
+      `HTTP ${status} means something specific to the person holding the file and must not fall into the generic line`,
+    );
+  }
+  assert.ok(
+    /serverDetail\(res\)/.test(fn),
+    "a 400 covers an unreadable file, a bare link and an empty body - only the server knows which, so its own sentence is preferred",
+  );
+  const detail = braceBlock(code, code.indexOf("async function serverDetail"));
+  assert.ok(
+    /body\.detail/.test(detail) && /Array\.isArray\(detail\)/.test(detail),
+    "it must read both the plain string and the validation-error list shapes",
+  );
 });
 
 // ---- 4. One place talks to the server -----------------------------------
@@ -436,13 +538,17 @@ test("the team is chosen, never assumed", () => {
     "the team comes first - it is the one choice a second press cannot undo",
   );
   const code = stripComments(importSrc);
-  assert.ok(
-    /importTranscriptRaw\(\s*slug\b/.test(code),
-    "the chosen slug is what is sent, not the active team read at mount",
-  );
   const send = braceBlock(code, code.indexOf("async function sendImport"));
   assert.ok(
-    /if \(!armed\.content \|\| !format \|\| !slug\) return;/.test(send),
+    /importTranscriptRaw\(payload\.slug\b/.test(send),
+    "the chosen slug is what is sent, not the active team read at mount",
+  );
+  assert.ok(
+    /slug: chooser && chooser\.value/.test(send),
+    "and that slug comes from the chooser at the moment of sending",
+  );
+  assert.ok(
+    /if \(!payload\.content \|\| !payload\.format \|\| !payload\.slug\) return;/.test(send),
     "no team, no format or no content must stop the send outright",
   );
 });
@@ -463,20 +569,25 @@ test("both doors exist, and the drop zone actually accepts a drop", () => {
   assert.ok(/addEventListener\("drop"/.test(code), "and a drop handler to read it");
 });
 
-test("the format chooser can override the detection", () => {
+test("auto is the default, and the chooser is the override", () => {
   const chooser = /<select[^>]*id="import-format"[\s\S]*?<\/select>/.exec(HTML);
   assert.ok(chooser, "index.html must declare #import-format");
   const values = [...chooser[0].matchAll(/value="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(
     values,
     ["auto", "claude-code", "chatgpt"],
-    "detection plus BOTH formats by name - a detection with no override is a guess a person cannot correct",
+    "auto first, then BOTH formats by name - a detection with no override is a guess a person cannot correct",
   );
   const code = stripComments(importSrc);
   const chosen = braceBlock(code, code.indexOf("function chosenFormat"));
   assert.ok(
-    /value !== "auto"/.test(chosen),
-    "an explicit choice must beat the detection",
+    /IMPORT_FORMAT_AUTO/.test(chosen),
+    "auto is a real value the server accepts, sent as such - its detection is the same code that parses the file, which no client-side guess can match",
+  );
+  const refresh = braceBlock(code, code.indexOf("function refreshArmed"));
+  assert.ok(
+    !/!format/.test(refresh),
+    "an undetected format must NOT block the send any more - the server works it out",
   );
 });
 
@@ -598,12 +709,18 @@ test("a share is NEVER imported on arrival", () => {
   const sendCalls = [...code.matchAll(/(?:^|[^.\w$])sendImport\s*\(/g)]
     .map((m) => m.index)
     .filter((i) => !/function\s+$/.test(code.slice(Math.max(0, i - 24), i + 1)));
-  assert.equal(sendCalls.length, 1, "sendImport must be called from exactly one place");
-  const clickAt = code.lastIndexOf('addEventListener("click"', sendCalls[0]);
-  assert.ok(
-    clickAt > 0 && sendCalls[0] - clickAt < 120,
-    "the one call must sit inside a click listener - reachable by a press and by nothing else",
+  assert.equal(
+    sendCalls.length,
+    2,
+    `sendImport must be called from exactly two places - Import and Re-import anyway; found ${sendCalls.length}`,
   );
+  for (const at of sendCalls) {
+    const clickAt = code.lastIndexOf('addEventListener("click"', at);
+    assert.ok(
+      clickAt > 0 && at - clickAt < 120,
+      "every call must sit inside a click listener - reachable by a press and by nothing else",
+    );
+  }
   const consume = braceBlock(code, code.indexOf("function consumeShare"));
   assert.ok(consume, "import.js must handle the arrival in consumeShare");
   assert.ok(

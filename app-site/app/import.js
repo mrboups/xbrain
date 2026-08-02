@@ -39,10 +39,12 @@
 
 import { setStatusLine, clearChildren } from "./chat_core/dom.js";
 import {
+  IMPORT_FORMAT_AUTO,
   IMPORT_TEAM_HEADER,
   IMPORT_TEXT_CONTENT_TYPE,
   MAX_IMPORT_BYTES,
   importTranscriptTextPath,
+  isDuplicateImport,
   summarizeImport,
 } from "./chat_core/api.js";
 import { MEMORY_API_BASE } from "./auth.js";
@@ -94,22 +96,23 @@ function isJsonObjectText(line) {
 
 /**
  * Which of the two formats this content looks like, or null when it is not
- * clear enough to guess.
+ * clear enough to say.
  *
- * WHY NULL IS A FIRST-CLASS ANSWER. A wrong guess that is presented as fact
- * sends a file to the wrong parser and produces a 422 the person cannot act on.
- * An honest "we could not tell" costs one tap on a chooser that is right there.
+ * ADVISORY ONLY, and deliberately so. The server works the format out with the
+ * SAME code that parses the file, which is a guarantee no client-side guess can
+ * offer, and `auto` is what gets sent unless a person overrides it. This exists
+ * to tell them what they are about to send BEFORE they send it — "this looks
+ * like a Claude Code session" is the difference between a considered press and
+ * a hopeful one — and to keep the override honest by pre-selecting nothing when
+ * it cannot tell.
  *
  * The order matters:
- *   1. a bare share link from the ChatGPT app — the single most common thing an
- *      Android share delivers, and the one case where the content is not a
- *      transcript at all;
- *   2. one JSON object per line, checked on a SAMPLE of the head — Claude Code;
- *   3. a JSON document mentioning `mapping` — the ChatGPT export's conversation
- *      tree. Checked after (2) because a Claude Code entry can quote anything,
+ *   1. one JSON object per line, checked on a SAMPLE of the head — Claude Code;
+ *   2. a JSON document mentioning `mapping` — the ChatGPT export's conversation
+ *      tree. Checked after (1) because a Claude Code entry can quote anything,
  *      including that word, inside a tool result;
- *   4. a single JSON object carrying Claude Code's own keys — a one-entry
- *      session, which (2) cannot see because it needs two lines to be sure.
+ *   3. a single JSON object carrying Claude Code's own keys — a one-entry
+ *      session, which (1) cannot see because it needs two lines to be sure.
  *
  * @param {string} text
  * @returns {"claude-code"|"chatgpt"|null}
@@ -117,8 +120,6 @@ function isJsonObjectText(line) {
 export function detectTranscriptFormat(text) {
   const trimmed = String(text || "").trim();
   if (!trimmed) return null;
-
-  if (looksLikeSharedChatUrl(trimmed)) return "chatgpt";
 
   const lines = headLines(trimmed, 5);
   if (lines.length >= 2 && lines.every(isJsonObjectText)) return "claude-code";
@@ -137,29 +138,34 @@ export function detectTranscriptFormat(text) {
 }
 
 /**
- * A single ChatGPT share link and nothing else.
+ * Is this a bare link rather than a conversation?
  *
- * Parsed rather than pattern-matched so `chatgpt.com.evil.test` cannot pass as
- * `chatgpt.com`, and so a paragraph that merely contains a link is not mistaken
- * for one.
+ * THE SERVER WILL NOT OPEN IT, and that is a security position, not an
+ * omission: a service that fetches a URL a user hands it can be pointed at the
+ * cloud metadata address, which on the deployment VM answers with
+ * service-account credentials. So a link is refused — by the server with a 400,
+ * and here a moment earlier, with a sentence that says what to do instead.
+ *
+ * Any link, not only a chat one: the person shared something, and "share the
+ * text instead" is the same answer whatever the host. `about:` and `data:` are
+ * excluded because a URL with no host is not what a share sheet produces and
+ * treating it as one would only confuse the message.
  *
  * @param {string} text
  * @returns {boolean}
  */
-function looksLikeSharedChatUrl(text) {
-  if (/\s/.test(text)) return false;
+export function isBareShareLink(text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed || /\s/.test(trimmed)) return false;
   let parsed;
   try {
-    parsed = new URL(text);
+    parsed = new URL(trimmed);
   } catch (e) {
     return false;
   }
-  if (parsed.protocol !== "https:") return false;
-  const host = parsed.hostname.toLowerCase();
   return (
-    host === "chatgpt.com" ||
-    host === "chat.openai.com" ||
-    host.endsWith(".chatgpt.com")
+    (parsed.protocol === "https:" || parsed.protocol === "http:") &&
+    Boolean(parsed.hostname)
   );
 }
 
@@ -235,34 +241,57 @@ function countLabel(n, noun) {
 /**
  * The sentence shown after a successful import.
  *
- * Four outcomes, and they are NOT interchangeable:
+ * Every branch below is an outcome somebody must be able to tell apart from the
+ * others, and none of them is interchangeable:
  *   - the server reported nothing countable — say so, do not invent a zero;
- *   - zero and zero — the transcript parsed but held nothing we recognised;
- *   - zero imported with skips — already in the brain, which is a SUCCESS and
- *     must not read like a failure;
- *   - anything imported — both numbers, because the skipped ones are the
- *     evidence that a re-import did not double the brain.
+ *   - nothing at all — the transcript parsed but held nothing recognisable;
+ *   - nothing new, all duplicates — a SUCCESS, and it must not read like a
+ *     failure: it is the evidence that a re-import did not double the brain;
+ *   - something imported — conversations AND turns, because one conversation of
+ *     four hundred turns and one of two are otherwise the same sentence;
+ *   - conversations refused for being too long, and a file cut short — both are
+ *     silent data loss unless they are said out loud.
  *
- * @param {{imported: number|null, skipped: number|null, reported: boolean}} summary
+ * @param {{imported: number|null, duplicates: number|null, turns: number|null,
+ *          overLimit: number|null, truncated: boolean, reported: boolean}} summary
  * @returns {string}
  */
 export function describeImportResult(summary) {
-  const { imported, skipped, reported } = summary || {};
+  const { imported, duplicates, turns, overLimit, truncated, reported } = summary || {};
   if (!reported) {
     return "The server accepted the transcript but reported no counts. Check the team's brain before sending it again.";
   }
   const kept = imported || 0;
-  const dupes = skipped || 0;
-  if (kept === 0 && dupes === 0) {
-    return "Nothing was imported and nothing was skipped - this transcript held no turns the server recognised.";
+  const dupes = duplicates || 0;
+  const tooLong = overLimit || 0;
+  const parts = [];
+
+  if (kept > 0) {
+    parts.push(
+      turns
+        ? `Imported ${countLabel(kept, "conversation")}, ${countLabel(turns, "turn")}.`
+        : `Imported ${countLabel(kept, "conversation")}.`,
+    );
   }
-  if (kept === 0) {
-    return `Nothing new: all ${countLabel(dupes, "turn")} were already in this team's brain.`;
+  if (dupes > 0) {
+    parts.push(
+      kept > 0
+        ? `${countLabel(dupes, "conversation")} skipped as already imported.`
+        : `Nothing new: ${countLabel(dupes, "conversation")} already in this team's brain.`,
+    );
   }
-  if (dupes === 0) {
-    return `Imported ${countLabel(kept, "turn")}.`;
+  if (tooLong > 0) {
+    parts.push(`${countLabel(tooLong, "conversation")} was too long and was not imported.`);
   }
-  return `Imported ${countLabel(kept, "turn")}, and skipped ${countLabel(dupes, "turn")} already in this team's brain.`;
+  if (!parts.length) {
+    parts.push(
+      "Nothing was imported and nothing was skipped - this transcript held no conversations the server recognised.",
+    );
+  }
+  if (truncated) {
+    parts.push("The file was longer than one import can carry, so only the start of it was taken.");
+  }
+  return parts.join(" ");
 }
 
 /**
@@ -287,14 +316,55 @@ export function isShortcutPlatform(nav) {
   );
 }
 
-/** What the server's rejection means to the person holding the file. */
-function importError(status) {
-  if (status === 404) return "This server has no importer yet. Nothing was sent anywhere.";
-  if (status === 413) return `That transcript is too large for the server - keep it under ${MAX_IMPORT_MB} MB.`;
-  if (status === 415 || status === 422) {
-    return "The server could not read that transcript in the format you chose. Try the other format, or check you picked the right file.";
+/**
+ * The server's own explanation, when it sent one.
+ *
+ * A 400 covers three different mistakes — an unreadable file, a bare link, an
+ * empty body — and the server is the only thing that knows which. A guess
+ * printed over the top of it would replace the useful sentence with a vague one.
+ *
+ * @param {Response} res
+ * @returns {Promise<string|null>}
+ */
+async function serverDetail(res) {
+  const body = await res.json().catch(() => null);
+  const detail = body && body.detail;
+  if (typeof detail === "string" && detail.trim()) return detail.trim();
+  if (Array.isArray(detail)) {
+    const first = detail.find((d) => d && typeof d.msg === "string");
+    if (first) return first.msg;
   }
-  if (status === 403) return "You are not a member of that team.";
+  if (body && typeof body.message === "string" && body.message.trim()) {
+    return body.message.trim();
+  }
+  return null;
+}
+
+/**
+ * What the server's rejection means to the person holding the file.
+ *
+ * @param {Response} res
+ * @returns {Promise<string>}
+ */
+async function importError(res) {
+  const status = res.status;
+  const detail = await serverDetail(res);
+  if (status === 400) {
+    // The server names the actual problem - including the link case, which no
+    // generic sentence here could describe as usefully.
+    return detail || "The server could not read that transcript. Check you picked the right file.";
+  }
+  if (status === 401) return "Your session has expired - sign in again.";
+  if (status === 403) {
+    return detail || "You are not a member of that team, so nothing can be imported into it.";
+  }
+  if (status === 404) return "This server has no importer yet. Nothing was sent anywhere.";
+  if (status === 413) {
+    return `That transcript is over the ${MAX_IMPORT_MB} MB the server accepts - import one conversation at a time.`;
+  }
+  if (status === 415 || status === 422) {
+    return detail || "The server could not read that transcript in the format you chose. Try another format, or check the file.";
+  }
   if (status === 429) return "Too many imports just now - wait a moment and try again.";
   return `The import failed (HTTP ${status}).`;
 }
@@ -350,17 +420,23 @@ function readTextFile(file) {
   });
 }
 
-/** The format that will actually be declared: the chooser, or the detection. */
+/**
+ * The format to declare: whatever the chooser says, and `auto` when it is left
+ * alone.
+ *
+ * `auto` is a REAL value the server accepts, not an absence — its detection is
+ * the same code that parses the file, so it cannot disagree with the parser the
+ * way this file's guess can. The local detection only ever colours the note.
+ */
 function chosenFormat() {
   const chooser = el("import-format");
-  const value = chooser ? chooser.value : "auto";
-  if (value && value !== "auto") return value;
-  return armed.detected;
+  const value = chooser ? chooser.value : IMPORT_FORMAT_AUTO;
+  return value || IMPORT_FORMAT_AUTO;
 }
 
 /**
  * Repaint everything that depends on what is armed: the source line, the
- * detection note, and whether Import can be pressed at all.
+ * format note, and whether Import can be pressed at all.
  *
  * One function, called after every change, so the button's enabled state can
  * never disagree with what is actually loaded.
@@ -377,25 +453,35 @@ function refreshArmed() {
   }
 
   const format = chosenFormat();
+  // A link is not a transcript, and the server will not open one on anybody's
+  // behalf - a service that fetches a user-supplied URL can be pointed at the
+  // cloud metadata address. Refusing here, one moment before the server's own
+  // 400, is the same answer arriving sooner.
+  const bareLink = Boolean(armed.content) && isBareShareLink(armed.content);
+
   if (note) {
     if (!armed.content) {
       note.textContent = "";
       note.hidden = true;
-    } else if (format) {
+    } else if (bareLink) {
       note.textContent =
-        format === armed.detected
-          ? `Detected as ${formatLabel(format)}. Change it above if that is wrong.`
-          : `Sending as ${formatLabel(format)}.`;
+        "That is a link, not a conversation. Nothing here will open it for you - open it yourself, copy the text, and paste that.";
+      note.hidden = false;
+    } else if (format !== IMPORT_FORMAT_AUTO) {
+      note.textContent = `Sending as ${formatLabel(format)}.`;
+      note.hidden = false;
+    } else if (armed.detected) {
+      note.textContent = `This looks like ${formatLabel(armed.detected)}. The server confirms the format itself; choose one above only if it gets it wrong.`;
       note.hidden = false;
     } else {
       note.textContent =
-        "We could not tell which format this is. Pick one above before importing.";
+        "The server works the format out from the content. Choose one above if it gets it wrong.";
       note.hidden = false;
     }
   }
 
   const hasTeam = Boolean(teamChooser && teamChooser.value);
-  if (sendBtn) sendBtn.disabled = !armed.content || !format || !hasTeam;
+  if (sendBtn) sendBtn.disabled = !armed.content || bareLink || !hasTeam;
 }
 
 /** The format's name in the words the chooser uses. */
@@ -511,36 +597,56 @@ async function fillTeamChooser(api, getTeamSlug) {
 }
 
 /**
+ * What was last sent, kept ONLY so a duplicate verdict has something to retry.
+ *
+ * An import that was interrupted partway through comes back as a duplicate
+ * forever after, and without a way to force it that conversation is stuck
+ * half-imported with nothing on screen to say so. Forcing is safe — the server
+ * dedupes at turn level, so it completes rather than doubles.
+ */
+let lastSent = null;
+
+/**
  * Send it.
  *
  * The button is disabled for the whole round trip: a second press would import
  * the same transcript twice, and although the server's own dedupe should catch
  * that, "should" is not a thing to hand a person's history to.
+ *
+ * @param {Object} api
+ * @param {boolean} [force] complete a half-finished import (see lastSent)
  */
-async function sendImport(api) {
+async function sendImport(api, force) {
   const status = el("import-status");
   const result = el("import-result");
   const sendBtn = el("btn-import-send");
+  const forceBtn = el("btn-import-force");
   const chooser = el("import-team");
-  const format = chosenFormat();
-  const slug = chooser && chooser.value;
 
-  if (!armed.content || !format || !slug) return;
+  const payload = force && lastSent ? lastSent : {
+    slug: chooser && chooser.value,
+    format: chosenFormat(),
+    content: armed.content,
+  };
+  if (!payload.content || !payload.format || !payload.slug) return;
 
   if (result) {
     result.textContent = "";
     result.hidden = true;
   }
+  if (forceBtn) forceBtn.hidden = true;
   if (sendBtn) sendBtn.disabled = true;
-  setStatusLine(status, "Importing...", "loading");
+  if (forceBtn) forceBtn.disabled = true;
+  setStatusLine(status, force ? "Re-importing..." : "Importing...", "loading");
 
   try {
-    const res = await api.importTranscriptRaw(slug, {
-      format,
-      content: armed.content,
+    const res = await api.importTranscriptRaw(payload.slug, {
+      format: payload.format,
+      content: payload.content,
+      force: Boolean(force),
     });
     if (!res.ok) {
-      setStatusLine(status, importError(res.status), "error");
+      setStatusLine(status, await importError(res), "error");
       return;
     }
     const body = await res.json().catch(() => null);
@@ -550,8 +656,18 @@ async function sendImport(api) {
       result.textContent = describeImportResult(summary);
       result.hidden = false;
     }
-    // Disarmed on success: leaving it loaded invites the second press that
-    // sends the same thing again.
+
+    if (!force && isDuplicateImport(summary)) {
+      // Keep it, and offer the way through. The box is NOT cleared here: the
+      // person may also want to send it to a different team.
+      lastSent = payload;
+      if (forceBtn) forceBtn.hidden = false;
+      return;
+    }
+
+    // Disarmed on a clean import: leaving it loaded invites the second press
+    // that sends the same thing again.
+    lastSent = null;
     const paste = el("import-paste");
     if (paste) paste.value = "";
     disarmContent();
@@ -559,6 +675,7 @@ async function sendImport(api) {
     setStatusLine(status, "Network error - nothing was imported.", "error");
   } finally {
     if (sendBtn) sendBtn.disabled = false;
+    if (forceBtn) forceBtn.disabled = false;
     refreshArmed();
   }
 }
@@ -815,6 +932,9 @@ export function hideImport() {
     result.textContent = "";
     result.hidden = true;
   }
+  const forceBtn = el("btn-import-force");
+  if (forceBtn) forceBtn.hidden = true;
+  lastSent = null;
   setStatusLine(el("import-status"), "", "");
   clearMintedToken();
   disarmContent();
@@ -933,7 +1053,9 @@ export async function mountImport(api, refs = {}) {
     }
 
     const sendBtn = el("btn-import-send");
-    if (sendBtn) sendBtn.addEventListener("click", () => sendImport(api));
+    if (sendBtn) sendBtn.addEventListener("click", () => sendImport(api, false));
+    const forceBtn = el("btn-import-force");
+    if (forceBtn) forceBtn.addEventListener("click", () => sendImport(api, true));
 
     // Every "Copy" in the setup screen, through one delegated listener, so a
     // new value row needs no new wiring.
