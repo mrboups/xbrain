@@ -127,8 +127,14 @@ def test_the_provider_display_name_column_is_never_touched(monkeypatch):
         assert "display_name" not in statement, statement
 
 
-def test_the_revision_chain_has_one_head_and_0030_is_it():
-    """A branched migration tree is a deploy that stops with an unreadable error."""
+def test_the_revision_chain_has_one_head_and_0030_is_on_it():
+    """A branched migration tree is a deploy that stops with an unreadable error.
+
+    Deliberately NOT "0030 is the head": every later migration would have to
+    come back and edit this assertion, and an assertion that has to be edited
+    to stay green is one people edit without reading. The invariant that
+    actually matters is a SINGLE head, plus 0030 sitting where it says it sits.
+    """
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
@@ -138,8 +144,10 @@ def test_the_revision_chain_has_one_head_and_0030_is_it():
     script = ScriptDirectory.from_config(cfg)
 
     heads = list(script.get_heads())
-    assert heads == [MIGRATION_REVISION], f"expected a single head at 0030, got {heads}"
+    assert len(heads) == 1, f"expected a single migration head, got {heads}"
     assert script.get_revision(MIGRATION_REVISION).down_revision == PARENT_REVISION
+    ancestry = {r.revision for r in script.walk_revisions(base="base", head=heads[0])}
+    assert MIGRATION_REVISION in ancestry, "0030 is not on the chain leading to head"
 
 
 def test_the_orm_model_and_the_migration_agree_on_the_columns():
@@ -215,7 +223,9 @@ async def test_0030_applies_and_downgrades_cleanly_on_a_real_database(pg_url):
 
     try:
         # 1. Up to head: all four columns exist, all nullable.
-        await asyncio.to_thread(command.upgrade, cfg, "head")
+        # Up to 0030 specifically, not "head": this test owns 0030's round trip,
+        # and later revisions are somebody else's test.
+        await asyncio.to_thread(command.upgrade, cfg, MIGRATION_REVISION)
         assert await columns_present() == set(PROFILE_COLUMNS)
 
         async with engine.connect() as conn:
@@ -265,7 +275,9 @@ async def test_0030_applies_and_downgrades_cleanly_on_a_real_database(pg_url):
             )
 
         # 3. Back up: re-applying after a rollback is not a special case.
-        await asyncio.to_thread(command.upgrade, cfg, "head")
+        # Up to 0030 specifically, not "head": this test owns 0030's round trip,
+        # and later revisions are somebody else's test.
+        await asyncio.to_thread(command.upgrade, cfg, MIGRATION_REVISION)
         assert await columns_present() == set(PROFILE_COLUMNS)
     finally:
         app_config.settings.DATABASE_URL = original_url
