@@ -152,6 +152,13 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
       PUSH_TTL_S: ${PUSH_TTL_S:-86400}
       PUSH_PREVIEW_CHARS: ${PUSH_PREVIEW_CHARS:-120}
+      # Transcript import ceilings. Defaults match app/config.py, so an operator can lower
+      # them without a rebuild — and, more to the point, they are REACHABLE at all: a
+      # setting compose never forwards is a setting that silently cannot be changed.
+      TRANSCRIPT_IMPORT_MAX_BYTES: ${TRANSCRIPT_IMPORT_MAX_BYTES:-26214400}
+      TRANSCRIPT_IMPORT_MAX_CONVERSATIONS: ${TRANSCRIPT_IMPORT_MAX_CONVERSATIONS:-500}
+      TRANSCRIPT_IMPORT_MAX_TURNS: ${TRANSCRIPT_IMPORT_MAX_TURNS:-5000}
+      TRANSCRIPT_IMPORT_CONCURRENCY: ${TRANSCRIPT_IMPORT_CONCURRENCY:-4}
       PUSH_SUBSCRIBE_RATE_LIMIT: ${PUSH_SUBSCRIBE_RATE_LIMIT:-20/minute}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
