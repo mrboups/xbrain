@@ -205,19 +205,33 @@
           the preferences belong to, and it is the one thing in here another
           person ever sees.
 
-          profile.js fills it from GET /v1/me/profile and saves the name with
-          PATCH. If that endpoint is not deployed yet the block goes READ-ONLY
-          and says nothing about it — a settings surface that throws on open
-          takes the theme and the notification state down with it, over a field
-          nobody came here to edit.
+          profile.js fills it from GET /v1/me/profile, saves the name with
+          PATCH, and changes the picture by uploading it through the media path
+          the composer already uses and then pointing the profile at the id that
+          comes back. If those endpoints are not deployed yet the block goes
+          READ-ONLY and says nothing about it — a settings surface that throws
+          on open takes the theme and the notification state down with it, over
+          a field nobody came here to edit.
         -->
         <div id="settings-profile" class="xb-profile">
-          <span id="profile-avatar" class="xb-profile-avatar" aria-hidden="true"></span>
+          <!-- The picture IS the control: tapping it opens the picker. A real
+               button, not an image wearing a click handler, so it is reachable
+               by keyboard and announces what it does. -->
+          <button type="button" id="btn-profile-avatar" class="xb-profile-avatar-btn"
+                  title="Change your picture" aria-label="Change your picture">
+            <span id="profile-avatar" class="xb-profile-avatar" aria-hidden="true"></span>
+          </button>
+          <input type="file" id="profile-avatar-input"
+                 accept="image/png,image/jpeg,image/webp,image/gif" hidden />
           <span class="xb-profile-fields">
             <input type="text" id="profile-name" class="xb-profile-name"
                    maxlength="128" autocomplete="name" spellcheck="false"
                    placeholder="Your name" aria-label="Your name" />
             <span id="profile-bio" class="xb-profile-bio" hidden></span>
+            <!-- The same picker, in words. Nobody has to guess that a photo is
+                 tappable, and it opens exactly the one code path the picture
+                 opens. -->
+            <button type="button" id="btn-profile-photo" class="xb-profile-photo-btn">Change photo</button>
           </span>
         </div>
         <p id="profile-status" class="xb-profile-status" role="status" hidden></p>

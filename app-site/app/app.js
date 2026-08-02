@@ -21,7 +21,7 @@ import { THEME_STORAGE_KEY, resolveInitialTheme, applyTheme } from "./chat_core/
 import { createApi } from "./chat_core/api.js";
 import { webPlatform } from "./platform_web.js";
 import { MEMORY_API_BASE, getToken, getUserSub, signOut, mountSignIn } from "./auth.js";
-import { bootChat } from "./chat.js";
+import { bootChat, activeTeamSlug } from "./chat.js";
 import { mountProfile, hideProfile } from "./profile.js";
 import { wirePushButton, refreshPushButton, resyncPush } from "./push.js";
 import { bindViewport } from "./viewport.js";
@@ -232,7 +232,11 @@ async function startChat(identity) {
   // The account block at the top of Settings. Needs a token, like push, so it
   // waits for the chat to boot. It never throws: an endpoint that is not
   // deployed yet leaves the block read-only rather than taking the panel down.
-  mountProfile(api, identity).catch((e) => {
+  //
+  // The team slug goes in as a FUNCTION: a picture is uploaded into the team
+  // being read at that moment, and one captured here would be the wrong team by
+  // the first switch.
+  mountProfile(api, identity, { getTeamSlug: activeTeamSlug }).catch((e) => {
     console.warn("[xbrain] profile unavailable:", e);
   });
 
