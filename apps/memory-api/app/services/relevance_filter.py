@@ -482,24 +482,50 @@ def _get_client() -> Any | None:
     return _anthropic_client
 
 
-def _check_budget(team_scope: str, estimated_tokens: int) -> bool:
-    """Returns True if within daily budget, False if exhausted."""
+def check_token_budget(
+    team_scope: str, estimated_tokens: int, *, cap: int, bucket: str = ""
+) -> bool:
+    """Returns True if within the daily budget for `bucket`, False if exhausted.
+
+    The shared per-team, per-day token-bucket mechanism. `bucket` namespaces the
+    accounting so a caller with a different cost profile (image description vs. chat
+    classification) gets its OWN allowance instead of draining this one — a team
+    dragging 500 screenshots into a chat must not silently spend the relevance
+    filter's whole day. `cap` is the caller's setting, passed in rather than read
+    here for the same reason.
+
+    In-memory and per-process: it blunts a burst, it is not a durable ledger across
+    `uvicorn --workers`. Same caveat as rate_limit.py.
+    """
     today = str(date.today())
-    entry = _daily_budget.get(team_scope)
+    key = f"{bucket}:{team_scope}" if bucket else team_scope
+    entry = _daily_budget.get(key)
     if entry is None or entry["date"] != today:
-        _daily_budget[team_scope] = {"date": today, "tokens_used": 0}
-        entry = _daily_budget[team_scope]
-    cap = settings.RELEVANCE_DAILY_TOKEN_CAP_PER_TEAM
+        _daily_budget[key] = {"date": today, "tokens_used": 0}
+        entry = _daily_budget[key]
     return (entry["tokens_used"] + estimated_tokens) <= cap
 
 
-def _record_tokens(team_scope: str, tokens: int) -> None:
-    """Record tokens used; reset counter on new UTC day."""
+def record_token_usage(team_scope: str, tokens: int, *, bucket: str = "") -> None:
+    """Record tokens used against `bucket`; reset the counter on a new UTC day."""
     today = str(date.today())
-    entry = _daily_budget.setdefault(team_scope, {"date": today, "tokens_used": 0})
+    key = f"{bucket}:{team_scope}" if bucket else team_scope
+    entry = _daily_budget.setdefault(key, {"date": today, "tokens_used": 0})
     if entry["date"] != today:
         entry.update({"date": today, "tokens_used": 0})
     entry["tokens_used"] += tokens
+
+
+def _check_budget(team_scope: str, estimated_tokens: int) -> bool:
+    """This module's own bucket (kept as the name github_catalog imports and tests patch)."""
+    return check_token_budget(
+        team_scope, estimated_tokens, cap=settings.RELEVANCE_DAILY_TOKEN_CAP_PER_TEAM
+    )
+
+
+def _record_tokens(team_scope: str, tokens: int) -> None:
+    """Record tokens used against this module's own bucket."""
+    record_token_usage(team_scope, tokens)
 
 
 async def classify(
