@@ -126,6 +126,45 @@ Settings UI instead of editing `.env` on the VM and restarting. Shape to design:
 
 ---
 
+## Import a Claude Code or ChatGPT conversation into the team brain — 2026-08-02
+
+**Asked by the owner**, on the PWA, desktop AND mobile. Nothing for this exists yet.
+
+**First, a distinction that keeps getting collapsed.** "Importing a session" means two
+unrelated things here, and only one of them is built:
+- **The session bridge** (`docs/session-bridge-guide.md`, `POST /me/external-sessions`) —
+  routes model calls through a browser that is *already logged in* to claude.ai. The
+  browser stays the executor and no credential is ever copied out. That is about using a
+  subscription, not about history. It works today.
+- **Importing the transcript itself** — the past conversation, into the team brain. That
+  is what was asked for, and it does not exist.
+
+**What the server already has:** `POST /v1/brain/ingest` (202, `X-Team-Scope`) already
+accepts a chat message and runs the extraction pipeline. The missing pieces are the
+per-format parsers and the entry points, not the ingest path.
+
+**The formats are not symmetrical:**
+- *Claude Code* keeps sessions as JSONL on disk (`~/.claude/projects/<slug>/<uuid>.jsonl`).
+  Readable on a desktop. **Unreachable from a phone** — the files are not on the device.
+- *ChatGPT* has an official export (a mailed zip containing `conversations.json`) plus
+  per-conversation share links, which are public HTML.
+
+**Desktop:** a file picker / drag-drop in the PWA covers both, plus paste for one-offs.
+
+**Mobile:** the native answer is the **Web Share Target API** — declare `share_target` in
+`app-site/app/manifest.webmanifest` and the installed PWA appears in Android's share
+sheet, so "Share" from the ChatGPT app lands directly in a team. The manifest declares
+none today (`grep -c share_target` → 0).
+
+**The honest limitation: iOS does not support `share_target` at all.** On iPhone the only
+routes are paste, or the Files picker against a downloaded export. Any plan that assumes
+a share sheet on iOS is wrong, and pretending otherwise would ship a feature that half
+the phones cannot reach.
+
+**Sizing:** medium. Parsers + a dedupe rule (importing the same conversation twice must
+not double the brain) + provenance tagging (`source=import:claude-code|chatgpt`, and a
+truth level — an imported transcript is not VALIDATED by virtue of being imported).
+
 ## Telegram bridge — chat in your team chat from Telegram
 
 **Requested:** 2026-07-12. Feasibility checked against the live code, not assumed.
