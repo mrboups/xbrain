@@ -156,10 +156,23 @@ per-format parsers and the entry points, not the ingest path.
 sheet, so "Share" from the ChatGPT app lands directly in a team. The manifest declares
 none today (`grep -c share_target` → 0).
 
-**The honest limitation: iOS does not support `share_target` at all.** On iPhone the only
-routes are paste, or the Files picker against a downloaded export. Any plan that assumes
-a share sheet on iOS is wrong, and pretending otherwise would ship a feature that half
-the phones cannot reach.
+**iOS — solved, via Shortcuts (2026-08-02).** Safari still does not support `share_target`;
+it implements the Web Share API for sharing OUT, not for receiving. But the **Shortcuts
+app** can declare that it accepts Share Sheet input, read the shared text or URL, and
+`POST` a JSON body through "Get Contents of URL". So ChatGPT on iPhone → Share →
+"Save to xbrain" → the conversation lands in a team. A real share sheet; the cost is a
+one-time install of the shortcut.
+
+**The design point that must not be glossed over:** the shortcut carries a credential on
+the device. Putting the full `xbt_` token in it would hand a shareable shortcut the whole
+account. Mint a **dedicated import token instead** — scoped to ingest, shown once,
+revocable from Settings. `user_api_tokens` already has `name` and `revoked_at`, so the
+mechanism exists.
+
+**Remaining limitation with no workaround:** Claude Code sessions are JSONL on the disk of
+the machine you code on. They are not on a phone at all, so the iPhone path only reaches
+them if they were first synced into Files/iCloud. ChatGPT does not have this problem — its
+app is on the phone, so sharing works directly.
 
 **Sizing:** medium. Parsers + a dedupe rule (importing the same conversation twice must
 not double the brain) + provenance tagging (`source=import:claude-code|chatgpt`, and a
