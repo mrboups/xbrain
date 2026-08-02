@@ -141,6 +141,15 @@
       margin: 0 0 24px 0;
     }
 
+    /* Left alone, a link keeps the browser's own blue — the last colour on the
+       page no theme can reach, and the one that looks wrong in both. */
+    a {
+      color: var(--fg);
+      text-decoration: underline;
+    }
+    a:hover { color: var(--muted-fg); }
+    a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
     /* Title left, theme switch right. The switch is a display mode, not an
        item in the list — putting it in the list made it something to read
        past. h1 already carries its own margin-bottom, so this row does not
