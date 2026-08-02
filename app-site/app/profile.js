@@ -79,6 +79,20 @@ const AVATAR_MAX_BYTES = Math.min(4 * 1024 * 1024, MAX_MEDIA_BYTES);
 const AVATAR_MAX_MB = Math.round(AVATAR_MAX_BYTES / (1024 * 1024));
 
 /**
+ * Pickers already wired, so none is ever wired twice.
+ *
+ * mountProfile runs again after a re-sign-in, on the SAME elements. A second
+ * change listener would upload the chosen file twice and PUT it twice, and
+ * nothing on screen would show why. The first wiring is the right one to keep:
+ * everything it closes over is read late.
+ *
+ * Keyed on the ELEMENT rather than a module flag, because "wired" is a property
+ * of that input, not of this file — a genuinely new document gets wired like
+ * anything else.
+ */
+const wiredPickers = new WeakSet();
+
+/**
  * Absolute URL for a media path the server minted.
  *
  * Relative is the convention the chat already uses (the signed image path), so
@@ -320,7 +334,8 @@ function wireAvatar(api, refs) {
   const { picker, avatarBtn, photoBtn, status, getTeamSlug, onChanged } = refs;
   // No picker in the markup: the two buttons would open nothing, so they are
   // not wired at all rather than wired to a dead end.
-  if (!picker) return;
+  if (!picker || wiredPickers.has(picker)) return;
+  wiredPickers.add(picker);
 
   const openPicker = () => picker.click();
   if (avatarBtn) avatarBtn.addEventListener("click", openPicker);

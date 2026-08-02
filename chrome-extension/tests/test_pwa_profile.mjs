@@ -629,6 +629,19 @@ testAsync("both controls open the SAME picker", async () => {
   );
 });
 
+testAsync("mounting twice does not upload the picture twice", async () => {
+  // startChat runs mountProfile again after a re-sign-in, on the SAME elements.
+  // A second change listener would send the file twice and PUT it twice, and
+  // nothing on screen would say why.
+  const api = makeMediaApi();
+  const nodes = installDocument();
+  await profile.mountProfile(api, null, { getTeamSlug: () => TEAM });
+  await profile.mountProfile(api, null, { getTeamSlug: () => TEAM });
+  await choose(nodes, makeFile());
+  assert.equal(api.uploads.length, 1, "one file chosen, one upload");
+  assert.equal(api.calls.filter((c) => c.method === "PUT").length, 1);
+});
+
 testAsync("no endpoint means no picture controls either", async () => {
   const api = makeMediaApi({ profiles: [{ status: 404 }] });
   const { nodes, result } = await mountWithTeam(api);
