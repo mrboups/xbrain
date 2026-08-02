@@ -3,59 +3,140 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="dark" />
+  <meta name="color-scheme" content="light dark" />
   <title>xbrain — Settings</title>
   <style>
-    /* Dark palette — aligned with LibreChat */
+    /* ====================================================================
+     * Design tokens — shadcn "Neutral", the SAME set popup.css defines,
+     * value for value.
+     *
+     * This page used to carry a palette of its own: hardcoded dark, blue
+     * accent, 8px radius, no --primary / --border / --ring at all. That is
+     * why an earlier pass left it alone — copying the popup's token NAMES
+     * onto rules written for those variables would have produced controls
+     * that exist and cannot be seen. So the palette is replaced first and
+     * every rule below resolves through it; no rule keeps a literal colour.
+     *
+     * Three theme blocks, exactly as in popup.css and app.css:
+     *   :root                          light, the default
+     *   @media (prefers-color-scheme)  dark, when nothing was chosen
+     *   :root[data-theme="dark|light"] the toggle, which out-specifies the
+     *                                  media query and therefore wins in
+     *                                  BOTH directions
+     * options.js stamps data-theme from THEME_STORAGE_KEY in
+     * chrome.storage.local — the same key the popup reads, so this page and
+     * the chat can never disagree about which theme is on.
+     * ================================================================== */
     :root {
+      color-scheme: light;
+      --bg:#FFFFFF;
+      --fg:#0A0A0A;
+      --card:#FFFFFF;
+      --card-fg:#0A0A0A;
+      --muted:#F5F5F5;
+      --muted-fg:#737373;
+      --secondary:#F5F5F5;
+      --secondary-fg:#171717;
+      --primary:#0A0A0A;
+      --primary-fg:#FAFAFA;
+      --border:#E5E5E5;
+      --input:#E5E5E5;
+      --ring:#A3A3A3;
+      --destructive:#E5322D;
+      /* Not in the Neutral set, and needed: a presence dot is the one place
+         on this page where colour IS the information. Monochrome would make
+         "signed in" and "signed out" the same dot. */
+      --success:#16A34A;
+      --radius:0px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --bg:#0A0A0A;
+        --fg:#FAFAFA;
+        --card:#171717;
+        --card-fg:#FAFAFA;
+        --muted:#262626;
+        --muted-fg:#A3A3A3;
+        --secondary:#262626;
+        --secondary-fg:#FAFAFA;
+        --primary:#FAFAFA;
+        --primary-fg:#171717;
+        --border:rgba(255,255,255,.10);
+        --input:rgba(255,255,255,.15);
+        --ring:#787878;
+        --destructive:#FB5A57;
+        --success:#22C55E;
+      }
+    }
+    :root[data-theme="dark"] {
       color-scheme: dark;
-      --xb-bg:        #171717;
-      --xb-surface:   #212121;
-      --xb-surface-2: #2a2a2a;
-      --xb-border:    #2f2f2f;
-      --xb-border-2:  #3a3a3a;
-      --xb-text:      #ececec;
-      --xb-text-mute: #a0a0a0;
-      --xb-text-dim:  #6b6b6b;
-      --xb-accent:    #3b82f6;
-      --xb-accent-bg: rgba(59, 130, 246, 0.16);
-      --xb-success:   #10b981;
-      --xb-radius:    8px;
+      --bg:#0A0A0A;
+      --fg:#FAFAFA;
+      --card:#171717;
+      --card-fg:#FAFAFA;
+      --muted:#262626;
+      --muted-fg:#A3A3A3;
+      --secondary:#262626;
+      --secondary-fg:#FAFAFA;
+      --primary:#FAFAFA;
+      --primary-fg:#171717;
+      --border:rgba(255,255,255,.10);
+      --input:rgba(255,255,255,.15);
+      --ring:#787878;
+      --destructive:#FB5A57;
+      --success:#22C55E;
+    }
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg:#FFFFFF;
+      --fg:#0A0A0A;
+      --card:#FFFFFF;
+      --card-fg:#0A0A0A;
+      --muted:#F5F5F5;
+      --muted-fg:#737373;
+      --secondary:#F5F5F5;
+      --secondary-fg:#171717;
+      --primary:#0A0A0A;
+      --primary-fg:#FAFAFA;
+      --border:#E5E5E5;
+      --input:#E5E5E5;
+      --ring:#A3A3A3;
+      --destructive:#E5322D;
+      --success:#16A34A;
     }
 
     *, *::before, *::after { box-sizing: border-box; }
 
     html, body {
-      background: var(--xb-bg);
+      background: var(--bg);
     }
 
     body {
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: 'Geist','Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
       max-width: 600px;
       margin: 0 auto;
       padding: 32px 24px;
-      color: var(--xb-text);
+      color: var(--fg);
       font-size: 14px;
       line-height: 1.55;
     }
 
+    /* No glyph before the title. An emoji renders in its own colour and is the
+       one thing on the page a theme cannot touch. */
     h1 {
       font-size: 20px;
       font-weight: 600;
       margin: 0 0 4px 0;
-      color: var(--xb-text);
+      color: var(--fg);
       display: flex;
       align-items: center;
       gap: 10px;
     }
 
-    h1::before {
-      content: "🧠";
-      font-size: 20px;
-    }
-
     .subtitle {
-      color: var(--xb-text-mute);
+      color: var(--muted-fg);
       font-size: 13px;
       margin: 0 0 24px 0;
     }
@@ -71,16 +152,14 @@
       gap: 16px;
     }
 
-    /* The chat header's segmented toggle. Same silhouette — radius 0,
-       monochrome, the pressed segment FILLED — expressed in this page's own
-       --xb-* palette, because this page predates the shadcn token set and does
-       not define --primary / --border / --ring. Radius is written as 0 rather
-       than var(--xb-radius): that variable is 8px here, and the sharp corner is
-       the Neutral signal. */
+    /* The chat header's segmented toggle, now on the same tokens as everything
+       else. Radius 0 is the Neutral signal, and the pressed segment is FILLED
+       with --primary — which flips with the theme, so it is legible in both
+       (dark text on light in day, light text on dark at night). */
     .seg {
       display: inline-flex;
-      border: 1px solid var(--xb-border-2);
-      border-radius: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       overflow: hidden;
       flex-shrink: 0;
     }
@@ -92,26 +171,26 @@
       justify-content: center;
       padding: 0;
       background: transparent;
-      color: var(--xb-text-mute);
+      color: var(--muted-fg);
       border: none;
       cursor: pointer;
       transition: background 0.14s, color 0.14s;
     }
-    .seg button + button { border-left: 1px solid var(--xb-border-2); }
+    .seg button + button { border-left: 1px solid var(--border); }
     /* An inline SVG has a viewBox but no intrinsic size: without this it
        renders at the UA default (~300x150) and destroys the row. */
     .seg button svg { width: 15px; height: 15px; display: block; }
-    .seg button:hover { background: var(--xb-surface-2); color: var(--xb-text); }
+    .seg button:hover { background: var(--muted); color: var(--fg); }
     .seg button[aria-pressed="true"] {
-      background: var(--xb-text);
-      color: var(--xb-bg);
+      background: var(--primary);
+      color: var(--primary-fg);
     }
-    .seg button:focus-visible { outline: 2px solid var(--xb-text-dim); outline-offset: -2px; }
+    .seg button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 
     .settings-card {
-      background: var(--xb-surface);
-      border: 1px solid var(--xb-border);
-      border-radius: var(--xb-radius);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       overflow: hidden;
     }
 
@@ -120,20 +199,27 @@
       align-items: flex-start;
       gap: 12px;
       padding: 16px 18px;
-      border-bottom: 1px solid var(--xb-border);
+      border-bottom: 1px solid var(--border);
     }
 
     .setting:last-child {
       border-bottom: none;
     }
 
+    /* accent-color takes the theme's --primary, so the box fills near-black in
+       day and near-white at night; the browser picks the contrasting tick
+       itself. A fixed accent would be a checkbox that vanishes in one theme. */
     .setting input[type="checkbox"] {
       flex-shrink: 0;
       margin-top: 2px;
-      accent-color: var(--xb-accent);
+      accent-color: var(--primary);
       width: 18px;
       height: 18px;
       cursor: pointer;
+    }
+    .setting input[type="checkbox"]:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
     }
 
     .setting-body {
@@ -142,24 +228,28 @@
 
     .setting-title {
       font-weight: 600;
-      color: var(--xb-text);
+      color: var(--fg);
       cursor: pointer;
       display: block;
     }
 
     .setting-help {
       font-size: 12px;
-      color: var(--xb-text-mute);
+      color: var(--muted-fg);
       margin-top: 4px;
       line-height: 1.5;
     }
 
+    /* Square, like every other chip in the product. --secondary on
+       --secondary-fg is legible in both themes; the old blue-on-blue-tint was
+       one hardcoded pair that only worked against a dark page. */
     .pill {
       display: inline-block;
       padding: 1px 7px;
-      border-radius: 9999px;
-      background: var(--xb-accent-bg);
-      color: var(--xb-accent);
+      border-radius: var(--radius);
+      background: var(--secondary);
+      color: var(--secondary-fg);
+      border: 1px solid var(--border);
       font-size: 10px;
       font-weight: 600;
       margin-left: 6px;
@@ -167,24 +257,27 @@
     }
 
     code {
-      background: var(--xb-surface-2);
+      background: var(--muted);
       padding: 1px 6px;
-      border-radius: 4px;
+      border-radius: var(--radius);
       font-size: 12px;
-      color: var(--xb-text);
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--fg);
+      font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
     }
 
+    /* The save confirmation. Monochrome on purpose: a green line for "saved" is
+       the one bit of colour on a page whose palette is otherwise information —
+       and it appears for a second and a half. */
     #status {
       font-size: 12px;
-      color: var(--xb-success);
+      color: var(--muted-fg);
       padding: 12px 0 4px 0;
       min-height: 18px;
     }
 
     .footer-note {
       font-size: 12px;
-      color: var(--xb-text-dim);
+      color: var(--muted-fg);
       margin-top: 20px;
       line-height: 1.5;
     }
@@ -192,24 +285,37 @@
     h2.section-title {
       font-size: 14px;
       font-weight: 600;
-      color: var(--xb-text);
+      color: var(--fg);
       margin: 28px 0 4px 0;
     }
 
-    input[type="text"]#opt-clip-project {
-      width: 100%;
-      max-width: 320px;
-      margin-top: 8px;
-      background: var(--xb-bg);
-      color: var(--xb-text);
-      border: 1px solid var(--xb-border-2);
-      border-radius: 6px;
+    /* One rule for every text-ish field on the page. They were four near-copies
+       with the same three values; a fifth field would have been a fifth copy. */
+    input[type="text"],
+    input[type="email"],
+    select {
+      background: var(--bg);
+      color: var(--fg);
+      border: 1px solid var(--input);
+      border-radius: var(--radius);
       padding: 6px 8px;
       font-size: 13px;
       font-family: inherit;
       outline: none;
     }
-    input[type="text"]#opt-clip-project:focus { border-color: var(--xb-accent); }
+    input[type="text"]:focus-visible,
+    input[type="email"]:focus-visible,
+    select:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 0;
+    }
+    input::placeholder { color: var(--muted-fg); }
+
+    input[type="text"]#opt-clip-project {
+      width: 100%;
+      max-width: 320px;
+      margin-top: 8px;
+    }
 
     .opt-radio-row {
       display: flex;
@@ -222,19 +328,26 @@
       align-items: center;
       gap: 5px;
       padding: 4px 8px;
-      border: 1px solid var(--xb-border-2);
-      border-radius: 5px;
-      background: var(--xb-bg);
+      border: 1px solid var(--input);
+      border-radius: var(--radius);
+      background: var(--bg);
       font-size: 12px;
-      color: var(--xb-text-mute);
+      color: var(--muted-fg);
       cursor: pointer;
     }
+    /* The chosen level is the FILLED one — the same signal the active team
+       square carries in the chat, and the only one that survives monochrome. */
     .opt-radio-row label:has(input:checked) {
-      border-color: var(--xb-accent);
-      background: var(--xb-accent-bg);
-      color: var(--xb-text);
+      border-color: var(--primary);
+      background: var(--primary);
+      color: var(--primary-fg);
     }
-    .opt-radio-row input[type="radio"] { accent-color: var(--xb-accent); margin: 0; }
+    .opt-radio-row input[type="radio"] { accent-color: var(--primary); margin: 0; }
+    /* ... and inside the filled pill the dot has to flip too, or the radio is
+       drawn in the pill's own colour and disappears into it. */
+    .opt-radio-row label:has(input:checked) input[type="radio"] {
+      accent-color: var(--primary-fg);
+    }
 
     /* Claude session card */
     .claude-session-grid {
@@ -246,49 +359,59 @@
     }
     .claude-session-label {
       font-size: 11px;
-      color: var(--xb-text-mute);
+      color: var(--muted-fg);
       text-transform: uppercase;
       letter-spacing: 0.04em;
       padding-top: 2px;
     }
     .claude-session-value {
       font-size: 13px;
-      color: var(--xb-text);
+      color: var(--fg);
       display: flex;
       align-items: center;
       gap: 6px;
     }
+    /* Round, and the one place on this page where colour carries the meaning:
+       signed in / signed out / unknown are three states, not three styles.
+       The glow rings are gone — they were a hardcoded rgba of the old palette
+       and could not follow a theme. */
     .session-dot {
       display: inline-block;
       width: 8px;
       height: 8px;
-      border-radius: 50%;
+      border-radius: 999px;
       flex-shrink: 0;
     }
-    .session-dot.is-online   { background: var(--xb-success); box-shadow: 0 0 0 2px rgba(16,185,129,0.2); }
-    .session-dot.is-offline  { background: var(--xb-error);   box-shadow: 0 0 0 2px rgba(239,68,68,0.2); }
-    .session-dot.is-unknown  { background: var(--xb-text-dim); }
+    .session-dot.is-online   { background: var(--success); }
+    .session-dot.is-offline  { background: var(--destructive); }
+    .session-dot.is-unknown  { background: var(--muted-fg); }
 
+    /* Subscription tier. Monochrome, so the hierarchy is weight rather than
+       hue: MAX fills, Pro outlines, free is quiet. The old purple-on-purple
+       MAX pill was legible against one hardcoded background and no other. */
     .sub-pill {
       display: inline-block;
       padding: 1px 10px;
-      border-radius: 9999px;
-      background: var(--xb-surface-2);
-      color: var(--xb-text-mute);
+      border-radius: var(--radius);
+      background: var(--muted);
+      color: var(--muted-fg);
+      border: 1px solid var(--border);
       font-size: 11px;
       font-weight: 600;
     }
     .sub-pill.is-pro {
-      background: var(--xb-accent-bg);
-      color: var(--xb-accent);
+      background: var(--secondary);
+      color: var(--secondary-fg);
+      border-color: var(--input);
     }
     .sub-pill.is-max {
-      background: rgba(196, 181, 253, 0.16);
-      color: #c4b5fd;
+      background: var(--primary);
+      color: var(--primary-fg);
+      border-color: var(--primary);
     }
     .sub-pill.is-free {
-      background: var(--xb-surface-2);
-      color: var(--xb-text-mute);
+      background: var(--muted);
+      color: var(--muted-fg);
     }
 
     .claude-session-actions {
@@ -297,34 +420,41 @@
       gap: 10px;
       margin-top: 6px;
     }
+    /* THE PRIMARY ACTION on this page, and the control that would have failed
+       hardest under a name-only port: --primary is near-BLACK in light and
+       near-WHITE in dark, so the label must ride on --primary-fg rather than on
+       a literal white that disappears the moment the theme flips. */
     .xb-btn-primary-options {
-      background: var(--xb-accent);
-      color: #fff;
-      border: 1px solid var(--xb-accent);
-      border-radius: 6px;
+      background: var(--primary);
+      color: var(--primary-fg);
+      border: 1px solid var(--primary);
+      border-radius: var(--radius);
       padding: 6px 14px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
+      transition: opacity 0.15s;
     }
-    .xb-btn-primary-options:hover { background: var(--xb-accent-2); border-color: var(--xb-accent-2); }
+    .xb-btn-primary-options:hover:not(:disabled) { opacity: 0.88; }
+    .xb-btn-primary-options:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+    /* Disabled is an OUTLINE, not a filled button in a different fill: a filled
+       grey block still reads as pressable. */
     .xb-btn-primary-options:disabled {
-      background: var(--xb-border-2);
-      border-color: var(--xb-border-2);
-      color: var(--xb-text-dim);
+      background: transparent;
+      border-color: var(--input);
+      color: var(--muted-fg);
       cursor: not-allowed;
     }
     #claude-session-action-status {
       font-size: 12px;
-      color: var(--xb-text-mute);
+      color: var(--muted-fg);
     }
 
     /* === Team management cards (Stage 2) === */
     .team-card {
-      background: var(--xb-surface);
-      border: 1px solid var(--xb-border);
-      border-radius: var(--xb-radius);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       margin-bottom: 10px;
       overflow: hidden;
     }
@@ -337,7 +467,7 @@
       user-select: none;
       transition: background 0.1s;
     }
-    .team-card-header:hover { background: var(--xb-surface-2); }
+    .team-card-header:hover { background: var(--muted); }
     .team-card-title {
       flex: 1;
       min-width: 0;
@@ -345,36 +475,40 @@
       flex-direction: column;
       gap: 2px;
     }
-    .team-card-title strong { font-size: 14px; color: var(--xb-text); }
+    .team-card-title strong { font-size: 14px; color: var(--fg); }
     .team-card-title small {
       font-size: 11px;
-      color: var(--xb-text-mute);
+      color: var(--muted-fg);
     }
     .team-role-pill {
       padding: 2px 8px;
-      border-radius: 9999px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
       font-size: 10px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
+    /* Admin is the filled one — the same "this is the strong state" signal the
+       chat uses for the active team. */
     .team-role-pill.is-admin {
-      background: var(--xb-accent-bg);
-      color: var(--xb-accent);
+      background: var(--primary);
+      color: var(--primary-fg);
+      border-color: var(--primary);
     }
     .team-role-pill.is-member {
-      background: var(--xb-surface-2);
-      color: var(--xb-text-mute);
+      background: var(--muted);
+      color: var(--muted-fg);
     }
     .team-card-chevron {
       font-size: 11px;
-      color: var(--xb-text-dim);
+      color: var(--muted-fg);
       transition: transform 0.2s;
     }
     .team-card-header.is-open .team-card-chevron { transform: rotate(180deg); }
 
     .team-card-body {
-      border-top: 1px solid var(--xb-border);
+      border-top: 1px solid var(--border);
       padding: 14px 16px;
       display: flex;
       flex-direction: column;
@@ -383,7 +517,7 @@
 
     .team-members-label {
       font-size: 11px;
-      color: var(--xb-text-mute);
+      color: var(--muted-fg);
       text-transform: uppercase;
       letter-spacing: 0.04em;
       margin: 0 0 6px 0;
@@ -394,12 +528,14 @@
       gap: 10px;
       padding: 6px 0;
     }
+    /* Square, like every other avatar in the product. */
     .team-member-avatar {
       width: 28px;
       height: 28px;
-      border-radius: 50%;
-      background: var(--xb-surface-2);
-      color: var(--xb-text);
+      border-radius: var(--radius);
+      background: var(--secondary);
+      color: var(--secondary-fg);
+      border: 1px solid var(--border);
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -414,32 +550,35 @@
       flex-direction: column;
       line-height: 1.2;
     }
-    .team-member-info strong { font-size: 13px; color: var(--xb-text); }
+    .team-member-info strong { font-size: 13px; color: var(--fg); }
     .team-member-info small {
       font-size: 11px;
-      color: var(--xb-text-mute);
+      color: var(--muted-fg);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     .team-member-role {
       font-size: 11px;
-      color: var(--xb-text-mute);
+      color: var(--muted-fg);
     }
+    /* Destructive on hover only. Permanently red rows next to every member turn
+       the list into a wall of alarm. */
     .team-member-remove {
       background: transparent;
-      border: 1px solid var(--xb-border-2);
-      color: var(--xb-text-mute);
-      border-radius: 4px;
+      border: 1px solid var(--input);
+      color: var(--muted-fg);
+      border-radius: var(--radius);
       padding: 3px 8px;
       cursor: pointer;
       font-size: 11px;
     }
-    .team-member-remove:hover {
-      background: var(--xb-error-bg);
-      border-color: var(--xb-error);
-      color: var(--xb-error);
+    .team-member-remove:hover:not(:disabled) {
+      background: transparent;
+      border-color: var(--destructive);
+      color: var(--destructive);
     }
+    .team-member-remove:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
     .team-member-remove:disabled {
       opacity: 0.5;
       cursor: not-allowed;
@@ -448,40 +587,45 @@
     /* Phase 10 GHA-03 — block/unblock controls on member rows + blocked badge. */
     .team-member-block {
       background: transparent;
-      border: 1px solid var(--xb-border-2);
-      color: var(--xb-text-mute);
-      border-radius: 4px;
+      border: 1px solid var(--input);
+      color: var(--muted-fg);
+      border-radius: var(--radius);
       padding: 3px 8px;
       cursor: pointer;
       font-size: 11px;
       margin-left: 4px;
     }
-    .team-member-block:hover {
-      background: var(--xb-error-bg);
-      border-color: var(--xb-error);
-      color: var(--xb-error);
+    .team-member-block:hover:not(:disabled) {
+      border-color: var(--destructive);
+      color: var(--destructive);
     }
+    /* Already blocked: the button now UNblocks, so it must not keep wearing the
+       destructive outline it had when it was the dangerous one. */
     .team-member-block.is-blocked {
-      border-color: var(--xb-success);
-      color: var(--xb-success);
+      border-color: var(--fg);
+      color: var(--fg);
     }
-    .team-member-block.is-blocked:hover {
-      background: var(--xb-success-bg, rgba(16,185,129,0.14));
+    .team-member-block.is-blocked:hover:not(:disabled) {
+      background: var(--muted);
+      border-color: var(--fg);
+      color: var(--fg);
     }
+    .team-member-block:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
     .team-member-block:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
     .team-role-pill.is-blocked {
-      background: rgba(239, 68, 68, 0.15);
-      color: var(--xb-error);
+      background: transparent;
+      border-color: var(--destructive);
+      color: var(--destructive);
       margin-left: 6px;
     }
 
     /* Phase 10 GHA-05 — pre-block by GitHub login form + list. */
     .org-block-form {
       margin-top: 4px;
-      border-top: 1px solid var(--xb-border);
+      border-top: 1px solid var(--border);
       padding-top: 14px;
       display: flex;
       flex-direction: column;
@@ -490,35 +634,28 @@
     .org-block-form input[type="text"] {
       flex: 1;
       min-width: 0;
-      background: var(--xb-bg);
-      color: var(--xb-text);
-      border: 1px solid var(--xb-border-2);
-      border-radius: 6px;
-      padding: 6px 8px;
-      font-size: 13px;
-      font-family: inherit;
-      outline: none;
     }
-    .org-block-form input[type="text"]:focus { border-color: var(--xb-accent); }
     .org-block-form .invite-form-row {
       display: flex;
       gap: 6px;
     }
     .org-block-btn {
-      background: var(--xb-accent);
-      color: #fff;
-      border: 1px solid var(--xb-accent);
-      border-radius: 6px;
+      background: var(--primary);
+      color: var(--primary-fg);
+      border: 1px solid var(--primary);
+      border-radius: var(--radius);
       padding: 6px 12px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
+      transition: opacity 0.15s;
     }
-    .org-block-btn:hover { background: var(--xb-accent-2); border-color: var(--xb-accent-2); }
+    .org-block-btn:hover:not(:disabled) { opacity: 0.88; }
+    .org-block-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
     .org-block-btn:disabled {
-      background: var(--xb-border-2);
-      border-color: var(--xb-border-2);
-      color: var(--xb-text-dim);
+      background: transparent;
+      border-color: var(--input);
+      color: var(--muted-fg);
       cursor: not-allowed;
     }
     .org-blocks-list {
@@ -533,24 +670,24 @@
       align-items: center;
       padding: 4px 0;
       font-size: 12px;
-      color: var(--xb-text-mute);
+      color: var(--muted-fg);
     }
-    .org-block-item .org-block-login { color: var(--xb-text); }
-    .org-block-item .org-block-meta { font-size: 11px; color: var(--xb-text-dim); }
+    .org-block-item .org-block-login { color: var(--fg); }
+    .org-block-item .org-block-meta { font-size: 11px; color: var(--muted-fg); }
     .org-block-remove {
       background: transparent;
-      border: 1px solid var(--xb-border-2);
-      color: var(--xb-text-mute);
-      border-radius: 4px;
+      border: 1px solid var(--input);
+      color: var(--muted-fg);
+      border-radius: var(--radius);
       padding: 2px 8px;
       cursor: pointer;
       font-size: 11px;
     }
     .org-block-remove:hover {
-      background: var(--xb-error-bg);
-      border-color: var(--xb-error);
-      color: var(--xb-error);
+      border-color: var(--destructive);
+      color: var(--destructive);
     }
+    .org-block-remove:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
     .team-invite-form {
       display: flex;
@@ -560,57 +697,50 @@
     .team-invite-form input[type="email"] {
       flex: 1;
       min-width: 0;
-      background: var(--xb-bg);
-      color: var(--xb-text);
-      border: 1px solid var(--xb-border-2);
-      border-radius: 6px;
-      padding: 6px 8px;
-      font-size: 13px;
-      font-family: inherit;
-      outline: none;
     }
-    .team-invite-form input[type="email"]:focus { border-color: var(--xb-accent); }
     .team-invite-form select {
-      background: var(--xb-bg);
-      color: var(--xb-text);
-      border: 1px solid var(--xb-border-2);
-      border-radius: 6px;
-      padding: 6px 8px;
       font-size: 12px;
       cursor: pointer;
     }
     .team-invite-btn {
-      background: var(--xb-accent);
-      color: #fff;
-      border: 1px solid var(--xb-accent);
-      border-radius: 6px;
+      background: var(--primary);
+      color: var(--primary-fg);
+      border: 1px solid var(--primary);
+      border-radius: var(--radius);
       padding: 6px 12px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
+      transition: opacity 0.15s;
     }
-    .team-invite-btn:hover { background: var(--xb-accent-2); border-color: var(--xb-accent-2); }
+    .team-invite-btn:hover:not(:disabled) { opacity: 0.88; }
+    .team-invite-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
     .team-invite-btn:disabled {
-      background: var(--xb-border-2);
-      border-color: var(--xb-border-2);
-      color: var(--xb-text-dim);
+      background: transparent;
+      border-color: var(--input);
+      color: var(--muted-fg);
       cursor: not-allowed;
     }
 
+    /* Leaving a team is destructive and rare: outlined at rest, filled only
+       under the pointer — the same treatment sign-out gets in the PWA. */
     .team-leave-btn {
       align-self: flex-start;
       background: transparent;
-      color: var(--xb-error);
-      border: 1px solid var(--xb-error);
-      border-radius: 6px;
+      color: var(--destructive);
+      border: 1px solid var(--destructive);
+      border-radius: var(--radius);
       padding: 5px 12px;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
+      transition: background 0.14s, color 0.14s;
     }
-    .team-leave-btn:hover {
-      background: var(--xb-error-bg);
+    .team-leave-btn:hover:not(:disabled) {
+      background: var(--destructive);
+      color: var(--bg);
     }
+    .team-leave-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
     .team-leave-btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
@@ -618,17 +748,21 @@
 
     .team-action-status {
       font-size: 12px;
-      color: var(--xb-text-mute);
+      color: var(--muted-fg);
       min-height: 16px;
     }
-    .team-action-status.is-success { color: var(--xb-success); }
-    .team-action-status.is-error   { color: var(--xb-error); }
+    /* Success is full contrast rather than green: on a monochrome page the
+       difference between "done" and "still waiting" is weight, and only the
+       failure earns a colour. */
+    .team-action-status.is-success { color: var(--fg); }
+    .team-action-status.is-error   { color: var(--destructive); }
 
-    /* Scrollbar */
+    /* Scrollbar. color-scheme above already themes the native one; these are
+       for the WebKit path, and they follow the tokens like everything else. */
     ::-webkit-scrollbar { width: 10px; height: 10px; }
-    ::-webkit-scrollbar-track { background: var(--xb-bg); }
-    ::-webkit-scrollbar-thumb { background: var(--xb-border-2); border-radius: 5px; }
-    ::-webkit-scrollbar-thumb:hover { background: #4a4a4a; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--input); border-radius: var(--radius); }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted-fg); }
   </style>
 </head>
 <body>
@@ -810,28 +944,28 @@
         </div>
 
         <div class="claude-session-actions">
-          <button type="button" id="btn-refresh-claude-session" class="xb-btn-primary-options">🔄 Refresh session</button>
+          <button type="button" id="btn-refresh-claude-session" class="xb-btn-primary-options">Refresh session</button>
           <span id="claude-session-action-status"></span>
         </div>
 
         <!-- Diagnostics — only visible when the session can't be detected. -->
         <details id="claude-session-diag" style="margin-top: 14px;" hidden>
-          <summary style="cursor:pointer;font-size:12px;color:var(--xb-text-mute);">
+          <summary style="cursor:pointer;font-size:12px;color:var(--muted-fg);">
             Why is this showing "Not signed in"?
           </summary>
           <pre id="claude-session-diag-body" style="
             margin: 8px 0 0 0;
             padding: 8px 10px;
-            background: var(--xb-bg);
-            border: 1px solid var(--xb-border);
-            border-radius: 4px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
             font-size: 11px;
-            color: var(--xb-text-mute);
+            color: var(--muted-fg);
             white-space: pre-wrap;
             word-break: break-word;
-            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
           "></pre>
-          <p style="font-size:11px;color:var(--xb-text-dim);line-height:1.5;margin-top:8px;">
+          <p style="font-size:11px;color:var(--muted-fg);line-height:1.5;margin-top:8px;">
             Common causes: you're signed into claude.ai in a different Chrome
             profile, your cookies were cleared, or you're on a workspace that
             uses a different auth endpoint. Try reloading

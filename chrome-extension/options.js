@@ -272,7 +272,7 @@ async function renderTeamsList() {
     card.innerHTML = `
       <div class="setting">
         <div class="setting-body" style="flex:1">
-          <p class="setting-help" style="margin:0;color:var(--xb-error)">
+          <p class="setting-help" style="margin:0;color:var(--destructive)">
             Couldn't load teams: ${escapeHtml(e.message || "unknown error")}.
             Sign in via the extension popup and try again.
           </p>
@@ -345,7 +345,7 @@ async function fillTeamBody(team, body) {
   try {
     members = await _xbtFetch(`/v1/teams/${team.id}/members`);
   } catch (e) {
-    body.innerHTML = `<p class="setting-help" style="margin:0;color:var(--xb-error)">
+    body.innerHTML = `<p class="setting-help" style="margin:0;color:var(--destructive)">
       Couldn't load members: ${escapeHtml(e.message)}
     </p>`;
     return;
@@ -484,7 +484,7 @@ async function fillTeamBody(team, body) {
     const blockSection = document.createElement("div");
     blockSection.className = "org-block-form";
     blockSection.innerHTML = `
-      <label style="font-size:11px;color:var(--xb-text-mute);text-transform:uppercase;letter-spacing:0.04em;">
+      <label style="font-size:11px;color:var(--muted-fg);text-transform:uppercase;letter-spacing:0.04em;">
         Pre-block by GitHub login
       </label>
       <div class="invite-form-row">
@@ -531,7 +531,7 @@ async function fillTeamBody(team, body) {
     const aliasHelp = document.createElement("p");
     aliasHelp.className = "setting-help";
     aliasHelp.style.cssText =
-      "margin:4px 0 0;font-size:11px;color:var(--xb-text-mute)";
+      "margin:4px 0 0;font-size:11px;color:var(--muted-fg)";
     aliasHelp.textContent =
       "Set a custom name to summon the agent (e.g. @wizard). @agent always works.";
     body.appendChild(aliasHelp);
@@ -702,7 +702,7 @@ async function loadOrgBlocks(team, listEl) {
   try {
     blocks = await _xbtFetch(`/v1/teams/${team.id}/org-blocks`);
   } catch (e) {
-    listEl.innerHTML = `<p class="setting-help" style="margin:0;color:var(--xb-error);font-size:11px;">
+    listEl.innerHTML = `<p class="setting-help" style="margin:0;color:var(--destructive);font-size:11px;">
       Couldn't load pre-blocks: ${escapeHtml(e.message)}
     </p>`;
     return;
@@ -711,7 +711,7 @@ async function loadOrgBlocks(team, listEl) {
   if (!blocks || blocks.length === 0) {
     const hint = document.createElement("p");
     hint.className = "setting-help";
-    hint.style.cssText = "margin:0;font-size:11px;color:var(--xb-text-dim);";
+    hint.style.cssText = "margin:0;font-size:11px;color:var(--muted-fg);";
     hint.textContent = "No pre-blocks yet.";
     listEl.appendChild(hint);
     return;
