@@ -492,6 +492,19 @@ function formatLabel(format) {
 }
 
 /**
+ * Drop the retry that belonged to the PREVIOUS send.
+ *
+ * "Re-import anyway" carries the exact content it was offered for. Leaving it
+ * on screen once something else is loaded would give one button two meanings —
+ * and the one it would act on is the transcript already abandoned.
+ */
+function forgetLastSend() {
+  lastSent = null;
+  const forceBtn = el("btn-import-force");
+  if (forceBtn) forceBtn.hidden = true;
+}
+
+/**
  * Arm a piece of text, from wherever it came.
  *
  * @param {string} text
@@ -499,6 +512,7 @@ function formatLabel(format) {
  * @param {string} origin "file" | "paste" | "share"
  */
 function armContent(text, label, origin) {
+  forgetLastSend();
   armed.content = text;
   armed.label = label;
   armed.origin = origin;
@@ -508,6 +522,7 @@ function armContent(text, label, origin) {
 
 /** Nothing loaded. Both doors cleared, so neither can be sent by accident. */
 function disarmContent() {
+  forgetLastSend();
   armed.content = "";
   armed.label = "";
   armed.origin = "";
@@ -932,11 +947,9 @@ export function hideImport() {
     result.textContent = "";
     result.hidden = true;
   }
-  const forceBtn = el("btn-import-force");
-  if (forceBtn) forceBtn.hidden = true;
-  lastSent = null;
   setStatusLine(el("import-status"), "", "");
   clearMintedToken();
+  // Clears the armed transcript AND the retry that went with it.
   disarmContent();
 }
 

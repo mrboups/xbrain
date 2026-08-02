@@ -378,6 +378,18 @@ test("a duplicate verdict offers the way through", () => {
     /lastSent = payload/.test(send),
     "what was sent has to survive the answer, or there is nothing to retry",
   );
+  // ...and must NOT survive the next thing loaded. One button with two meanings
+  // would act on the transcript already abandoned.
+  for (const fn of ["function armContent", "function disarmContent"]) {
+    assert.ok(
+      /forgetLastSend\(\)/.test(braceBlock(code, code.indexOf(fn))),
+      `${fn} must drop the retry that belonged to the previous send`,
+    );
+  }
+  assert.ok(
+    /forceBtn\.hidden = true/.test(braceBlock(code, code.indexOf("function forgetLastSend"))),
+    "and take the control off screen with it",
+  );
 });
 
 test("every server rejection gets its own sentence", () => {
