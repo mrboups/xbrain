@@ -29,6 +29,7 @@ from app.services.transcript_import.types import (
     MAX_TURNS_PER_CONVERSATION,
     ParsedConversation,
     TranscriptParseError,
+    clean_source_id,
     clean_text,
     make_turn,
 )
@@ -212,9 +213,7 @@ def _parse_one(conv: Any) -> ParsedConversation | None:
     if not turns:
         return None
 
-    source_id = conv.get("conversation_id") or conv.get("id")
-    if not isinstance(source_id, str) or not source_id:
-        source_id = None
+    source_id = clean_source_id(conv.get("conversation_id")) or clean_source_id(conv.get("id"))
     title = clean_text(conv.get("title"))[:_TITLE_MAX_CHARS] or None
 
     return ParsedConversation(

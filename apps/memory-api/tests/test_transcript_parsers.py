@@ -522,6 +522,29 @@ def test_dedupe_key_falls_back_to_a_content_hash_without_an_id():
     assert again.dedupe_key("chatgpt") == key
 
 
+@pytest.mark.parametrize("parser_name", ["chatgpt", "claude-code"])
+def test_an_absurd_source_id_falls_back_to_the_content_hash(parser_name):
+    """The id becomes half a UNIQUE btree key; Postgres caps index entries at
+    ~2704 bytes. A crafted megabyte id must not turn an import into a 500."""
+    absurd = "z" * 5000
+    if parser_name == "chatgpt":
+        payload = _chatgpt_branched()
+        payload["conversation_id"] = absurd
+        payload["id"] = absurd
+        conv = chatgpt.parse(json.dumps([payload]))[0]
+    else:
+        records = [dict(r) for r in CLAUDE_CODE_RECORDS]
+        for r in records:
+            if "sessionId" in r:
+                r["sessionId"] = absurd
+        conv = claude_code.parse(_jsonl(*records))[0]
+
+    assert conv.source_id is None
+    key = conv.dedupe_key(parser_name)
+    assert key.startswith(f"{parser_name}:sha256:")
+    assert len(key) < 128
+
+
 def test_content_fingerprint_ignores_title_and_timestamps():
     base = _chatgpt_branched()
     renamed = _chatgpt_branched()

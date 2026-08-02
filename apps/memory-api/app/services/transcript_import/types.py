@@ -32,6 +32,13 @@ MAX_TURN_CHARS = 20_000
 # past this many kept turns.
 MAX_TURNS_PER_CONVERSATION = 5_000
 
+# A source conversation id becomes half of a UNIQUE btree key in Postgres, whose
+# index entries top out around 2704 bytes. A crafted export carrying a megabyte
+# "id" would turn an import into a 500. Anything beyond a sane bound is treated
+# as no id at all, which falls back to the content fingerprint — bounded, and
+# just as correct an identity.
+MAX_SOURCE_ID_CHARS = 200
+
 ROLE_USER = "user"
 ROLE_ASSISTANT = "assistant"
 _VALID_ROLES = frozenset({ROLE_USER, ROLE_ASSISTANT})
@@ -118,6 +125,20 @@ def clean_text(value: object) -> str:
     text = value.strip()
     if len(text) > MAX_TURN_CHARS:
         text = text[:MAX_TURN_CHARS].rstrip() + "\n…[truncated on import]"
+    return text
+
+
+def clean_source_id(value: object) -> str | None:
+    """Return a usable source conversation id, or ``None``.
+
+    ``None`` for anything that is not a non-empty string within
+    :data:`MAX_SOURCE_ID_CHARS` — see that constant for why the bound exists.
+    """
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text or len(text) > MAX_SOURCE_ID_CHARS:
+        return None
     return text
 
 

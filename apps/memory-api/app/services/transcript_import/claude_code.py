@@ -36,6 +36,7 @@ from app.services.transcript_import.types import (
     MAX_TURNS_PER_CONVERSATION,
     ParsedConversation,
     TranscriptParseError,
+    clean_source_id,
     clean_text,
     make_turn,
 )
@@ -162,9 +163,7 @@ def parse(raw: str) -> list[ParsedConversation]:
     for record in _iter_records(raw):
         saw_any_record = True
         rec_type = record.get("type")
-        session_id = record.get("sessionId")
-        if not isinstance(session_id, str) or not session_id:
-            session_id = None
+        session_id = clean_source_id(record.get("sessionId"))
 
         if rec_type == "summary":
             # Not speech, but Claude Code's own name for the session — the best
