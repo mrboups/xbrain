@@ -4,8 +4,15 @@
   <meta charset="UTF-8" />
   <!-- viewport-fit=cover is what makes env(safe-area-inset-*) in app.css
        resolve to anything; without it the composer sits under the home
-       indicator on a notched phone. -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+       indicator on a notched phone.
+
+       interactive-widget=resizes-content is what stops the on-screen keyboard
+       from being drawn OVER the page on Chrome/Android: without it the layout
+       keeps its full height, the focused composer ends up under the keys, and
+       the browser scrolls the whole page to reveal it — taking the header out
+       through the top. iOS Safari ignores this directive entirely, which is why
+       viewport.js measures window.visualViewport as well. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
   <meta name="theme-color" content="#0A0A0A" />
   <meta name="description" content="GrooveOS team chat - your team's shared chat and memory." />
   <meta name="referrer" content="no-referrer" />

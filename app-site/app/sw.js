@@ -29,8 +29,9 @@
  * settings panel, composer pill).
  * v3 — members, invite and add-a-team joined the app, so the shell grew four
  * shared modules and a panels surface.
+ * v4 — the keyboard fix (viewport.js) and the full-screen settings overlay.
  */
-const CACHE = "xb-app-shell-v3";
+const CACHE = "xb-app-shell-v4";
 
 /**
  * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07
@@ -51,6 +52,7 @@ const SHELL = [
   "/app/chat.js",
   "/app/panels.js",
   "/app/profile.js",
+  "/app/viewport.js",
   "/app/manifest.webmanifest",
   "/app/vendor/centrifuge.js",
   "/app/icons/icon-192.png",

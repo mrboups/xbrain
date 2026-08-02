@@ -24,6 +24,7 @@ import { MEMORY_API_BASE, getToken, getUserSub, signOut, mountSignIn } from "./a
 import { bootChat } from "./chat.js";
 import { mountProfile, hideProfile } from "./profile.js";
 import { wirePushButton, refreshPushButton, resyncPush } from "./push.js";
+import { bindViewport } from "./viewport.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -80,6 +81,28 @@ function showSignedIn(identity) {
   el("push-hint").hidden = true;
   const who = el("account-identity");
   if (who) who.textContent = identity || "";
+}
+
+/**
+ * The live visual-viewport binding, so a second call can take the first one
+ * down.
+ *
+ * boot() runs once, but nothing about this module guarantees that forever — a
+ * re-boot that attached a second pair of listeners would leave the first pair
+ * running for the rest of the session, on every keyboard frame, writing the
+ * same variable twice.
+ */
+let releaseViewport = null;
+
+/**
+ * Point the shell's height at what the person can actually see.
+ *
+ * Everything about how that is measured lives in viewport.js; this is the one
+ * call site, and it is idempotent.
+ */
+function wireViewport() {
+  if (releaseViewport) releaseViewport();
+  releaseViewport = bindViewport();
 }
 
 /**
@@ -196,6 +219,9 @@ async function startChat(identity) {
 
 async function boot() {
   await bootTheme();
+  // Before anything measures itself: the shell's height is the frame every
+  // other layout below hangs off.
+  wireViewport();
   wireThemeToggle();
   wireSettingsPanel();
 

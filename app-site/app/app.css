@@ -132,10 +132,19 @@
 html { -webkit-font-smoothing: antialiased; }
 
 body {
-  /* dvh, NOT vh: mobile Safari's vh includes the collapsing toolbar, so a
-     100vh column pushes the composer off the bottom of the screen. */
-  height: 100dvh;
+  /* THE ONLY HEIGHT IN THIS FILE THAT MATTERS ON A PHONE.
+     --xb-viewport-height is written by viewport.js from
+     window.visualViewport.height — the part of the page a person can actually
+     see, keyboard subtracted. The fallback is what runs when that API is
+     absent: dvh, NOT vh, because mobile Safari's vh includes the collapsing
+     toolbar and a 100vh column pushes the composer off the bottom. dvh alone is
+     not enough either — it tracks browser chrome and is never updated by the
+     virtual keyboard, which is exactly how the header used to scroll away. */
+  height: var(--xb-viewport-height, 100dvh);
   overflow: hidden;
+  /* No rubber-band on the page itself. The message list is the one scroller,
+     and a bounce here reads as the whole app coming loose. */
+  overscroll-behavior: none;
   background: var(--bg);
   color: var(--fg);
   font-family: var(--sans);
@@ -150,6 +159,10 @@ body {
   width: 100%;
   max-width: 720px;
   margin: 0 auto;
+  /* The shell never scrolls: #chat-scroll does. Without this a long thread or a
+     grown composer can push the column past the viewport and the header goes
+     with it — the same failure the keyboard used to cause, by another route. */
+  overflow: hidden;
 }
 
 /* ---- Header ---------------------------------------------------------- */
@@ -668,7 +681,10 @@ body {
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
+  /* contain, on BOTH axes: reaching the top of the thread must not hand the
+     gesture to the page, which would scroll the header out of view — the very
+     thing the keyboard was doing. */
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
 }
@@ -731,6 +747,14 @@ body {
   padding-bottom: calc(14px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
   background: var(--bg);
+}
+
+/* Keyboard up: the keys already cover the home indicator, so the inset that
+   clears it becomes a strip of dead space between the pill and the keyboard.
+   The env() above stays the default — this only overrides it for as long as
+   viewport.js says a keyboard is on screen. */
+:root[data-keyboard="open"] .xb-composer {
+  padding-bottom: 14px;
 }
 
 .xb-composer-pill {
@@ -1215,7 +1239,9 @@ body {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  max-height: calc(100dvh - 32px);
+  /* The same measured height the shell uses: with the keyboard open, a card
+     sized against the full viewport is a card whose own header is off screen. */
+  max-height: calc(var(--xb-viewport-height, 100dvh) - 32px);
   display: flex;
   flex-direction: column;
 }
