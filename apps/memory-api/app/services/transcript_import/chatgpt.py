@@ -41,6 +41,12 @@ FORMAT = "chatgpt"
 # user_editable_context, model_editable_context — is machinery.
 _SPEECH_CONTENT_TYPES = frozenset({"text", "multimodal_text"})
 
+# Reasoning-model exports carry a `channel` on assistant nodes. "final" is the
+# answer the person read; "analysis" and "commentary" are the model thinking to
+# itself, shipped as ordinary content_type="text" so nothing else filters them.
+# Absent (every pre-reasoning export) means "this is the answer".
+_NON_FINAL_CHANNELS = frozenset({"analysis", "commentary", "critic"})
+
 _TITLE_MAX_CHARS = 120
 
 # A conversation tree deeper than this is a crafted file, not a chat. The walk
@@ -99,6 +105,11 @@ def _is_speech_node(message: dict[str, Any]) -> bool:
     # call (python, browser, dalle...), not an answer to the person.
     recipient = message.get("recipient")
     if role == "assistant" and recipient not in (None, "all"):
+        return False
+
+    # Reasoning traces are shipped as plain text on a non-final channel.
+    channel = message.get("channel")
+    if isinstance(channel, str) and channel.lower() in _NON_FINAL_CHANNELS:
         return False
 
     metadata = message.get("metadata")

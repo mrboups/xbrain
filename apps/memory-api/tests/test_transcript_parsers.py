@@ -338,6 +338,34 @@ def test_chatgpt_never_imports_machinery_as_speech(forbidden):
     assert forbidden not in blob
 
 
+def test_chatgpt_drops_a_reasoning_channel_but_keeps_the_final_answer():
+    """A reasoning-model export ships the trace as ordinary content_type="text".
+
+    Nothing else filters it: the role is assistant, the recipient is "all", the
+    content type is text. Only `channel` distinguishes the model thinking to
+    itself from the model answering — so an importer that ignores `channel`
+    teaches the brain the model's half-formed guesses alongside its answer.
+    """
+    nodes = [
+        _chatgpt_node("root", None, ["u1"]),
+        _chatgpt_node("u1", "root", ["think"], role="user",
+                      text="Which database do we use?", create_time=1.0),
+        _chatgpt_node("think", "u1", ["final"], role="assistant",
+                      text="Maybe MySQL? No, let me reconsider.", create_time=2.0,
+                      channel="analysis"),
+        _chatgpt_node("final", "think", [], role="assistant",
+                      text="PostgreSQL 17, with pgvector for the RAG store.",
+                      create_time=3.0, channel="final"),
+    ]
+    payload = {"mapping": {n["id"]: n for n in nodes}, "current_node": "final",
+               "id": "conv-reasoning", "title": "DB"}
+    conv = chatgpt.parse(json.dumps([payload]))[0]
+    blob = "\n".join(t.content for t in conv.turns)
+    assert "Maybe MySQL" not in blob
+    assert "PostgreSQL 17" in blob
+    assert conv.turn_count == 2
+
+
 def test_chatgpt_keeps_the_words_of_a_multimodal_turn():
     conv = chatgpt.parse(json.dumps([_chatgpt_machinery()]))[0]
     assert conv.turns[-1].content == "Can you annotate the peak?"
