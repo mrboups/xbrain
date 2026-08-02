@@ -23,7 +23,16 @@
  */
 
 import assert from "node:assert/strict";
-import { createApi } from "../../packages/chat-core/api.js";
+import {
+  createApi,
+  IMPORT_FORMATS,
+  IMPORT_TEAM_HEADER,
+  IMPORT_TOKEN_PATH,
+  IMPORT_TRANSCRIPT_PATH,
+  MAX_IMPORT_BYTES,
+  importTranscriptBody,
+  summarizeImport,
+} from "../../packages/chat-core/api.js";
 import { assertPlatform } from "../../packages/chat-core/platform.js";
 
 let passed = 0;
@@ -232,6 +241,114 @@ await test("rawFetch returns the Response unthrown so status-driven callers surv
       assert.equal(calls[0].init.headers.Authorization, "Bearer t");
     },
   );
+});
+
+// ---- Transcript import: ONE place defines the request ----
+//
+// The server half of this feature is being built in parallel, so these
+// assertions are not "the endpoint works" — they are "the guess lives in one
+// file". If the real route disagrees, exactly these constants change.
+
+await test("importTranscriptRaw posts the declared body to the declared path", async () => {
+  await withFetch(
+    () => fakeResponse({ status: 202, body: '{"imported":3,"skipped":1}' }),
+    async (calls) => {
+      const api = createApi({ baseUrl: BASE, getToken: async () => "t" });
+      const res = await api.importTranscriptRaw("acme", {
+        format: "claude-code",
+        content: '{"type":"user"}',
+      });
+      assert.equal(res.status, 202, "raw: the caller maps 202/404/413/422 to its own copy");
+      assert.equal(calls[0].url, `${BASE}${IMPORT_TRANSCRIPT_PATH}`);
+      assert.equal(calls[0].init.method, "POST");
+      assert.equal(calls[0].init.headers["Content-Type"], "application/json");
+      assert.deepEqual(JSON.parse(calls[0].init.body), {
+        format: "claude-code",
+        content: '{"type":"user"}',
+      });
+    },
+  );
+});
+
+await test("the team rides in the scope HEADER, never in the body", async () => {
+  await withFetch(
+    () => fakeResponse({ status: 202, body: "{}" }),
+    async (calls) => {
+      const api = createApi({ baseUrl: BASE, getToken: async () => "t" });
+      await api.importTranscriptRaw("acme", { format: "chatgpt", content: "x" });
+      assert.equal(calls[0].init.headers[IMPORT_TEAM_HEADER], "acme");
+      const body = JSON.parse(calls[0].init.body);
+      assert.deepEqual(
+        Object.keys(body).sort(),
+        ["content", "format"],
+        "two fields and no more — a team named in two places is a team that can disagree with itself",
+      );
+    },
+  );
+});
+
+await test("the import body shape is declared once and reused", () => {
+  // The Shortcut setup screen prints this object for a person to retype into
+  // the Shortcuts app. If it built its own literal, the screen would keep
+  // teaching the old shape long after the request changed.
+  assert.deepEqual(importTranscriptBody({ format: "chatgpt", content: "hi" }), {
+    format: "chatgpt",
+    content: "hi",
+  });
+  assert.deepEqual(IMPORT_FORMATS, ["claude-code", "chatgpt"]);
+  assert.equal(IMPORT_TRANSCRIPT_PATH.startsWith("/v1/"), true);
+  assert.equal(IMPORT_TOKEN_PATH.startsWith("/v1/"), true);
+  assert.ok(
+    MAX_IMPORT_BYTES > 1024 * 1024 && MAX_IMPORT_BYTES <= 25 * 1024 * 1024,
+    "the transcript ceiling must be a real number of megabytes, and no larger than the media one",
+  );
+});
+
+await test("mintImportTokenRaw hands back the response instead of throwing on 404", async () => {
+  await withFetch(
+    () => fakeResponse({ status: 404, body: "Not Found" }),
+    async (calls) => {
+      const api = createApi({ baseUrl: BASE, getToken: async () => "t" });
+      const res = await api.mintImportTokenRaw("iPhone Shortcut");
+      assert.equal(
+        res.status,
+        404,
+        "a build with no token endpoint must degrade the setup screen, not throw inside the settings sheet",
+      );
+      assert.equal(calls[0].url, `${BASE}${IMPORT_TOKEN_PATH}`);
+      assert.deepEqual(JSON.parse(calls[0].init.body), { name: "iPhone Shortcut" });
+    },
+  );
+});
+
+await test("summarizeImport surfaces BOTH numbers, under any of their names", () => {
+  assert.deepEqual(summarizeImport({ imported: 12, skipped: 3 }), {
+    imported: 12,
+    skipped: 3,
+    conversations: null,
+    reported: true,
+  });
+  // The same two facts under the other names the server half might settle on.
+  assert.deepEqual(
+    summarizeImport({ imported_turns: 12, skipped_duplicates: 3, conversations: 1 }),
+    { imported: 12, skipped: 3, conversations: 1, reported: true },
+  );
+});
+
+await test("summarizeImport tells 'zero' apart from 'the server said nothing'", () => {
+  // These two look identical to a person unless the UI is told which is which:
+  // one is an empty transcript, the other is a response we could not read.
+  const zero = summarizeImport({ imported: 0, skipped: 0 });
+  assert.equal(zero.reported, true, "0 and 0 is an ANSWER");
+  for (const body of [null, undefined, {}, "nope", 7]) {
+    assert.equal(
+      summarizeImport(body).reported,
+      false,
+      `a body of ${JSON.stringify(body)} reports nothing countable, which is not the same as zero`,
+    );
+  }
+  assert.equal(summarizeImport({ skipped: 4 }).imported, null);
+  assert.equal(summarizeImport({ skipped: 4 }).reported, true);
 });
 
 // ---- createApi guards ----

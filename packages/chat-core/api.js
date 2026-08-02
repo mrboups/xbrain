@@ -153,6 +153,37 @@ export function createApi({ baseUrl, getToken } = {}) {
         body: { slug, display_name: displayName },
       }),
 
+    // ---- Importing a past conversation ----
+    //
+    // ONE call site for the whole feature, and one place that spells the path,
+    // the scope header and the body. The server half of this is being written
+    // in parallel, so a rename on that side has to cost a single edit HERE —
+    // not a hunt through a settings sheet, a share handler and a setup screen
+    // that each learned the shape for themselves.
+    //
+    // Raw, for the reason the invite calls are raw: the SERVER decides what a
+    // failure means, and the codes mean different things to the person holding
+    // the file. A 404 is "this build has no importer yet", a 413 is a file they
+    // can split, a 422 is a transcript that did not parse, a 403 is the wrong
+    // team. Collapsing those into one thrown sentence leaves every one of them
+    // reading "could not import".
+    //
+    // @param {string} teamSlug         an import lands in ONE team; guessing is wrong
+    // @param {{format: string, content: string}} payload
+    importTranscriptRaw: (teamSlug, { format, content } = {}) =>
+      rawFetch(IMPORT_TRANSCRIPT_PATH, {
+        method: "POST",
+        headers: { [IMPORT_TEAM_HEADER]: teamSlug },
+        body: importTranscriptBody({ format, content }),
+      }),
+
+    // The credential the iOS Shortcut carries, minted on request and shown once.
+    // Raw again, and for a sharper reason: a build without this endpoint answers
+    // 404, and the setup screen must degrade to instructions rather than throw
+    // inside the settings sheet.
+    mintImportTokenRaw: (name) =>
+      rawFetch(IMPORT_TOKEN_PATH, { method: "POST", body: { name } }),
+
     // ---- Media ----
     uploadMediaRaw,
 
@@ -213,3 +244,105 @@ export function createApi({ baseUrl, getToken } = {}) {
  * It is NOT the enforcement — the server's copy is.
  */
 export const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
+
+/* ==========================================================================
+ * Importing a past conversation into a team brain
+ *
+ * EVERYTHING THE SERVER SEES IS DECLARED IN THIS BLOCK. The route, the header,
+ * the two format names and the body shape — nothing else in either surface
+ * spells any of them. That is the whole point: the server half is being built
+ * in parallel and the names below are an ASSUMPTION, so reconciling them has to
+ * be an edit here and a re-sync, never a search.
+ * ======================================================================== */
+
+/** Where a transcript is posted. */
+export const IMPORT_TRANSCRIPT_PATH = "/v1/import/transcript";
+
+/** Where the iOS Shortcut's dedicated credential is minted. */
+export const IMPORT_TOKEN_PATH = "/v1/me/import-tokens";
+
+/**
+ * The scope header. An import lands in exactly one team, and the same header
+ * the media path uses is what says which one — the body carries no team at all,
+ * so there is no second place for the two to disagree.
+ */
+export const IMPORT_TEAM_HEADER = "X-Team-Scope";
+
+/**
+ * The formats the server parses. The client NEVER parses a transcript: the
+ * parsers live server-side, are tested there, and a second implementation would
+ * drift within a release. All this list does is name what may be declared.
+ */
+export const IMPORT_FORMATS = ["claude-code", "chatgpt"];
+
+/**
+ * The client-side ceiling on a transcript, checked BEFORE the file is read.
+ *
+ * A full ChatGPT export is tens of megabytes; reading one into a string on a
+ * phone is how the tab gets killed with no message at all. This number is a
+ * guess at the server's own limit and is deliberately the stricter guess — it
+ * is a courtesy check, not the enforcement.
+ */
+export const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
+
+/**
+ * The request body, in one place.
+ *
+ * @param {{format: string, content: string}} payload
+ * @returns {{format: string, content: string}}
+ */
+export function importTranscriptBody({ format, content } = {}) {
+  return { format, content };
+}
+
+/** First numeric value among `keys`, or null when the body names none of them. */
+function firstCount(data, keys) {
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+/**
+ * Read the import response tolerantly.
+ *
+ * TWO NUMBERS MATTER AND BOTH MUST SURVIVE: what was written, and what was
+ * skipped because it was already there. Without the second one, "nothing
+ * happened" and "you already imported this" are the same blank screen, and the
+ * person imports it a third time.
+ *
+ * Several plausible field names are accepted for each because the server half
+ * has not settled on one yet. That costs nothing and removes a whole class of
+ * silent zero. `reported` is the honest flag: false means the server said
+ * nothing countable, which is NOT the same as zero.
+ *
+ * @param {any} body the parsed JSON response
+ * @returns {{imported: number|null, skipped: number|null, conversations: number|null, reported: boolean}}
+ */
+export function summarizeImport(body) {
+  const data = body && typeof body === "object" ? body : {};
+  const imported = firstCount(data, [
+    "imported",
+    "imported_turns",
+    "turns_imported",
+    "messages_imported",
+  ]);
+  const skipped = firstCount(data, [
+    "skipped",
+    "skipped_duplicates",
+    "duplicates_skipped",
+    "duplicates",
+  ]);
+  const conversations = firstCount(data, [
+    "conversations",
+    "conversations_imported",
+    "imported_conversations",
+  ]);
+  return {
+    imported,
+    skipped,
+    conversations,
+    reported: imported !== null || skipped !== null,
+  };
+}
