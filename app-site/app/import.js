@@ -182,6 +182,44 @@ export function importSizeRefusal(bytes, label) {
   );
 }
 
+/**
+ * Where Android's share sheet lands.
+ *
+ * Declared as `share_target` in manifest.webmanifest and rewritten to the app
+ * shell by app-site/firebase.json — three files that must agree, which is why
+ * the string is spelled in each of them and checked against the others by a
+ * test rather than being passed around.
+ *
+ * iOS is NOT here and cannot be: Safari implements the Web Share API for
+ * sharing OUT, never for receiving. The Shortcuts route is what covers a phone.
+ */
+export const SHARE_TARGET_PATH = "/app/share-target";
+
+/**
+ * The conversation an Android share just handed us, or null.
+ *
+ * A GET share target arrives as an ordinary navigation with the shared fields
+ * in the query, so this reads a location rather than intercepting anything.
+ *
+ * `text` and `url` are BOTH read because Android apps disagree about which one
+ * a link goes in, and several send the same link twice — once inside a sentence
+ * and once on its own. Joining them blindly would send the link twice.
+ *
+ * @param {{pathname: string, search: string}} where
+ * @returns {{content: string, title: string}|null}
+ */
+export function readSharedTranscript(where) {
+  if (!where || where.pathname !== SHARE_TARGET_PATH) return null;
+  const params = new URLSearchParams(where.search || "");
+  const text = (params.get("text") || "").trim();
+  const url = (params.get("url") || "").trim();
+  const title = (params.get("title") || "").trim();
+  let content = text;
+  if (url && !text.includes(url)) content = content ? `${content}\n${url}` : url;
+  if (!content) return null;
+  return { content, title };
+}
+
 /** "1 turn" / "12 turns", so no sentence below has to hedge with "(s)". */
 function countLabel(n, noun) {
   return `${n} ${noun}${n === 1 ? "" : "s"}`;
@@ -521,6 +559,50 @@ function closeImport() {
 }
 
 /**
+ * A share just arrived: pre-fill the view, open it, and STOP.
+ *
+ * NOTHING IS IMPORTED HERE. A share that writes into a team brain on arrival is
+ * a share that writes into the wrong team — the sharer picked an app, not a
+ * destination, and there is no undo for a brain. So this arms the content,
+ * names where it came from, and hands the decision back: pick the team, check
+ * the format, press Import.
+ *
+ * The query is dropped from the address afterwards so a reload does not present
+ * the same share a second time as if it were new. The content is already in
+ * memory by then; the URL was only ever the delivery.
+ *
+ * @param {{content: string, title: string}} shared
+ */
+function consumeShare(shared) {
+  const status = el("import-status");
+  const refusal = importSizeRefusal(shared.content.length, "That share");
+  if (refusal) {
+    setStatusLine(status, refusal, "error");
+  } else {
+    const paste = el("import-paste");
+    if (paste) paste.value = shared.content;
+    armContent(shared.content, shared.title ? `shared: ${shared.title}` : "shared from another app", "share");
+    setStatusLine(
+      status,
+      "Shared from another app. Choose the team, check the format, then press Import.",
+      "loading",
+    );
+  }
+
+  openImport(el("btn-settings"));
+
+  // The address bar, not the content. Best effort: an environment without
+  // history.replaceState still has the share armed and on screen.
+  try {
+    if (window.history && typeof window.history.replaceState === "function") {
+      window.history.replaceState(null, "", "/app/");
+    }
+  } catch (e) {
+    // A blocked history write is not worth a message; the share still works.
+  }
+}
+
+/**
  * Shut it and forget what was loaded.
  *
  * Called on sign-out. A transcript somebody armed is their content, and leaving
@@ -657,5 +739,12 @@ export async function mountImport(api, refs = {}) {
   if (openBtn) openBtn.hidden = false;
   await fillTeamChooser(api, refs.getTeamSlug);
   refreshArmed();
-  return { teams: view.teams.length };
+
+  // Last, and only after the team chooser is filled: a share that opened the
+  // view before there was a team to pick would ask for a confirmation the
+  // person cannot give.
+  const shared = readSharedTranscript(window.location);
+  if (shared) consumeShare(shared);
+
+  return { teams: view.teams.length, shared: Boolean(shared) };
 }

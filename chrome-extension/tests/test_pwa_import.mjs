@@ -480,7 +480,156 @@ test("the format chooser can override the detection", () => {
   );
 });
 
-// ---- 6. The shell ships it ----------------------------------------------
+// ---- 6. Android's share sheet -------------------------------------------
+
+test("the manifest declares a share target inside the app's scope", () => {
+  const manifest = JSON.parse(readFileSync(join(APP_DIR, "manifest.webmanifest"), "utf8"));
+  const share = manifest.share_target;
+  assert.ok(share, "manifest.webmanifest must declare share_target, or the PWA never appears in Android's share sheet");
+  assert.ok(
+    share.action.startsWith(manifest.scope),
+    `the action ${share.action} must sit inside the manifest scope ${manifest.scope}, or Chrome rejects the whole declaration`,
+  );
+  assert.equal(
+    share.method.toUpperCase(),
+    "GET",
+    "GET, so the share arrives as an ordinary navigation the app can read - a POST target needs the worker to intercept it and hand back a synthesised page",
+  );
+  assert.deepEqual(
+    share.params,
+    { title: "title", text: "text", url: "url" },
+    "all three: Android apps disagree about which field a shared link goes in",
+  );
+});
+
+test("the three files that must agree about the share path do", () => {
+  const manifest = JSON.parse(readFileSync(join(APP_DIR, "manifest.webmanifest"), "utf8"));
+  const action = manifest.share_target.action;
+  assert.ok(
+    stripComments(importSrc).includes(`SHARE_TARGET_PATH = "${action}"`),
+    `import.js must recognise ${action} as the share arrival, or the shared text is read on no page at all`,
+  );
+  assert.ok(
+    stripComments(sw).includes(`SHARE_TARGET_PATH = "${action}"`),
+    `sw.js must know ${action} to keep it out of the cache`,
+  );
+  const hosting = JSON.parse(
+    readFileSync(join(REPO_ROOT, "app-site", "firebase.json"), "utf8"),
+  ).hosting;
+  for (const target of hosting) {
+    const rewrite = (target.rewrites || []).find((r) => r.source === action);
+    assert.ok(
+      rewrite,
+      `hosting target "${target.target}" has no rewrite for ${action} - nothing exists there on disk, so every share would land on a 404`,
+    );
+    assert.equal(rewrite.destination, "/app/index.html");
+  }
+});
+
+test("the worker never answers a share navigation from cache", () => {
+  const code = stripComments(sw);
+  const guard = code.indexOf("url.pathname === SHARE_TARGET_PATH");
+  assert.ok(
+    guard > 0,
+    "sw.js must return before respondWith for a share navigation - the conversation rides in that query string, and the cached shell does not carry it",
+  );
+  const respond = code.indexOf("respondWith");
+  assert.ok(respond > 0);
+  assert.ok(guard < respond, "the guard must run BEFORE respondWith or it gates nothing");
+  assert.equal(
+    (code.match(/respondWith/g) || []).length,
+    1,
+    "a second respondWith would need this guard repeated",
+  );
+  // And the share path must never be precached, which would make the guard the
+  // only thing standing between a share and a stale page.
+  const shell = /const SHELL = \[([\s\S]*?)\];/.exec(sw)[1];
+  assert.ok(
+    !shell.includes("share-target"),
+    "the share path must not be in SHELL - a precached share URL is a share answered from last week",
+  );
+});
+
+test("a share is read out of the query, both fields, without duplicating a link", () => {
+  const at = (search) => mod.readSharedTranscript({ pathname: "/app/share-target", search });
+  assert.equal(at("?text=hello%20there").content, "hello there");
+  assert.equal(at("?url=https%3A%2F%2Fchatgpt.com%2Fshare%2Fx").content, "https://chatgpt.com/share/x");
+  assert.equal(
+    at("?title=A%20chat&text=look%20at%20this&url=https%3A%2F%2Fchatgpt.com%2Fshare%2Fx").content,
+    "look at this\nhttps://chatgpt.com/share/x",
+    "text and url are different things when both are sent",
+  );
+  assert.equal(
+    at("?text=see%20https%3A%2F%2Fchatgpt.com%2Fshare%2Fx&url=https%3A%2F%2Fchatgpt.com%2Fshare%2Fx").content,
+    "see https://chatgpt.com/share/x",
+    "several Android apps send the same link twice - sending it twice to the server is not the fix",
+  );
+  assert.equal(at("?title=Only%20a%20title"), null, "a title alone is not a conversation");
+  assert.equal(at(""), null);
+});
+
+test("only the declared share path counts as a share", () => {
+  // Otherwise any link carrying ?text= would pre-fill the import view out of
+  // nowhere, on a normal open.
+  assert.equal(
+    mod.readSharedTranscript({ pathname: "/app/", search: "?text=hello" }),
+    null,
+  );
+  assert.equal(
+    mod.readSharedTranscript({ pathname: "/app/share-target/", search: "?text=hello" }),
+    null,
+    "the trailing slash is a different path, and it is not the one declared",
+  );
+  assert.equal(mod.readSharedTranscript(null), null);
+});
+
+test("a share is NEVER imported on arrival", () => {
+  // A share that writes into a team brain with no confirmation is a share that
+  // writes into the wrong team, and a brain has no undo.
+  const code = stripComments(importSrc);
+  const calls = [...code.matchAll(/importTranscriptRaw\(/g)].map((m) => m.index);
+  assert.equal(calls.length, 1, `importTranscriptRaw must be called exactly once; found ${calls.length}`);
+  const send = code.indexOf("async function sendImport");
+  const afterSend = code.indexOf("\nfunction openImport", send);
+  assert.ok(
+    calls[0] > send && calls[0] < afterSend,
+    "the one call site must live inside sendImport",
+  );
+  const sendCalls = [...code.matchAll(/(?:^|[^.\w$])sendImport\s*\(/g)]
+    .map((m) => m.index)
+    .filter((i) => !/function\s+$/.test(code.slice(Math.max(0, i - 24), i + 1)));
+  assert.equal(sendCalls.length, 1, "sendImport must be called from exactly one place");
+  const clickAt = code.lastIndexOf('addEventListener("click"', sendCalls[0]);
+  assert.ok(
+    clickAt > 0 && sendCalls[0] - clickAt < 120,
+    "the one call must sit inside a click listener - reachable by a press and by nothing else",
+  );
+  const consume = braceBlock(code, code.indexOf("function consumeShare"));
+  assert.ok(consume, "import.js must handle the arrival in consumeShare");
+  assert.ok(
+    !/importTranscriptRaw|sendImport/.test(consume),
+    "the arrival handler must not send anything",
+  );
+  assert.ok(
+    /openImport\(/.test(consume),
+    "it must open the view so the person can confirm",
+  );
+});
+
+test("the share query is dropped once it has been read", () => {
+  const code = stripComments(importSrc);
+  const consume = braceBlock(code, code.indexOf("function consumeShare"));
+  assert.ok(
+    /replaceState\(/.test(consume),
+    "a reload must not present the same share again as if it were new",
+  );
+  assert.ok(
+    !/pushState\(/.test(consume),
+    "replaceState, not pushState - Back must not walk into the share URL again",
+  );
+});
+
+// ---- 7. The shell ships it ----------------------------------------------
 
 test("import.js is precached with the rest of the shell", () => {
   const block = /const SHELL = \[([\s\S]*?)\];/.exec(sw);

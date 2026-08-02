@@ -8,7 +8,9 @@
         "**/.*",
         "**/node_modules/**"
       ],
-      "rewrites": [],
+      "rewrites": [
+        { "source": "/app/share-target", "destination": "/app/index.html" }
+      ],
       "headers": [
         {
           "source": "**",
@@ -49,7 +51,9 @@
         "**/.*",
         "**/node_modules/**"
       ],
-      "rewrites": [],
+      "rewrites": [
+        { "source": "/app/share-target", "destination": "/app/index.html" }
+      ],
       "headers": [
         {
           "source": "**",

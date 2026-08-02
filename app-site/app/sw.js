@@ -106,6 +106,16 @@ self.addEventListener("activate", (event) => {
 });
 
 /**
+ * Where Android's share sheet lands, declared as `share_target` in the manifest
+ * and rewritten to the app shell by firebase.json.
+ *
+ * Named here so the guard below is greppable and so the three places that must
+ * agree about this path (manifest, hosting rewrite, worker) can be checked
+ * against each other by a test.
+ */
+const SHARE_TARGET_PATH = "/app/share-target";
+
+/**
  * Shell-only, cache-first fetch.
  *
  * Each guard is on its own line so each is independently greppable, and each
@@ -117,6 +127,14 @@ self.addEventListener("fetch", (event) => {
   // 1. Only GET is ever cacheable.
   if (req.method !== "GET") return;
   const url = new URL(req.url);
+  // 1b. NEVER a share. The shared conversation rides in this navigation's query
+  //     string; answering it from the shell would hand back the app WITHOUT it,
+  //     and the person's conversation would be gone with no error to explain
+  //     where. Today nothing under this path is in SHELL so the match would
+  //     miss anyway — this guard is what stops a future navigation fallback
+  //     (`caches.match("/app/")` for any navigate request, the usual pattern)
+  //     from silently swallowing every share.
+  if (url.pathname === SHARE_TARGET_PATH) return;
   // 2. NEVER a cross-origin request. api.grooveos.app responses are per-user;
   //    this worker is shared by every profile on the device, so a cached
   //    /v1/... response served to a later, different user on a shared device
