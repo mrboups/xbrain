@@ -51,6 +51,7 @@ from app.routes import (
     tasks,
     team_chat,
     teams,
+    transcript_import,
     waitlist,
     webhooks_github,
 )
@@ -141,6 +142,9 @@ CORE_ROUTERS: list[tuple[APIRouter, str, list[str]]] = [
     (granola_integration.router, "/v1", ["granola"]),
     (agents.router, "/v1", ["agents"]),
     (team_chat.router, "/v1", ["team-chat"]),
+    # Bringing your own history into your own brain is not a paid feature —
+    # it is the multi-frontend invariant applied to the past. CORE, always.
+    (transcript_import.router, "/v1", ["transcript-import"]),
     (boards.router, "/v1", ["boards"]),
     (brain.router, "/v1", ["brain"]),
     (admin_brain.router, "/v1", ["admin-brain"]),

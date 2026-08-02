@@ -345,6 +345,24 @@ class Settings(BaseSettings):
     PUSH_PREVIEW_CHARS: int = 120          # hard cap on the body preview (D-27-06: a short preview, never the whole message)
     PUSH_SUBSCRIBE_RATE_LIMIT: str = "20/minute"
 
+    # === Transcript import (POST /v1/import/transcript) ===
+    # Deliberately NO field_validator (mirrors NUDGE/CATCHUP/EMBED/DOCBODY/BOARD/PUSH):
+    # a zero-key OSS install must boot and import out of the box.
+    #
+    # TRANSCRIPT_IMPORT_MAX_BYTES is a HARD cap enforced by streaming the request body
+    # and aborting mid-stream — the point is never to materialise a 200 MB upload in a
+    # 4 GB VM. A full ChatGPT export of a heavy account exceeds this; the error names
+    # the limit and tells the person to import one conversation instead.
+    TRANSCRIPT_IMPORT_MAX_BYTES: int = 25 * 1024 * 1024
+    # Fan-out ceilings. A crafted file must not turn one request into a million
+    # background upserts, and a real export must not silently drown the team's brain.
+    TRANSCRIPT_IMPORT_MAX_CONVERSATIONS: int = 500
+    TRANSCRIPT_IMPORT_MAX_TURNS: int = 5_000
+    # How many turns are ingested concurrently. Each one may call the Haiku relevance
+    # classifier, so this is the knob that keeps an import from saturating that budget
+    # (and the event loop) in one burst.
+    TRANSCRIPT_IMPORT_CONCURRENCY: int = 4
+
     @property
     def vapid_is_signable(self) -> bool:
         """True when a signing key is configured — WITHOUT handing the key out.

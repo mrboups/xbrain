@@ -8,7 +8,8 @@ from typing import Any
 from uuid import UUID
 
 import sqlalchemy as sa
-from fastapi import Depends, Header, HTTPException
+import structlog
+from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from xbrain_memory import MemoryProvider
@@ -23,6 +24,7 @@ from app.config import settings
 from app.db.session import async_session_factory
 from app.repos.teams import get_membership
 from app.repos.users import get_or_create_user
+from app.services import token_capabilities
 
 
 async def _touch_token(token_id: str) -> None:
@@ -43,7 +45,39 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         yield s
 
 
+def _assert_capability_allows(request: Request | None, capability: str | None, token_id: Any) -> None:
+    """Refuse a narrowed token anywhere outside its capability's allow-list.
+
+    This lives in ``get_current_principal`` — the ONE chokepoint every
+    authenticated route passes through — rather than in a per-route dependency,
+    because a per-route check is a check somebody forgets. A scoped token
+    reaching a route added next year must fail without anyone having thought
+    about it.
+
+    Fails closed when ``request`` is absent: a caller that resolved a principal
+    outside the HTTP path cannot prove which endpoint is being reached, so a
+    restricted token is refused rather than waved through.
+    """
+    if capability is None:
+        return
+    path = request.url.path if request is not None else None
+    if token_capabilities.is_path_allowed(capability, path):
+        return
+    log_path = path or "<no-request-context>"
+    structlog.get_logger(__name__).warning(
+        "auth.scoped_token_refused",
+        capability=capability,
+        path=log_path,
+        token_id=str(token_id),
+    )
+    raise HTTPException(
+        403,
+        f"This token is restricted to {capability} and cannot be used on this endpoint.",
+    )
+
+
 async def get_current_principal(
+    request: Request,
     authorization: str = Header(..., description="Bearer <jwt>"),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
@@ -78,8 +112,12 @@ async def get_current_principal(
     # Try Google OAuth2 access token (opaque, no JWT shape). Used by the
     # Chrome extension's chrome.identity.getAuthToken flow — silent when the
     # user is already signed into Chrome.
+    # NOTE the xbi_ exclusion below is not cosmetic: without it a scoped import
+    # token would be POSTed to Google's tokeninfo endpoint on every request —
+    # leaking one of our credentials to a third party before failing.
     if (
         not token.startswith("xbt_")
+        and not token.startswith(token_capabilities.SCOPED_TOKEN_PREFIXES)
         and not token.startswith("gho_")
         and "." not in token  # access tokens are opaque; bridge JWTs / ID tokens have dots
     ):
@@ -221,11 +259,14 @@ async def get_current_principal(
             # Fall through to bridge JWT attempt
             pass
 
-    # Try personal API token (tokens start with "xbt_" prefix).
-    if token.startswith("xbt_"):
+    # Try personal API token. "xbt_" is the unrestricted personal token; the
+    # prefixes in token_capabilities.SCOPED_TOKEN_PREFIXES (today: "xbi_" for
+    # transcript import) live in the SAME table and resolve to the same kind of
+    # principal — the difference is the `capability` column, enforced below.
+    if token.startswith(("xbt_", *token_capabilities.SCOPED_TOKEN_PREFIXES)):
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         row = (await session.execute(sa.text("""
-            SELECT t.id, t.user_id, t.team_scope,
+            SELECT t.id, t.user_id, t.team_scope, t.capability,
                    u.source_user_id, u.email, u.display_name,
                    u.github_username, u.github_id, u.merged_into_user_id
             FROM user_api_tokens t
@@ -233,7 +274,13 @@ async def get_current_principal(
             WHERE t.token_hash = :hash AND t.revoked_at IS NULL
         """), {"hash": token_hash})).mappings().fetchone()
         if row is None:
+            # Covers both "never existed" and "revoked_at IS NOT NULL" — a
+            # revoked token is refused here, before any capability logic, so
+            # revocation kills a scoped token on the import endpoint too.
             raise HTTPException(401, "Invalid or revoked API token")
+        # The DATABASE row decides what this token may do, never the prefix a
+        # caller happens to send. Enforce before anything else touches state.
+        _assert_capability_allows(request, row["capability"], row["id"])
         # Phase 10 GHA-06 — follow merge pointer if the token's user has been merged.
         # The row's user_id may point at an orphan if a merge happened after this
         # token was minted (merge_user_rows re-parents user_api_tokens.user_id,
@@ -241,7 +288,7 @@ async def get_current_principal(
         # join row if the request raced). Re-resolve the survivor row in-band.
         if row["merged_into_user_id"] is not None:
             row = (await session.execute(sa.text("""
-                SELECT t.id, t.user_id, t.team_scope,
+                SELECT t.id, t.user_id, t.team_scope, t.capability,
                        u.source_user_id, u.email, u.display_name,
                        u.github_username, u.github_id, u.merged_into_user_id
                 FROM user_api_tokens t
@@ -268,6 +315,9 @@ async def get_current_principal(
             "user": user,
             "sub": row["source_user_id"],
             "api_token_team_scope": row["team_scope"],
+            # None = unrestricted. Non-None = this principal reached an
+            # allow-listed path and may do nothing beyond that capability.
+            "capability": row["capability"],
             "github_is_org_member": None,
         }
 
