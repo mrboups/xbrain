@@ -106,20 +106,61 @@ function wireViewport() {
 }
 
 /**
- * The settings panel — open and shut, nothing more.
+ * Settings — a full-screen sheet, opened and shut.
  *
- * It starts closed on every open. A panel that remembers being open would cover
- * the newest message every single launch, which is the opposite of what a chat
- * wants its first screen to be.
+ * It starts closed on every launch. A surface that remembered being open would
+ * cover the chat every single time, which is the opposite of what a chat wants
+ * its first screen to be.
+ *
+ * THREE THINGS THAT ARE NOT DECORATION:
+ *   - focus goes INTO the sheet on open and back to the button that opened it
+ *     on close. Without the second half, closing drops the caret at the top of
+ *     the document and a keyboard user has to walk the whole header again.
+ *   - it takes the close button, not the name field. Focusing a text input here
+ *     would raise the on-screen keyboard before anybody asked to type.
+ *   - Escape closes, and so does a tap on the scrim beside the sheet — but the
+ *     labelled close control is what makes it dismissible on a touch device,
+ *     which has neither.
+ *
+ * Nothing here touches the page's scroll position: the shell does not scroll at
+ * all (app.css), so the thread is exactly where it was when the sheet closes.
  */
 function wireSettingsPanel() {
   const btn = el("btn-settings");
   const panel = el("settings-panel");
   if (!btn || !panel) return;
+  const closeBtn = el("btn-settings-close");
+
+  const openSettings = () => {
+    panel.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    const first = closeBtn || panel;
+    if (first && typeof first.focus === "function") first.focus();
+  };
+
+  const closeSettings = () => {
+    if (panel.hidden) return;
+    panel.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+    if (typeof btn.focus === "function") btn.focus();
+  };
+
   btn.addEventListener("click", () => {
-    const open = panel.hidden;
-    panel.hidden = !open;
-    btn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (panel.hidden) openSettings();
+    else closeSettings();
+  });
+  if (closeBtn) closeBtn.addEventListener("click", closeSettings);
+
+  // The scrim, not the sheet: a click whose target IS the overlay element
+  // landed beside the sheet, which on a wide window is "outside".
+  panel.addEventListener("click", (event) => {
+    if (event.target === panel) closeSettings();
+  });
+
+  // From anywhere, including from inside the name field.
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || panel.hidden) return;
+    closeSettings();
   });
 }
 

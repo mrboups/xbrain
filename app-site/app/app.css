@@ -364,15 +364,71 @@ body {
   opacity: 0.5;
 }
 
-/* ---- Settings panel --------------------------------------------------- */
+/* ---- Settings: a full-screen sheet ------------------------------------ */
 
-/* A strip under the header, not a page: two facts fit, and a route would cost
-   the chat its scroll position on every visit. */
-.xb-settings-panel {
-  flex-shrink: 0;
-  padding: 10px 13px 12px;
+/*
+ * It used to be a strip under the header. On a phone that is neither a page nor
+ * a dialog: it covered the newest messages, it could not hold a block that
+ * grows (the profile), and it had no obvious way out. As a sheet it takes the
+ * screen, scrolls itself, and leaves the thread behind it exactly where it was.
+ *
+ * The scrim only shows on a wide window, where the sheet is capped to the app
+ * column. On a phone the sheet IS the screen and the scrim is invisible.
+ */
+.xb-settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;                    /* above the members/invite overlays (100) */
+  display: flex;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.xb-settings-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 720px;                /* the app column, so nothing jumps sideways */
+  /* The SHELL's height, measured by viewport.js: opening the keyboard to rename
+     yourself must not push this sheet's own header off the top — the exact
+     failure the chat header used to have. */
+  height: var(--xb-viewport-height, 100dvh);
+  max-height: var(--xb-viewport-height, 100dvh);
   background: var(--card);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  overflow: hidden;                /* the body below is the only scroller */
+}
+
+.xb-settings-sheet-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 13px;
+  /* Under the notch, like the app header. */
+  padding-top: calc(10px + env(safe-area-inset-top));
   border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.xb-settings-sheet-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.xb-settings-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* The thread behind must not move when this list reaches its end. */
+  overscroll-behavior: contain;
+  padding: 12px 13px;
+  /* Clear of the home indicator, like the composer it replaces on screen. */
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
 }
 
 /* The account block — first thing in Settings, because everything below it is a
