@@ -202,7 +202,21 @@ async def delete_my_granola_key(
 
 class ApiTokenCreateBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    team_scope: str = Field(..., min_length=1, max_length=64)
+    # Empty string is the MULTI-TEAM sentinel, and it is the default here on purpose.
+    #
+    # `deps.get_team_scope` reads it as "this token is not pinned to one team, so fall
+    # through to the team_members membership check" — the same sentinel
+    # `services/api_tokens.mint_xbt_for_user` writes for every GitHub and local sign-in.
+    #
+    # It used to be REQUIRED with min_length=1, which made the multi-team sentinel
+    # unreachable through this route. Every web and extension sign-in therefore minted a
+    # token pinned to the literal string "default", which matches no real team slug — so
+    # the first feature to send a genuine slug in X-Team-Scope (media upload) got a 403
+    # on both surfaces. A token that cannot name any team it can act in is not a scope,
+    # it is a dead end.
+    #
+    # Pinning is still available: pass a real slug to get a single-team token.
+    team_scope: str = Field(default="", max_length=64)
     name: str = Field(default="default", min_length=1, max_length=128)
 
 

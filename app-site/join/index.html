@@ -387,7 +387,7 @@
             Authorization: "Bearer " + credential,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ team_scope: "default", name: "join-page" }),
+          body: JSON.stringify({ team_scope: "", name: "join-page" }),
         });
         if (!mintRes.ok) {
           askToSignIn();

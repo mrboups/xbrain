@@ -383,7 +383,7 @@
           Authorization: `Bearer ${idToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ team_scope: "default", name: "web-teams-page" }),
+        body: JSON.stringify({ team_scope: "", name: "web-teams-page" }),
       });
       if (!r.ok) {
         const text = await r.text().catch(() => "");

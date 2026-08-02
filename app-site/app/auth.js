@@ -114,7 +114,7 @@ export async function signInWithGoogleCredential(credential) {
         Authorization: `Bearer ${credential}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ team_scope: "default", name: "pwa" }),
+      body: JSON.stringify({ team_scope: "", name: "pwa" }),
     });
   } catch (e) {
     return { ok: false, error: "Network error - could not reach the server." };

@@ -104,7 +104,7 @@ export async function mintAndConnect(deps) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        team_scope: "default",
+        team_scope: "",
         name: "chrome-extension",
       }),
     });
