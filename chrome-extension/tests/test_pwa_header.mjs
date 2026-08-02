@@ -390,12 +390,22 @@ test("the composer is a pill: + , a textarea, then ›", () => {
 });
 
 test("the placeholder is the owner's wording, unchanged", () => {
-  const want = "Use @agent to interact with your team agent.";
+  // Short on purpose: the old sentence ran past the pill's width on a phone and
+  // the half a reader saw was an instruction about the agent, on a box whose
+  // first job is talking to people.
+  const want = "Talk to the team, or @agent";
   assert.ok(html.includes(want), `index.html must use the placeholder "${want}"`);
   assert.ok(
     readFileSync(join(__dirname, "..", "popup.html"), "utf8").includes(want),
     "the extension must use the same one — this test is comparing two products",
   );
+  const gone = "Use @agent to interact with your team agent.";
+  for (const [name, src] of [
+    ["index.html", html],
+    ["popup.html", readFileSync(join(__dirname, "..", "popup.html"), "utf8")],
+  ]) {
+    assert.ok(!src.includes(gone), `${name} still carries the old placeholder`);
+  }
 });
 
 test("the textarea grows to 8 rows and only then shows a scrollbar", () => {
