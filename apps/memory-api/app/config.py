@@ -307,6 +307,41 @@ class Settings(BaseSettings):
     DOCBODY_MAX_CHUNKS: int = 200                    # chunk-count cap per document
     DOCBODY_MIN_CHARS: int = 20                      # below this total => no_text_layer (nothing to embed)
 
+    # === Image description on upload — make an uploaded IMAGE's content recallable ===
+    # media.py sets an uploaded item's content to `caption or filename`, so a screenshot of
+    # an architecture diagram lands in the brain as the string "screenshot.png" and its
+    # contents are invisible to every recall path. Phase 24 closed this for DOCUMENTS
+    # (doc_body_ingest.py); these knobs close it for IMAGES: a vision model describes the
+    # image and the description is embedded as a LINKED child memory_item — the person's
+    # caption on the parent is never overwritten. See app/services/image_describe.py.
+    #
+    # Deliberately NO field_validator (mirrors EMBED/CATCHUP/DOCBODY/BOARD/PUSH): a zero-key
+    # OSS install MUST boot. With no ANTHROPIC_API_KEY the path calls nothing and records
+    # "skipped (vision_unavailable)" on the parent — absent, never a crash-boot.
+    #
+    # VISION_DESCRIBE_ENABLED is a real kill-switch, not a nicety: this path sends user
+    # images to a third-party API. A self-hoster who refuses that data egress sets it false
+    # and nothing leaves the box. Default true because the feature was asked for.
+    VISION_DESCRIBE_ENABLED: bool = True
+    # Deliberately SEPARATE from RELEVANCE_HAIKU_MODEL: describing an image and classifying a
+    # chat line are different jobs with different cost profiles, and must be able to move
+    # independently. This tier has vision.
+    VISION_DESCRIBE_MODEL: str = "claude-haiku-4-5-20251001"
+    VISION_DESCRIBE_TIMEOUT_S: float = 30.0   # a vision call is far slower than the 3s text classify
+    VISION_DESCRIBE_MAX_TOKENS: int = 500     # ceiling on the generated description length
+    # Its OWN daily per-team token bucket, using relevance_filter's mechanism (see
+    # check_token_budget). Separate cap so a team dragging 500 screenshots into a chat cannot
+    # silently drain the relevance filter's day, and vice versa. Exhausted => the description
+    # is SKIPPED and recorded as skipped — never retried in a loop.
+    VISION_DAILY_TOKEN_CAP_PER_TEAM: int = 200_000
+    # Anthropic's documented per-image limits, checked BEFORE the request is built so an
+    # oversized upload is skipped instead of becoming a guaranteed-rejected API call per
+    # upload. Settings rather than constants so an operator can follow the provider if it
+    # moves. VISION_MAX_IMAGE_BYTES is applied to the BASE64 payload actually sent (base64
+    # inflates ~33%, and that inflated string is what crosses the wire).
+    VISION_MAX_IMAGE_BYTES: int = 5 * 1024 * 1024
+    VISION_MAX_IMAGE_DIMENSION: int = 8000    # px on either edge
+
     # === Phase 26a (BOARD-01) — collaborative board ===
     # All four have safe local defaults so an OSS install boots with the board profile
     # OFF and nothing to fill in. Deliberately NO validator on any of them (26-CONTEXT:
