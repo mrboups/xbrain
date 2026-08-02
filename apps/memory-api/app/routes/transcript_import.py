@@ -241,6 +241,14 @@ async def import_transcript(
         payload = await asyncio.to_thread(
             _decode_request, body, content_type, fallback_format
         )
+    except TranscriptParseError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    # Same check on the decoded content, so a JSON envelope carrying a share
+    # link gets the same actionable answer as a raw one.
+    _reject_bare_link(payload["content"].encode("utf-8", "replace"))
+
+    try:
         source_format, conversations = await asyncio.to_thread(
             parse_transcript, payload["content"], payload["format"]
         )

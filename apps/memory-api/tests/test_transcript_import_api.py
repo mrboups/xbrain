@@ -473,6 +473,16 @@ async def test_a_bare_url_is_explained_never_fetched(imports, url):
     assert fan.call_count == 0
 
 
+async def test_a_url_inside_a_json_envelope_gets_the_same_answer(imports):
+    resp = await imports["client"].post(
+        "/v1/import/transcript",
+        headers=_headers(imports["full_token"]),
+        json={"format": "auto", "content": "https://chatgpt.com/share/abc-123"},
+    )
+    assert resp.status_code == 400
+    assert "never fetches a URL" in resp.json()["detail"]
+
+
 async def test_the_import_route_contains_no_outbound_http_client():
     """Grep-level guard: the moment someone adds httpx here, this fails.
 
