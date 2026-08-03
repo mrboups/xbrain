@@ -1024,6 +1024,10 @@ function showCatchupSummary(placeholder) {
 // regex from it (JS-escape + longest-first via buildMentionRegex). The server
 // is the single source of truth; on any error we keep the previous regex and
 // never throw into the UI.
+//
+// The composer no longer narrates a pending mention, so the regex's remaining
+// job is the agent toggle's de-dupe: a draft that already names the agent must
+// not have a second mention prepended to it.
 async function refreshAgentAliases() {
   if (!state.activeTeamId) return;
   try {
@@ -1100,11 +1104,7 @@ async function loadOlderPage() {
 
 function wireComposer() {
   const input = $("composer-input");
-  const mentionHint = createMentionHint();
-  input.addEventListener("input", () => {
-    autoResize(input);
-    updateMentionHint(input, mentionHint);
-  });
+  input.addEventListener("input", () => autoResize(input));
   input.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
     // SHIFT+ENTER → newline (textarea default, don't intercept)
@@ -1153,35 +1153,6 @@ function autoResize(el) {
     el.classList.add("is-overflowing");
   } else {
     el.classList.remove("is-overflowing");
-  }
-}
-
-// Optimistic composer hint: a lightweight text line under the composer that
-// shows "Will summon @<alias>" while the draft contains a live mention. Built
-// dynamically (no popup.html/css contract touched) and styled inline with the
-// existing shadcn tokens. UX-only — the server makes the real summon decision.
-function createMentionHint() {
-  const composer = document.querySelector(".xb-composer");
-  if (!composer) return null;
-  const hint = document.createElement("div");
-  hint.className = "xb-mention-hint";
-  hint.hidden = true;
-  hint.setAttribute("aria-live", "polite");
-  hint.style.cssText =
-    "padding:2px 12px 0;font-size:11px;line-height:1.4;color:var(--muted-fg);";
-  composer.appendChild(hint);
-  return hint;
-}
-
-function updateMentionHint(input, hint) {
-  if (!hint) return;
-  const hit = detectMentionClient(input.value, state.mentionRe);
-  if (hit) {
-    hint.textContent = `Will summon @${hit.trigger}`;
-    hint.hidden = false;
-  } else {
-    hint.textContent = "";
-    hint.hidden = true;
   }
 }
 

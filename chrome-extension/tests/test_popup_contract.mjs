@@ -755,6 +755,44 @@ test("board action: the board URL and token are never logged from the handler", 
   );
 });
 
+// ===========================================================================
+// 8. The composer does not explain itself.
+//
+// Typing "@agent" used to raise a line reading "Will summon @agent" under the
+// pill. These assertions are about DELETION, not about hiding: a hint element
+// that still gets built and then kept `hidden` is the same code with a flag on
+// it, and the next edit turns it back on. The builder, the updater, the class
+// and the string all have to be absent from the file.
+//
+// The DETECTION is untouched — the server decides what summons the agent. What
+// is gone is the UI narrating the decision back at the person typing.
+// ===========================================================================
+
+test("composer: the mention hint is deleted, not hidden", () => {
+  // Comments stripped: prose ABOUT the removed affordance is documentation, and
+  // the rule here is that no CODE builds, updates, styles or prints it.
+  const gone = [
+    ["createMentionHint()", /createMentionHint/],
+    ["updateMentionHint()", /updateMentionHint/],
+    ["the .xb-mention-hint node", /xb-mention-hint/],
+    ['the "Will summon" copy', /[Ww]ill summon/],
+  ];
+  for (const [what, re] of gone) {
+    assert.ok(
+      !re.test(popupJsNoComments),
+      `popup.js still builds ${what} — the hint must be removed, not switched off`,
+    );
+  }
+  assert.ok(
+    !/xb-mention-hint/.test(popupCss),
+    "popup.css still styles .xb-mention-hint — the rule outlived the element",
+  );
+  assert.ok(
+    !/[Ww]ill summon/.test(popupHtml.replace(/<!--[\s\S]*?-->/g, "")),
+    "popup.html still ships the hint's copy",
+  );
+});
+
 // ---------------------------------------------------------------------------
 // ENHANCEMENT (not part of the gate): richer DOM smoke when jsdom is present.
 //
