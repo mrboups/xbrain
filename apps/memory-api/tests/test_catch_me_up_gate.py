@@ -194,12 +194,15 @@ async def test_catch_me_up_gate(client, monkeypatch):
         captured: dict[str, object] = {}
         stream_calls: list[str] = []
 
-        async def _fake_stream(*, system_prompt, cached_memory_block, chat_history_block):
+        async def _fake_stream(
+            *, api_key, system_prompt, cached_memory_block, chat_history_block
+        ):
             # Capture the gathered since-window (chat_history_block) so the test can
             # assert EXACTLY which messages the real gather handed the model.
             stream_calls.append(chat_history_block)
             captured["history"] = chat_history_block
             captured["system"] = system_prompt
+            captured["api_key_passed"] = bool(api_key)
             yield ("catch-up briefing text", {})
 
         async def _no_bridge(user_sub):  # force the anthropic (stubbed) path
@@ -211,6 +214,14 @@ async def test_catch_me_up_gate(client, monkeypatch):
             published.append((channel, data))
             return True
 
+        # A fallback key must EXIST for the stubbed provider path to be chosen at
+        # all: with no live bridge and no key anywhere, the agent now reports
+        # unavailability instead of calling a provider. This test is about the
+        # gate, not about routing, so it gives the routing something to pick.
+        monkeypatch.setattr(
+            "app.services.team_chat_agent.settings.ANTHROPIC_API_KEY",
+            "sk-test-not-a-real-key",
+        )
         monkeypatch.setattr(
             "app.services.team_chat_agent._stream_via_anthropic_api", _fake_stream,
         )

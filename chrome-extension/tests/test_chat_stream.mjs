@@ -35,7 +35,9 @@ import {
   agentMentionAlias,
   withAgentMention,
   agentFailureText,
+  isAgentUnavailable,
   AGENT_FAILURE_TEXT,
+  AGENT_UNAVAILABLE_CODES,
   AGENT_FAILURE_FALLBACK,
   sameDay,
 } from "../../packages/chat-core/chat_stream.js";
@@ -578,6 +580,100 @@ test("agentFailureText: no sentence invents a cause the client cannot know", () 
       assert.ok(!lowered.includes(guess), `"${sentence}" guesses a cause`);
     }
     assert.ok(sentence[0] === sentence[0].toUpperCase() && sentence.endsWith("."));
+  }
+});
+
+// ---------- unavailability vs failure ----------
+//
+// A team whose agent has nothing to run on — no live bridge for that person
+// anywhere, and no key — used to be shown the same "could not answer" as a
+// crashed provider. A configuration nobody had finished setting up therefore
+// read as a product that does not work.
+
+test("the unavailability codes are part of the closed vocabulary", () => {
+  for (const code of AGENT_UNAVAILABLE_CODES) {
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(AGENT_FAILURE_TEXT, code),
+      `${code} has no sentence — it would render as the vague fallback`,
+    );
+  }
+});
+
+test("isAgentUnavailable is total, and defaults to treating things as failures", () => {
+  assert.equal(isAgentUnavailable({ code: "no_route" }), true);
+  assert.equal(isAgentUnavailable({ code: "subscription_lost" }), true);
+  for (const input of [
+    { code: "timeout" },
+    { code: "unavailable" }, // a transient outage, NOT an unavailability state
+    { code: "configuration" },
+    { code: "made_up" },
+    { code: 7 },
+    {},
+    null,
+    undefined,
+    "no_route",
+  ]) {
+    assert.equal(
+      isAgentUnavailable(input),
+      false,
+      `${JSON.stringify(input)} must not be treated as unavailability — calling a real malfunction "not available" understates it`,
+    );
+  }
+});
+
+test("an unavailability sentence never reads as a failed attempt", () => {
+  for (const code of AGENT_UNAVAILABLE_CODES) {
+    const lowered = AGENT_FAILURE_TEXT[code].toLowerCase();
+    for (const verb of ["failed", "error", "went wrong", "could not answer"]) {
+      assert.ok(
+        !lowered.includes(verb),
+        `"${AGENT_FAILURE_TEXT[code]}" says ${verb} — nothing was attempted`,
+      );
+    }
+  }
+});
+
+test("an unavailability sentence says what would make it work", () => {
+  for (const code of AGENT_UNAVAILABLE_CODES) {
+    assert.ok(
+      AGENT_FAILURE_TEXT[code].toLowerCase().includes("extension"),
+      `${code} names no remedy — an absence with no remedy is just bad news`,
+    );
+  }
+});
+
+test("no unavailability sentence mentions this device", () => {
+  // The bridge is keyed by USER, not by device: a phone with no extension
+  // routes through whatever browser that person has open somewhere and answers
+  // perfectly. "Not available on mobile" would be false about a working feature.
+  for (const code of AGENT_UNAVAILABLE_CODES) {
+    const lowered = AGENT_FAILURE_TEXT[code].toLowerCase();
+    for (const word of [
+      "this device",
+      "phone",
+      "mobile",
+      "desktop",
+      "laptop",
+      "your browser",
+    ]) {
+      assert.ok(
+        !lowered.includes(word),
+        `${code} says "${word}" — that makes a user-keyed condition sound device-specific`,
+      );
+    }
+  }
+});
+
+test("the client's vocabulary still cannot print anything the frame carries", () => {
+  // The new codes must not have opened a text path. Same total-function claim as
+  // above, re-asserted against payloads shaped like the new states.
+  const allowed = new Set([...Object.values(AGENT_FAILURE_TEXT), AGENT_FAILURE_FALLBACK]);
+  for (const input of [
+    { code: "no_route", message: "ANTHROPIC_API_KEY sk-ant-0123 is unset" },
+    { code: "subscription_lost", error: "socket 4401 for github:someone" },
+    { code: "no_route", detail: { raw: "<html>502</html>" } },
+  ]) {
+    assert.ok(allowed.has(agentFailureText(input)), "a frame's own words must never render");
   }
 });
 

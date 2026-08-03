@@ -119,7 +119,48 @@ export const AGENT_FAILURE_TEXT = {
   configuration:
     "The agent could not answer. Trying again will not help — this needs an " +
     "administrator to look at the server.",
+  // ---- Unavailability, not failure ----
+  //
+  // These two describe an ABSENCE. Nothing was attempted, so nothing went
+  // wrong, and a team whose agent has simply not been configured must not be
+  // shown a malfunction — that is how a product that works reads as broken.
+  //
+  // Neither sentence mentions this device. The bridge is keyed by user, not by
+  // device: a phone with no extension answers perfectly whenever that person
+  // has a browser open somewhere. "No live bridge for this user anywhere" is
+  // the only condition worth naming, and it is the same sentence everywhere.
+  no_route:
+    "The agent has no model to answer with. It runs on a Claude subscription " +
+    "through the xbrain extension — open the browser where that extension is " +
+    "signed in, or set a team API key, which is billed to the team.",
+  subscription_lost:
+    "The Claude subscription is no longer connected. Open the browser where " +
+    "the xbrain extension is signed in, then send this again.",
 };
+
+/**
+ * Codes that mean "not available", as opposed to "tried and failed".
+ *
+ * The distinction is rendered, not just worded: a failure line and an
+ * unavailability line get different classes, so a state nobody can fix by
+ * retrying does not carry the visual weight of a malfunction.
+ */
+export const AGENT_UNAVAILABLE_CODES = new Set(["no_route", "subscription_lost"]);
+
+/**
+ * Is this outcome an absence rather than a failure?
+ *
+ * Total, like agentFailureText: any input at all resolves to a boolean, and an
+ * unknown code is treated as a failure — the conservative direction, since
+ * calling a real malfunction "unavailable" would understate it.
+ *
+ * @param {{code?: string}|null|undefined} info
+ * @returns {boolean}
+ */
+export function isAgentUnavailable(info) {
+  const code = info && typeof info.code === "string" ? info.code : "";
+  return AGENT_UNAVAILABLE_CODES.has(code);
+}
 
 /** What every other code resolves to. Vague on purpose — see above. */
 export const AGENT_FAILURE_FALLBACK = "The agent could not answer.";

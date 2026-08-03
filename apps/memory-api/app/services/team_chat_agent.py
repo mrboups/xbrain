@@ -99,12 +99,66 @@ AGENT_FAILURE_TIMEOUT = (
     "Worth trying again."
 )
 
+# ---------------------------------------------------------------------------
+# Not available is not the same as broken
+# ---------------------------------------------------------------------------
+#
+# There was one shape of bad news for every situation, and it always read as a
+# malfunction. A team whose agent simply had nothing to run on was told the
+# attempt had failed — so a configuration nobody had finished setting up looked
+# like a product that did not work.
+#
+# The two sentences below describe an absence, and both say what would end it.
+# Neither implies an attempt was made and lost.
+#
+# WHAT THEY DELIBERATELY DO NOT SAY: anything about this device. The bridge is
+# keyed by USER, not by device — a phone with no extension routes through
+# whatever browser that person has open somewhere, and answers perfectly. The
+# only condition worth telling anyone about is "no live bridge for this user
+# ANYWHERE", which is the same sentence on a laptop and on a phone.
+
+AGENT_UNAVAILABLE_NO_ROUTE = (
+    "The agent has no model to answer with. It runs on a Claude subscription "
+    "through the xbrain extension — open the browser where that extension is "
+    "signed in, or set a team API key, which is billed to the team."
+)
+AGENT_UNAVAILABLE_SUBSCRIPTION_LOST = (
+    "The Claude subscription is no longer connected. Open the browser where the "
+    "xbrain extension is signed in, then send this again."
+)
+
 # Failure codes are OURS, not the provider's. They exist so a client can style or
 # count outcomes without parsing a sentence, and so the sentence can be reworded
 # without breaking anything downstream.
 FAILURE_CODE_TIMEOUT = "timeout"
 FAILURE_CODE_UNAVAILABLE = "unavailable"
 FAILURE_CODE_CONFIGURATION = "configuration"
+# The two that mean "there was nothing to try", not "the try went wrong".
+FAILURE_CODE_NO_ROUTE = "no_route"
+FAILURE_CODE_SUBSCRIPTION_LOST = "subscription_lost"
+
+# Codes a client must render as unavailability rather than as a failure. Kept as
+# a set so the client's copy of the same distinction has something to mirror.
+UNAVAILABILITY_CODES = frozenset(
+    {FAILURE_CODE_NO_ROUTE, FAILURE_CODE_SUBSCRIPTION_LOST}
+)
+
+
+class AgentRouteUnavailable(Exception):
+    """No live bridge for this user anywhere, and no usable fallback key.
+
+    Raised BEFORE any provider is contacted, which is the whole point: nothing
+    was attempted, so nothing failed.
+    """
+
+
+class BridgeSessionLost(Exception):
+    """The bridge had the socket when we asked and not when we called.
+
+    A window of milliseconds, and it widens to whole seconds whenever a laptop
+    sleeps mid-turn. Distinguished from a generic outage because the person can
+    act on it, and because retrying will now route via the fallback key instead.
+    """
 
 
 def classify_stream_failure(exc: BaseException) -> dict[str, Any]:
@@ -117,7 +171,28 @@ def classify_stream_failure(exc: BaseException) -> dict[str, Any]:
     treated as transient, which is the safe direction — telling somebody to try
     again costs a retry, while telling them not to bother hides an outage that
     would have cleared.
+
+    The routing exceptions are matched by type FIRST. They are ours, they carry
+    no provider text by construction, and they are the only inputs that produce
+    an unavailability rather than a failure.
     """
+    if isinstance(exc, AgentRouteUnavailable):
+        return {
+            "code": FAILURE_CODE_NO_ROUTE,
+            "message": AGENT_UNAVAILABLE_NO_ROUTE,
+            # Nothing about trying again changes an absent configuration.
+            "retryable": False,
+        }
+
+    if isinstance(exc, BridgeSessionLost):
+        return {
+            "code": FAILURE_CODE_SUBSCRIPTION_LOST,
+            "message": AGENT_UNAVAILABLE_SUBSCRIPTION_LOST,
+            # True, and honestly so: the next attempt finds no bridge and takes
+            # the fallback key, or finds the reopened browser.
+            "retryable": True,
+        }
+
     if isinstance(exc, (asyncio.TimeoutError, httpx.TimeoutException)):
         return {
             "code": FAILURE_CODE_TIMEOUT,
@@ -256,9 +331,16 @@ async def _do_handle(
             urls=web_block.count("### "),
         )
 
-    # Decide routing.
+    # Decide routing. The subscription is the preferred path; a key is the floor
+    # under it; neither is an unavailability, not an error.
     has_promax = await _user_has_live_bridge(triggering_user_sub)
-    routed_via = "user_promax" if has_promax else "team_api"
+    fallback_key = None if has_promax else (settings.ANTHROPIC_API_KEY or None)
+    if has_promax:
+        routed_via = "user_promax"
+    elif fallback_key:
+        routed_via = "team_api"
+    else:
+        routed_via = "unavailable"
 
     message_id = uuid.uuid4()
     started_at = time.monotonic()
@@ -310,8 +392,9 @@ async def _do_handle(
                     )
                 if usage:
                     token_usage = usage
-        else:
+        elif fallback_key:
             async for chunk_text, usage in _stream_via_anthropic_api(
+                api_key=fallback_key,
                 system_prompt=system_prompt,
                 cached_memory_block=cached_memory_block,
                 chat_history_block=chat_history_block,
@@ -328,6 +411,11 @@ async def _do_handle(
                     )
                 if usage:
                     token_usage = usage
+        else:
+            # Nothing to run on. Raised rather than returned so it travels the
+            # same path every other outcome does — one classifier, one publish,
+            # one persisted row, and no second way for a turn to end.
+            raise AgentRouteUnavailable()
 
     except Exception as e:  # noqa: BLE001
         # The team is told THAT the agent failed and whether waiting helps. The
@@ -673,6 +761,14 @@ async def _stream_via_promax(
                 "Content-Type": "application/json",
             },
         ) as response:
+            if response.status_code == 503:
+                # The bridge answers 503 when the user's socket is not in its
+                # pool. We only got here because it said the socket WAS there,
+                # so it went away between the two calls — a real state, and one
+                # the person can act on. Read as a generic outage it used to say
+                # "worth trying again" with no hint of what to try.
+                await response.aread()
+                raise BridgeSessionLost()
             if response.status_code >= 400:
                 err_body = await response.aread()
                 raise RuntimeError(
@@ -705,20 +801,26 @@ async def _stream_via_promax(
 
 async def _stream_via_anthropic_api(
     *,
+    api_key: str,
     system_prompt: str,
     cached_memory_block: str,
     chat_history_block: str,
 ):
-    """Fallback: call Anthropic directly with the team API key.
+    """Fallback: call the provider directly with a key.
 
-    Used when the triggering user doesn't have a live Pro/Max bridge.
-    Cost goes to xbrain's Anthropic budget.
+    Used when the triggering user has no live bridge. The key is passed IN
+    rather than read from settings here: which key is a routing decision, made
+    once by the caller, and a helper that reached for a global would silently
+    ignore it.
+
+    The key never appears in a log line, a message, or an exception raised by
+    this function.
     """
-    if not settings.ANTHROPIC_API_KEY:
-        raise RuntimeError(
-            "ANTHROPIC_API_KEY not configured — cannot fall back from Pro/Max"
-        )
-    client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    if not api_key:
+        # The caller is responsible for not getting here; this is the assertion,
+        # not the user-facing path (see AgentRouteUnavailable).
+        raise AgentRouteUnavailable()
+    client = AsyncAnthropic(api_key=api_key)
     async with client.messages.stream(
         model=MODEL_SONNET,
         max_tokens=MAX_OUTPUT_TOKENS,
@@ -853,7 +955,13 @@ async def catch_me_up(
 
         # Route exactly like the @agent path.
         has_promax = await _user_has_live_bridge(caller_user_sub)
-        routed_via = "user_promax" if has_promax else "team_api"
+        fallback_key = None if has_promax else (settings.ANTHROPIC_API_KEY or None)
+        if has_promax:
+            routed_via = "user_promax"
+        elif fallback_key:
+            routed_via = "team_api"
+        else:
+            routed_via = "unavailable"
 
         started_at = time.monotonic()
         log.info(
@@ -884,12 +992,15 @@ async def catch_me_up(
                     cached_memory_block=cached_memory_block,
                     chat_history_block=chat_history_block,
                 )
-            else:
+            elif fallback_key:
                 stream = _stream_via_anthropic_api(
+                    api_key=fallback_key,
                     system_prompt=system_prompt,
                     cached_memory_block=cached_memory_block,
                     chat_history_block=chat_history_block,
                 )
+            else:
+                raise AgentRouteUnavailable()
             async for chunk_text, _usage in stream:
                 if chunk_text:
                     await centrifugo_client.publish(
@@ -901,17 +1012,27 @@ async def catch_me_up(
                         },
                     )
         except Exception as e:  # noqa: BLE001
+            # Rule 1: this published `str(e)[:200]` — the provider's own words,
+            # straight into a frame a person reads. It is the same leak the
+            # @agent path was fixed for, on a summary nobody thought of, and it
+            # would now render an empty bubble for the routing exceptions, whose
+            # str() is deliberately blank. One classifier for both paths.
+            failure = classify_stream_failure(e)
             log.warning(
                 "team_chat_agent.catchup.stream_error",
                 team_id=str(team_id),
-                err=str(e),
+                failure_code=failure["code"],
+                err=str(e),  # the raw text lives HERE, for an operator
+                err_type=type(e).__name__,
             )
             await centrifugo_client.publish(
                 channel=channel,
                 data={
                     "type": "catchup_stream_error",
                     "message_id": str(message_id),
-                    "error": str(e)[:200],
+                    "error": failure["message"],
+                    "code": failure["code"],
+                    "retryable": failure["retryable"],
                 },
             )
 

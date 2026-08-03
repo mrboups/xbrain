@@ -27,7 +27,14 @@ from app.services.team_chat_agent import (
     AGENT_FAILURE_PERMANENT,
     AGENT_FAILURE_RETRYABLE,
     AGENT_FAILURE_TIMEOUT,
+    AGENT_UNAVAILABLE_NO_ROUTE,
+    AGENT_UNAVAILABLE_SUBSCRIPTION_LOST,
+    UNAVAILABILITY_CODES,
+    AgentRouteUnavailable,
+    BridgeSessionLost,
     FAILURE_CODE_CONFIGURATION,
+    FAILURE_CODE_NO_ROUTE,
+    FAILURE_CODE_SUBSCRIPTION_LOST,
     FAILURE_CODE_TIMEOUT,
     FAILURE_CODE_UNAVAILABLE,
     classify_stream_failure,
@@ -38,6 +45,15 @@ SAFE_SENTENCES = {
     AGENT_FAILURE_RETRYABLE,
     AGENT_FAILURE_PERMANENT,
     AGENT_FAILURE_TIMEOUT,
+}
+
+# The ones that describe an ABSENCE. Held apart from SAFE_SENTENCES because they
+# are reachable only from our own routing exceptions, never from anything a
+# provider raised — which is what lets them name a remedy instead of staying
+# vague.
+UNAVAILABILITY_SENTENCES = {
+    AGENT_UNAVAILABLE_NO_ROUTE,
+    AGENT_UNAVAILABLE_SUBSCRIPTION_LOST,
 }
 
 # The real one, plus the kinds of thing providers say. None of these words may
@@ -189,6 +205,134 @@ class TestTheAdviceIsHonest:
         for sentence in SAFE_SENTENCES:
             assert sentence[0].isupper() and sentence.endswith(".")
             assert "_" not in sentence
+
+
+class TestNotAvailableIsNotBroken:
+    """A team whose agent has nothing to run on must not be told it malfunctioned.
+
+    Before this, every bad outcome had the same shape, so a configuration nobody
+    had finished setting up read as a product that does not work.
+    """
+
+    def test_no_route_is_its_own_state(self):
+        failure = classify_stream_failure(AgentRouteUnavailable())
+        assert failure["code"] == FAILURE_CODE_NO_ROUTE
+        assert failure["message"] == AGENT_UNAVAILABLE_NO_ROUTE
+        assert failure["retryable"] is False
+
+    def test_a_lost_subscription_is_its_own_state(self):
+        failure = classify_stream_failure(BridgeSessionLost())
+        assert failure["code"] == FAILURE_CODE_SUBSCRIPTION_LOST
+        assert failure["message"] == AGENT_UNAVAILABLE_SUBSCRIPTION_LOST
+        # Honest: the next attempt finds the reopened browser, or takes the key.
+        assert failure["retryable"] is True
+
+    def test_both_are_flagged_as_unavailability_for_the_client(self):
+        assert UNAVAILABILITY_CODES == {
+            FAILURE_CODE_NO_ROUTE,
+            FAILURE_CODE_SUBSCRIPTION_LOST,
+        }
+        for code in UNAVAILABILITY_CODES:
+            assert code not in {
+                FAILURE_CODE_TIMEOUT,
+                FAILURE_CODE_UNAVAILABLE,
+                FAILURE_CODE_CONFIGURATION,
+            }, "an unavailability must not reuse a failure code — the client styles on it"
+
+    def test_neither_reads_as_a_failed_attempt(self):
+        for sentence in UNAVAILABILITY_SENTENCES:
+            lowered = sentence.lower()
+            for verb in ["failed", "error", "went wrong", "could not answer"]:
+                assert verb not in lowered, (
+                    f"{verb!r} in an unavailability sentence — nothing was "
+                    "attempted, so nothing failed"
+                )
+
+    def test_each_says_what_would_make_it_work(self):
+        for sentence in UNAVAILABILITY_SENTENCES:
+            assert "extension" in sentence.lower(), (
+                "an absence with no remedy is just bad news — say what to do"
+            )
+
+    def test_neither_mentions_this_device(self):
+        """The bridge is keyed by USER, not by device.
+
+        A phone with no extension routes through whatever browser that person
+        has open somewhere and answers perfectly. Copy that says the
+        subscription is unavailable on mobile — or on "this device" at all —
+        would be telling people something false about a working feature.
+        """
+        for sentence in UNAVAILABILITY_SENTENCES:
+            lowered = sentence.lower()
+            for device_word in [
+                "this device",
+                "phone",
+                "mobile",
+                "desktop",
+                "laptop",
+                "on this computer",
+                "your browser",  # THIS browser — the bridge may be in another
+            ]:
+                assert device_word not in lowered, (
+                    f"{device_word!r} makes a user-keyed condition sound "
+                    "device-specific"
+                )
+
+    def test_no_provider_is_named_and_no_account_state_is_described(self):
+        # Same allow-list discipline as the failure sentences. "API key" is our
+        # own product's term for a thing the team pastes into team settings —
+        # not a provider's error text — so it is deliberately not in this list.
+        for sentence in UNAVAILABILITY_SENTENCES:
+            lowered = sentence.lower()
+            for fragment in [
+                "anthropic",
+                "credit balance",
+                "plans & billing",
+                "request_id",
+                "error code",
+                "invalid_request_error",
+                "401",
+                "403",
+                "{",
+                "}",
+            ]:
+                assert fragment not in lowered, f"{fragment!r} leaked: {sentence}"
+
+    def test_they_are_reachable_only_from_our_own_exceptions(self):
+        """A provider exception must never produce one of these sentences.
+
+        If it could, a real outage would be reported as "not configured" and an
+        operator would go looking for a missing key that is not missing.
+        """
+        request = httpx.Request("POST", "https://provider.example/v1/messages")
+        for exc in [
+            RuntimeError("anything at all"),
+            ValueError(""),
+            asyncio.TimeoutError(),
+            httpx.ConnectError("down", request=request),
+            httpx.HTTPStatusError(
+                "bad",
+                request=request,
+                response=httpx.Response(503, request=request),
+            ),
+        ]:
+            failure = classify_stream_failure(exc)
+            assert failure["message"] not in UNAVAILABILITY_SENTENCES
+            assert failure["code"] not in UNAVAILABILITY_CODES
+
+    def test_the_payload_shape_is_unchanged(self):
+        for exc in [AgentRouteUnavailable(), BridgeSessionLost()]:
+            failure = classify_stream_failure(exc)
+            assert set(failure) == {"code", "message", "retryable"}
+            assert isinstance(failure["retryable"], bool)
+
+    def test_a_routing_exception_carrying_text_still_cannot_speak(self):
+        """Nothing stops somebody raising one WITH a message some day."""
+        leaky = "AgentRouteUnavailable: ANTHROPIC_API_KEY sk-ant-0123 is unset"
+        for exc in [AgentRouteUnavailable(leaky), BridgeSessionLost(leaky)]:
+            rendered = " ".join(str(v) for v in classify_stream_failure(exc).values())
+            assert "sk-ant" not in rendered
+            assert leaky not in rendered
 
 
 class TestTheFailureIsNotTheReply:

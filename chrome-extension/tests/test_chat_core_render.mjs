@@ -618,6 +618,92 @@ test("row: a failure that produced PARTIAL output keeps it — that part is real
   assert.equal(bubble.querySelector(".xb-msg-failure").textContent, AGENT_FAILURE_TEXT.timeout);
 });
 
+// ---- unavailability renders as unavailability, not as an error ----------
+//
+// The agent had nothing to run on. Nothing was attempted, so nothing
+// malfunctioned — and a team that has simply not finished setting the agent up
+// must not be shown the visual language of a crash.
+
+for (const code of ["no_route", "subscription_lost"]) {
+  test(`live: an ${code} frame is marked as unavailability, not as an error`, () => {
+    const { listEl, renderer } = makeHarness();
+    const route = createPublicationRouter({
+      renderer,
+      streamBuffer: new StreamBuffer(),
+      onNonEmpty: () => {},
+    });
+    route({ type: "agent_stream_start", message_id: "u1", agent_name: "agent" });
+    route({ type: "agent_stream_error", message_id: "u1", code });
+
+    const note = listEl.querySelector(".xb-msg-failure");
+    assert.ok(note, "the line must still exist — silence is worse than either");
+    assert.ok(
+      note.classList.contains("xb-msg-unavailable"),
+      `${code} must carry the unavailability class so it is not styled as a malfunction`,
+    );
+    assert.equal(note.textContent, AGENT_FAILURE_TEXT[code]);
+    assert.equal(
+      note.getAttribute("role"),
+      "status",
+      "still announced — a state that only exists visually reaches nobody using a screen reader",
+    );
+  });
+
+  test(`row: a persisted ${code} reloads as unavailability`, () => {
+    const { renderer } = makeHarness();
+    const node = renderer.buildBubbleNode({
+      id: `p-${code}`,
+      kind: "agent",
+      agent_name: "agent",
+      content: AGENT_FAILURE_TEXT[code],
+      created_at: NOW,
+      metadata: { agent_failure: { code, retryable: false, partial: false } },
+    });
+    const note = node.querySelector(".xb-msg-failure");
+    assert.ok(
+      note.classList.contains("xb-msg-unavailable"),
+      "a reload must be as truthful as the live frame was",
+    );
+  });
+}
+
+test("a real failure is NOT marked as unavailability", () => {
+  const { renderer } = makeHarness();
+  for (const code of ["timeout", "unavailable", "configuration", "who_knows"]) {
+    const node = renderer.buildBubbleNode({
+      id: `f-${code}`,
+      kind: "agent",
+      agent_name: "agent",
+      content: "",
+      created_at: NOW,
+      metadata: { agent_failure: { code, retryable: true, partial: false } },
+    });
+    assert.ok(
+      !node.querySelector(".xb-msg-failure").classList.contains("xb-msg-unavailable"),
+      `${code} is a failure — dressing it as "not available" understates it`,
+    );
+  }
+});
+
+test("both stylesheets define the unavailability rule", () => {
+  // The class is only worth applying if something styles it, and a rule that
+  // exists on one surface makes the two chats disagree about what happened.
+  for (const rel of [
+    join("chrome-extension", "popup.css"),
+    join("app-site", "app", "app.css"),
+  ]) {
+    const css = readFileSync(join(REPO_ROOT, rel), "utf8");
+    assert.ok(
+      /\.xb-msg-failure\.xb-msg-unavailable\s*\{/.test(css),
+      `${rel} has no .xb-msg-unavailable rule — the state would render in the failure colour`,
+    );
+    assert.ok(
+      /\.xb-msg-failure\.xb-msg-unavailable\s*\{[^}]*--muted-fg/.test(css),
+      `${rel} must not paint an absence in --destructive`,
+    );
+  }
+});
+
 test("row: an ordinary agent answer gets NO failure node", () => {
   const { renderer } = makeHarness();
   const node = renderer.buildBubbleNode({

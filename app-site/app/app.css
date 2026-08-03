@@ -1425,6 +1425,16 @@ body {
   line-height: 1.45;
   color: var(--destructive);
 }
+/* Not available is not broken.
+   The agent had nothing to run on — no live bridge for this person anywhere,
+   and no key. Nothing was attempted, so nothing malfunctioned, and --destructive
+   would say otherwise: red is the colour of something going wrong, and a team
+   that simply has not finished setting the agent up would read it as a product
+   that does not work. --muted-fg states the fact and leaves the alarm out of it.
+   Both themes inherit this, because both define --muted-fg. */
+.xb-msg-failure.xb-msg-unavailable {
+  color: var(--muted-fg);
+}
 /* A failure that produced no output at all leaves .xb-msg-text empty; without
    this it still occupies a line, and the bubble opens with a blank one. */
 .xb-msg-bubble.is-failed .xb-msg-text:empty { display: none; }

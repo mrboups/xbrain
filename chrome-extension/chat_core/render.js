@@ -27,6 +27,7 @@ import {
   indexedAttachment,
   indexedTooltipText,
   agentFailureText,
+  isAgentUnavailable,
   formatRelative,
   sameDay,
   dayLabel,
@@ -428,7 +429,11 @@ export function createRenderer(opts) {
    */
   function buildFailureNode(failure) {
     const node = doc.createElement("div");
-    node.className = "xb-msg-failure";
+    // An absence and a malfunction are not the same news, so they are not the
+    // same line. Both classes exist; only one is applied.
+    node.className = isAgentUnavailable(failure)
+      ? "xb-msg-failure xb-msg-unavailable"
+      : "xb-msg-failure";
     // Announced, because a failure that only exists visually is a message a
     // screen-reader user simply never receives.
     node.setAttribute("role", "status");
