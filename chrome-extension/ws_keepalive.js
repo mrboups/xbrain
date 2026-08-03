@@ -7,6 +7,44 @@
 // keeps the SW alive; the chrome.alarms watchdog (in background.js) re-opens
 // the WS if the SW was killed anyway (e.g. browser restart).
 
+// ---------------------------------------------------------------------------
+// WHY THE SOCKET IS NOT IN AN OFFSCREEN DOCUMENT
+// ---------------------------------------------------------------------------
+//
+// chrome.offscreen is the usual suggestion for "keep a long-lived connection
+// independent of the service worker lifecycle". It was evaluated and rejected,
+// and the reasoning is recorded here so it does not get re-litigated from the
+// suggestion alone.
+//
+// 1. There is no honest `reason` for it. chrome.offscreen.createDocument takes a
+//    reason from a CLOSED enum — AUDIO_PLAYBACK, BLOBS, CLIPBOARD, DOM_PARSER,
+//    DOM_SCRAPING, IFRAME_SCRIPTING, WORKERS, TESTING, and so on. None of them
+//    is "hold a WebSocket". Declaring one that nearly fits is a
+//    misrepresentation to a store reviewer about what the document is for, on
+//    an extension that already asks for identity and claude.ai host access.
+//
+// 2. It would not reliably work anyway. Offscreen documents are torn down for
+//    inactivity like anything else; the documented lifetime extensions attach to
+//    particular reasons (audio playback keeps one alive because audio is
+//    playing), not to holding a socket open.
+//
+// 3. It does not address the actual defect. The bridge did not die because the
+//    service worker was evicted — it died with the socket in a state the
+//    watchdog could not see, and with nothing telling the server the connection
+//    was alive. Both of those are fixed below and neither is about lifecycle.
+//
+// 4. The supported mechanism is already in use. Since Chrome 116 a WebSocket
+//    message resets the service worker's 30-second idle timer, which is exactly
+//    what PING_INTERVAL_MS is for — and the watchdog now verifies it worked
+//    instead of assuming it.
+//
+// THE HARD LIMIT, STATED PLAINLY: when Chrome is not running, nothing runs. No
+// offscreen document, no alarm and no technique changes that, and the product
+// must not imply otherwise. What the bridge being user-keyed DOES buy is that
+// the browser holding it can be any browser that person has open — a phone with
+// no extension is served by a laptop across the room. It just cannot be served
+// by a laptop that is off.
+
 export const PING_INTERVAL_MS = 20_000; // < 30s MV3 SW idle timeout
 export const WATCHDOG_PERIOD_MIN = 1; // chrome.alarms minimum stable: 1 min
 export const MAX_BACKOFF_MS = 30_000;
