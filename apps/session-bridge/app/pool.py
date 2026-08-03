@@ -99,6 +99,23 @@ class Pool:
         """Number of currently-registered WS connections (for /healthz)."""
         return len(self._sockets)
 
+    def has_socket(self, user_sub: str) -> bool:
+        """Is a WebSocket registered for this user right now?
+
+        This process holds the sockets, so this is the answer — not an inference
+        from one. memory-api used to decide the same question by reading a
+        `last_seen_at` timestamp and allowing it 90 seconds of slack, which is a
+        guess in both directions: it called a bridge dead 90 seconds after the
+        heartbeat missed a beat, and called one alive for 90 seconds after the
+        laptop lid closed.
+
+        Deliberately not async and not locked. It is a single dict membership
+        test on an atomic read, called on the routing path of every agent turn;
+        taking the pool lock would serialise those behind whatever network I/O
+        the lock's other holders are doing.
+        """
+        return user_sub in self._sockets
+
     def _reset_for_tests(self) -> None:
         """Test helper — clears in-memory state between tests."""
         self._sockets.clear()

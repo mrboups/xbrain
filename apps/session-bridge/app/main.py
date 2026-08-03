@@ -6,7 +6,7 @@ import logging
 import structlog
 from fastapi import FastAPI
 
-from app import healthz, routes_chat, routes_ws
+from app import healthz, routes_chat, routes_status, routes_ws
 from app.config import settings
 
 
@@ -44,4 +44,5 @@ async def _on_startup() -> None:
 
 app.include_router(healthz.router)
 app.include_router(routes_chat.router)
+app.include_router(routes_status.router)
 app.include_router(routes_ws.router)

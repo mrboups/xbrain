@@ -33,6 +33,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 from uuid import UUID
 
 import httpx
@@ -56,6 +57,15 @@ log = structlog.get_logger(__name__)
 
 MODEL_SONNET = "claude-sonnet-4-6"
 MAX_OUTPUT_TOKENS = 4000
+
+# session-bridge, on the internal compose network. One base for both hops: the
+# liveness probe and the streaming call must reach the SAME process, or the
+# routing decision is about one bridge and the request goes to another.
+BRIDGE_BASE_URL = "http://session-bridge:8105"
+# Short on purpose. This sits in front of every agent turn, and a slow answer
+# here is worth less than a fast wrong-but-safe one: the timeout falls through
+# to the fallback key, which is where an unreachable bridge lands anyway.
+BRIDGE_STATUS_TIMEOUT_S = 3.0
 
 # ---------------------------------------------------------------------------
 # What a team is told when the agent cannot answer
@@ -451,34 +461,45 @@ def _format_chat_history(messages: list[TeamMessage]) -> str:
 
 
 async def _user_has_live_bridge(user_sub: str) -> bool:
-    """Best-effort probe: does the session-bridge currently hold a live WS
-    for this user?
+    """Does session-bridge hold a live WebSocket for this user, right now?
 
-    For v1 we read the persisted user_external_sessions row — if last_seen_at
-    is within the last 90 seconds we assume the WS is alive (extension pings
-    every 20s + 60s grace). Phase 2 may add a dedicated bridge healthz
-    endpoint for synchronous truth.
+    Asked, not inferred. This used to read `user_external_sessions.last_seen_at`
+    and call the bridge alive if the row was under 90 seconds old — a guess in
+    both directions, and one that failed in the expensive direction: a heartbeat
+    stopped being written while the socket stayed up, the row went thirty
+    minutes stale, and every mention routed to a fallback key with no credit.
+
+    Widening that window would have been the wrong repair. It does not make a
+    live bridge easier to find; it makes a dead one look alive for longer,
+    turning a fast honest failure into a slow one.
+
+    The bridge holds the sockets in memory, so it is the authority. An
+    unreachable bridge answers False: if this hop cannot be made, neither can
+    the streaming one right behind it, so there is no live subscription to route
+    through whatever a timestamp might have claimed.
+
+    NOTE ON DEVICE. The bridge keys sockets by USER, never by device. A phone
+    with no extension routes through whatever browser that person has open
+    somewhere. There is deliberately no "is there a bridge HERE" question in
+    this codebase — it would have no consumer and would invite copy that tells
+    a phone user their subscription is unavailable when it is answering fine.
     """
     try:
-        async with async_session_factory() as session:
-            row = (
-                await session.execute(
-                    sa.text(
-                        """
-                        SELECT s.last_seen_at
-                        FROM user_external_sessions s
-                        JOIN users u ON u.id = s.user_id
-                        WHERE u.source_user_id = :sub
-                          AND s.provider = 'claude'
-                          AND s.last_seen_at > now() - interval '90 seconds'
-                        LIMIT 1
-                        """
-                    ),
-                    {"sub": user_sub},
-                )
-            ).fetchone()
-        return row is not None
-    except Exception:  # noqa: BLE001
+        token = _sign_bridge_jwt_acting(user_sub, ttl_s=30)
+        async with httpx.AsyncClient(timeout=BRIDGE_STATUS_TIMEOUT_S) as client:
+            r = await client.get(
+                f"{BRIDGE_BASE_URL}/v1/internal/bridge-status/{quote(user_sub, safe='')}",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        if r.status_code != 200:
+            log.info(
+                "team_chat_agent.bridge_status.non_200",
+                status=r.status_code,
+            )
+            return False
+        return bool(r.json().get("live"))
+    except Exception as e:  # noqa: BLE001
+        log.info("team_chat_agent.bridge_status.unreachable", err=str(e))
         return False
 
 
@@ -639,7 +660,7 @@ async def _stream_via_promax(
             {"role": "user", "content": user_message},
         ],
     }
-    bridge_url = "http://session-bridge:8105/v1/chat/completions"
+    bridge_url = f"{BRIDGE_BASE_URL}/v1/chat/completions"
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         async with client.stream(
