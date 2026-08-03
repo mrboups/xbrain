@@ -27,7 +27,17 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-import { connectRealtime } from "../../packages/chat-core/realtime.js";
+import {
+  connectRealtime,
+  createConnectionStatus,
+  createPublicationDeduper,
+  isAlreadySubscribed,
+  publicationKey,
+  ALREADY_SUBSCRIBED_CODE,
+  CONNECTION_RECONNECTING,
+  CONNECTION_OFFLINE,
+  CONNECTING_GRACE_MS,
+} from "../../packages/chat-core/realtime.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..", "..");
@@ -237,13 +247,21 @@ await test("presence handlers are wired ONLY when onPresenceChange is supplied",
     onUserPublication: () => {},
   });
   const plain = without.subscribeTeam("t");
-  for (const evt of ["join", "leave", "subscribed"]) {
+  // join/leave are presence and nothing else, so a surface without a badge must
+  // not ship them. `subscribed` is NO LONGER in that set: it now decides which
+  // of the two delivery paths owns a channel, which every surface needs — so it
+  // is wired unconditionally and is asserted below rather than forbidden here.
+  for (const evt of ["join", "leave"]) {
     assert.equal(
       plain.handlers[evt],
       undefined,
       `a surface with no presence badge must not wire "${evt}"`,
     );
   }
+  assert.ok(
+    plain.handlers.subscribed && plain.handlers.subscribed.length === 1,
+    "`subscribed` is wired for every surface — it is what marks the channel as delivered by this path",
+  );
 
   const withRec = makeRecord();
   let presence = 0;
@@ -256,11 +274,14 @@ await test("presence handlers are wired ONLY when onPresenceChange is supplied",
     onPresenceChange: () => presence++,
   });
   const wired = withPresence.subscribeTeam("t");
-  for (const evt of ["join", "leave", "subscribed"]) {
+  for (const evt of ["join", "leave"]) {
     assert.equal(wired.handlers[evt].length, 1);
     wired.handlers[evt][0]();
   }
-  assert.equal(presence, 3);
+  // `subscribed` carries two listeners now: delivery ownership, then presence.
+  assert.equal(wired.handlers.subscribed.length, 2);
+  wired.handlers.subscribed.forEach((fn) => fn({}));
+  assert.equal(presence, 3, "presence still recomputes on join, leave and subscribed");
 });
 
 await test("a prior connection handed in as `previous` is disconnected first", async () => {
@@ -308,6 +329,375 @@ await test("anti-fork: popup.js imports connectRealtime and builds no Centrifuge
     !/async function connectCentrifugo/.test(popupJs),
     "popup.js must not keep its own connectCentrifugo() — that is the fork D-27-04 forbids",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Connection status — the banner is a STATE, never the last incident seen
+// ---------------------------------------------------------------------------
+//
+// The bug: "Reconnecting..." stayed on screen permanently on a phone whose
+// connection was fine — messages sent, history loaded, frames arrived. The
+// banner was wired to `error`, Centrifuge emits that for transient things on a
+// healthy socket, and only a NEW `connected` cleared it. A socket that never
+// dropped never re-emits `connected`, so the claim was permanent.
+
+/** A controller with hand-driven timers, so the grace window costs no wall time. */
+function statusHarness({ graceMs = CONNECTING_GRACE_MS } = {}) {
+  const rendered = [];
+  let nextId = 1;
+  const timers = new Map();
+  const status = createConnectionStatus({
+    render: (text) => rendered.push(text),
+    graceMs,
+    setTimer: (fn) => {
+      const id = nextId++;
+      timers.set(id, fn);
+      return id;
+    },
+    clearTimer: (id) => timers.delete(id),
+  });
+  return {
+    status,
+    rendered,
+    /** Fire every timer that is still armed. */
+    tick() {
+      const due = [...timers.values()];
+      timers.clear();
+      due.forEach((fn) => fn());
+    },
+    pending: () => timers.size,
+  };
+}
+
+await test("an error while connected leaves the banner clear", () => {
+  // THE regression. There is no `error` input on the machine at all, so this is
+  // asserted the only way it can be: connected, then anything at all happens
+  // that is not a state change, and the banner is still clear.
+  const h = statusHarness();
+  h.status.connecting();
+  h.status.connected();
+  h.tick(); // any timer armed before `connected` must have been cancelled
+  assert.equal(h.status.current(), null, "a healthy socket shows no banner");
+  assert.ok(
+    !h.rendered.includes(CONNECTION_RECONNECTING),
+    "an incident on a healthy socket must never render the reconnecting banner",
+  );
+});
+
+await test("the status machine has no input an incident could use", () => {
+  // Structural version of the same rule: if there is nowhere to route an error,
+  // no future edit can wire one in by accident.
+  const h = statusHarness();
+  const surface = Object.keys(h.status);
+  assert.deepEqual(
+    surface.sort(),
+    ["connected", "connecting", "current", "disconnected", "dispose", "offline"],
+    "the connection status exposes states only — an `error` method would be a way back to the bug",
+  );
+});
+
+await test("a real disconnect says live updates are off", () => {
+  const h = statusHarness();
+  h.status.connected();
+  h.status.disconnected();
+  assert.equal(h.status.current(), CONNECTION_OFFLINE);
+  assert.ok(
+    /reload/i.test(CONNECTION_OFFLINE),
+    "a terminal disconnect must say what would make it work again",
+  );
+});
+
+await test("a normal connect never flashes the banner", () => {
+  // connecting -> connected inside the grace window. Rendering immediately
+  // would flash "Reconnecting..." on every single page load.
+  const h = statusHarness();
+  h.status.connecting();
+  assert.equal(h.status.current(), null, "nothing is claimed during the grace window");
+  h.status.connected();
+  h.tick();
+  assert.deepEqual(
+    h.rendered,
+    [],
+    "a clean connect touches the banner zero times — it was already clear, and the reconnecting text never gets written",
+  );
+  assert.equal(h.status.current(), null);
+});
+
+await test("a connecting state that persists is reported", () => {
+  const h = statusHarness();
+  h.status.connecting();
+  h.tick(); // the grace window elapses with no `connected`
+  assert.equal(h.status.current(), CONNECTION_RECONNECTING);
+});
+
+await test("a flapping connection does not push the message further away", () => {
+  // Each `connecting` re-arming the timer would mean a socket retrying every
+  // second never says anything at all.
+  const h = statusHarness();
+  h.status.connecting();
+  h.status.connecting();
+  h.status.connecting();
+  assert.equal(h.pending(), 1, "repeat connecting must not stack or reset the timer");
+  h.tick();
+  assert.equal(h.status.current(), CONNECTION_RECONNECTING);
+});
+
+await test("recovery clears the banner", () => {
+  const h = statusHarness();
+  h.status.connecting();
+  h.tick();
+  assert.equal(h.status.current(), CONNECTION_RECONNECTING);
+  h.status.connected();
+  assert.equal(h.status.current(), null);
+});
+
+await test("the same state twice renders once", () => {
+  const h = statusHarness();
+  h.status.disconnected();
+  h.status.disconnected();
+  h.status.connected();
+  h.status.connected();
+  assert.deepEqual(
+    h.rendered,
+    [CONNECTION_OFFLINE, null],
+    "a repeated state must not repaint — the banner is not an event log",
+  );
+});
+
+await test("connecting and disconnected are wired to the client", async () => {
+  const record = makeRecord();
+  const seen = [];
+  const handle = await connectRealtime({
+    Centrifuge: makeCentrifuge(record),
+    api,
+    getUserSub: () => "user-1",
+    onTeamPublication: () => {},
+    onUserPublication: () => {},
+    onConnecting: () => seen.push("connecting"),
+    onConnected: () => seen.push("connected"),
+    onDisconnected: () => seen.push("disconnected"),
+  });
+  const inst = handle.centrifuge;
+  for (const evt of ["connecting", "connected", "disconnected"]) {
+    assert.ok(
+      Array.isArray(inst.handlers[evt]) && inst.handlers[evt].length > 0,
+      `realtime.js must wire "${evt}" — without it a surface can only see incidents`,
+    );
+    inst.handlers[evt].forEach((fn) => fn({}));
+  }
+  assert.deepEqual(seen, ["connecting", "connected", "disconnected"]);
+});
+
+await test("the PWA drives the banner from state and not from error", () => {
+  const chatJs = readFileSync(join(REPO_ROOT, "app-site", "app", "chat.js"), "utf8");
+  assert.ok(
+    !/onError:\s*\(\)\s*=>\s*setConnectionBanner/.test(chatJs),
+    "onError must not write the banner — that is the permanent-Reconnecting bug",
+  );
+  assert.ok(
+    !/onError[^\n]*Reconnecting/.test(chatJs),
+    "no reconnecting text may be reachable from an error callback",
+  );
+  for (const cb of ["onConnecting", "onConnected", "onDisconnected"]) {
+    assert.ok(chatJs.includes(cb), `chat.js must react to ${cb}`);
+  }
+  assert.ok(
+    chatJs.includes("createConnectionStatus"),
+    "chat.js must use the shared state machine rather than re-deriving one",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Delivery paths — the bug that made a phone stop receiving anything
+// ---------------------------------------------------------------------------
+//
+// POST /v1/me/centrifugo-token returns a `channels` claim, so Centrifugo
+// subscribes the connection SERVER-SIDE at connect time. The client-side
+// subscribe that followed was answered 105 "already subscribed", that
+// Subscription never reached the subscribed state, and its `publication`
+// handler therefore never fired. Publications arrived on the CLIENT-level
+// event, which nothing was listening to.
+//
+// On the owner's iPhone that read as: sending works (HTTP), and nothing anyone
+// else writes ever appears (websocket), until a reload. Centrifugo logged 105
+// for every channel of both accounts.
+
+/** Connect, claim a team, and hand back the fakes plus what got routed. */
+async function connected({ teamId = "team-1", userSub = "user-1" } = {}) {
+  const record = makeRecord();
+  const team = [];
+  const user = [];
+  const handle = await connectRealtime({
+    Centrifuge: makeCentrifuge(record),
+    api,
+    getUserSub: () => userSub,
+    onTeamPublication: (d) => team.push(d),
+    onUserPublication: (d) => user.push(d),
+  });
+  handle.subscribeTeam(teamId);
+  const inst = handle.centrifuge;
+  const fire = (evt, ...args) => (inst.handlers[evt] || []).forEach((f) => f(...args));
+  const subFor = (channel) => inst.subscriptions.find((s) => s.channel === channel);
+  const fireSub = (channel, evt, ...args) => {
+    const s = subFor(channel);
+    (s.handlers[evt] || []).forEach((f) => f(...args));
+  };
+  return { handle, inst, team, user, fire, fireSub, subFor };
+}
+
+const MSG = (id) => ({ type: "message", message: { id, content: "hi" } });
+
+await test("a publication delivered ONLY on the client-level event reaches the handler", async () => {
+  // THE regression, exactly: the channel is subscribed server-side, the
+  // client-side subscribe is refused 105, and the message must still arrive.
+  const c = await connected();
+  c.fireSub("team:team-1", "error", { error: { code: ALREADY_SUBSCRIBED_CODE } });
+  c.fire("publication", { channel: "team:team-1", data: MSG("m1") });
+  assert.equal(c.team.length, 1, "a server-side publication must reach onTeamPublication");
+  assert.equal(c.team[0].message.id, "m1");
+});
+
+await test("the user channel works the same way", async () => {
+  const c = await connected();
+  c.fireSub("user:user-1", "error", { error: { code: ALREADY_SUBSCRIBED_CODE } });
+  c.fire("publication", { channel: "user:user-1", data: { type: "nudge_open" } });
+  assert.equal(c.user.length, 1);
+});
+
+await test("the per-subscription path still delivers when it does subscribe", async () => {
+  // A deployment whose token does NOT carry the channel takes this path, and
+  // presence rides on the Subscription object either way.
+  const c = await connected();
+  c.fireSub("team:team-1", "subscribed", {});
+  c.fireSub("team:team-1", "publication", { data: MSG("m2") });
+  assert.equal(c.team.length, 1);
+});
+
+await test("the same message on both paths renders once", async () => {
+  const c = await connected();
+  c.fireSub("team:team-1", "subscribed", {});
+  c.fireSub("team:team-1", "publication", { data: MSG("dup") });
+  c.fire("publication", { channel: "team:team-1", data: MSG("dup") });
+  assert.equal(c.team.length, 1, "a message arriving on both paths must be handled once");
+});
+
+await test("a subscribed channel owns its delivery, so the client-level event stands down", async () => {
+  const c = await connected();
+  c.fireSub("team:team-1", "subscribed", {});
+  c.fire("publication", { channel: "team:team-1", data: { type: "agent_stream_chunk", message_id: "a", delta: "x" } });
+  assert.equal(c.team.length, 0, "the owning path is the only one that delivers");
+});
+
+await test("chunks are never deduplicated by content", async () => {
+  // Two identical deltas in one answer are ordinary (" the" twice). Collapsing
+  // them would silently corrupt the reply, so a chunk gets no dedupe key at all
+  // and is protected by path ownership instead.
+  const c = await connected();
+  c.fireSub("team:team-1", "error", { error: { code: ALREADY_SUBSCRIBED_CODE } });
+  const chunk = { type: "agent_stream_chunk", message_id: "a", delta: " the" };
+  c.fire("publication", { channel: "team:team-1", data: chunk });
+  c.fire("publication", { channel: "team:team-1", data: { ...chunk } });
+  assert.equal(c.team.length, 2, "identical deltas must both be appended");
+  assert.equal(publicationKey("team:team-1", chunk), null, "a chunk has no stable identity");
+});
+
+await test("another team's frames never reach the open thread", async () => {
+  // The token grants EVERY team the person belongs to, so the client-level
+  // event carries all of them. Routing on the "team:" prefix alone would paint
+  // one team's messages into another's thread.
+  const c = await connected({ teamId: "team-1" });
+  c.fireSub("team:team-1", "error", { error: { code: ALREADY_SUBSCRIBED_CODE } });
+  c.fire("publication", { channel: "team:other-team", data: MSG("elsewhere") });
+  assert.equal(c.team.length, 0, "only the active team channel may be rendered");
+});
+
+await test("a team switch stops the previous team being routed", async () => {
+  const c = await connected({ teamId: "team-1" });
+  c.handle.subscribeTeam("team-2");
+  c.fire("publication", { channel: "team:team-1", data: MSG("stale") });
+  assert.equal(c.team.length, 0, "the team left behind must stop delivering");
+  c.fire("publication", { channel: "team:team-2", data: MSG("fresh") });
+  assert.equal(c.team.length, 1);
+});
+
+await test("a foreign user channel is ignored", async () => {
+  const c = await connected({ userSub: "user-1" });
+  c.fire("publication", { channel: "user:someone-else", data: { type: "nudge_open" } });
+  assert.equal(c.user.length, 0);
+});
+
+await test("105 is not an error and never reaches the surface", async () => {
+  // It fires once per channel per connect for every user. A client that counts
+  // it as a failure is permanently in a false failure state — which is what
+  // pinned "Reconnecting..." on screen.
+  const record = makeRecord();
+  const errors = [];
+  const handle = await connectRealtime({
+    Centrifuge: makeCentrifuge(record),
+    api,
+    getUserSub: () => "user-1",
+    onTeamPublication: () => {},
+    onUserPublication: () => {},
+    onError: (e) => errors.push(e),
+  });
+  (handle.centrifuge.handlers.error || []).forEach((f) =>
+    f({ error: { code: ALREADY_SUBSCRIBED_CODE, message: "already subscribed" } }),
+  );
+  assert.deepEqual(errors, [], "105 must not be reported as a failure");
+
+  assert.ok(isAlreadySubscribed({ error: { code: 105 } }), "nested shape");
+  assert.ok(isAlreadySubscribed({ code: 105 }), "flat shape");
+  assert.ok(!isAlreadySubscribed({ error: { code: 109 } }), "a real error is still an error");
+  assert.ok(!isAlreadySubscribed(null));
+});
+
+await test("a genuine error still reaches the surface", async () => {
+  const record = makeRecord();
+  const errors = [];
+  const handle = await connectRealtime({
+    Centrifuge: makeCentrifuge(record),
+    api,
+    getUserSub: () => "user-1",
+    onTeamPublication: () => {},
+    onUserPublication: () => {},
+    onError: (e) => errors.push(e),
+  });
+  (handle.centrifuge.handlers.error || []).forEach((f) => f({ error: { code: 109, message: "token expired" } }));
+  assert.equal(errors.length, 1);
+});
+
+await test("the deduper is bounded and order-preserving", () => {
+  const seen = createPublicationDeduper(2);
+  assert.equal(seen("a"), false);
+  assert.equal(seen("a"), true);
+  assert.equal(seen("b"), false);
+  assert.equal(seen("c"), false); // evicts "a"
+  assert.equal(seen("a"), false, "the oldest key is forgotten, not remembered forever");
+  assert.equal(seen(null), false, "a frame with no identity is never treated as a duplicate");
+});
+
+await test("publicationKey names only frames that carry a server-assigned id", () => {
+  assert.equal(publicationKey("team:t", MSG("m1")), "team:t|message|m1");
+  assert.equal(
+    publicationKey("team:t", { type: "agent_stream_start", message_id: "x" }),
+    "team:t|agent_stream_start|x",
+  );
+  assert.equal(publicationKey("team:t", { type: "agent_stream_chunk", message_id: "x" }), null);
+  assert.equal(publicationKey("team:t", { type: "message", message: {} }), null);
+  assert.equal(publicationKey("team:t", null), null);
+});
+
+await test("both surfaces get this fix — neither forks the module", () => {
+  for (const rel of [
+    join("chrome-extension", "chat_core", "realtime.js"),
+    join("app-site", "app", "chat_core", "realtime.js"),
+  ]) {
+    const copy = readFileSync(join(REPO_ROOT, rel), "utf8");
+    assert.ok(
+      copy.includes('centrifuge.on("publication"'),
+      `${rel} must carry the client-level publication handler — the extension may only have been working by timing luck`,
+    );
+  }
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

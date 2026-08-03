@@ -26,7 +26,7 @@
 import { createApi, MAX_MEDIA_BYTES } from "./chat_core/api.js";
 import { createRenderer } from "./chat_core/render.js";
 import { createPublicationRouter } from "./chat_core/publication.js";
-import { connectRealtime } from "./chat_core/realtime.js";
+import { connectRealtime, createConnectionStatus } from "./chat_core/realtime.js";
 import { createTeamRail } from "./chat_core/team_rail.js";
 import {
   StreamBuffer,
@@ -166,6 +166,15 @@ function setConnectionBanner(message) {
   banner.textContent = message || "";
   banner.hidden = !message;
 }
+
+/**
+ * The socket's state, as one line of text or none.
+ *
+ * The machine lives in chat-core; this surface owns only where the string goes.
+ * Nothing here reacts to a Centrifuge `error` — that is an incident, and the
+ * banner reports a state.
+ */
+const connectionStatus = createConnectionStatus({ render: setConnectionBanner });
 
 /**
  * The composer's inline error line, created on demand if the markup predates it.
@@ -846,15 +855,22 @@ export async function bootChat(refs = {}) {
       onUserPublication: handleUserPublication,
       // No onPresenceChange: this surface has no presence badge, and wiring the
       // callback would ship handlers that recompute nothing.
-      onConnected: () => setConnectionBanner(null),
-      onError: () => setConnectionBanner("Reconnecting..."),
+      //
+      // The banner is driven by the connection's STATE and never by an error.
+      // It used to be wired to `error`, and Centrifuge emits that for transient
+      // things on a socket that is fine — so one hiccup pinned "Reconnecting..."
+      // on screen for the rest of the session while everything worked.
+      onConnected: () => connectionStatus.connected(),
+      onConnecting: () => connectionStatus.connecting(),
+      onDisconnected: () => connectionStatus.disconnected(),
+      onError: (e) => console.warn("[xbrain] realtime incident:", e),
     });
   } catch (e) {
     console.warn("[xbrain] realtime unavailable:", e);
     state.realtime = null;
   }
   if (!state.realtime) {
-    setConnectionBanner("Live updates are off - reload to retry.");
+    connectionStatus.offline();
   }
 
   // 6. Claim the channel and load the thread.
