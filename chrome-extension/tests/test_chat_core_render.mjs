@@ -18,7 +18,9 @@
  *       child element was created from it;
  *   (e) the router calls renderMessage exactly once per `message` frame, and
  *       start -> chunk -> chunk -> end accumulates the deltas into the stream
- *       target and then drops the streaming class;
+ *       target and then drops the streaming class; a failed turn becomes a
+ *       FAILURE STATE whose words come from the client's own closed vocabulary,
+ *       so no text a frame carries can reach a rendered message;
  *   (f) ANTI-FORK (D-27-04): the extension imports the shared modules instead of
  *       keeping its own copy of the render/route code.
  *
@@ -33,7 +35,11 @@ import { dirname, join } from "node:path";
 
 import { createRenderer } from "../../packages/chat-core/render.js";
 import { createPublicationRouter } from "../../packages/chat-core/publication.js";
-import { StreamBuffer } from "../../packages/chat-core/chat_stream.js";
+import {
+  StreamBuffer,
+  AGENT_FAILURE_TEXT,
+  AGENT_FAILURE_FALLBACK,
+} from "../../packages/chat-core/chat_stream.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..", "..");
@@ -488,7 +494,7 @@ test("router: start -> chunk -> chunk -> end accumulates the deltas into the str
   );
 });
 
-test("router: an error frame appends the reason and stops the streaming state", () => {
+test("router: an error frame becomes a failure state, and stops the streaming", () => {
   const { listEl, renderer } = makeHarness();
   const route = createPublicationRouter({
     renderer,
@@ -497,11 +503,154 @@ test("router: an error frame appends the reason and stops the streaming state", 
   });
   route({ type: "agent_stream_start", message_id: "s2", agent_name: "agent" });
   route({ type: "agent_stream_chunk", message_id: "s2", delta: "partial" });
-  route({ type: "agent_stream_error", message_id: "s2", error: "boom" });
-  const text = renderer.streamTextTarget("s2");
-  assert.ok(text.textContent.includes("partial"));
-  assert.ok(text.textContent.includes("(error: boom)"));
-  assert.ok(!listEl.querySelector(".xb-msg-bubble").classList.contains("streaming"));
+  route({ type: "agent_stream_error", message_id: "s2", code: "unavailable" });
+
+  const bubble = listEl.querySelector(".xb-msg-bubble");
+  assert.ok(!bubble.classList.contains("streaming"));
+  assert.ok(bubble.classList.contains("is-failed"), "the bubble must read as failed");
+
+  // Whatever DID arrive is still the agent's, and stays in the answer.
+  assert.equal(renderer.streamTextTarget("s2").textContent, "partial");
+  // The failure is NOT the answer, so it lives in its own node.
+  const note = bubble.querySelector(".xb-msg-failure");
+  assert.ok(note, "a failed turn must carry a failure node");
+  assert.equal(note.textContent, AGENT_FAILURE_TEXT.unavailable);
+});
+
+test("router: a duplicate error frame does not stack a second failure line", () => {
+  const { listEl, renderer } = makeHarness();
+  const route = createPublicationRouter({
+    renderer,
+    streamBuffer: new StreamBuffer(),
+    onNonEmpty: () => {},
+  });
+  route({ type: "agent_stream_start", message_id: "s3", agent_name: "agent" });
+  route({ type: "agent_stream_error", message_id: "s3", code: "timeout" });
+  route({ type: "agent_stream_error", message_id: "s3", code: "timeout" });
+  assert.equal(
+    listEl.querySelector(".xb-msg-bubble").querySelectorAll(".xb-msg-failure").length,
+    1,
+  );
+});
+
+// The property this whole change exists for. Asserted on the SHAPE — for ANY
+// frame, whatever it carries — rather than on the one sample string that
+// prompted it, because the next provider error will be worded differently.
+test("router: no text a frame carries can reach the rendered message", () => {
+  const allowed = new Set([...Object.values(AGENT_FAILURE_TEXT), AGENT_FAILURE_FALLBACK]);
+  const hostileFrames = [
+    { error: "Error code: 400 - {'message': 'Your credit balance is too low'}" },
+    { error: "401 Unauthorized: invalid x-api-key sk-ant-api03-XXXX" },
+    { message: "request_id req_011abc failed at api.anthropic.com" },
+    { detail: "<script>alert(1)</script>" },
+    { error: "boom", code: "unavailable" },
+    { code: "a_code_from_a_newer_server", error: "raw text from the future" },
+    { code: 42, error: { nested: "object" } },
+    {},
+  ];
+  for (const extra of hostileFrames) {
+    const { listEl, renderer } = makeHarness();
+    const route = createPublicationRouter({
+      renderer,
+      streamBuffer: new StreamBuffer(),
+      onNonEmpty: () => {},
+    });
+    route({ type: "agent_stream_start", message_id: "h1", agent_name: "agent" });
+    route({ type: "agent_stream_error", message_id: "h1", ...extra });
+
+    const bubble = listEl.querySelector(".xb-msg-bubble");
+    const note = bubble.querySelector(".xb-msg-failure");
+    assert.ok(note, `no failure node for ${JSON.stringify(extra)}`);
+    assert.ok(
+      allowed.has(note.textContent),
+      `the rendered failure is not from the client's own vocabulary: ${JSON.stringify(
+        note.textContent,
+      )}`,
+    );
+    // And nothing leaked anywhere else in the row either.
+    const whole = listEl.textContent;
+    for (const value of Object.values(extra)) {
+      const raw = typeof value === "string" ? value : "";
+      if (raw.length > 3) {
+        assert.ok(!whole.includes(raw), `frame text reached the DOM: ${raw}`);
+      }
+    }
+  }
+});
+
+test("row: a persisted failure renders as one on RELOAD, not as the agent's reply", () => {
+  // The live frame is gone by then. Everyone who was not connected when it
+  // happened sees only this row, and it used to read as an ordinary answer.
+  const { renderer } = makeHarness();
+  const node = renderer.buildBubbleNode({
+    id: "f1",
+    kind: "agent",
+    agent_name: "agent",
+    content: "The agent could not answer just now. Worth trying again.",
+    created_at: NOW,
+    metadata: { agent_failure: { code: "unavailable", retryable: true, partial: false } },
+  });
+  const bubble = node.querySelector(".xb-msg-bubble");
+  assert.ok(bubble.classList.contains("is-failed"));
+  assert.equal(
+    bubble.querySelector(".xb-msg-text").textContent,
+    "",
+    "a failure that produced nothing must not print in the agent's voice",
+  );
+  assert.equal(
+    bubble.querySelector(".xb-msg-failure").textContent,
+    AGENT_FAILURE_TEXT.unavailable,
+  );
+});
+
+test("row: a failure that produced PARTIAL output keeps it — that part is real", () => {
+  const { renderer } = makeHarness();
+  const node = renderer.buildBubbleNode({
+    id: "f2",
+    kind: "agent",
+    agent_name: "agent",
+    content: "Half an ans",
+    created_at: NOW,
+    metadata: { agent_failure: { code: "timeout", retryable: true, partial: true } },
+  });
+  const bubble = node.querySelector(".xb-msg-bubble");
+  assert.equal(bubble.querySelector(".xb-msg-text").textContent, "Half an ans");
+  assert.equal(bubble.querySelector(".xb-msg-failure").textContent, AGENT_FAILURE_TEXT.timeout);
+});
+
+test("row: an ordinary agent answer gets NO failure node", () => {
+  const { renderer } = makeHarness();
+  const node = renderer.buildBubbleNode({
+    id: "ok1",
+    kind: "agent",
+    agent_name: "agent",
+    content: "Here is the answer.",
+    created_at: NOW,
+    metadata: { memory_items: 2 },
+  });
+  const bubble = node.querySelector(".xb-msg-bubble");
+  assert.ok(!bubble.classList.contains("is-failed"));
+  assert.equal(bubble.querySelector(".xb-msg-failure"), null);
+});
+
+test("both stylesheets give a failed turn a failure look", () => {
+  for (const rel of [
+    join("chrome-extension", "popup.css"),
+    join("app-site", "app", "app.css"),
+  ]) {
+    const css = readFileSync(join(REPO_ROOT, rel), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const rule = /(^|[};])\s*\.xb-msg-failure\s*\{([^}]*)\}/.exec(css);
+    assert.ok(rule, `${rel} has no .xb-msg-failure rule`);
+    assert.match(
+      rule[2],
+      /color:\s*var\(--destructive\)/,
+      `${rel}: a failed turn must not be styled like an answer`,
+    );
+    assert.ok(
+      /\.xb-msg-bubble\.is-failed\b/.test(css),
+      `${rel} never styles the .is-failed bubble`,
+    );
+  }
 });
 
 test("router: an unknown frame type is ignored, not thrown on", () => {

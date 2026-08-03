@@ -1001,6 +1001,30 @@ html, body {
   margin-bottom: 5px;
 }
 
+/* A turn the agent could not complete.
+   It has to READ as a failure, not as the agent's last sentence: a failed answer
+   dressed as a reply is a lie about what happened. So it sits in its own node
+   below whatever did arrive, on --destructive, behind a rule that separates it
+   from the text above. The bubble keeps its normal fill — this is one turn that
+   failed, not a broken chat. */
+.xb-msg-failure {
+  display: block;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--destructive);
+}
+/* An empty .xb-msg-text (the failure produced no output at all) would otherwise
+   leave a blank line above the rule. */
+.xb-msg-bubble.is-failed .xb-msg-text:empty { display: none; }
+.xb-msg-bubble.is-failed .xb-msg-failure:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
 /* Sources disclosure (mockup .sources) — collapsed by default, mono summary. */
 .xb-msg-sources {
   margin-top: 8px;

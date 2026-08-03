@@ -15,6 +15,7 @@
  *   indexedTooltipText  — the sentence for one /indexed-text answer
  *   agentMentionAlias   — which alias the agent toggle writes
  *   withAgentMention    — the toggle's outgoing text, de-duped against a typed one
+ *   agentFailureText    — the closed vocabulary a failed agent turn may print
  *   sameDay             — day-separator boundary     (Plan 20-03)
  */
 
@@ -33,6 +34,9 @@ import {
   indexedTooltipText,
   agentMentionAlias,
   withAgentMention,
+  agentFailureText,
+  AGENT_FAILURE_TEXT,
+  AGENT_FAILURE_FALLBACK,
   sameDay,
 } from "../../packages/chat-core/chat_stream.js";
 
@@ -523,6 +527,57 @@ test("indexedTooltipText: every state produces a non-empty string", () => {
     const out = indexedTooltipText(input);
     assert.equal(typeof out, "string");
     assert.ok(out.trim().length > 0, `blank tooltip for ${JSON.stringify(input)}`);
+  }
+});
+
+// ---------- agentFailureText ----------
+//
+// A failure payload is exactly where a provider's error text ends up when
+// something upstream regresses — one shipped into a team chat naming the vendor
+// and the account's credit balance. So this function reads a CODE and nothing
+// else: there is no input that can make it produce words it does not already
+// contain. That is the guarantee, and it holds whatever the server sends.
+
+test("agentFailureText: a known code gets its own sentence", () => {
+  assert.equal(agentFailureText({ code: "timeout" }), AGENT_FAILURE_TEXT.timeout);
+  assert.equal(agentFailureText({ code: "unavailable" }), AGENT_FAILURE_TEXT.unavailable);
+  assert.equal(
+    agentFailureText({ code: "configuration" }),
+    AGENT_FAILURE_TEXT.configuration,
+  );
+});
+
+test("agentFailureText: the output is ALWAYS from the closed vocabulary", () => {
+  const allowed = new Set([...Object.values(AGENT_FAILURE_TEXT), AGENT_FAILURE_FALLBACK]);
+  const hostile = [
+    null,
+    undefined,
+    {},
+    { code: "" },
+    { code: 42 },
+    { code: "a_code_from_a_newer_server" },
+    { code: "toString" }, // a prototype key must not resolve to a function
+    { code: "constructor" },
+    { error: "Error code: 400 - your credit balance is too low" },
+    { message: "sk-ant-api03-XXXX" },
+    { code: "timeout", error: "raw provider text riding along" },
+  ];
+  for (const input of hostile) {
+    const out = agentFailureText(input);
+    assert.ok(
+      allowed.has(out),
+      `${JSON.stringify(input)} produced words outside the vocabulary: ${JSON.stringify(out)}`,
+    );
+  }
+});
+
+test("agentFailureText: no sentence invents a cause the client cannot know", () => {
+  for (const sentence of [...Object.values(AGENT_FAILURE_TEXT), AGENT_FAILURE_FALLBACK]) {
+    const lowered = sentence.toLowerCase();
+    for (const guess of ["because", "due to", "caused by", "billing", "credit", "quota"]) {
+      assert.ok(!lowered.includes(guess), `"${sentence}" guesses a cause`);
+    }
+    assert.ok(sentence[0] === sentence[0].toUpperCase() && sentence.endsWith("."));
   }
 });
 

@@ -91,6 +91,56 @@ export function detectMentionClient(text, aliasesOrRegex) {
   return { agent_name: "claude-sonnet-4-6", trigger: m[1].toLowerCase() };
 }
 
+// ---------- Agent failure ----------
+//
+// WHY THE WORDS LIVE HERE AND NOT IN THE FRAME.
+//
+// A failure frame is precisely the place an upstream bug dumps raw text: it
+// carries whatever went wrong, and what went wrong is written by a provider, for
+// the person holding the account. One shipped into a team chat naming the vendor,
+// the account's credit balance and a request id.
+//
+// The server has been fixed, and it is the wrong place to rely on. So the client
+// renders from `code` — a closed vocabulary of OUR own — and never from a text
+// field the frame carries. That is a structural guarantee rather than a filter:
+// there is no input to this function that can produce words it does not already
+// contain, whatever an older or newer server sends.
+//
+// The server keeps its own copy of these sentences for the PERSISTED row, which
+// is stored text that recall and non-xbrain consumers read. It is not a second
+// display path: a bubble whose stored content is that sentence renders the
+// failure line below instead of the content, so a reader never sees both.
+
+/** Failure code -> what a person is told. The only vocabulary the UI can print. */
+export const AGENT_FAILURE_TEXT = {
+  timeout:
+    "The agent took too long to answer and the attempt was stopped. Worth trying again.",
+  unavailable: "The agent could not answer just now. Worth trying again.",
+  configuration:
+    "The agent could not answer. Trying again will not help — this needs an " +
+    "administrator to look at the server.",
+};
+
+/** What every other code resolves to. Vague on purpose — see above. */
+export const AGENT_FAILURE_FALLBACK = "The agent could not answer.";
+
+/**
+ * The line to render for a failed agent turn.
+ *
+ * Total, and closed: any input at all — an old frame, a new code, a hostile
+ * payload, nothing — resolves to one of the strings declared above.
+ *
+ * @param {{code?: string}|null|undefined} info a stream_error frame, or
+ *   `metadata.agent_failure` off a persisted row. Both carry `code`.
+ * @returns {string}
+ */
+export function agentFailureText(info) {
+  const code = info && typeof info.code === "string" ? info.code : "";
+  return Object.prototype.hasOwnProperty.call(AGENT_FAILURE_TEXT, code)
+    ? AGENT_FAILURE_TEXT[code]
+    : AGENT_FAILURE_FALLBACK;
+}
+
 // ---------- Agent toggle ----------
 //
 // The composer's agent button is not a second way to summon the agent. It writes

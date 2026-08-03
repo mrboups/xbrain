@@ -26,6 +26,7 @@ import {
   brainSummaryLabel,
   indexedAttachment,
   indexedTooltipText,
+  agentFailureText,
   formatRelative,
   sameDay,
   dayLabel,
@@ -235,6 +236,15 @@ export function createRenderer(opts) {
     const body = doc.createElement("div");
     body.className = "xb-msg-bubble";
 
+    // Did this agent turn fail, and did anything real arrive before it did?
+    // Both answers come off the persisted row, so a reload is as truthful as the
+    // live frame was.
+    const failure =
+      msg.kind === "agent" && msg.metadata && msg.metadata.agent_failure
+        ? msg.metadata.agent_failure
+        : null;
+    const failedNoOutput = Boolean(failure) && failure.partial !== true;
+
     // Telegram-style: the name + timestamp live INSIDE the bubble, not floating on a
     // line above it. Previously the meta row sat in its own grid row, which left the
     // bubble visually detached from the name it belonged to.
@@ -266,7 +276,12 @@ export function createRenderer(opts) {
       // Text lives in its own span — the target the agent stream writes into.
       const text = doc.createElement("span");
       text.className = "xb-msg-text";
-      text.textContent = msg.content || "";
+      // A failed turn that produced NO output has the server's failure sentence
+      // sitting in its content column. Printing it here would put it where the
+      // agent's answers go, in the agent's voice — the exact lie this feature
+      // exists to stop. The failure line below says it instead, as a failure.
+      // A turn that produced PARTIAL text keeps it: that part is real output.
+      text.textContent = failedNoOutput ? "" : msg.content || "";
       body.appendChild(text);
     }
 
@@ -277,6 +292,15 @@ export function createRenderer(opts) {
       if (summaryLabel) {
         body.appendChild(buildSourcesNode(summaryLabel, msg.metadata.sources));
       }
+    }
+
+    // A turn that failed says so, in its own node, below whatever did arrive.
+    // Reading it off the PERSISTED row (not only off the live frame) is what
+    // makes it survive a reload and reach everyone who was not connected when it
+    // happened — otherwise the same row reads as an ordinary answer.
+    if (failure) {
+      body.classList.add("is-failed");
+      body.appendChild(buildFailureNode(failure));
     }
 
     // Time — INSIDE the bubble, pinned bottom-right, on EVERY message including
@@ -387,6 +411,52 @@ export function createRenderer(opts) {
     tag.addEventListener("focus", reveal);
 
     return tag;
+  }
+
+  /**
+   * The failure line for a turn the agent could not complete.
+   *
+   * Its words come from `agentFailureText`, keyed on the failure CODE — never
+   * from a text field the frame carries. A failure payload is exactly where a
+   * provider's own error text ends up when something upstream regresses, and one
+   * of those reached a team chat naming the vendor and the account's billing
+   * state. Rendering from a closed vocabulary means no payload can produce words
+   * this client does not already contain.
+   *
+   * @param {{code?: string}} failure
+   * @returns {HTMLElement}
+   */
+  function buildFailureNode(failure) {
+    const node = doc.createElement("div");
+    node.className = "xb-msg-failure";
+    // Announced, because a failure that only exists visually is a message a
+    // screen-reader user simply never receives.
+    node.setAttribute("role", "status");
+    node.textContent = agentFailureText(failure);
+    return node;
+  }
+
+  /**
+   * Mark a live agent turn as failed (the `agent_stream_error` frame).
+   *
+   * Deliberately NOT written into `.xb-msg-text`. Appending the failure to the
+   * answer made it read as the last thing the agent said, which is a lie about
+   * what happened — and it left the text node holding two different kinds of
+   * thing, so a late chunk could interleave with it.
+   *
+   * Idempotent: a duplicate frame does not stack a second line.
+   *
+   * @param {string} messageId
+   * @param {{code?: string}} failure
+   */
+  function renderAgentFailure(messageId, failure) {
+    const row = rowFor(messageId);
+    const bubble = row ? row.querySelector(".xb-msg-bubble") : null;
+    if (!bubble) return;
+    bubble.classList.remove("streaming");
+    if (bubble.querySelector(".xb-msg-failure")) return;
+    bubble.classList.add("is-failed");
+    bubble.appendChild(buildFailureNode(failure || {}));
   }
 
   /**
@@ -626,6 +696,7 @@ export function createRenderer(opts) {
     clear,
     renderMessage,
     renderAgentBubble,
+    renderAgentFailure,
     buildBubbleNode,
     syncDaySeparators,
     syncRunGrouping,
