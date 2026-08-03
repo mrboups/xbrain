@@ -16,8 +16,10 @@
  *     when `agent_stream_end` arrives.
  *   - mention regex BUILT FROM the server's effective alias list
  *     (GET /v1/teams/{id}/agent-aliases) via buildMentionRegex() — one source
- *     of truth with memory-api, never a hardcoded vocabulary. Used only for
- *     the composer's optimistic hint ("Will summon @agent").
+ *     of truth with memory-api, never a hardcoded vocabulary. The composer no
+ *     longer narrates a pending mention, so its only client-side use is the
+ *     agent toggle's de-dupe: a draft that already names the agent must not have
+ *     a second mention prepended to it.
  *   - formatRelative(iso) — "12s ago" / "5m ago" / "Mar 5" strings for
  *     message timestamps in bubble headers.
  *   - hostnameFromUrl, hashSourceId — small helpers reused by the clip
@@ -30,8 +32,9 @@
 // The surface fetches GET /v1/teams/{id}/agent-aliases and builds the regex from
 // that list via buildMentionRegex() — JS-escaping each alias (mirror of the
 // server's re.escape) and sorting longest-first — so the client and server can
-// never diverge again. Used only for an optimistic composer hint; the server
-// makes the final summon decision.
+// never diverge again. The server still makes the final summon decision; the
+// client's copy exists so the agent toggle can tell an already-mentioned draft
+// from a bare one and avoid summoning twice.
 
 // JS-escape one alias, mirroring Python re.escape for the metacharacters that
 // matter inside a JS regex. Defense in depth: the server already restricts
@@ -253,21 +256,61 @@ export function brainSummaryLabel(agentMsgMeta) {
 }
 
 /**
- * Badge text for a message whose attachment genuinely landed in the brain.
+ * The attachment behind a message, when one genuinely landed in the brain.
  *
  * Source of truth: `metadata.media` — the backend only writes it once the
- * attachment has been ingested as a memory item, so its presence IS the
- * indexed signal. Plain text messages get no badge (the backend emits no
- * per-message saved flag, and we will not invent one).
+ * attachment has been ingested as a memory item, so its presence IS the indexed
+ * signal. Plain text messages return null and the UI renders no marker at all;
+ * the backend emits no per-message saved flag and we will not invent one.
  *
- * @param {{metadata?: {media?: {mime?: string}}}|null|undefined} msg
- * @returns {string|null}
+ * It answers with the ITEM, not with a sentence, because what the reader wants
+ * is the text that was indexed — and that lives behind
+ * `GET /v1/media/{item_id}/indexed-text`, keyed by exactly this id. A label
+ * describing the mechanism ("saved to brain · image indexed") told them only
+ * that something happened.
+ *
+ * @param {{metadata?: {media?: {mime?: string, item_id?: string}}}|null|undefined} msg
+ * @returns {{itemId: string, kind: string}|null}
  */
-export function savedToBrainLabel(msg) {
+export function indexedAttachment(msg) {
   const media = msg && msg.metadata && msg.metadata.media;
-  if (!media) return null;
+  if (!media || !media.item_id) return null;
   const isImage = typeof media.mime === "string" && media.mime.startsWith("image/");
-  return `saved to brain · ${isImage ? "image" : "document"} indexed`;
+  return { itemId: media.item_id, kind: isImage ? "image" : "document" };
+}
+
+/**
+ * The line to show for one `/indexed-text` answer.
+ *
+ * Every branch returns a NON-EMPTY string. An attachment whose text is still
+ * being written, one that was deliberately skipped, and one whose indexing broke
+ * are three different facts, and an empty tooltip renders all three — plus a
+ * request that never came back — as the same blank box.
+ *
+ * `payload` null means the request itself did not produce an answer. That is
+ * reported as its own thing rather than folded into "not indexed", which would
+ * claim the server said something it never said.
+ *
+ * Pure: no DOM, no fetch, no clock.
+ *
+ * @param {{state?: string, text?: string, detail?: string}|null|undefined} payload
+ * @returns {string}
+ */
+export function indexedTooltipText(payload) {
+  if (!payload || typeof payload !== "object") {
+    return "The indexed text could not be loaded.";
+  }
+  const detail = typeof payload.detail === "string" ? payload.detail.trim() : "";
+  const text = typeof payload.text === "string" ? payload.text.trim() : "";
+
+  if (payload.state === "indexed" && text) {
+    return detail ? `${text}\n\n${detail}` : text;
+  }
+  if (payload.state === "pending") return detail || "Indexing…";
+  if (payload.state === "failed") return detail || "Indexing failed.";
+  // not_indexed, an unrecognised state, or "indexed" that carried no text after
+  // all — in every one of those the honest thing to say is the same.
+  return detail || "Not indexed.";
 }
 
 /**

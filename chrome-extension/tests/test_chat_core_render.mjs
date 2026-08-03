@@ -72,6 +72,7 @@ class El {
     this.className = "";
     this.dataset = {};
     this.style = {};
+    this.attributes = {};
     this.children = [];
     this.parentNode = null;
     this.listeners = {};
@@ -146,6 +147,21 @@ class El {
     (this.listeners[type] = this.listeners[type] || []).push(fn);
   }
 
+  setAttribute(name, value) {
+    this.attributes[name] = String(value);
+  }
+
+  getAttribute(name) {
+    return Object.prototype.hasOwnProperty.call(this.attributes, name)
+      ? this.attributes[name]
+      : null;
+  }
+
+  /** Fire every listener registered for `type`. No bubbling — none is needed. */
+  dispatch(type) {
+    for (const fn of this.listeners[type] || []) fn({ type, target: this });
+  }
+
   matches(sel) {
     if (sel.startsWith(".")) return this.classList.contains(sel.slice(1));
     const m = /^\[([\w-]+)="([^"]*)"\]$/.exec(sel);
@@ -195,6 +211,7 @@ function makeHarness({
   onAuthorClick = null,
   self = "u-self",
   nameCache = { "u-mate": "Mate" },
+  fetchIndexedText = null,
 } = {}) {
   const doc = makeDoc();
   const listEl = new El(doc, "div");
@@ -210,6 +227,7 @@ function makeHarness({
     getSelfUserId: () => self,
     getNameCache: () => nameCache,
     onAuthorClick,
+    fetchIndexedText,
   });
   return { doc, listEl, scrollEl, renderer };
 }
@@ -942,6 +960,244 @@ test("both stylesheets suppress the name on a follower and on your own row", () 
     assert.ok(
       /\.xb-msg-bubble\s*\{[^}]*position:\s*relative/.test(css),
       `${rel}: .xb-msg-bubble must be the positioning context, or the time escapes to the page corner`,
+    );
+  }
+});
+
+// ===========================================================================
+// Indexed-attachment marker + its reveal.
+//
+// The badge used to spell the mechanism ("saved to brain · image indexed"),
+// which told a reader that something had happened and never what. The marker now
+// reveals the TEXT the brain holds — fetched from the server, because the
+// description is written after the message exists and is not in its payload.
+//
+// Three properties are load-bearing and each has its own assertion:
+//   - nothing is fetched at render time (a thread of fifty images would
+//     otherwise fire fifty requests for text nobody asked to see);
+//   - the fetch happens ONCE per item, no matter how often it is hovered or
+//     focused, and the answer is cached;
+//   - the tooltip is never blank — every state gets its own sentence.
+// ===========================================================================
+
+/** Async sibling of test(). Awaited at the call site (top-level await). */
+async function atest(name, body) {
+  try {
+    await body();
+    console.log(`  PASS: ${name}`);
+    passed++;
+  } catch (e) {
+    console.error(`  FAIL: ${name}`);
+    console.error(`    ${e.stack || e.message}`);
+    failed++;
+  }
+}
+
+/** A message carrying a real media attachment (the indexed signal). */
+function mediaMsg(id = "mm1", mime = "image/png") {
+  return {
+    id,
+    kind: "user",
+    author_user_id: "u-mate",
+    content: "shot.png",
+    created_at: NOW,
+    metadata: { media: { item_id: "item-9", mime, url: "/v1/media/item-9/img?t=x" } },
+  };
+}
+
+/** A fetcher that counts its calls and resolves with `payload`. */
+function countingFetcher(payload) {
+  const calls = [];
+  return {
+    calls,
+    fn: (itemId) => {
+      calls.push(itemId);
+      return Promise.resolve(payload);
+    },
+  };
+}
+
+test("marker: a message with no attachment gets NO marker (absence is the signal)", () => {
+  const { renderer } = makeHarness({ fetchIndexedText: () => Promise.resolve({}) });
+  const node = renderer.buildBubbleNode({
+    id: "t1",
+    kind: "user",
+    author_user_id: "u-mate",
+    content: "just text",
+    created_at: NOW,
+  });
+  assert.equal(node.querySelector(".xb-msg-savetag"), null);
+});
+
+test("marker: an attachment gets a focusable button, not a hover-only span", () => {
+  const { renderer } = makeHarness({ fetchIndexedText: () => Promise.resolve({}) });
+  const node = renderer.buildBubbleNode(mediaMsg());
+  const tag = node.querySelector(".xb-msg-savetag");
+  assert.ok(tag, "an indexed attachment must carry a marker");
+  assert.equal(tag.tagName, "BUTTON", "a keyboard user must be able to reach the reveal");
+  assert.equal(tag.type, "button");
+  assert.ok(
+    tag.getAttribute("aria-label"),
+    "the marker needs an accessible name — its glyph is aria-hidden",
+  );
+});
+
+test("marker: the visible label no longer narrates the mechanism", () => {
+  const { renderer } = makeHarness({ fetchIndexedText: () => Promise.resolve({}) });
+  const tag = renderer.buildBubbleNode(mediaMsg()).querySelector(".xb-msg-savetag");
+  assert.ok(
+    !/saved to brain|indexed/i.test(tag.textContent),
+    `the marker must not spell out what the system did (got: ${JSON.stringify(tag.textContent)})`,
+  );
+});
+
+test("marker: NOTHING is fetched while the row is built", () => {
+  const f = countingFetcher({ state: "indexed", text: "hi" });
+  const { renderer } = makeHarness({ fetchIndexedText: f.fn });
+  for (let i = 0; i < 50; i += 1) {
+    renderer.renderMessage(mediaMsg(`bulk-${i}`), { prepend: false });
+  }
+  assert.deepEqual(
+    f.calls,
+    [],
+    "fifty attachments rendered fifty requests for text nobody asked to see",
+  );
+});
+
+test("marker: without a fetcher the mark is inert, not a dead control", () => {
+  const { renderer } = makeHarness({ fetchIndexedText: null });
+  const tag = renderer.buildBubbleNode(mediaMsg()).querySelector(".xb-msg-savetag");
+  assert.ok(tag, "the indexed signal is real even where the reveal is not shipped");
+  assert.equal(tag.tagName, "SPAN");
+  assert.equal(tag.querySelector(".xb-savetag-tip"), null);
+});
+
+await atest("reveal: the first hover fetches and writes the indexed text", async () => {
+  const f = countingFetcher({ state: "indexed", text: "A deploy pipeline diagram." });
+  const { renderer } = makeHarness({ fetchIndexedText: f.fn });
+  const tag = renderer.buildBubbleNode(mediaMsg()).querySelector(".xb-msg-savetag");
+  const tip = tag.querySelector(".xb-savetag-tip");
+  assert.equal(tip.textContent, "Loading…", "the tooltip is never blank, not even before the answer");
+
+  tag.dispatch("mouseenter");
+  await new Promise((r) => setTimeout(r, 0));
+
+  assert.deepEqual(f.calls, ["item-9"]);
+  assert.equal(tip.textContent, "A deploy pipeline diagram.");
+});
+
+await atest("reveal: hovering and focusing repeatedly fetches exactly ONCE", async () => {
+  const f = countingFetcher({ state: "indexed", text: "cached" });
+  const { renderer } = makeHarness({ fetchIndexedText: f.fn });
+  const tag = renderer.buildBubbleNode(mediaMsg()).querySelector(".xb-msg-savetag");
+
+  tag.dispatch("mouseenter");
+  tag.dispatch("focus");
+  tag.dispatch("mouseenter");
+  await new Promise((r) => setTimeout(r, 0));
+  tag.dispatch("mouseenter");
+  await new Promise((r) => setTimeout(r, 0));
+
+  assert.deepEqual(f.calls, ["item-9"], "a pointer crossing the mark must not re-request");
+});
+
+await atest("reveal: the cache is per ITEM and shared across rows", async () => {
+  // The same attachment forwarded twice is one item, so it is one request.
+  const f = countingFetcher({ state: "indexed", text: "same item" });
+  const { renderer } = makeHarness({ fetchIndexedText: f.fn });
+  const a = renderer.buildBubbleNode(mediaMsg("row-a")).querySelector(".xb-msg-savetag");
+  const b = renderer.buildBubbleNode(mediaMsg("row-b")).querySelector(".xb-msg-savetag");
+
+  a.dispatch("mouseenter");
+  await new Promise((r) => setTimeout(r, 0));
+  b.dispatch("mouseenter");
+  await new Promise((r) => setTimeout(r, 0));
+
+  assert.deepEqual(f.calls, ["item-9"]);
+  assert.equal(b.querySelector(".xb-savetag-tip").textContent, "same item");
+});
+
+for (const [label, payload, expected] of [
+  ["still being written", { state: "pending" }, "Indexing…"],
+  [
+    "deliberately skipped",
+    { state: "not_indexed", detail: "This image is too large to index." },
+    "This image is too large to index.",
+  ],
+  ["broken", { state: "failed" }, "Indexing failed."],
+]) {
+  await atest(`reveal: an attachment ${label} says so instead of showing nothing`, async () => {
+    const f = countingFetcher(payload);
+    const { renderer } = makeHarness({ fetchIndexedText: f.fn });
+    const tag = renderer.buildBubbleNode(mediaMsg()).querySelector(".xb-msg-savetag");
+    tag.dispatch("focus");
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(tag.querySelector(".xb-savetag-tip").textContent, expected);
+  });
+}
+
+await atest("reveal: a rejected request reads as a load failure, and is not retried", async () => {
+  let calls = 0;
+  const { renderer } = makeHarness({
+    fetchIndexedText: () => {
+      calls += 1;
+      return Promise.reject(new Error("HTTP 403: not a member of this team"));
+    },
+  });
+  const tag = renderer.buildBubbleNode(mediaMsg()).querySelector(".xb-msg-savetag");
+
+  tag.dispatch("mouseenter");
+  await new Promise((r) => setTimeout(r, 0));
+  const shown = tag.querySelector(".xb-savetag-tip").textContent;
+
+  assert.equal(shown, "The indexed text could not be loaded.");
+  assert.ok(
+    !shown.includes("403") && !shown.includes("not a member"),
+    "a transport error's own words must not land in the thread",
+  );
+
+  tag.dispatch("mouseenter");
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(calls, 1, "a chat that keeps failing must not re-request on every hover");
+});
+
+await atest("reveal: the indexed text lands as TEXT, never as markup", async () => {
+  const f = countingFetcher({
+    state: "indexed",
+    text: '<img src=x onerror="alert(1)">',
+  });
+  const { renderer } = makeHarness({ fetchIndexedText: f.fn });
+  const tag = renderer.buildBubbleNode(mediaMsg()).querySelector(".xb-msg-savetag");
+  tag.dispatch("mouseenter");
+  await new Promise((r) => setTimeout(r, 0));
+
+  const tip = tag.querySelector(".xb-savetag-tip");
+  assert.equal(tip.textContent, '<img src=x onerror="alert(1)">');
+  assert.equal(tip.children.length, 0, "no element may be created from the payload");
+});
+
+test("both stylesheets style the marker and open its reveal on hover AND focus", () => {
+  for (const rel of [
+    join("chrome-extension", "popup.css"),
+    join("app-site", "app", "app.css"),
+  ]) {
+    const css = readFileSync(join(REPO_ROOT, rel), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    assert.ok(/\.xb-savetag-tip\s*\{/.test(css), `${rel} has no .xb-savetag-tip rule`);
+    assert.match(
+      css,
+      /\.xb-msg-savetag:hover\s+\.xb-savetag-tip\s*,\s*\.xb-msg-savetag:focus-visible\s+\.xb-savetag-tip\s*\{[^}]*display:\s*block/,
+      `${rel}: the reveal must open on keyboard focus too — a hover-only tooltip does not exist for a keyboard`,
+    );
+    assert.match(
+      css,
+      /\.xb-msg-savetag:focus-visible\s*\{[^}]*outline:[^};]*var\(--ring\)/,
+      `${rel}: the marker is tabbable, so it needs a visible focus ring`,
+    );
+    const tip = /(^|[};])\s*\.xb-savetag-tip\s*\{([^}]*)\}/.exec(css);
+    assert.match(
+      tip[2],
+      /white-space:\s*pre-wrap/,
+      `${rel}: the server sends a paragraph break between the text and its caveat`,
     );
   }
 });

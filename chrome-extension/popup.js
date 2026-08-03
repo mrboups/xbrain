@@ -140,6 +140,15 @@ function buildChatCore() {
     // late through the module-level binding: the panel is built in the same
     // DOMContentLoaded pass, and a captured null would leave every name dead.
     onAuthorClick: (uid) => peoplePanel && peoplePanel.open({ focusUserId: uid }),
+    // Hovering an attachment's marker shows the text the brain actually indexed
+    // from it. The renderer calls this at most once per item and only once
+    // somebody asks, so a thread of fifty images costs nothing until it is used.
+    // The route is scoped by team SLUG, not by the chat's team id.
+    fetchIndexedText: (itemId) => {
+      const team = state.teams.find((t) => t.id === state.activeTeamId);
+      if (!team) return Promise.resolve(null);
+      return api.indexedText(team.slug, itemId);
+    },
   });
   routeTeamFrame = createPublicationRouter({
     renderer,

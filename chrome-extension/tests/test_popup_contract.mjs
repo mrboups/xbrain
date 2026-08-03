@@ -119,6 +119,11 @@ const FROZEN_CLASSES = [
   "xb-msg-src",
   "xb-msg-chip",
   "xb-msg-savetag",
+  // The marker's two parts. The mark is what you see; the tip is what it
+  // reveals — and without a rule for the tip it would render inline, always
+  // visible, dumping a document extract into the middle of the thread.
+  "xb-savetag-mark",
+  "xb-savetag-tip",
   "xb-msg-daysep",
   // Telegram grouping — the name is per-run, the time is per-message. The
   // invisible spacer is the one that must never be dropped as "unused": without
@@ -475,6 +480,9 @@ const FOCUSABLE = [
   [".xb-clip-btn", "clip / attach button"],
   [".xb-msg-file-chip", "file chip"],
   [".xb-team-select", "team selector"],
+  // The indexed-attachment marker is a real control now — it reveals the text
+  // the brain holds — so Tab reaches it and Tab must be able to see where it is.
+  [".xb-msg-savetag", "indexed-attachment marker"],
 ];
 
 for (const [sel, what] of FOCUSABLE) {

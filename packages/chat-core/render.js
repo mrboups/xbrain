@@ -24,7 +24,8 @@ import {
   bubbleClass,
   provenanceLabel,
   brainSummaryLabel,
-  savedToBrainLabel,
+  indexedAttachment,
+  indexedTooltipText,
   formatRelative,
   sameDay,
   dayLabel,
@@ -40,17 +41,22 @@ import {
  *   apiBase: string,
  *   getSelfUserId: () => (string|undefined),
  *   getNameCache: () => Object,
- *   onAuthorClick: ((userId: string) => void)|null
+ *   onAuthorClick: ((userId: string) => void)|null,
+ *   fetchIndexedText: ((itemId: string) => Promise<Object>)|null
  * }} opts
- *   doc            — the document the nodes are created in
- *   listEl         — the message list container (rows are appended here)
- *   scrollEl       — the scrolling viewport that wraps listEl
- *   apiBase        — memory-api origin, prefixed onto the server-minted relative
- *                    media path. No origin literal lives in this module.
- *   getSelfUserId  — the signed-in user's id, read late (it arrives after boot)
- *   getNameCache   — author_user_id -> display name map, read late
- *   onAuthorClick  — optional affordance: click a teammate's name to act on them.
- *                    `null` means the surface does not ship it.
+ *   doc              — the document the nodes are created in
+ *   listEl           — the message list container (rows are appended here)
+ *   scrollEl         — the scrolling viewport that wraps listEl
+ *   apiBase          — memory-api origin, prefixed onto the server-minted relative
+ *                      media path. No origin literal lives in this module.
+ *   getSelfUserId    — the signed-in user's id, read late (it arrives after boot)
+ *   getNameCache     — author_user_id -> display name map, read late
+ *   onAuthorClick    — optional affordance: click a teammate's name to act on them.
+ *                      `null` means the surface does not ship it.
+ *   fetchIndexedText — resolves GET /v1/media/{id}/indexed-text for one item.
+ *                      `null` means the surface ships no reveal, and the indexed
+ *                      marker is then rendered inert rather than as a control
+ *                      that does nothing.
  * @returns {{clear: Function, renderMessage: Function, renderAgentBubble: Function,
  *            buildBubbleNode: Function, syncDaySeparators: Function,
  *            streamTextTarget: Function, scrollToBottom: Function}}
@@ -72,6 +78,34 @@ export function createRenderer(opts) {
     typeof cfg.getNameCache === "function" ? cfg.getNameCache : () => ({});
   const onAuthorClick =
     typeof cfg.onAuthorClick === "function" ? cfg.onAuthorClick : null;
+  const fetchIndexedText =
+    typeof cfg.fetchIndexedText === "function" ? cfg.fetchIndexedText : null;
+
+  /**
+   * item_id -> the in-flight or settled Promise for its indexed text.
+   *
+   * The PROMISE is cached, not the value, and that is the whole de-dupe: a
+   * pointer crossing the marker fires mouseenter and focus in quick succession,
+   * and caching only on resolution would let both start a request. Cached on
+   * rejection too — a chat that keeps failing must not retry on every hover.
+   *
+   * Lives in the renderer closure, so it survives re-renders of the same thread
+   * and dies with the surface.
+   */
+  const indexedTextCache = new Map();
+
+  /** Fetch (at most once per item) and hand back the settled payload, or null. */
+  function loadIndexedText(itemId) {
+    if (!indexedTextCache.has(itemId)) {
+      indexedTextCache.set(
+        itemId,
+        Promise.resolve()
+          .then(() => fetchIndexedText(itemId))
+          .catch(() => null), // a failed request is a STATE, rendered as one
+      );
+    }
+    return indexedTextCache.get(itemId);
+  }
 
   // The surface's view, resolved from the injected document rather than a global
   // so this module holds no reference to the ambient browser object. Both the
@@ -275,17 +309,84 @@ export function createRenderer(opts) {
 
     wrapper.appendChild(body);
 
-    // Saved-to-brain badge — only on a genuine indexed-attachment signal. An
-    // absent badge is correct; a fabricated one would be a spoof.
-    const savedLabel = savedToBrainLabel(msg);
-    if (savedLabel) {
-      const tag = doc.createElement("span");
-      tag.className = "xb-msg-savetag";
-      tag.textContent = savedLabel;
-      wrapper.appendChild(tag);
+    // Indexed-attachment marker — only on a genuine signal. An absent marker is
+    // correct and load-bearing: it is how a reader tells an attachment the brain
+    // holds from one it does not. A fabricated marker would be a spoof.
+    const attachment = indexedAttachment(msg);
+    if (attachment) {
+      wrapper.appendChild(buildIndexedMarker(attachment));
     }
 
     return wrapper;
+  }
+
+  /**
+   * The small marker that reveals what was indexed.
+   *
+   * It used to be a sentence about the mechanism ("saved to brain · image
+   * indexed"), which told a reader that something happened and never what. The
+   * marker is now a mark, and the CONTENT is what appears on it — the actual text
+   * the brain holds for that attachment.
+   *
+   * Three things it is careful about:
+   *
+   *   FOCUSABLE. A <button>, not a hover-only span, so the reveal is reachable by
+   *   Tab. CSS shows the tooltip on :hover AND :focus-visible; a tooltip that only
+   *   answers to a pointer does not exist for a keyboard.
+   *
+   *   LAZY. Nothing is fetched while the row is built. A thread of fifty images
+   *   would otherwise fire fifty requests on load, for text nobody has asked to
+   *   see. The first hover or focus starts the one request, and
+   *   `indexedTextCache` keys it so a second never happens.
+   *
+   *   HONEST WHILE EMPTY. The tooltip starts at "Loading…" and lands on a real
+   *   sentence for every outcome — indexing in flight, deliberately skipped,
+   *   failed, or a request that never came back. It is never blank.
+   *
+   * @param {{itemId: string, kind: string}} attachment
+   * @returns {HTMLElement}
+   */
+  function buildIndexedMarker(attachment) {
+    // No fetcher on this surface: keep the marker (the indexed signal is real)
+    // but make it inert. A control that looks pressable and answers nothing is
+    // worse than a plain mark — the same rule the author name follows.
+    const tag = doc.createElement(fetchIndexedText ? "button" : "span");
+    tag.className = "xb-msg-savetag";
+    if (fetchIndexedText) {
+      tag.type = "button";
+      tag.setAttribute("aria-label", "Show the text indexed from this attachment");
+    }
+
+    // The mark. aria-hidden because the button already has a name; without that
+    // a screen reader reads the glyph as punctuation on top of the label.
+    const mark = doc.createElement("span");
+    mark.className = "xb-savetag-mark";
+    mark.setAttribute("aria-hidden", "true");
+    mark.textContent = "≡"; // three stacked rules — lines of text
+    tag.appendChild(mark);
+
+    if (!fetchIndexedText) return tag;
+
+    const tip = doc.createElement("span");
+    tip.className = "xb-savetag-tip";
+    tip.setAttribute("role", "tooltip");
+    tip.textContent = "Loading…";
+    tag.appendChild(tip);
+
+    let started = false;
+    const reveal = () => {
+      if (started) return; // the cache would answer anyway; this saves the churn
+      started = true;
+      loadIndexedText(attachment.itemId).then((payload) => {
+        // textContent, never markup: this string is a model's description of a
+        // file a teammate uploaded, i.e. attacker-influencable twice over.
+        tip.textContent = indexedTooltipText(payload);
+      });
+    };
+    tag.addEventListener("mouseenter", reveal);
+    tag.addEventListener("focus", reveal);
+
+    return tag;
   }
 
   /**

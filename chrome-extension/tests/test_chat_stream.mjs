@@ -11,7 +11,8 @@
  *   bubbleClass         — CSS class assignment
  *   provenanceLabel     — Pro/Max vs API vs none
  *   brainSummaryLabel   — agent "N sources from the brain" (Plan 20-03)
- *   savedToBrainLabel   — saved-to-brain badge text  (Plan 20-03)
+ *   indexedAttachment   — the item behind an indexed-attachment marker
+ *   indexedTooltipText  — the sentence for one /indexed-text answer
  *   sameDay             — day-separator boundary     (Plan 20-03)
  */
 
@@ -26,7 +27,8 @@ import {
   bubbleClass,
   provenanceLabel,
   brainSummaryLabel,
-  savedToBrainLabel,
+  indexedAttachment,
+  indexedTooltipText,
   sameDay,
 } from "../../packages/chat-core/chat_stream.js";
 
@@ -398,36 +400,126 @@ test("brainSummaryLabel: zero / missing / malformed → null (no empty details)"
   assert.equal(brainSummaryLabel({ memory_items: -3 }), null);
 });
 
-// ---------- savedToBrainLabel (Plan 20-03) ----------
+// ---------- indexedAttachment ----------
 //
 // Derived from the real metadata.media attachment signal — an attachment IS the
-// indexed-into-the-brain event. Plain text messages get NO badge (no spoofing).
+// indexed-into-the-brain event. Plain text messages get NO marker (no spoofing).
+// It answers with the ITEM, because the id is what the reveal fetches; the badge
+// text it replaced ("saved to brain · image indexed") said only that something
+// had happened.
 
-test("savedToBrainLabel: document attachment → document indexed", () => {
-  assert.equal(
-    savedToBrainLabel({ metadata: { media: { mime: "application/pdf" } } }),
-    "saved to brain · document indexed",
+test("indexedAttachment: document attachment → the item id and kind", () => {
+  assert.deepEqual(
+    indexedAttachment({
+      metadata: { media: { mime: "application/pdf", item_id: "i-1" } },
+    }),
+    { itemId: "i-1", kind: "document" },
   );
 });
 
-test("savedToBrainLabel: image attachment → image indexed", () => {
-  assert.equal(
-    savedToBrainLabel({ metadata: { media: { mime: "image/png" } } }),
-    "saved to brain · image indexed",
+test("indexedAttachment: image attachment → kind image", () => {
+  assert.deepEqual(
+    indexedAttachment({ metadata: { media: { mime: "image/png", item_id: "i-2" } } }),
+    { itemId: "i-2", kind: "image" },
   );
 });
 
-test("savedToBrainLabel: no media → null (never fabricate provenance)", () => {
-  assert.equal(savedToBrainLabel({ metadata: {} }), null);
-  assert.equal(savedToBrainLabel({}), null);
-  assert.equal(savedToBrainLabel(null), null);
+test("indexedAttachment: no media → null (never fabricate provenance)", () => {
+  assert.equal(indexedAttachment({ metadata: {} }), null);
+  assert.equal(indexedAttachment({}), null);
+  assert.equal(indexedAttachment(null), null);
 });
 
-test("savedToBrainLabel: media without mime still counts as a document", () => {
+test("indexedAttachment: media without item_id → null (nothing to fetch)", () => {
+  // There is no id to ask about, so a marker would be an affordance with no
+  // answer behind it.
+  assert.equal(indexedAttachment({ metadata: { media: { mime: "image/png" } } }), null);
+});
+
+test("indexedAttachment: media without mime still counts as a document", () => {
+  assert.deepEqual(indexedAttachment({ metadata: { media: { item_id: "abc" } } }), {
+    itemId: "abc",
+    kind: "document",
+  });
+});
+
+// ---------- indexedTooltipText ----------
+//
+// The point of this helper is that it is TOTAL: every input produces a sentence.
+// Before it, an image still being described, one deliberately skipped, one whose
+// indexing broke, and a request that never came back all rendered as the same
+// empty box.
+
+test("indexedTooltipText: indexed → the text itself", () => {
   assert.equal(
-    savedToBrainLabel({ metadata: { media: { item_id: "abc" } } }),
-    "saved to brain · document indexed",
+    indexedTooltipText({ state: "indexed", text: "A deploy pipeline diagram." }),
+    "A deploy pipeline diagram.",
   );
+});
+
+test("indexedTooltipText: indexed + detail → the text, then the caveat", () => {
+  const out = indexedTooltipText({
+    state: "indexed",
+    text: "Page one.",
+    detail: "Showing the first of 4 indexed parts.",
+  });
+  assert.equal(out, "Page one.\n\nShowing the first of 4 indexed parts.");
+});
+
+test("indexedTooltipText: pending → an in-flight sentence, never blank", () => {
+  assert.equal(indexedTooltipText({ state: "pending", text: "" }), "Indexing…");
+});
+
+test("indexedTooltipText: failed → a failure sentence, never blank", () => {
+  assert.equal(indexedTooltipText({ state: "failed", text: "" }), "Indexing failed.");
+  assert.equal(
+    indexedTooltipText({ state: "failed", detail: "Indexing failed. Try again." }),
+    "Indexing failed. Try again.",
+  );
+});
+
+test("indexedTooltipText: not_indexed → the server's sentence, else a default", () => {
+  assert.equal(
+    indexedTooltipText({ state: "not_indexed", detail: "This image is too large to index." }),
+    "This image is too large to index.",
+  );
+  assert.equal(indexedTooltipText({ state: "not_indexed" }), "Not indexed.");
+});
+
+test("indexedTooltipText: a load failure is its OWN sentence, not 'not indexed'", () => {
+  // The server never said anything, so claiming it said "not indexed" would be
+  // reporting an answer that does not exist.
+  assert.equal(
+    indexedTooltipText(null),
+    "The indexed text could not be loaded.",
+  );
+  assert.equal(
+    indexedTooltipText(undefined),
+    "The indexed text could not be loaded.",
+  );
+});
+
+test("indexedTooltipText: 'indexed' with no text falls back rather than going blank", () => {
+  assert.equal(indexedTooltipText({ state: "indexed", text: "   " }), "Not indexed.");
+});
+
+test("indexedTooltipText: every state produces a non-empty string", () => {
+  const inputs = [
+    null,
+    undefined,
+    {},
+    { state: "indexed" },
+    { state: "pending" },
+    { state: "failed" },
+    { state: "not_indexed" },
+    { state: "something_new_from_a_newer_server" },
+    { state: "indexed", text: "" , detail: "" },
+  ];
+  for (const input of inputs) {
+    const out = indexedTooltipText(input);
+    assert.equal(typeof out, "string");
+    assert.ok(out.trim().length > 0, `blank tooltip for ${JSON.stringify(input)}`);
+  }
 });
 
 // ---------- sameDay (Plan 20-03) ----------
