@@ -328,6 +328,83 @@
       font-size: 12.5px;
     }
 
+    /*
+      Team model API key.
+
+      Deliberately built out of the same tokens and metrics as .invite-form
+      above: this is a section added to a page that already has a visual
+      language, and a differently-shaped control inside the same card reads as
+      a bug. Colours are var() only, so a future light theme reaches it for
+      free — the page is currently dark-only (<html data-theme="dark">).
+    */
+    .apikey-section { margin-top: 18px; }
+    .apikey-note {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+    .apikey-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 5px 0;
+      font-size: 12.5px;
+    }
+    .apikey-provider { color: var(--text); }
+    .apikey-state {
+      font-size: 11px;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      flex-shrink: 0;
+    }
+    .apikey-state.is-set { color: var(--green); }
+    .apikey-form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 10px;
+    }
+    .apikey-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .apikey-form select,
+    .apikey-form input[type="password"] {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border-2);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-family: inherit;
+      font-size: 12.5px;
+      outline: none;
+    }
+    .apikey-form input[type="password"] {
+      flex: 1;
+      min-width: 170px;
+      letter-spacing: 0.08em;
+    }
+    /* Focus has to be visible on a form whose whole job is pasting a secret. */
+    .apikey-form select:focus-visible,
+    .apikey-form input[type="password"]:focus-visible,
+    .apikey-form .btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+      border-color: var(--accent);
+    }
+    .apikey-hint {
+      font-size: 11px;
+      color: var(--dim);
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
     .action-status {
       font-size: 12px;
       color: var(--muted);
