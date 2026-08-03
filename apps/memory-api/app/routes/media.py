@@ -2,6 +2,7 @@
 
 POST /v1/media/upload — multipart upload to MinIO, creates a media memory_item.
 GET  /v1/media/{item_id}/raw — streams the object back to an authenticated caller.
+GET  /v1/media/{item_id}/indexed-text — what this attachment contributed to the brain.
 
 Design notes (from BL-003-media-design.md):
 - MinIO is internal-only (not exposed via nginx), so this proxy endpoint is the
@@ -38,6 +39,7 @@ from app.routes.media_helpers import (
 )
 from app.services.doc_body_ingest import extract_and_ingest_body
 from app.services.image_describe import describe_and_ingest_image, is_image_mime
+from app.services.indexed_text import resolve_indexed_text
 
 log = structlog.get_logger(__name__)
 
@@ -337,6 +339,44 @@ async def serve_media_raw(
         media_type=mime,
         headers={"Content-Disposition": disposition},
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /media/{item_id}/indexed-text
+# ---------------------------------------------------------------------------
+
+
+@router.get("/media/{item_id}/indexed-text")
+async def serve_indexed_text(
+    item_id: str,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    team_scope: str = Depends(get_team_scope),
+    provider: MemoryProvider = Depends(get_memory_provider),
+) -> dict[str, Any]:
+    """Report what text this attachment actually contributed to the brain.
+
+    ONE call answers it for BOTH kinds. An image's description and a document's
+    body chunks are written by different services into differently-shaped child
+    items, and the pointer to either only exists on the parent — so a client that
+    had to stitch parent → child would need two round trips, per attachment, for
+    a hover. `resolve_indexed_text` does the stitching here.
+
+    Auth: Bearer + X-Team-Scope, through the same `get_team_scope` gate the raw
+    serve endpoint uses — which is where a blocked member is refused (403), on the
+    identical rule `team_chat._resolve_team_and_check_membership` applies. The
+    scope is threaded into the child read too, so a computed child id cannot be
+    used to read across teams.
+
+    Never returns the stored machine reason: see `indexed_text._detail_for_reason`.
+    """
+    item = await provider.get(item_id, team_scope=team_scope)
+    if item is None or not (item.metadata or {}).get("media"):
+        raise HTTPException(404, "media item not found in this team")
+
+    resolved = await resolve_indexed_text(
+        provider=provider, item=item, team_scope=team_scope
+    )
+    return {"item_id": item_id, **resolved.as_dict()}
 
 
 # ---------------------------------------------------------------------------
