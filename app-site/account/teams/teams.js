@@ -47,6 +47,18 @@
   // GitHub OAuth CSRF state (sessionStorage, never localStorage).
   const STORAGE_OAUTH_STATE = "xbrain_github_oauth_state";
 
+  // Providers offered for a team-owned model key. `team_api_keys.provider` is a
+  // plain 64-char column and the server accepts any non-empty string, so this
+  // table is the whole definition of the offered set — adding a fourth provider
+  // is one line here, not a rewrite. A provider the server returns that isn't
+  // listed still gets a row (see buildApiKeysSection), so a key set by another
+  // surface is never invisible.
+  const API_KEY_PROVIDERS = [
+    { id: "anthropic", label: "Anthropic (Claude)", prefix: "sk-ant-" },
+    { id: "openai", label: "OpenAI (GPT)", prefix: "sk-" },
+    { id: "xai", label: "xAI (Grok)", prefix: "xai-" },
+  ];
+
   const state = {
     me: null,             // /v1/me result
     teams: [],
@@ -597,6 +609,15 @@
 
   async function fillTeamBody(team, body) {
     body.innerHTML = `<div class="loading">Loading members…</div>`;
+
+    // Fired alongside the members read rather than after it — opening a card
+    // shouldn't cost two serial round-trips. The .catch is attached here, on
+    // the same tick, so a rejection can never surface as unhandled; null means
+    // "we don't know", which the section renders as such.
+    const keysPromise = xbtFetch(`/v1/teams/${team.id}/api-keys`)
+      .then((rows) => (Array.isArray(rows) ? rows.map((r) => r.provider) : []))
+      .catch(() => null);
+
     let members;
     try {
       members = await xbtFetch(`/v1/teams/${team.id}/members`);
@@ -702,6 +723,12 @@
       });
     }
 
+    // Model API key — every member sees whether one is set; only an admin,
+    // which is what the server enforces on PUT, gets the form.
+    body.appendChild(
+      buildApiKeysSection({ team, providers: await keysPromise, isAdmin }).el,
+    );
+
     // Status line
     const statusEl = document.createElement("div");
     statusEl.className = "action-status";
@@ -749,6 +776,312 @@
     } finally {
       btn.disabled = false;
     }
+  }
+
+  // ── Team model API key ────────────────────────────────────────────────
+  //
+  // The team chat agent answers through the owner's Claude subscription while
+  // some browser holds a live extension session, and falls back to a key when
+  // none does. This section is how a team supplies that key.
+  //
+  // A key here is WRITE-ONLY, and that is a property of the screen, not a
+  // detail of it. GET /v1/teams/{id}/api-keys returns `[{provider}]` and
+  // nothing else — no ciphertext, no prefix, no suffix — so there is nothing to
+  // mask and the UI shows presence only. A masked value like `sk-ant-••••4f2a`
+  // would be a lie twice over: the characters aren't available, and printing a
+  // shape implies the rest could be revealed. It cannot.
+  //
+  // The secret's whole lifetime is: the input element → validateApiKey →
+  // the PUT body. It is never put in a URL, an error string, a dataset
+  // attribute, module state, or a console call, and the field is cleared the
+  // moment the server accepts it.
+
+  function apiKeyProvider(id) {
+    return API_KEY_PROVIDERS.find((p) => p.id === id) || null;
+  }
+
+  function providerLabel(id) {
+    const p = apiKeyProvider(id);
+    return p ? p.label : String(id);
+  }
+
+  /**
+   * Decide whether a pasted value is plausibly a key for `providerId`, BEFORE
+   * spending a round-trip on it. The server takes any non-empty string, so a
+   * fat-fingered paste would otherwise be stored and only surface later as an
+   * agent that silently stops answering.
+   *
+   * Deliberately loose — prefix plus length, not a full-shape regex — because a
+   * provider rotating its key format must not lock admins out of their own
+   * screen. Returns {ok:true, key} with the trimmed value, or {ok:false,
+   * message} where the message names what was expected.
+   */
+  function validateApiKey(providerId, raw) {
+    const key = String(raw == null ? "" : raw).trim();
+    if (!key) return { ok: false, message: "Paste a key first." };
+    if (/\s/.test(key)) {
+      return {
+        ok: false,
+        message: "That key has a space or line break in it — copy it again as a single line.",
+      };
+    }
+    const provider = apiKeyProvider(providerId);
+    if (!provider) {
+      // Unknown provider (one the server returned that this page doesn't list).
+      // Length is all we can honestly check.
+      if (key.length < 12) {
+        return { ok: false, message: "That key looks too short — copy the whole value." };
+      }
+      return { ok: true, key };
+    }
+    if (!key.startsWith(provider.prefix)) {
+      return {
+        ok: false,
+        message: `That doesn't look like a key for ${provider.label} — it should start with "${provider.prefix}".`,
+      };
+    }
+    if (key.length < 20) {
+      return {
+        ok: false,
+        message: `That key for ${provider.label} looks truncated — copy the whole value.`,
+      };
+    }
+    return { ok: true, key };
+  }
+
+  /**
+   * Turn a failed save into something the admin can act on.
+   *
+   * Every branch returns a fixed string: the error's own message and body are
+   * never interpolated, so no server echo can carry the pasted value back into
+   * the page.
+   */
+  function describeApiKeyFailure(err) {
+    const status = err && err.status;
+    const msg = (err && err.message) || "";
+    if (msg.includes("session expired")) {
+      return "Your session expired — sign in again, then save the key.";
+    }
+    if (status === 403) {
+      return "You're not an admin of this team, so you can't set its key. Ask a team admin.";
+    }
+    if (status === 404) {
+      return "This team no longer exists — reload the page.";
+    }
+    if (status === 422) {
+      return "The server rejected that key — check you copied the whole value.";
+    }
+    if (status === 500) {
+      return "The server can't store keys right now (its encryption key isn't configured). Nothing was saved.";
+    }
+    if (typeof status === "number") {
+      return `The server refused the key (HTTP ${status}). Nothing was saved.`;
+    }
+    // fetch() itself rejected — DNS, offline, CORS, TLS. No request landed.
+    return "Couldn't reach the server, so nothing was saved. Check your connection and try again.";
+  }
+
+  function setApiKeyStatus(el, text, type) {
+    if (!el) return;
+    el.textContent = text;
+    el.className =
+      "action-status" +
+      (type === "success" ? " is-success" : "") +
+      (type === "error" ? " is-error" : "");
+  }
+
+  /**
+   * Validate, PUT, and forget. Resolves {ok} — callers never see the key.
+   *
+   * The PUT body is the server's shape verbatim: {keys:[{provider, api_key}]},
+   * a bulk upsert answering 204. The key travels in that body and nowhere else.
+   */
+  async function saveTeamApiKey(ctx) {
+    const { team, provider, input, button, status } = ctx;
+    const verdict = validateApiKey(provider, input ? input.value : ctx.raw);
+    if (!verdict.ok) {
+      setApiKeyStatus(status, verdict.message, "error");
+      return { ok: false, reason: "invalid" };
+    }
+    if (button) button.disabled = true;
+    setApiKeyStatus(status, "Saving…");
+    try {
+      await xbtFetch(`/v1/teams/${team.id}/api-keys`, {
+        method: "PUT",
+        body: { keys: [{ provider, api_key: verdict.key }] },
+      });
+      // Accepted — drop it out of the DOM before anything else can read it.
+      if (input) input.value = "";
+      setApiKeyStatus(
+        status,
+        `${providerLabel(provider)} key saved. The agent will use it when the subscription is unreachable.`,
+        "success",
+      );
+      if (typeof ctx.onSaved === "function") ctx.onSaved(provider);
+      return { ok: true };
+    } catch (e) {
+      setApiKeyStatus(status, describeApiKeyFailure(e), "error");
+      return { ok: false, reason: "server" };
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  /**
+   * Build the section. `providers` is the array of provider ids the server says
+   * have a key, or null when that read failed (rendered as "unknown" rather
+   * than as "not set" — claiming absence we haven't confirmed would invite an
+   * admin to overwrite a working key).
+   *
+   * `isAdmin` comes from this user's membership row, which is the same fact the
+   * server checks on PUT (role === "admin"), so the form is absent exactly when
+   * pressing it would 403.
+   */
+  function buildApiKeysSection({ team, providers, isAdmin }) {
+    const el = document.createElement("div");
+    el.className = "apikey-section";
+
+    const heading = document.createElement("p");
+    heading.className = "members-label";
+    heading.textContent = "Model API key";
+    el.appendChild(heading);
+
+    const note = document.createElement("p");
+    note.className = "apikey-note";
+    note.textContent =
+      "This key is billed to your team, and the agent only spends it when no " +
+      "browser is sharing the Claude subscription.";
+    el.appendChild(note);
+
+    const present = new Set(providers || []);
+    const ids = API_KEY_PROVIDERS.map((p) => p.id);
+    for (const extra of providers || []) {
+      if (!ids.includes(extra)) ids.push(extra);
+    }
+
+    const stateEls = new Map();
+    for (const id of ids) {
+      const row = document.createElement("div");
+      row.className = "apikey-row";
+      const name = document.createElement("span");
+      name.className = "apikey-provider";
+      name.textContent = providerLabel(id);
+      row.appendChild(name);
+      const st = document.createElement("span");
+      st.className = "apikey-state";
+      row.appendChild(st);
+      stateEls.set(id, st);
+      el.appendChild(row);
+    }
+
+    const status = document.createElement("div");
+    status.className = "action-status";
+    status.setAttribute("aria-live", "polite");
+
+    let select = null;
+    let input = null;
+    let button = null;
+
+    function paintStates() {
+      for (const [id, st] of stateEls) {
+        if (providers === null) {
+          st.textContent = "Unknown";
+          st.className = "apikey-state";
+        } else {
+          const set = present.has(id);
+          st.textContent = set ? "Set" : "Not set";
+          st.className = "apikey-state" + (set ? " is-set" : "");
+        }
+      }
+      if (button && select) {
+        button.textContent = present.has(select.value) ? "Replace key" : "Save key";
+      }
+      if (input && select) {
+        const p = apiKeyProvider(select.value);
+        input.placeholder = p ? p.prefix + "…" : "paste the key";
+      }
+    }
+
+    if (isAdmin) {
+      const form = document.createElement("div");
+      form.className = "apikey-form";
+
+      const selectId = `apikey-provider-${team.id}`;
+      const inputId = `apikey-key-${team.id}`;
+
+      const selLabel = document.createElement("label");
+      selLabel.className = "apikey-label";
+      selLabel.setAttribute("for", selectId);
+      selLabel.textContent = "Provider";
+      form.appendChild(selLabel);
+
+      select = document.createElement("select");
+      select.id = selectId;
+      for (const p of API_KEY_PROVIDERS) {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.label;
+        select.appendChild(opt);
+      }
+      select.value = API_KEY_PROVIDERS[0].id;
+      form.appendChild(select);
+
+      const keyLabel = document.createElement("label");
+      keyLabel.className = "apikey-label";
+      keyLabel.setAttribute("for", inputId);
+      keyLabel.textContent = "Key";
+      form.appendChild(keyLabel);
+
+      input = document.createElement("input");
+      input.id = inputId;
+      input.type = "password";
+      input.setAttribute("autocomplete", "off");
+      input.setAttribute("spellcheck", "false");
+      form.appendChild(input);
+
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn btn-primary";
+      form.appendChild(button);
+
+      el.appendChild(form);
+
+      const hint = document.createElement("p");
+      hint.className = "apikey-hint";
+      hint.textContent =
+        "Saving replaces whatever is stored for that provider. The key is " +
+        "encrypted on arrival and can never be read back — not here, not by us.";
+      el.appendChild(hint);
+
+      const submit = () =>
+        saveTeamApiKey({
+          team,
+          provider: select.value,
+          input,
+          button,
+          status,
+          onSaved: (id) => {
+            present.add(id);
+            if (!stateEls.has(id)) return;
+            paintStates();
+          },
+        });
+
+      button.addEventListener("click", submit);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") submit();
+      });
+      select.addEventListener("change", paintStates);
+    } else {
+      const hint = document.createElement("p");
+      hint.className = "apikey-hint";
+      hint.textContent = "Only a team admin can set or replace this key.";
+      el.appendChild(hint);
+    }
+
+    paintStates();
+    el.appendChild(status);
+    return { el, select, input, button, status };
   }
 
   async function removeMember(team, m) {
@@ -800,5 +1133,21 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  // Expose the API-key surface for the node suite, which loads this file in a
+  // Function() against a stubbed document — same idiom as
+  // chrome-extension/librechat_autofill.js. Functions only: no token, no key,
+  // no state. Nothing here grants a capability a page script doesn't already
+  // have, since the token it would need is in this origin's localStorage.
+  if (typeof globalThis !== "undefined") {
+    globalThis.xbrainTeamApiKeys = {
+      API_KEY_PROVIDERS,
+      providerLabel,
+      validateApiKey,
+      describeApiKeyFailure,
+      buildApiKeysSection,
+      saveTeamApiKey,
+    };
   }
 })();
