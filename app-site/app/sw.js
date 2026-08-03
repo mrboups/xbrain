@@ -55,6 +55,7 @@ const SHELL = [
   "/app/profile.js",
   "/app/import.js",
   "/app/viewport.js",
+  "/app/bridge_link.js",
   "/app/manifest.webmanifest",
   "/app/vendor/centrifuge.js",
   "/app/icons/icon-192.png",

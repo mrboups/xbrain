@@ -38,6 +38,7 @@ import {
 } from "./chat_core/chat_stream.js";
 import { handleOpenUrl, isSafeHttpUrl } from "./chat_core/nudge_open.js";
 import { webPlatform } from "./platform_web.js";
+import { ensureBridge } from "./bridge_link.js";
 import { bootPanels } from "./panels.js";
 import { MEMORY_API_BASE, getToken, signOut } from "./auth.js";
 
@@ -767,6 +768,11 @@ async function sendMessage() {
     ? withAgentMention(typed, { aliases: state.agentAliases, regex: state.mentionRe })
     : typed;
 
+  // Wake the bridge, if there is one in THIS browser, before the server routes
+  // the turn. Not awaited and not checked: a nudge that fails must not delay or
+  // block a message, and on a phone there is nothing to nudge and never will be.
+  ensureBridge();
+
   if (sendBtn) sendBtn.disabled = true;
   try {
     const sent = await api.postMessage(state.activeTeamId, { content });
@@ -983,6 +989,12 @@ export async function bootChat(refs = {}) {
 
   // 7. What the agent would run on. Asked once now, then only while somebody is
   //    looking at the page.
+  //
+  //    The nudge goes first and is not awaited: if the extension lives in this
+  //    browser, waking it before the status call means the answer describes the
+  //    bridge as it is about to be rather than as it was. On a phone this is a
+  //    resolved promise and nothing else — no extension, no error, no noise.
+  ensureBridge();
   refreshAgentRoute();
   startRoutePolling();
 

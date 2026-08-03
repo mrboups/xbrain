@@ -39,6 +39,7 @@ import {
   disconnectAuth as disconnectAuthPure,
 } from "./onboarding.js";
 import { loadSettings, SETTINGS_KEY, notificationsEnabled } from "./settings.js";
+import { handleExternalMessage } from "./external_messages.js";
 
 const MEMORY_API_URL = "https://api.grooveos.app/v1/memory/upsert";
 // Phase 10 GHA-07 — base URL for memory-api. Used by linkGithubFlow,
@@ -1063,6 +1064,39 @@ async function runWatchdogTick() {
     await refreshExternalSession();
   }
 }
+
+// ===========================================================================
+// The PWA asking this extension to wake its bridge
+// ===========================================================================
+//
+// A desktop PWA sitting next to this extension can nudge the socket awake
+// before an agent turn instead of discovering it was asleep afterwards. That is
+// all this is: an optimisation for the co-located case.
+//
+// It is NOT how a phone reaches the subscription. The bridge is keyed by user,
+// so a message sent from a phone already routes through whatever browser that
+// person has open somewhere — with no extension on the phone at all. Nothing
+// here grants mobile anything it does not have.
+//
+// The decision lives in external_messages.js so it can be tested without
+// chrome.*; this is only the plumbing. A refused message gets no reply at all.
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  const pending = handleExternalMessage({
+    message,
+    sender,
+    actions: {
+      // What this extension can see from here. Deliberately NOT dressed up as
+      // an answer about the subscription: the PWA asks the SERVER that.
+      isLive: () => Boolean(ws && ws.readyState === WebSocket.OPEN),
+      // Idempotent by construction — one watchdog tick, which opens a socket
+      // only if the health model says the current one is not usable.
+      ensure: () => runWatchdogTick(),
+    },
+  });
+  if (pending === null) return false; // refused: no reply, no explanation
+  pending.then(sendResponse);
+  return true; // async
+});
 
 // chrome.alarms watchdog — reopens the WS if the SW was killed (MV3 idle), and
 // heartbeats the session when it finds the socket healthy.
