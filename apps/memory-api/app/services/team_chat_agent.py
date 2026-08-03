@@ -471,7 +471,20 @@ async def _do_handle(
                 # the deployment key. Silently spending the operator's key on a
                 # team that supplied their own is a surprise they would find in
                 # an invoice. Status class only — the body is never read.
-                raise _as_team_key_failure(e, fallback) from None
+                renamed = _as_team_key_failure(e, fallback)
+                if renamed is not e:
+                    # The renamed exception carries nothing, deliberately, so the
+                    # provider's own text would vanish with it. An operator still
+                    # needs to see what was actually said — it goes HERE, in the
+                    # log, and no further. Never the key: only what came back.
+                    log.warning(
+                        "team_chat_agent.team_key_refused",
+                        team_id=str(team_id),
+                        status=_http_status_of(e),
+                        err=str(e),
+                        err_type=type(e).__name__,
+                    )
+                raise renamed from None
         else:
             # Nothing to run on. Raised rather than returned so it travels the
             # same path every other outcome does — one classifier, one publish,
