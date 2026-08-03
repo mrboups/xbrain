@@ -126,6 +126,10 @@ const FROZEN_CLASSES = [
   // visible, dumping a document extract into the middle of the thread.
   "xb-savetag-mark",
   "xb-savetag-tip",
+  // A turn the agent could not complete. Without these rules the failure line
+  // renders in the answer's own type, which is the lie the node exists to stop.
+  "xb-msg-failure",
+  "is-failed",
   "xb-msg-daysep",
   // Telegram grouping — the name is per-run, the time is per-message. The
   // invisible spacer is the one that must never be dropped as "unused": without

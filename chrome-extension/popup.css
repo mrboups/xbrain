@@ -1016,14 +1016,9 @@ html, body {
   line-height: 1.45;
   color: var(--destructive);
 }
-/* An empty .xb-msg-text (the failure produced no output at all) would otherwise
-   leave a blank line above the rule. */
+/* A failure that produced no output at all leaves .xb-msg-text empty; without
+   this it still occupies a line, and the bubble opens with a blank one. */
 .xb-msg-bubble.is-failed .xb-msg-text:empty { display: none; }
-.xb-msg-bubble.is-failed .xb-msg-failure:first-child {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: none;
-}
 
 /* Sources disclosure (mockup .sources) — collapsed by default, mono summary. */
 .xb-msg-sources {
