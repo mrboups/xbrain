@@ -109,6 +109,10 @@ export function createApi({ baseUrl, getToken } = {}) {
     postMessage: (teamId, body) =>
       request(`/v1/teams/${teamId}/messages`, { method: "POST", body }),
     agentAliases: (teamId) => request(`/v1/teams/${teamId}/agent-aliases`),
+    // Which model would answer right now, and who pays. The SERVER's answer:
+    // the same resolution the agent itself runs, so a status and the behaviour
+    // it describes cannot drift apart.
+    agentRoute: (teamId) => request(`/v1/me/agent-route?team_id=${teamId}`),
     markRead: (teamId) =>
       request(`/v1/teams/${teamId}/mark-read`, { method: "POST" }),
     unreadSummary: (teamId) => request(`/v1/teams/${teamId}/unread-summary`),

@@ -23,7 +23,7 @@ from app.models.team import Team  # forward-typing for _require_team_admin
 from app.repos import team_invite_codes as invite_codes_repo
 from app.repos import teams as teams_repo
 from app.repos import users as users_repo
-from app.services import mention_detector
+from app.services import mention_detector, team_keys
 from app.services.github_app_jwt import mint_app_jwt
 from app.services.github_installation import get_installation_token_for_org
 from app.services.rate_limit import enforce_rate_limit
@@ -1517,4 +1517,8 @@ async def upsert_api_keys(
             session, team_id=team_id, provider=item.provider, key_enc=encrypted
         )
     await session.commit()
+    # Rotation has to bite NOW. The agent caches a decrypted key for a short TTL,
+    # and an operator who rotates a leaked key only to find the old one still
+    # working for the next few minutes will not trust the feature again.
+    team_keys.invalidate(team_id)
     return Response(status_code=204)

@@ -131,6 +131,14 @@
     -->
     <div id="nudge-banner" class="xb-nudge-banner" role="alert" hidden></div>
 
+    <!--
+      The subscription went away while this page was open. A transition, not a
+      state: somebody who never had a bridge is losing nothing and never sees
+      this. Dismissible, and it stays dismissed until the bridge genuinely
+      returns and goes again.
+    -->
+    <div id="subscription-notice" class="xb-subscription-notice" role="status" hidden></div>
+
     <!-- Signed in: the chat. chat.js fills #message-list. -->
     <div id="chat-scroll" hidden>
       <p id="history-loader" class="xb-history-loader" hidden>Loading older messages...</p>
@@ -142,6 +150,13 @@
     </div>
 
     <p id="composer-error" class="xb-composer-error" role="alert" hidden></p>
+
+    <!--
+      Which model answers, and who pays for it. Quiet on purpose: a status
+      somebody can glance at, not a banner. It reports the routing the SERVER
+      resolved, never a guess assembled here.
+    -->
+    <p id="agent-route-status" class="xb-agent-route" hidden></p>
 
     <!--
       Composer — the extension's pill, glyph for glyph. A textarea (not an

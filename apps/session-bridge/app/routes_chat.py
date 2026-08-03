@@ -17,16 +17,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 import uuid
 
 import structlog
-from authlib.jose import jwt as jose_jwt
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from app.auth import validate_xbt_token
-from app.config import settings
+from app.auth import resolve_bridge_jwt_sub, validate_xbt_token
 from app.pool import pool
 
 log = structlog.get_logger(__name__)
@@ -39,36 +36,6 @@ def _err(status: int, code: str, message: str) -> JSONResponse:
 
 def _looks_like_xbt(token: str) -> bool:
     return token.startswith("xbt_")
-
-
-def _resolve_user_sub_from_bridge_jwt(token: str) -> str | None:
-    """Decode a bridge JWT and return the acting_user_sub claim.
-
-    Returns None when the token isn't a valid bridge JWT (wrong signature,
-    wrong scope, missing claim, or simply not a JWT shape). Caller falls
-    back to the xbt_ path.
-    """
-    if not settings.BRIDGE_SHARED_SECRET:
-        return None
-    # Cheap pre-check: a JWT has exactly two dots.
-    if token.count(".") != 2:
-        return None
-    try:
-        claims = jose_jwt.decode(token, settings.BRIDGE_SHARED_SECRET)
-        claims.validate()
-    except Exception:  # noqa: BLE001 — any decode/validate failure → not a bridge JWT
-        return None
-    if claims.get("scope") != "bridge":
-        return None
-    # Defense in depth: explicit exp check (validate() already does this but
-    # belt-and-braces given the security-sensitive routing decision).
-    exp = claims.get("exp")
-    if exp is not None and int(exp) < int(time.time()):
-        return None
-    acting_sub = claims.get("acting_user_sub")
-    if not acting_sub or not isinstance(acting_sub, str):
-        return None
-    return acting_sub
 
 
 @router.post("/v1/chat/completions")
@@ -95,7 +62,7 @@ async def chat_completions(request: Request):
         auth_mode = "xbt"
     else:
         # Treat as bridge JWT (agent-runtime acting on behalf of a user).
-        sub = _resolve_user_sub_from_bridge_jwt(token)
+        sub = resolve_bridge_jwt_sub(token)
         if sub is None:
             log.info("chat.auth.rejected", err="not_xbt_or_bridge_jwt", mode="unknown")
             return _err(401, "invalid_token", "invalid token")

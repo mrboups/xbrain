@@ -26,15 +26,19 @@
 import { createApi, MAX_MEDIA_BYTES } from "./chat_core/api.js";
 import { createRenderer } from "./chat_core/render.js";
 import { createPublicationRouter } from "./chat_core/publication.js";
-import { connectRealtime } from "./chat_core/realtime.js";
+import { connectRealtime, createConnectionStatus } from "./chat_core/realtime.js";
 import { createTeamRail } from "./chat_core/team_rail.js";
 import {
   StreamBuffer,
   buildMentionRegex,
   withAgentMention,
+  agentRouteStatusText,
+  createSubscriptionWatcher,
+  SUBSCRIPTION_LOST_NOTICE,
 } from "./chat_core/chat_stream.js";
 import { handleOpenUrl, isSafeHttpUrl } from "./chat_core/nudge_open.js";
 import { webPlatform } from "./platform_web.js";
+import { ensureBridge } from "./bridge_link.js";
 import { bootPanels } from "./panels.js";
 import { MEMORY_API_BASE, getToken, signOut } from "./auth.js";
 
@@ -165,6 +169,110 @@ function setConnectionBanner(message) {
   if (!banner) return;
   banner.textContent = message || "";
   banner.hidden = !message;
+}
+
+/**
+ * The socket's state, as one line of text or none.
+ *
+ * The machine lives in chat-core; this surface owns only where the string goes.
+ * Nothing here reacts to a Centrifuge `error` — that is an incident, and the
+ * banner reports a state.
+ */
+const connectionStatus = createConnectionStatus({ render: setConnectionBanner });
+
+// ---------- Which model is answering, and who pays ----------
+//
+// Both halves read ONE server answer: GET /v1/me/agent-route, which runs the
+// agent's own resolution. Nothing here infers routing from whether an extension
+// replied to a message — a client that decides that for itself eventually
+// disagrees with the thing that routes the turn, and then the status is wrong
+// in the one direction that destroys trust.
+
+/** How often to re-ask while the page is in front of somebody. */
+const ROUTE_POLL_MS = 60_000;
+
+const subscriptionWatcher = createSubscriptionWatcher();
+let routePollTimer = null;
+
+/** The quiet line above the composer. Hidden when there is nothing to say. */
+function renderRouteStatus(status) {
+  const node = el("agent-route-status");
+  if (!node) return;
+  const text = agentRouteStatusText(status);
+  node.textContent = text || "";
+  node.hidden = !text;
+}
+
+/**
+ * The notice shown when a bridge that WAS live goes away.
+ *
+ * Built rather than toggled so the dismiss button is wired exactly once per
+ * appearance, and torn down completely when it should not be on screen.
+ */
+function renderSubscriptionNotice(showing) {
+  const node = el("subscription-notice");
+  if (!node) return;
+  if (!showing) {
+    node.hidden = true;
+    while (node.firstChild) node.removeChild(node.firstChild);
+    return;
+  }
+  if (!node.hidden && node.firstChild) return; // already up — do not rebuild
+  while (node.firstChild) node.removeChild(node.firstChild);
+
+  const text = document.createElement("span");
+  text.className = "xb-subscription-notice-text";
+  text.textContent = SUBSCRIPTION_LOST_NOTICE;
+  node.appendChild(text);
+
+  const dismiss = document.createElement("button");
+  dismiss.type = "button";
+  dismiss.className = "xb-subscription-notice-dismiss";
+  dismiss.textContent = "Dismiss";
+  dismiss.addEventListener("click", () => {
+    subscriptionWatcher.dismiss();
+    renderSubscriptionNotice(false);
+  });
+  node.appendChild(dismiss);
+  node.hidden = false;
+}
+
+/**
+ * Ask the server what the routing is, and act on the answer.
+ *
+ * Fail-soft in the strongest sense: a poll that cannot be answered changes
+ * nothing on screen. A failed request is not evidence the bridge died, and
+ * treating it as such would fire the notice every time a phone changed cell.
+ */
+async function refreshAgentRoute() {
+  if (!state.activeTeamId) return;
+  let status = null;
+  try {
+    status = await api.agentRoute(state.activeTeamId);
+  } catch {
+    return; // silent: this is an enhancement, not a feature that can fail
+  }
+  renderRouteStatus(status);
+  renderSubscriptionNotice(subscriptionWatcher.observe(status));
+}
+
+/**
+ * Poll while the page is in front of somebody, and stop when it is not.
+ *
+ * The routing changes rarely, so a tight interval would be a phone battery
+ * spent on an answer that is almost always the same one. Hidden pages poll not
+ * at all; becoming visible asks once, immediately, because that is exactly when
+ * the answer is most likely to have changed while nobody was looking.
+ */
+function startRoutePolling() {
+  if (routePollTimer !== null) return;
+  const tick = () => {
+    if (document.visibilityState === "visible") refreshAgentRoute();
+  };
+  routePollTimer = setInterval(tick, ROUTE_POLL_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshAgentRoute();
+  });
 }
 
 /**
@@ -660,6 +768,11 @@ async function sendMessage() {
     ? withAgentMention(typed, { aliases: state.agentAliases, regex: state.mentionRe })
     : typed;
 
+  // Wake the bridge, if there is one in THIS browser, before the server routes
+  // the turn. Not awaited and not checked: a nudge that fails must not delay or
+  // block a message, and on a phone there is nothing to nudge and never will be.
+  ensureBridge();
+
   if (sendBtn) sendBtn.disabled = true;
   try {
     const sent = await api.postMessage(state.activeTeamId, { content });
@@ -683,6 +796,12 @@ async function sendMessage() {
       const empty = el("chat-empty");
       if (empty) empty.hidden = true;
     }
+    // An agent turn is the moment the routing matters, so this is the poll
+    // worth piggybacking on rather than tightening the interval for everyone.
+    // Not awaited: the message is already away, and a status must never delay
+    // it. Fires after the send so a bridge that died is noticed on the turn it
+    // affected, rather than up to a minute later.
+    refreshAgentRoute();
   } catch (e) {
     showComposerError(`Message not sent: ${e.message}`);
   } finally {
@@ -846,21 +965,39 @@ export async function bootChat(refs = {}) {
       onUserPublication: handleUserPublication,
       // No onPresenceChange: this surface has no presence badge, and wiring the
       // callback would ship handlers that recompute nothing.
-      onConnected: () => setConnectionBanner(null),
-      onError: () => setConnectionBanner("Reconnecting..."),
+      //
+      // The banner is driven by the connection's STATE and never by an error.
+      // It used to be wired to `error`, and Centrifuge emits that for transient
+      // things on a socket that is fine — so one hiccup pinned "Reconnecting..."
+      // on screen for the rest of the session while everything worked.
+      onConnected: () => connectionStatus.connected(),
+      onConnecting: () => connectionStatus.connecting(),
+      onDisconnected: () => connectionStatus.disconnected(),
+      onError: (e) => console.warn("[xbrain] realtime incident:", e),
     });
   } catch (e) {
     console.warn("[xbrain] realtime unavailable:", e);
     state.realtime = null;
   }
   if (!state.realtime) {
-    setConnectionBanner("Live updates are off - reload to retry.");
+    connectionStatus.offline();
   }
 
   // 6. Claim the channel and load the thread.
   wireComposer();
   await switchTeam(state.activeTeamId);
 
-  // 7. Drop the caret in the composer so they can just type.
+  // 7. What the agent would run on. Asked once now, then only while somebody is
+  //    looking at the page.
+  //
+  //    The nudge goes first and is not awaited: if the extension lives in this
+  //    browser, waking it before the status call means the answer describes the
+  //    bridge as it is about to be rather than as it was. On a phone this is a
+  //    resolved promise and nothing else — no extension, no error, no noise.
+  ensureBridge();
+  refreshAgentRoute();
+  startRoutePolling();
+
+  // 8. Drop the caret in the composer so they can just type.
   focusComposer();
 }

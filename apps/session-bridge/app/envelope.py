@@ -53,7 +53,12 @@ class ErrorFrame(BaseModel):
 
 
 class PingFrame(BaseModel):
-    """Extension → bridge. Keepalive; ignored server-side."""
+    """Extension → bridge. Keepalive; answered with a PongFrame.
+
+    The reply is what makes the keepalive a round trip rather than a shout into
+    the dark. A socket the client believes is OPEN but whose peer has gone will
+    never report that on its own — the pong is the client's only evidence.
+    """
 
     type: Literal["ping"]
     ts: int
@@ -72,3 +77,10 @@ class RegisterAck(BaseModel):
     type: Literal["register_ack"] = "register_ack"
     ok: bool
     error: str | None = None
+
+
+class PongFrame(BaseModel):
+    """Bridge → extension. Reply to a PingFrame, echoing its timestamp."""
+
+    type: Literal["pong"] = "pong"
+    ts: int

@@ -119,7 +119,55 @@ export const AGENT_FAILURE_TEXT = {
   configuration:
     "The agent could not answer. Trying again will not help — this needs an " +
     "administrator to look at the server.",
+  // ---- Unavailability, not failure ----
+  //
+  // These two describe an ABSENCE. Nothing was attempted, so nothing went
+  // wrong, and a team whose agent has simply not been configured must not be
+  // shown a malfunction — that is how a product that works reads as broken.
+  //
+  // Neither sentence mentions this device. The bridge is keyed by user, not by
+  // device: a phone with no extension answers perfectly whenever that person
+  // has a browser open somewhere. "No live bridge for this user anywhere" is
+  // the only condition worth naming, and it is the same sentence everywhere.
+  no_route:
+    "The agent has no model to answer with. It runs on a Claude subscription " +
+    "through the xbrain extension — open the browser where that extension is " +
+    "signed in, or set a team API key, which is billed to the team.",
+  subscription_lost:
+    "The Claude subscription is no longer connected. Open the browser where " +
+    "the xbrain extension is signed in, then send this again.",
+  // A real failure, not an absence: an attempt was made and refused. It gets
+  // its own sentence because whose key failed is the useful part — somebody who
+  // pasted a key into team settings needs to know it was theirs, not the
+  // product. Still none of the provider's own words.
+  team_key_rejected:
+    "The team's own API key was refused. It needs to be replaced in team " +
+    "settings — trying again with the same key will not help.",
 };
+
+/**
+ * Codes that mean "not available", as opposed to "tried and failed".
+ *
+ * The distinction is rendered, not just worded: a failure line and an
+ * unavailability line get different classes, so a state nobody can fix by
+ * retrying does not carry the visual weight of a malfunction.
+ */
+export const AGENT_UNAVAILABLE_CODES = new Set(["no_route", "subscription_lost"]);
+
+/**
+ * Is this outcome an absence rather than a failure?
+ *
+ * Total, like agentFailureText: any input at all resolves to a boolean, and an
+ * unknown code is treated as a failure — the conservative direction, since
+ * calling a real malfunction "unavailable" would understate it.
+ *
+ * @param {{code?: string}|null|undefined} info
+ * @returns {boolean}
+ */
+export function isAgentUnavailable(info) {
+  const code = info && typeof info.code === "string" ? info.code : "";
+  return AGENT_UNAVAILABLE_CODES.has(code);
+}
 
 /** What every other code resolves to. Vague on purpose — see above. */
 export const AGENT_FAILURE_FALLBACK = "The agent could not answer.";
@@ -331,8 +379,121 @@ export function bubbleClass(msg, selfUserId) {
 
 export function provenanceLabel(routed_via) {
   if (routed_via === "user_promax") return { text: "via Pro/Max", cls: "via-promax" };
+  // Two different people get the bill for these two, so they are two different
+  // badges. `team_api` predates the distinction and still means the
+  // deployment-wide key, which is why the new tier got a new name rather than
+  // reusing it — rows already on disk would otherwise change meaning.
+  if (routed_via === "team_key") return { text: "via team key", cls: "via-api" };
   if (routed_via === "team_api") return { text: "via team API", cls: "via-api" };
   return null;
+}
+
+// ---------- Which model is answering, and who pays ----------
+//
+// "Your subscription is answering" and "an API key is being billed" are very
+// different facts to the person paying, and nothing distinguished them.
+//
+// The route reported here is the one the SERVER resolved — never inferred from
+// whether an extension answered a ping. A client that decides this for itself
+// eventually disagrees with the thing that actually routes the message, and
+// then the status is wrong in the one direction that destroys trust.
+
+/** route -> the quiet line a person sees. Null means: say nothing. */
+export const AGENT_ROUTE_STATUS = {
+  user_promax: "Running on your Claude subscription",
+  team_key: "Running on the team's API key",
+  team_api: "Running on the platform API key",
+  // Not a status line. This one is the agent's own failure vocabulary's job —
+  // saying it twice, in two places, would let the two disagree.
+  unavailable: null,
+};
+
+/**
+ * The status line for a route, or null when there is nothing worth saying.
+ *
+ * @param {{route?: string}|null|undefined} status a /v1/me/agent-route body
+ * @returns {string|null}
+ */
+export function agentRouteStatusText(status) {
+  const route = status && typeof status.route === "string" ? status.route : "";
+  return Object.prototype.hasOwnProperty.call(AGENT_ROUTE_STATUS, route)
+    ? AGENT_ROUTE_STATUS[route]
+    : null;
+}
+
+/**
+ * What a person is told when the bridge goes away underneath them.
+ *
+ * Honest about both remedies AND their cost, and it does not present the key as
+ * the default fix: reopening the browser costs nothing and uses the
+ * subscription they already pay for; a key is what you reach for when no
+ * browser can be open.
+ *
+ * Not about this device, for the same reason nothing else is: the bridge is
+ * keyed by user. A phone is connected whenever that person has a browser
+ * holding the socket anywhere.
+ */
+export const SUBSCRIPTION_LOST_NOTICE =
+  "Your Claude subscription is no longer connected. Reopen the browser where " +
+  "the xbrain extension is signed in to keep using it, or set a team API key, " +
+  "which the team is billed for.";
+
+/**
+ * Notice the moment a bridge that WAS live stops being live.
+ *
+ * A transition, never a state. Somebody who has never had a bridge — a
+ * colleague with no extension at all — is losing nothing and must not be
+ * nagged about it, so nothing fires until a live one has been seen.
+ *
+ * Dismissal sticks until the bridge genuinely comes back and goes again. A
+ * warning that reappears the moment it is dismissed is a warning people learn
+ * to ignore, and then it is worth less than nothing.
+ *
+ * Pure: no DOM, no clock, no network. The surface polls and hands observations
+ * in.
+ *
+ * @returns {{observe: Function, dismiss: Function, isShowing: Function,
+ *            hasEverConnected: Function}}
+ */
+export function createSubscriptionWatcher() {
+  let everConnected = false;
+  let dismissed = false;
+  let showing = false;
+
+  return {
+    /**
+     * Feed one observation.
+     * @param {{subscription_connected?: boolean}|null} status
+     * @returns {boolean} whether the notice should be on screen now
+     */
+    observe(status) {
+      // An unreadable observation changes nothing. A failed poll is not
+      // evidence the bridge died, and treating it as such would fire the
+      // notice every time the network hiccuped.
+      if (!status || typeof status.subscription_connected !== "boolean") {
+        return showing;
+      }
+      if (status.subscription_connected) {
+        everConnected = true;
+        // Re-armed: the next genuine loss is worth mentioning again.
+        dismissed = false;
+        showing = false;
+        return showing;
+      }
+      if (everConnected && !dismissed) showing = true;
+      return showing;
+    },
+    dismiss() {
+      dismissed = true;
+      showing = false;
+    },
+    isShowing() {
+      return showing;
+    },
+    hasEverConnected() {
+      return everConnected;
+    },
+  };
 }
 
 // ---------- Brain-aware labels (Plan 20-03) ----------

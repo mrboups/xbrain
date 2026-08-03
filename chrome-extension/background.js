@@ -31,6 +31,7 @@ import {
   PING_INTERVAL_MS,
   WATCHDOG_PERIOD_MIN,
   MAX_ATTEMPT,
+  watchdogPlan,
 } from "./ws_keepalive.js";
 import {
   readStoredAuth as readStoredAuthPure,
@@ -38,6 +39,7 @@ import {
   disconnectAuth as disconnectAuthPure,
 } from "./onboarding.js";
 import { loadSettings, SETTINGS_KEY, notificationsEnabled } from "./settings.js";
+import { handleExternalMessage } from "./external_messages.js";
 
 const MEMORY_API_URL = "https://api.grooveos.app/v1/memory/upsert";
 // Phase 10 GHA-07 — base URL for memory-api. Used by linkGithubFlow,
@@ -612,6 +614,11 @@ let reconnectAttempt = 0;
 let pingTimer = null;
 let reconnectTimer = null;
 let lastOpenAt = 0;
+// When the current socket entered its current readyState, and when the server
+// last said anything. The watchdog cannot tell a working socket from a dead one
+// without both — see the health model in ws_keepalive.js.
+let socketStateSince = 0;
+let lastInboundAt = null;
 
 /**
  * Best-effort fetch of the email logged into claude.ai. Returns null on failure
@@ -791,6 +798,8 @@ async function openBridgeWS() {
 
   console.log("[xbrain] opening WS");
   ws = new WebSocket(url);
+  socketStateSince = Date.now();
+  lastInboundAt = null;
   // Did THIS attempt ever reach an open socket? A handshake rejected by
   // session-bridge (HTTP 403 on an invalid token) never opens, and the browser
   // reports it as close code 1006 — NOT 4401/4403. Without this flag the
@@ -802,6 +811,7 @@ async function openBridgeWS() {
     openedThisAttempt = true;
     reconnectAttempt = 0;
     lastOpenAt = Date.now();
+    socketStateSince = lastOpenAt;
     startPing();
 
     // Threat T-09-03-04: never throw — register is best-effort, nulls allowed.
@@ -839,6 +849,10 @@ async function openBridgeWS() {
   };
 
   ws.onmessage = async (event) => {
+    // Recorded before the frame is even parsed: ANY byte from the server proves
+    // the peer is still there, which is the only thing the zombie check needs.
+    // A frame we cannot parse still carries that proof.
+    lastInboundAt = Date.now();
     let msg;
     try {
       msg = JSON.parse(event.data);
@@ -869,6 +883,8 @@ async function openBridgeWS() {
     console.warn("[xbrain] WS closed", event.code, event.reason);
     stopPing();
     ws = null;
+    socketStateSince = Date.now();
+    lastInboundAt = null;
     // 4401/4403 = auth failure signalled by the app protocol — never retry.
     if (event.code === 4401 || event.code === 4403) return;
     // A handshake REJECTED by session-bridge (HTTP 403 for a token memory-api no
@@ -968,16 +984,128 @@ function scheduleReconnect() {
   }, delay);
 }
 
-// chrome.alarms watchdog — reopens the WS if the SW was killed (MV3 idle).
+/**
+ * Tell memory-api this user's bridge is alive, right now.
+ *
+ * The server's "does this user have a live bridge" answer is written by exactly
+ * one thing: the upsert behind POST /v1/me/external-sessions. Until this
+ * existed, only the register handshake wrote it, so a socket that opened once
+ * and stayed open let the record go stale while the connection was perfectly
+ * fine — and a stale record routes the agent away from the subscription.
+ *
+ * Called ONLY for a socket the watchdog has just found healthy. Calling it on
+ * every alarm would make the record mean "the service worker is awake", which
+ * is a different and much less useful claim.
+ *
+ * Never throws — a heartbeat that fails is retried by the next alarm.
+ */
+async function refreshExternalSession() {
+  try {
+    const { xbt_token } = await readStoredAuth();
+    if (!xbt_token) return false;
+    const r = await fetch(`${MEMORY_API_BASE}/v1/me/external-sessions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${xbt_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        provider: "claude",
+        extension_id: chrome.runtime.id || null,
+      }),
+    });
+    return r.ok;
+  } catch (e) {
+    console.warn(
+      "[xbrain] session heartbeat failed",
+      e && e.message ? e.message : e,
+    );
+    return false;
+  }
+}
+
+/**
+ * One watchdog tick.
+ *
+ * Exported-in-spirit rather than inlined in the listener so the decision is the
+ * pure function's and this is only the plumbing that carries it out.
+ */
+async function runWatchdogTick() {
+  const plan = watchdogPlan({
+    readyState: ws ? ws.readyState : null,
+    stateSince: socketStateSince,
+    lastInboundAt,
+    now: Date.now(),
+  });
+
+  if (plan.closeFirst && ws) {
+    // A stalled or zombie socket is still an object with a readyState that
+    // openBridgeWS treats as "already connected". Closing it makes the reopen
+    // below actually reopen; the onclose handler will schedule its own retry if
+    // this one loses the race, which is harmless.
+    console.warn("[xbrain] watchdog discarding socket:", plan.health);
+    try {
+      ws.close(4000, `watchdog:${plan.health}`);
+    } catch {
+      /* already unusable — the point was to stop trusting it */
+    }
+    ws = null;
+    socketStateSince = Date.now();
+    lastInboundAt = null;
+  }
+
+  if (plan.reopen) {
+    console.log("[xbrain] watchdog re-opening WS:", plan.health);
+    await openBridgeWS();
+    return;
+  }
+
+  if (plan.refreshSession) {
+    await refreshExternalSession();
+  }
+}
+
+// ===========================================================================
+// The PWA asking this extension to wake its bridge
+// ===========================================================================
+//
+// A desktop PWA sitting next to this extension can nudge the socket awake
+// before an agent turn instead of discovering it was asleep afterwards. That is
+// all this is: an optimisation for the co-located case.
+//
+// It is NOT how a phone reaches the subscription. The bridge is keyed by user,
+// so a message sent from a phone already routes through whatever browser that
+// person has open somewhere — with no extension on the phone at all. Nothing
+// here grants mobile anything it does not have.
+//
+// The decision lives in external_messages.js so it can be tested without
+// chrome.*; this is only the plumbing. A refused message gets no reply at all.
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  const pending = handleExternalMessage({
+    message,
+    sender,
+    actions: {
+      // What this extension can see from here. Deliberately NOT dressed up as
+      // an answer about the subscription: the PWA asks the SERVER that.
+      isLive: () => Boolean(ws && ws.readyState === WebSocket.OPEN),
+      // Idempotent by construction — one watchdog tick, which opens a socket
+      // only if the health model says the current one is not usable.
+      ensure: () => runWatchdogTick(),
+    },
+  });
+  if (pending === null) return false; // refused: no reply, no explanation
+  pending.then(sendResponse);
+  return true; // async
+});
+
+// chrome.alarms watchdog — reopens the WS if the SW was killed (MV3 idle), and
+// heartbeats the session when it finds the socket healthy.
 chrome.alarms.create("xbrain_ws_watchdog", {
   periodInMinutes: WATCHDOG_PERIOD_MIN,
 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name !== "xbrain_ws_watchdog") return;
-  if (!ws || ws.readyState === WebSocket.CLOSED) {
-    console.log("[xbrain] watchdog re-opening WS");
-    openBridgeWS();
-  }
+  runWatchdogTick();
 });
 
 // Reopen the WS whenever xbt_token or user_sub appears / changes in storage.

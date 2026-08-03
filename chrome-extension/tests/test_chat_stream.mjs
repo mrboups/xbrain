@@ -35,7 +35,13 @@ import {
   agentMentionAlias,
   withAgentMention,
   agentFailureText,
+  isAgentUnavailable,
   AGENT_FAILURE_TEXT,
+  AGENT_UNAVAILABLE_CODES,
+  agentRouteStatusText,
+  createSubscriptionWatcher,
+  AGENT_ROUTE_STATUS,
+  SUBSCRIPTION_LOST_NOTICE,
   AGENT_FAILURE_FALLBACK,
   sameDay,
 } from "../../packages/chat-core/chat_stream.js";
@@ -384,6 +390,11 @@ test("provenanceLabel: Pro/Max vs API vs null", () => {
   const p2 = provenanceLabel("team_api");
   assert.equal(p2.text, "via team API");
   assert.equal(p2.cls, "via-api");
+  // The team's OWN key is a different bill from the deployment's, so it is a
+  // different badge. `team_api` keeps its meaning because rows already carry it.
+  const p3 = provenanceLabel("team_key");
+  assert.equal(p3.text, "via team key");
+  assert.notEqual(p3.text, p2.text, "the two payers must not share a label");
   assert.equal(provenanceLabel(null), null);
   assert.equal(provenanceLabel(undefined), null);
 });
@@ -578,6 +589,236 @@ test("agentFailureText: no sentence invents a cause the client cannot know", () 
       assert.ok(!lowered.includes(guess), `"${sentence}" guesses a cause`);
     }
     assert.ok(sentence[0] === sentence[0].toUpperCase() && sentence.endsWith("."));
+  }
+});
+
+// ---------- unavailability vs failure ----------
+//
+// A team whose agent has nothing to run on — no live bridge for that person
+// anywhere, and no key — used to be shown the same "could not answer" as a
+// crashed provider. A configuration nobody had finished setting up therefore
+// read as a product that does not work.
+
+test("the unavailability codes are part of the closed vocabulary", () => {
+  for (const code of AGENT_UNAVAILABLE_CODES) {
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(AGENT_FAILURE_TEXT, code),
+      `${code} has no sentence — it would render as the vague fallback`,
+    );
+  }
+});
+
+test("isAgentUnavailable is total, and defaults to treating things as failures", () => {
+  assert.equal(isAgentUnavailable({ code: "no_route" }), true);
+  assert.equal(isAgentUnavailable({ code: "subscription_lost" }), true);
+  for (const input of [
+    { code: "timeout" },
+    { code: "unavailable" }, // a transient outage, NOT an unavailability state
+    { code: "configuration" },
+    { code: "made_up" },
+    { code: 7 },
+    {},
+    null,
+    undefined,
+    "no_route",
+  ]) {
+    assert.equal(
+      isAgentUnavailable(input),
+      false,
+      `${JSON.stringify(input)} must not be treated as unavailability — calling a real malfunction "not available" understates it`,
+    );
+  }
+});
+
+test("an unavailability sentence never reads as a failed attempt", () => {
+  for (const code of AGENT_UNAVAILABLE_CODES) {
+    const lowered = AGENT_FAILURE_TEXT[code].toLowerCase();
+    for (const verb of ["failed", "error", "went wrong", "could not answer"]) {
+      assert.ok(
+        !lowered.includes(verb),
+        `"${AGENT_FAILURE_TEXT[code]}" says ${verb} — nothing was attempted`,
+      );
+    }
+  }
+});
+
+test("an unavailability sentence says what would make it work", () => {
+  for (const code of AGENT_UNAVAILABLE_CODES) {
+    assert.ok(
+      AGENT_FAILURE_TEXT[code].toLowerCase().includes("extension"),
+      `${code} names no remedy — an absence with no remedy is just bad news`,
+    );
+  }
+});
+
+test("no unavailability sentence mentions this device", () => {
+  // The bridge is keyed by USER, not by device: a phone with no extension
+  // routes through whatever browser that person has open somewhere and answers
+  // perfectly. "Not available on mobile" would be false about a working feature.
+  for (const code of AGENT_UNAVAILABLE_CODES) {
+    const lowered = AGENT_FAILURE_TEXT[code].toLowerCase();
+    for (const word of [
+      "this device",
+      "phone",
+      "mobile",
+      "desktop",
+      "laptop",
+      "your browser",
+    ]) {
+      assert.ok(
+        !lowered.includes(word),
+        `${code} says "${word}" — that makes a user-keyed condition sound device-specific`,
+      );
+    }
+  }
+});
+
+test("a refused team key is a failure, not an unavailability", () => {
+  // An attempt WAS made and refused, so dressing it as "not available" would
+  // understate it — and the fix belongs to the team, not to an administrator.
+  assert.equal(isAgentUnavailable({ code: "team_key_rejected" }), false);
+  const sentence = AGENT_FAILURE_TEXT.team_key_rejected;
+  assert.ok(sentence, "team_key_rejected must have its own sentence");
+  assert.ok(
+    /team/i.test(sentence),
+    "whose key failed is the useful part — say it was the team's",
+  );
+  for (const leak of ["anthropic", "401", "403", "x-api-key", "sk-"]) {
+    assert.ok(
+      !sentence.toLowerCase().includes(leak),
+      `"${sentence}" carries the provider's own words`,
+    );
+  }
+});
+
+test("the client's vocabulary still cannot print anything the frame carries", () => {
+  // The new codes must not have opened a text path. Same total-function claim as
+  // above, re-asserted against payloads shaped like the new states.
+  const allowed = new Set([...Object.values(AGENT_FAILURE_TEXT), AGENT_FAILURE_FALLBACK]);
+  for (const input of [
+    { code: "no_route", message: "ANTHROPIC_API_KEY sk-ant-0123 is unset" },
+    { code: "subscription_lost", error: "socket 4401 for github:someone" },
+    { code: "no_route", detail: { raw: "<html>502</html>" } },
+  ]) {
+    assert.ok(allowed.has(agentFailureText(input)), "a frame's own words must never render");
+  }
+});
+
+// ---------- which model answers, and losing the bridge mid-session ----------
+
+test("the route status names who is answering, and who pays", () => {
+  assert.equal(
+    agentRouteStatusText({ route: "user_promax" }),
+    AGENT_ROUTE_STATUS.user_promax,
+  );
+  // The two paying tiers must not read the same. "Your subscription is
+  // answering" and "the team is being billed" are very different facts to the
+  // person paying.
+  assert.notEqual(
+    agentRouteStatusText({ route: "team_key" }),
+    agentRouteStatusText({ route: "team_api" }),
+  );
+});
+
+test("the route status says nothing it was not told", () => {
+  // Unavailability is the agent failure vocabulary's job. Saying it in two
+  // places would let the two disagree about what is happening.
+  assert.equal(agentRouteStatusText({ route: "unavailable" }), null);
+  for (const input of [null, undefined, {}, { route: "invented" }, { route: 7 }, "user_promax"]) {
+    assert.equal(
+      agentRouteStatusText(input),
+      null,
+      `${JSON.stringify(input)} must produce no claim`,
+    );
+  }
+});
+
+test("no route status mentions this device", () => {
+  for (const text of Object.values(AGENT_ROUTE_STATUS)) {
+    if (!text) continue;
+    for (const word of ["this device", "phone", "mobile", "desktop", "laptop"]) {
+      assert.ok(!text.toLowerCase().includes(word), `"${text}" says "${word}"`);
+    }
+  }
+});
+
+test("losing the bridge is a transition, not a state", () => {
+  // Somebody who never had a bridge — a colleague with no extension at all —
+  // is losing nothing and must not be nagged.
+  const never = createSubscriptionWatcher();
+  for (let i = 0; i < 5; i++) {
+    assert.equal(
+      never.observe({ subscription_connected: false }),
+      false,
+      "a person who never had a bridge is never warned about losing one",
+    );
+  }
+
+  const had = createSubscriptionWatcher();
+  assert.equal(had.observe({ subscription_connected: true }), false, "nothing to say yet");
+  assert.equal(had.observe({ subscription_connected: false }), true, "the loss is news");
+});
+
+test("a dismissed warning does not come straight back", () => {
+  const w = createSubscriptionWatcher();
+  w.observe({ subscription_connected: true });
+  assert.equal(w.observe({ subscription_connected: false }), true);
+  w.dismiss();
+  assert.equal(w.isShowing(), false);
+  for (let i = 0; i < 10; i++) {
+    assert.equal(
+      w.observe({ subscription_connected: false }),
+      false,
+      "a warning that reappears is one people learn to ignore",
+    );
+  }
+});
+
+test("a genuine reconnect re-arms the warning", () => {
+  const w = createSubscriptionWatcher();
+  w.observe({ subscription_connected: true });
+  w.observe({ subscription_connected: false });
+  w.dismiss();
+  // The bridge comes back...
+  assert.equal(w.observe({ subscription_connected: true }), false);
+  // ...and goes again. That is new news, so it is said again.
+  assert.equal(w.observe({ subscription_connected: false }), true);
+});
+
+test("a reconnect clears a warning nobody dismissed", () => {
+  const w = createSubscriptionWatcher();
+  w.observe({ subscription_connected: true });
+  assert.equal(w.observe({ subscription_connected: false }), true);
+  assert.equal(w.observe({ subscription_connected: true }), false);
+  assert.equal(w.isShowing(), false);
+});
+
+test("an unreadable observation changes nothing", () => {
+  // A failed poll is not evidence the bridge died. Treating it as one would
+  // fire the notice every time a phone changed cell.
+  const w = createSubscriptionWatcher();
+  w.observe({ subscription_connected: true });
+  for (const junk of [null, undefined, {}, { subscription_connected: "yes" }, "nope"]) {
+    assert.equal(w.observe(junk), false, `${JSON.stringify(junk)} must not raise the notice`);
+  }
+  assert.equal(w.hasEverConnected(), true, "a bad poll must not erase what we knew");
+  assert.equal(w.observe({ subscription_connected: false }), true);
+});
+
+test("the notice offers both remedies and is honest about their cost", () => {
+  const lowered = SUBSCRIPTION_LOST_NOTICE.toLowerCase();
+  assert.ok(lowered.includes("extension"), "reopening the browser is the free remedy");
+  assert.ok(lowered.includes("team api key"), "the fallback must be named");
+  assert.ok(
+    lowered.includes("billed"),
+    "a key costs money and the sentence has to say so",
+  );
+  assert.ok(
+    lowered.indexOf("extension") < lowered.indexOf("team api key"),
+    "the free remedy comes first — a key is the fallback, not the default fix",
+  );
+  for (const word of ["this device", "phone", "mobile", "desktop", "laptop"]) {
+    assert.ok(!lowered.includes(word), `the notice says "${word}"`);
   }
 });
 

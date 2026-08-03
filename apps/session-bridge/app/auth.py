@@ -1,7 +1,10 @@
-"""xbt_ token validation against memory-api /v1/me with a 60s TTL cache.
+"""Token validation for the two principals the bridge accepts.
 
-Pattern mirrors apps/mcp-brain/app/memory_client.get_me, with an in-process cache
-so the WS recv loop / chat handler don't hit memory-api on every frame.
+  - `xbt_` user tokens, resolved against memory-api /v1/me with a 60s TTL cache.
+    Pattern mirrors apps/mcp-brain/app/memory_client.get_me, so the WS recv loop
+    and chat handler don't hit memory-api on every frame.
+  - bridge JWTs signed with BRIDGE_SHARED_SECRET, carrying the user a backend
+    service is acting for.
 """
 from __future__ import annotations
 
@@ -9,6 +12,7 @@ import time
 from typing import Any
 
 import httpx
+from authlib.jose import jwt as jose_jwt
 
 from app.config import settings
 
@@ -54,6 +58,43 @@ async def validate_xbt_token(token: str) -> dict[str, Any]:
 
     _CACHE[token] = (now + _TTL, me)
     return me
+
+
+def resolve_bridge_jwt_sub(token: str) -> str | None:
+    """Decode a bridge JWT and return its `acting_user_sub` claim.
+
+    Returns None when the token isn't a valid bridge JWT — wrong signature,
+    wrong scope, expired, missing claim, or simply not a JWT shape. Every
+    caller treats None as "this principal is not a backend service", so a
+    failure to decode can never widen access.
+
+    Lives here rather than in routes_chat because two routes now need it: the
+    chat handler that acts on a user's socket, and the status probe that asks
+    whether the user has one.
+    """
+    if not settings.BRIDGE_SHARED_SECRET:
+        return None
+    # Cheap pre-check: a JWT has exactly two dots.
+    if token.count(".") != 2:
+        return None
+    try:
+        claims = jose_jwt.decode(token, settings.BRIDGE_SHARED_SECRET)
+        claims.validate()
+    except Exception:  # noqa: BLE001 — any decode/validate failure → not a bridge JWT
+        return None
+    if claims.get("scope") != "bridge":
+        return None
+    # Defense in depth: explicit exp check (validate() already does this but
+    # belt-and-braces given the security-sensitive routing decision). A token
+    # with no exp at all is refused — an unbounded bridge credential is not a
+    # credential, and `validate()` has nothing to check when the claim is absent.
+    exp = claims.get("exp")
+    if exp is None or int(exp) < int(time.time()):
+        return None
+    acting_sub = claims.get("acting_user_sub")
+    if not acting_sub or not isinstance(acting_sub, str):
+        return None
+    return acting_sub
 
 
 def _reset_cache_for_tests() -> None:

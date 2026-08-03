@@ -38,6 +38,9 @@
     "client_id": "50097563098-rdh24v05dcp0ees8o4kqviuuoi5sup3n.apps.googleusercontent.com",
     "scopes": ["openid", "email", "profile"]
   },
+  "externally_connectable": {
+    "matches": ["https://grooveos.app/*"]
+  },
   "host_permissions": [
     "https://api.grooveos.app/*",
     "https://bridge.grooveos.app/*",

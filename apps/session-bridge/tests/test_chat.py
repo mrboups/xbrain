@@ -29,9 +29,22 @@ def client():
 
 
 def _mock_me(respx_mock, sub: str = "user-1") -> None:
+    """Stand in for memory-api GET /v1/me.
+
+    `source_user_id` is the field routes_ws actually compares against the path —
+    `sub` alone left every websocket_connect below closing with 4403 sub_mismatch
+    before the test body ran, so three WS tests were failing on the fixture
+    rather than on anything they assert.
+    """
     respx_mock.get(f"{settings.MEMORY_API_URL}/v1/me").mock(
         return_value=httpx.Response(
-            200, json={"sub": sub, "kind": "user_api_token", "email": "u@x.com"}
+            200,
+            json={
+                "sub": sub,
+                "source_user_id": sub,
+                "kind": "user_api_token",
+                "email": "u@x.com",
+            },
         )
     )
 
