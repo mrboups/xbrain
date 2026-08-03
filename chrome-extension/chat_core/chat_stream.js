@@ -91,6 +91,60 @@ export function detectMentionClient(text, aliasesOrRegex) {
   return { agent_name: "claude-sonnet-4-6", trigger: m[1].toLowerCase() };
 }
 
+// ---------- Agent toggle ----------
+//
+// The composer's agent button is not a second way to summon the agent. It writes
+// the SAME mention a person would type, and the server's detector — the only
+// thing that decides — sees one kind of message either way. A parallel "this one
+// is for the agent" flag on the request would be a second authority that can
+// disagree with the first, and the two would drift on the first schema change.
+
+/**
+ * Which alias to write. The server's effective list, in the server's order.
+ *
+ * "claude" is skipped for the same reason `buildMentionRegex` drops it: it is
+ * reserved and never a client trigger, so writing "@claude" would produce a
+ * message that looks summoned and is not. Falls back to "agent" when the list
+ * offers nothing usable — never a hardcoded vocabulary in the ordinary path.
+ *
+ * @param {string[]|null|undefined} aliases
+ * @returns {string}
+ */
+export function agentMentionAlias(aliases) {
+  for (const alias of Array.isArray(aliases) ? aliases : []) {
+    if (typeof alias !== "string") continue;
+    const trimmed = alias.trim();
+    if (!trimmed || trimmed.toLowerCase() === "claude") continue;
+    return trimmed;
+  }
+  return "agent";
+}
+
+/**
+ * The text to send when the agent toggle is on.
+ *
+ * Returns the draft UNCHANGED when it already carries a live mention. The server
+ * acts on the first mention only, so a doubled one would still summon once — but
+ * "@agent @agent what is this" is a message nobody wrote, and the person who
+ * typed the mention and then pressed the button would see the product arguing
+ * with itself.
+ *
+ * Pure: no DOM, no state, no clock.
+ *
+ * @param {string} text the draft as typed
+ * @param {{aliases?: string[], regex?: RegExp}} [opts]
+ *   regex   — the surface's compiled alias regex (preferred: it is the server's)
+ *   aliases — the raw effective list, used to pick the alias to write
+ * @returns {string}
+ */
+export function withAgentMention(text, { aliases, regex } = {}) {
+  const body = typeof text === "string" ? text : "";
+  if (detectMentionClient(body, regex || aliases)) return body;
+  const mention = `@${agentMentionAlias(aliases)}`;
+  const rest = body.trimStart();
+  return rest ? `${mention} ${rest}` : mention;
+}
+
 // ---------- StreamBuffer ----------
 //
 // Lifecycle per agent message:

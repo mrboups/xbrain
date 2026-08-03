@@ -13,6 +13,8 @@
  *   brainSummaryLabel   — agent "N sources from the brain" (Plan 20-03)
  *   indexedAttachment   — the item behind an indexed-attachment marker
  *   indexedTooltipText  — the sentence for one /indexed-text answer
+ *   agentMentionAlias   — which alias the agent toggle writes
+ *   withAgentMention    — the toggle's outgoing text, de-duped against a typed one
  *   sameDay             — day-separator boundary     (Plan 20-03)
  */
 
@@ -29,6 +31,8 @@ import {
   brainSummaryLabel,
   indexedAttachment,
   indexedTooltipText,
+  agentMentionAlias,
+  withAgentMention,
   sameDay,
 } from "../../packages/chat-core/chat_stream.js";
 
@@ -520,6 +524,113 @@ test("indexedTooltipText: every state produces a non-empty string", () => {
     assert.equal(typeof out, "string");
     assert.ok(out.trim().length > 0, `blank tooltip for ${JSON.stringify(input)}`);
   }
+});
+
+// ---------- agentMentionAlias / withAgentMention ----------
+//
+// The agent toggle is not a second way to summon. It writes the SAME mention a
+// person would type and the server's detector decides from the text, so there is
+// one authority and nothing to disagree with. These tests are mostly about the
+// place that would break: a message that is BOTH toggled and typed must summon
+// exactly once, and it must not read as "@agent @agent ...".
+
+test("agentMentionAlias: the server's list, in the server's order", () => {
+  assert.equal(agentMentionAlias(["chad", "agent"]), "chad");
+  assert.equal(agentMentionAlias(["agent"]), "agent");
+});
+
+test("agentMentionAlias: 'claude' is skipped — it is never a client trigger", () => {
+  // buildMentionRegex drops it, so writing "@claude" would produce a message
+  // that looks summoned and is not.
+  assert.equal(agentMentionAlias(["claude", "chad"]), "chad");
+  assert.equal(agentMentionAlias(["claude"]), "agent");
+});
+
+test("agentMentionAlias: an empty / junk list falls back to the base alias", () => {
+  assert.equal(agentMentionAlias([]), "agent");
+  assert.equal(agentMentionAlias(null), "agent");
+  assert.equal(agentMentionAlias([" ", 7, null]), "agent");
+});
+
+test("withAgentMention: a bare draft gets the team's mention prepended", () => {
+  assert.equal(
+    withAgentMention("what is in the deck?", { aliases: ["agent"] }),
+    "@agent what is in the deck?",
+  );
+  assert.equal(
+    withAgentMention("status?", { aliases: ["chad", "agent"] }),
+    "@chad status?",
+  );
+});
+
+test("withAgentMention: a draft that ALREADY mentions the agent is untouched", () => {
+  // Toggled and typed must summon once, and must not read "@agent @agent ...".
+  const aliases = ["agent"];
+  const regex = buildMentionRegex(aliases);
+  for (const draft of [
+    "@agent what is in the deck?",
+    "hey @agent what is in the deck?",
+    "@AGENT case does not matter",
+  ]) {
+    assert.equal(withAgentMention(draft, { aliases, regex }), draft);
+  }
+});
+
+test("withAgentMention: the de-dupe uses the SERVER's alias list, not a guess", () => {
+  // A team whose agent is @chad: a draft naming @chad is already a summon, so
+  // prepending "@chad" again would double it.
+  const aliases = ["chad", "agent"];
+  const regex = buildMentionRegex(aliases);
+  assert.equal(withAgentMention("@chad ping", { aliases, regex }), "@chad ping");
+  // ...and a draft naming something that is NOT an alias is not a summon.
+  assert.equal(
+    withAgentMention("@marketing ping", { aliases, regex }),
+    "@chad @marketing ping",
+  );
+});
+
+test("withAgentMention: exactly ONE mention lands, however it is combined", () => {
+  const aliases = ["agent", "chad"];
+  const regex = buildMentionRegex(aliases);
+  // Counted with the SAME boundary pattern the detector uses, made global — so
+  // this asserts what the server would see, not what a substring search finds.
+  const countRe = new RegExp(regex.source, "gi");
+  const combos = [
+    "plain question",
+    "@agent typed question",
+    "hey @chad look at this",
+    "  leading space question",
+    "an email like alice@agent.com is not a mention",
+    "@marketing is not the agent",
+  ];
+  for (const draft of combos) {
+    const out = withAgentMention(draft, { aliases, regex });
+    const mentions = out.match(countRe) || [];
+    assert.equal(
+      mentions.length,
+      1,
+      `"${draft}" produced ${mentions.length} mentions: ${JSON.stringify(out)}`,
+    );
+  }
+});
+
+test("withAgentMention: an email address is not a mention, so it still gets one", () => {
+  // The boundary rules are the server's; this asserts the toggle inherits them
+  // rather than doing its own "does the text contain @agent" check.
+  assert.equal(
+    withAgentMention("mail alice@agent.com", { aliases: ["agent"] }),
+    "@agent mail alice@agent.com",
+  );
+});
+
+test("withAgentMention: leading whitespace is not preserved into a double space", () => {
+  assert.equal(withAgentMention("   hi", { aliases: ["agent"] }), "@agent hi");
+});
+
+test("withAgentMention: a non-string draft never throws", () => {
+  assert.equal(withAgentMention(null, { aliases: ["agent"] }), "@agent");
+  assert.equal(withAgentMention(undefined), "@agent");
+  assert.equal(withAgentMention(""), "@agent");
 });
 
 // ---------- sameDay (Plan 20-03) ----------

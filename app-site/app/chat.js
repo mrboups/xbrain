@@ -28,7 +28,11 @@ import { createRenderer } from "./chat_core/render.js";
 import { createPublicationRouter } from "./chat_core/publication.js";
 import { connectRealtime } from "./chat_core/realtime.js";
 import { createTeamRail } from "./chat_core/team_rail.js";
-import { StreamBuffer } from "./chat_core/chat_stream.js";
+import {
+  StreamBuffer,
+  buildMentionRegex,
+  withAgentMention,
+} from "./chat_core/chat_stream.js";
 import { handleOpenUrl, isSafeHttpUrl } from "./chat_core/nudge_open.js";
 import { webPlatform } from "./platform_web.js";
 import { bootPanels } from "./panels.js";
@@ -56,6 +60,16 @@ const state = {
   oldestLoadedTs: null,
   historyPaging: false,
   initialLoaded: false,
+  // The active team's EFFECTIVE agent aliases, from the server. The server is
+  // authoritative for the actual summon; this copy exists so the agent toggle
+  // writes the team's OWN alias — a team that renamed its agent must not get a
+  // mention the detector ignores — and can tell an already-mentioned draft from
+  // a bare one. Defaults to the additive base alias until the first fetch.
+  agentAliases: ["agent"],
+  mentionRe: buildMentionRegex(["agent"]),
+  // Agent toggle: armed before sending, cleared by a successful send. Never
+  // persisted — a shared team chat must not open with the agent silently armed.
+  agentArmed: false,
 };
 
 /** The refs bootChat was last called with — see reloadTeams for why. */
@@ -364,6 +378,7 @@ async function switchTeam(teamId) {
   // just left picks up a badge if anything lands in it.
   await teamRail.render();
   await refreshNameCache();
+  await refreshAgentAliases();
   await loadInitialHistory();
 
   // Advance this user's read cursor for the team they are now looking at.
@@ -395,6 +410,30 @@ async function refreshNameCache() {
     state.nameCache = cache;
   } catch (e) {
     console.warn("[xbrain] member list unavailable:", e);
+  }
+}
+
+/**
+ * The active team's EFFECTIVE agent aliases, rebuilt into the client regex.
+ *
+ * A team may rename its agent, and the toggle has to write THAT name — a
+ * hardcoded "@agent" would produce a message the server's detector reads as
+ * ordinary chat, and the person who pressed the button would be told nothing.
+ *
+ * Fail-soft: on any error the previous list stands. The base alias is additive
+ * server-side, so the default keeps working while a fetch is down.
+ */
+async function refreshAgentAliases() {
+  if (!state.activeTeamId) return;
+  try {
+    const data = await api.agentAliases(state.activeTeamId);
+    const aliases = Array.isArray(data && data.aliases) ? data.aliases : null;
+    if (aliases && aliases.length) {
+      state.agentAliases = aliases;
+      state.mentionRe = buildMentionRegex(aliases);
+    }
+  } catch (e) {
+    console.warn("[xbrain] agent-aliases refresh failed:", e);
   }
 }
 
@@ -491,6 +530,11 @@ function wireComposer() {
   }
   if (sendBtn) sendBtn.addEventListener("click", () => sendMessage());
 
+  const agentBtn = el("btn-agent");
+  if (agentBtn) {
+    agentBtn.addEventListener("click", () => setAgentArmed(!state.agentArmed));
+  }
+
   // "+" opens the OS picker; the picker's change event does the upload. The
   // button never touches a file itself, so there is exactly one upload path.
   if (clipBtn && picker) {
@@ -584,12 +628,37 @@ function showUploadError(message) {
   window.setTimeout(() => node.remove(), 4000);
 }
 
+/**
+ * Arm or disarm the agent toggle.
+ *
+ * The button carries the state in TWO attributes because they answer two
+ * different readers: [data-state] is what the stylesheet keys the filled
+ * selected look off, [aria-pressed] is what a screen reader announces. Writing
+ * one and not the other would leave the control looking armed and reading unarmed.
+ */
+function setAgentArmed(on) {
+  state.agentArmed = Boolean(on);
+  const btn = el("btn-agent");
+  if (!btn) return;
+  btn.dataset.state = state.agentArmed ? "on" : "off";
+  btn.setAttribute("aria-pressed", state.agentArmed ? "true" : "false");
+}
+
 async function sendMessage() {
   const input = el("composer-input");
   const sendBtn = el("btn-send");
   if (!input || !state.activeTeamId) return;
-  const content = input.value.trim();
-  if (!content) return;
+  const typed = input.value.trim();
+  if (!typed) return;
+
+  // ONE summon mechanism: the toggle writes the mention a person would type, and
+  // the server's detector decides from the text either way. withAgentMention
+  // leaves an already-mentioned draft alone, so toggling AND typing "@agent"
+  // summons once — as it would anyway, since the server acts on the first
+  // mention only, but "@agent @agent ..." is a message nobody wrote.
+  const content = state.agentArmed
+    ? withAgentMention(typed, { aliases: state.agentAliases, regex: state.mentionRe })
+    : typed;
 
   if (sendBtn) sendBtn.disabled = true;
   try {
@@ -599,6 +668,11 @@ async function sendMessage() {
     input.value = "";
     autoResize(input);
     clearComposerError();
+    // Disarmed once the message is away — and only on success, so a failed send
+    // leaves the draft AND its intent intact. This is a shared team chat: an
+    // armed toggle nobody noticed would send the next line meant for teammates
+    // to the agent as well, in front of everyone.
+    setAgentArmed(false);
     // Optimistic render straight from the POST response instead of waiting for
     // the websocket echo, which can lag or be missed entirely while the surface
     // is backgrounded. renderMessage de-dupes by id, so the echo is a no-op.

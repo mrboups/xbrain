@@ -1123,6 +1123,30 @@ body {
   cursor: not-allowed;
 }
 
+/* Agent toggle — sits immediately left of send, in the .xb-icon-btn family (the
+   svg 15px rule comes from there). It is a TOGGLE, so its selected state has to
+   be unmistakable at a glance: off is the ghost weight every icon button has, on
+   is the filled --primary the send button wears — the strongest "this is armed"
+   the palette offers. Driven by [data-state] + [aria-pressed], which are the same
+   fact written for the eye and for a screen reader. */
+.xb-agent-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+}
+.xb-agent-btn[data-state="on"] {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-color: var(--primary);
+}
+.xb-agent-btn[data-state="on"]:hover {
+  background: var(--primary);
+  color: var(--primary-fg);
+  opacity: 0.9;
+}
+.xb-agent-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* The chevron is optically light, so it takes more size and a 1px left nudge to
    sit centred in the square. */
 .xb-send-btn {

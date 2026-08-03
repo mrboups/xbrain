@@ -90,6 +90,8 @@ const FROZEN_IDS = [
   "invite-join-status",
   // Plan 26-05 — board action id.
   "btn-board",
+  // The agent toggle, immediately left of send.
+  "btn-agent",
 ];
 
 // Every class popup.js emits on nodes it builds, or toggles at runtime, and
@@ -394,6 +396,27 @@ function braceBlock(src, from) {
   for (let i = open; i < src.length; i++) {
     if (src[i] === "{") depth++;
     else if (src[i] === "}" && --depth === 0) return src.slice(open + 1, i);
+  }
+  return null;
+}
+
+/**
+ * The markup of the <div> containing `from`, close tag included.
+ *
+ * Nesting-aware, because "everything up to the next </div>" stops at the first
+ * child and would report an empty container as correct.
+ */
+function divBlock(html, from) {
+  if (from === -1) return null;
+  const open = html.lastIndexOf("<div", from);
+  if (open === -1) return null;
+  const re = /<div\b|<\/div>/g;
+  re.lastIndex = open;
+  let depth = 0;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    depth += m[0] === "</div>" ? -1 : 1;
+    if (depth === 0) return html.slice(open, m.index + m[0].length);
   }
   return null;
 }
@@ -790,6 +813,106 @@ test("composer: the mention hint is deleted, not hidden", () => {
   assert.ok(
     !/[Ww]ill summon/.test(popupHtml.replace(/<!--[\s\S]*?-->/g, "")),
     "popup.html still ships the hint's copy",
+  );
+});
+
+// ===========================================================================
+// 9. The agent toggle.
+//
+// It sits immediately LEFT of send, it shows whether it is armed, and — the
+// property worth a gate — it is not a SECOND way to summon the agent. It writes
+// the same @agent mention a person would type and lets the server's detector
+// decide, so there is one authority. A parallel flag on the request would be a
+// second one, and the two would disagree the first time either changed.
+// ===========================================================================
+
+test("agent toggle: #btn-agent sits immediately left of #btn-send in the pill", () => {
+  // Read the buttons the composer pill actually contains, in order. Comparing
+  // the LAST TWO is what pins "immediately left" — a later control dropped in
+  // between the two would go red here rather than at a glance in the popup.
+  const region = divBlock(HTML, HTML.indexOf('class="xb-composer-pill"'));
+  assert.ok(region, "popup.html has no .xb-composer-pill");
+  const ids = [...region.matchAll(/<button[^>]*id="([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(ids.includes("btn-agent"), "the composer pill has no #btn-agent");
+  assert.deepEqual(
+    ids.slice(-2),
+    ["btn-agent", "btn-send"],
+    `the toggle must be the control immediately left of send (pill order: ${ids.join(" -> ")})`,
+  );
+});
+
+test("agent toggle: it is a real toggle, with a state both readers can see", () => {
+  const tag = /<button[^>]*id="btn-agent"[^>]*>/.exec(popupHtml);
+  assert.ok(tag, "popup.html has no #btn-agent button");
+  assert.match(tag[0], /type="button"/);
+  assert.match(
+    tag[0],
+    /aria-pressed="false"/,
+    "a toggle announces itself with aria-pressed — a plain button reads as an action",
+  );
+  assert.match(
+    tag[0],
+    /data-state="off"/,
+    "the stylesheet keys the selected look off [data-state]; it must start defined",
+  );
+  assert.match(
+    tag[0],
+    /class="[^"]*\bxb-icon-btn\b/,
+    "the toggle belongs to the .xb-icon-btn family (shadcn Neutral, radius 0, 15px svg)",
+  );
+});
+
+test("agent toggle: popup.js writes BOTH state attributes, never one", () => {
+  // A control that looks armed and reads unarmed is worse than one that does
+  // neither, and it is exactly what writing only data-state produces.
+  const m = /function\s+setAgentArmed\s*\([^)]*\)\s*\{/.exec(popupJs);
+  assert.ok(m, "popup.js has no setAgentArmed()");
+  const body = braceBlock(popupJs, m.index);
+  assert.match(body, /dataset\.state\s*=/, "setAgentArmed must write [data-state]");
+  assert.match(body, /aria-pressed/, "setAgentArmed must write [aria-pressed]");
+});
+
+test("agent toggle: the selected state is visible, not just announced", () => {
+  const on = selectorBlock(CSS, '.xb-agent-btn[data-state="on"]');
+  assert.ok(on, 'popup.css has no .xb-agent-btn[data-state="on"] rule');
+  assert.ok(
+    /background:\s*var\(--primary\)/.test(on),
+    "armed must be unmistakable at a glance — the filled --primary the send button wears",
+  );
+});
+
+test("agent toggle: ONE summon mechanism — the mention, never a parallel flag", () => {
+  const m = /async\s+function\s+sendMessage\s*\([^)]*\)\s*\{/.exec(popupJs);
+  assert.ok(m, "popup.js has no sendMessage()");
+  const body = braceBlock(popupJs, m.index)
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\n]*/g, "");
+  assert.ok(
+    body.includes("withAgentMention("),
+    "the toggle must compose the outgoing TEXT — that is what the server's detector reads",
+  );
+  for (const flag of ["summon", "to_agent", "toAgent", "is_agent", "mention_agent"]) {
+    assert.ok(
+      !body.includes(flag),
+      `sendMessage sends a "${flag}" field — a second summon authority that can disagree with the mention`,
+    );
+  }
+});
+
+test("agent toggle: a successful send disarms it, and a failed one does not", () => {
+  // Stated behaviour, pinned: this is a shared team chat, so an armed toggle
+  // nobody noticed would send the next line meant for teammates to the agent.
+  // Only the success path clears it, so a failed send keeps the draft AND the
+  // intent that went with it.
+  const m = /async\s+function\s+sendMessage\s*\([^)]*\)\s*\{/.exec(popupJs);
+  const body = braceBlock(popupJs, m.index);
+  const iTry = body.indexOf("try {");
+  const iCatch = body.indexOf("} catch");
+  const iReset = body.indexOf("setAgentArmed(false)");
+  assert.ok(iReset !== -1, "sendMessage never disarms the toggle");
+  assert.ok(
+    iReset > iTry && iReset < iCatch,
+    "the reset must sit on the success path — not in catch, and not in finally",
   );
 });
 
