@@ -213,6 +213,29 @@ last.
    one out, or it is not and the other eleven are. Worth deciding rather than leaving both
    readings live.
 
+## The PWA's service-worker cache version is bumped by hand — 2026-08-03
+
+`app-site/app/sw.js` precaches `/app/app.js`, `/app/chat.js` and the rest under
+`const CACHE = "xb-app-shell-vN"`. The files are **not content-hashed**, so the cache
+name is the only thing distinguishing one build from the next. Forget to bump it and a
+returning visitor keeps the old build **forever** — not for a cache lifetime, forever,
+because the service worker answers from its cache before the network is consulted.
+
+This bit for real on 2026-08-03: a realtime fix was deployed and verified served, and
+the owner's iPhone kept running the old code. Two hours of "it's still broken" that
+were not about the code at all.
+
+**Durable fixes, in order of preference:**
+1. Content-hash the app's assets at deploy and precache the hashed names — the cache
+   key then changes because the file changed, with nobody having to remember.
+2. Failing that, bump the constant **in the deploy step**, not by memory.
+3. At minimum, a pre-deploy check that refuses to publish when anything under
+   `app-site/app/` changed and `CACHE` did not.
+
+Also fixed at the same time, and worth keeping: `**/*.@(css|js)` was served with
+`max-age=3600` site-wide. `/app/**` now revalidates instead — for un-hashed files that
+change every deploy, an hour of staleness costs more than the bytes a 304 saves.
+
 ## Telegram bridge — chat in your team chat from Telegram
 
 **Requested:** 2026-07-12. Feasibility checked against the live code, not assumed.
