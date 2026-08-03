@@ -9,36 +9,75 @@
         "**/node_modules/**"
       ],
       "rewrites": [
-        { "source": "/app/share-target", "destination": "/app/index.html" }
+        {
+          "source": "/app/share-target",
+          "destination": "/app/index.html"
+        }
       ],
       "headers": [
         {
           "source": "**",
           "headers": [
-            {"key": "Cache-Control", "value": "no-cache, must-revalidate"},
-            {"key": "X-Frame-Options", "value": "DENY"},
-            {"key": "X-Content-Type-Options", "value": "nosniff"},
-            {"key": "Referrer-Policy", "value": "strict-origin-when-cross-origin"}
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, must-revalidate"
+            },
+            {
+              "key": "X-Frame-Options",
+              "value": "DENY"
+            },
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            },
+            {
+              "key": "Referrer-Policy",
+              "value": "strict-origin-when-cross-origin"
+            }
           ]
         },
         {
           "source": "**/*.@(css|js)",
           "headers": [
-            {"key": "Cache-Control", "value": "public, max-age=3600"}
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=3600"
+            }
           ]
         },
         {
           "source": "/app/sw.js",
           "headers": [
-            {"key": "Cache-Control", "value": "no-cache, must-revalidate"},
-            {"key": "Service-Worker-Allowed", "value": "/app/"}
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, must-revalidate"
+            },
+            {
+              "key": "Service-Worker-Allowed",
+              "value": "/app/"
+            }
           ]
         },
         {
           "source": "/app/manifest.webmanifest",
           "headers": [
-            {"key": "Content-Type", "value": "application/manifest+json"},
-            {"key": "Cache-Control", "value": "no-cache, must-revalidate"}
+            {
+              "key": "Content-Type",
+              "value": "application/manifest+json"
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "/app/**/*.@(css|js)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, must-revalidate"
+            }
           ]
         }
       ]
@@ -52,36 +91,75 @@
         "**/node_modules/**"
       ],
       "rewrites": [
-        { "source": "/app/share-target", "destination": "/app/index.html" }
+        {
+          "source": "/app/share-target",
+          "destination": "/app/index.html"
+        }
       ],
       "headers": [
         {
           "source": "**",
           "headers": [
-            {"key": "Cache-Control", "value": "no-cache, must-revalidate"},
-            {"key": "X-Frame-Options", "value": "DENY"},
-            {"key": "X-Content-Type-Options", "value": "nosniff"},
-            {"key": "Referrer-Policy", "value": "strict-origin-when-cross-origin"}
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, must-revalidate"
+            },
+            {
+              "key": "X-Frame-Options",
+              "value": "DENY"
+            },
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            },
+            {
+              "key": "Referrer-Policy",
+              "value": "strict-origin-when-cross-origin"
+            }
           ]
         },
         {
           "source": "**/*.@(css|js)",
           "headers": [
-            {"key": "Cache-Control", "value": "public, max-age=3600"}
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=3600"
+            }
           ]
         },
         {
           "source": "/app/sw.js",
           "headers": [
-            {"key": "Cache-Control", "value": "no-cache, must-revalidate"},
-            {"key": "Service-Worker-Allowed", "value": "/app/"}
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, must-revalidate"
+            },
+            {
+              "key": "Service-Worker-Allowed",
+              "value": "/app/"
+            }
           ]
         },
         {
           "source": "/app/manifest.webmanifest",
           "headers": [
-            {"key": "Content-Type", "value": "application/manifest+json"},
-            {"key": "Cache-Control", "value": "no-cache, must-revalidate"}
+            {
+              "key": "Content-Type",
+              "value": "application/manifest+json"
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "/app/**/*.@(css|js)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, must-revalidate"
+            }
           ]
         }
       ]

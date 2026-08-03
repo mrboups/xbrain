@@ -32,7 +32,7 @@
  * v4 — the keyboard fix (viewport.js) and the full-screen settings overlay.
  * v5 — importing a past conversation (import.js) joined the shell.
  */
-const CACHE = "xb-app-shell-v5";
+const CACHE = "xb-app-shell-v6";
 
 /**
  * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07
