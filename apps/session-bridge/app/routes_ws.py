@@ -118,7 +118,15 @@ async def ws_endpoint(
                 continue
 
             if frame.type == "ping":
-                continue  # keepalive
+                # Answered, not just absorbed. An idle bridge sends nothing for
+                # hours, so silence on the extension's side used to be
+                # indistinguishable from a peer that had gone away — and a
+                # half-open socket reads as perfectly healthy from the client
+                # until something is actually sent through it. The pong is the
+                # only evidence the extension's watchdog can use to tell a quiet
+                # connection from a dead one.
+                await websocket.send_json({"type": "pong", "ts": frame.ts})
+                continue
 
             # chunk / end / error all carry request_id and go to the pool.
             await pool.deliver_chunk(user_sub, frame.request_id, raw)
