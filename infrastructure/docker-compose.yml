@@ -1086,7 +1086,19 @@ services:
       # client.allowed_origins overlay (space-separated list, Centrifugo v6 slice
       # env format). chrome-extension://* MUST stay in the default or the
       # extension's WebSocket is origin-rejected and realtime dies.
-      CENTRIFUGO_CLIENT_ALLOWED_ORIGINS: ${CENTRIFUGO_ALLOWED_ORIGINS:-chrome-extension://* http://localhost:8080}
+      #
+      # https://${XBRAIN_BASE_DOMAIN} is here because the PWA is a WEB origin, and
+      # a browser sends Origin on a WebSocket handshake. It was missing from
+      # 2026-08-01 (when /app/ shipped) to 2026-08-04, and the failure was
+      # invisible from every angle we looked at: the extension worked (its origin
+      # WAS listed), messages still SENT (that is HTTP, a different service), and
+      # the realtime gate passed — because it runs under Node, which sends no
+      # Origin header at all. Only Centrifugo's own log named it:
+      #   "request Origin is not authorized"  origin=https://grooveos.app
+      # Deploying the PWA to a new domain without adding its origin here reproduces
+      # it exactly, so this default follows XBRAIN_BASE_DOMAIN rather than being a
+      # constant somebody has to remember.
+      CENTRIFUGO_CLIENT_ALLOWED_ORIGINS: ${CENTRIFUGO_ALLOWED_ORIGINS:-chrome-extension://* https://${XBRAIN_BASE_DOMAIN} https://*.${XBRAIN_BASE_DOMAIN} http://localhost:8080}
     ports:
       - "127.0.0.1:8106:8000"
     networks: [xbrain_net]
