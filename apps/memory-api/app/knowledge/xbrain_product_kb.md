@@ -1,9 +1,8 @@
 # GrooveOS — Product knowledge base
 
 > **This file is the SHARED CONTEXT given to the mention-triggered agent in
-> every team chat, and (condensed) to the LibreChat assistant.** Edit it to
-> teach all GrooveOS users about the product — terminology, features, data
-> model — without seeding every team's memory.
+> every team chat.** Edit it to teach all GrooveOS users about the product —
+> terminology, features, data model — without seeding every team's memory.
 >
 > **Anthropic prompt cache:** this block is sent with `cache_control: ephemeral`
 > and is byte-stable across calls, so cache hits are near-100% after warm-up.
@@ -20,10 +19,10 @@ GrooveOS (engine name: **xbrain**) is an **open-source, self-hostable collective
 memory** for teams of humans **and** AI agents, organized by team. Every piece
 of content — chat messages, web clips, extracted facts, uploaded files, synced
 repos, agent outputs — flows through one layer, `memory-api`, which applies a
-strict **tagging contract**. Multiple frontends (LibreChat, the Chrome
-extension, ChatGPT / Claude.ai via a remote MCP server) all read and write the
-**same** team-scoped brain. The differentiator is this memory + truth-level +
-team-scope layer, NOT any one frontend.
+strict **tagging contract**. Multiple surfaces — the team chat (Chrome extension
+and the installable web app), plus ChatGPT / Claude.ai through a remote MCP
+server — all read and write the **same** team-scoped brain. The differentiator is
+this memory + truth-level + team-scope layer, NOT any one frontend.
 
 ## The tagging contract (every item carries 7 fields)
 
@@ -58,10 +57,10 @@ items are ignored by default in recall so noise doesn't drown signal.
 
 ## How the brain surfaces knowledge (3 recall paths)
 
-1. **Active search — `memory_search` MCP tool** (LibreChat + ChatGPT/Claude.ai):
+1. **Active search — `memory_search` MCP tool** (ChatGPT / Claude.ai / any MCP client):
    a semantic search by any query, returns **full** items at any truth level.
    This is the most powerful path. Prefer it for "what do we know about X?".
-2. **Passive recall (LibreChat per-turn injection):** the top ~5 **CANONICAL**
+2. **Passive recall (per-turn injection):** the top ~5 **CANONICAL**
    facts closest to the user's message are auto-injected as context. Only
    production-level facts inject passively, and each is capped (~280 chars).
 3. **The mention-triggered agent snapshot (extension):** when mentioned, the
@@ -98,8 +97,7 @@ can leverage a repo (e.g. a Claude-Code project) even without direct access:
 
 Auth uses the GitHub App installation (org or personal) or a configured fallback
 token. If the App isn't installed on the owner, reads return a clear "install
-the GitHub App" message. The GitHub tools are available in LibreChat (and the
-extension agent can be asked to sync).
+the GitHub App" message. Ask the agent in the team chat to sync.
 
 ## CRM / contacts
 
@@ -120,11 +118,41 @@ Tasks are also **auto-created** when a message contains action language
 
 ## Media & documents
 
-Upload images/documents (extension 📎 button, or `POST /v1/media/upload`, ≤25 MB)
-→ stored in MinIO → a media memory item is created (so it carries the full
-tagging contract). Images render inline / docs as links in the Brain Monitor and
-chats. There is no OCR/auto-vision indexing yet — the caption + filename are the
-searchable content.
+Upload images/documents (the composer's `+` button, or `POST /v1/media/upload`,
+≤25 MB) → stored in MinIO → a media memory item is created (so it carries the
+full tagging contract). Images render inline, documents as links.
+
+**The contents are indexed, not just the filename.**
+
+- **Documents** (pdf, docx, markdown, plain text): the body is extracted,
+  chunked and embedded as linked memory items, so a phrase inside a PDF is
+  findable.
+- **Images**: a vision model describes the image after upload and stores the
+  description as a **linked** memory item — the person's caption is never
+  overwritten, because a human caption and a machine's account of a picture are
+  different things. The description carries `source=vision:<model-id>` so it is
+  always distinguishable from something a person wrote, `truth_level` is capped
+  at WORKING (a model's reading of an image is inference, and nobody reviewed
+  it), and `confidence` is 0.6 against the parent's 1.0.
+
+There is **no dedicated OCR engine**, but the vision model transcribes text it
+can see, which covers most of what OCR would be wanted for — a screenshot's
+labels, a diagram's captions, a slide's title.
+
+Indexing happens **after** the upload returns, so it is never instant and the
+upload never waits on it. Every outcome is recorded on the media item as
+`metadata.image_description.state`: `described`, `skipped` (with a reason —
+unsupported format, too large, or the team's daily model budget spent), or
+`failed`. Hovering the marker on a message shows the text that was actually
+indexed, or which of those states applies. A missing description is therefore
+always visible as a state, never as silence.
+
+If descriptions are consistently missing, the likely causes are the deployment's
+model key (unset, or out of credit) or `VISION_DESCRIBE_ENABLED=false`, which a
+self-hoster may set deliberately to refuse sending images to a third-party API.
+
+Images uploaded **before** this shipped were never described and still read as
+their filename; there is no backfill.
 
 ## The Chrome extension
 
@@ -163,8 +191,8 @@ included.  6. The user's question. Output is capped at 4000 tokens.
 
 | Frontend | Where | How it reaches the brain |
 |---|---|---|
-| **LibreChat** | your LibreChat frontend | passive recall + MCP tools (memory_search/add, tasks, contacts, github, scraper, calendar, deck) |
-| **Chrome extension** | popup | REST + agent over Centrifugo |
+| **Team chat — Chrome extension** | the extension popup or side panel | REST + the agent over Centrifugo |
+| **Team chat — web app** | the installable web app at `/app/` | the same chat, same brain, on a phone or any browser |
 | **ChatGPT / Claude.ai / MCP clients** | your deployment's remote MCP server URL | remote MCP server, auth via personal `xbt_` token |
 
 ## Brain Monitor
@@ -181,7 +209,7 @@ created; admins edit anything. A superadmin cross-team view lives at
 GitHub is the **primary identity** (gives a personal `xbt_` token + auto-grant
 to teams whose `github_org` matches your GitHub orgs). Google is a secondary
 option (also needed for Drive/Calendar sync); you can link both to one user.
-Sign in via your xbrain web app, the extension popup, or LibreChat.
+Sign in via your xbrain web app or the extension popup.
 
 ## What the agent should NOT do
 
@@ -192,6 +220,6 @@ Sign in via your xbrain web app, the extension popup, or LibreChat.
   see the active team.
 - Don't make up endpoint URLs, env vars, or schema fields not in this KB.
 - For a very long single memory item, the snapshot may be summarized — if the
-  user needs the full content, point them to `memory_search` (LibreChat) which
-  returns full items, or the Brain Monitor.
+  user needs the full content, point them to the Brain Monitor, which shows the
+  item in full.
 - Keep replies under 4000 tokens.
