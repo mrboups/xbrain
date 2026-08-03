@@ -38,6 +38,10 @@ import {
   isAgentUnavailable,
   AGENT_FAILURE_TEXT,
   AGENT_UNAVAILABLE_CODES,
+  agentRouteStatusText,
+  createSubscriptionWatcher,
+  AGENT_ROUTE_STATUS,
+  SUBSCRIPTION_LOST_NOTICE,
   AGENT_FAILURE_FALLBACK,
   sameDay,
 } from "../../packages/chat-core/chat_stream.js";
@@ -697,6 +701,124 @@ test("the client's vocabulary still cannot print anything the frame carries", ()
     { code: "no_route", detail: { raw: "<html>502</html>" } },
   ]) {
     assert.ok(allowed.has(agentFailureText(input)), "a frame's own words must never render");
+  }
+});
+
+// ---------- which model answers, and losing the bridge mid-session ----------
+
+test("the route status names who is answering, and who pays", () => {
+  assert.equal(
+    agentRouteStatusText({ route: "user_promax" }),
+    AGENT_ROUTE_STATUS.user_promax,
+  );
+  // The two paying tiers must not read the same. "Your subscription is
+  // answering" and "the team is being billed" are very different facts to the
+  // person paying.
+  assert.notEqual(
+    agentRouteStatusText({ route: "team_key" }),
+    agentRouteStatusText({ route: "team_api" }),
+  );
+});
+
+test("the route status says nothing it was not told", () => {
+  // Unavailability is the agent failure vocabulary's job. Saying it in two
+  // places would let the two disagree about what is happening.
+  assert.equal(agentRouteStatusText({ route: "unavailable" }), null);
+  for (const input of [null, undefined, {}, { route: "invented" }, { route: 7 }, "user_promax"]) {
+    assert.equal(
+      agentRouteStatusText(input),
+      null,
+      `${JSON.stringify(input)} must produce no claim`,
+    );
+  }
+});
+
+test("no route status mentions this device", () => {
+  for (const text of Object.values(AGENT_ROUTE_STATUS)) {
+    if (!text) continue;
+    for (const word of ["this device", "phone", "mobile", "desktop", "laptop"]) {
+      assert.ok(!text.toLowerCase().includes(word), `"${text}" says "${word}"`);
+    }
+  }
+});
+
+test("losing the bridge is a transition, not a state", () => {
+  // Somebody who never had a bridge — a colleague with no extension at all —
+  // is losing nothing and must not be nagged.
+  const never = createSubscriptionWatcher();
+  for (let i = 0; i < 5; i++) {
+    assert.equal(
+      never.observe({ subscription_connected: false }),
+      false,
+      "a person who never had a bridge is never warned about losing one",
+    );
+  }
+
+  const had = createSubscriptionWatcher();
+  assert.equal(had.observe({ subscription_connected: true }), false, "nothing to say yet");
+  assert.equal(had.observe({ subscription_connected: false }), true, "the loss is news");
+});
+
+test("a dismissed warning does not come straight back", () => {
+  const w = createSubscriptionWatcher();
+  w.observe({ subscription_connected: true });
+  assert.equal(w.observe({ subscription_connected: false }), true);
+  w.dismiss();
+  assert.equal(w.isShowing(), false);
+  for (let i = 0; i < 10; i++) {
+    assert.equal(
+      w.observe({ subscription_connected: false }),
+      false,
+      "a warning that reappears is one people learn to ignore",
+    );
+  }
+});
+
+test("a genuine reconnect re-arms the warning", () => {
+  const w = createSubscriptionWatcher();
+  w.observe({ subscription_connected: true });
+  w.observe({ subscription_connected: false });
+  w.dismiss();
+  // The bridge comes back...
+  assert.equal(w.observe({ subscription_connected: true }), false);
+  // ...and goes again. That is new news, so it is said again.
+  assert.equal(w.observe({ subscription_connected: false }), true);
+});
+
+test("a reconnect clears a warning nobody dismissed", () => {
+  const w = createSubscriptionWatcher();
+  w.observe({ subscription_connected: true });
+  assert.equal(w.observe({ subscription_connected: false }), true);
+  assert.equal(w.observe({ subscription_connected: true }), false);
+  assert.equal(w.isShowing(), false);
+});
+
+test("an unreadable observation changes nothing", () => {
+  // A failed poll is not evidence the bridge died. Treating it as one would
+  // fire the notice every time a phone changed cell.
+  const w = createSubscriptionWatcher();
+  w.observe({ subscription_connected: true });
+  for (const junk of [null, undefined, {}, { subscription_connected: "yes" }, "nope"]) {
+    assert.equal(w.observe(junk), false, `${JSON.stringify(junk)} must not raise the notice`);
+  }
+  assert.equal(w.hasEverConnected(), true, "a bad poll must not erase what we knew");
+  assert.equal(w.observe({ subscription_connected: false }), true);
+});
+
+test("the notice offers both remedies and is honest about their cost", () => {
+  const lowered = SUBSCRIPTION_LOST_NOTICE.toLowerCase();
+  assert.ok(lowered.includes("extension"), "reopening the browser is the free remedy");
+  assert.ok(lowered.includes("team api key"), "the fallback must be named");
+  assert.ok(
+    lowered.includes("billed"),
+    "a key costs money and the sentence has to say so",
+  );
+  assert.ok(
+    lowered.indexOf("extension") < lowered.indexOf("team api key"),
+    "the free remedy comes first — a key is the fallback, not the default fix",
+  );
+  for (const word of ["this device", "phone", "mobile", "desktop", "laptop"]) {
+    assert.ok(!lowered.includes(word), `the notice says "${word}"`);
   }
 });
 

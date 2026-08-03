@@ -388,6 +388,114 @@ export function provenanceLabel(routed_via) {
   return null;
 }
 
+// ---------- Which model is answering, and who pays ----------
+//
+// "Your subscription is answering" and "an API key is being billed" are very
+// different facts to the person paying, and nothing distinguished them.
+//
+// The route reported here is the one the SERVER resolved — never inferred from
+// whether an extension answered a ping. A client that decides this for itself
+// eventually disagrees with the thing that actually routes the message, and
+// then the status is wrong in the one direction that destroys trust.
+
+/** route -> the quiet line a person sees. Null means: say nothing. */
+export const AGENT_ROUTE_STATUS = {
+  user_promax: "Running on your Claude subscription",
+  team_key: "Running on the team's API key",
+  team_api: "Running on the platform API key",
+  // Not a status line. This one is the agent's own failure vocabulary's job —
+  // saying it twice, in two places, would let the two disagree.
+  unavailable: null,
+};
+
+/**
+ * The status line for a route, or null when there is nothing worth saying.
+ *
+ * @param {{route?: string}|null|undefined} status a /v1/me/agent-route body
+ * @returns {string|null}
+ */
+export function agentRouteStatusText(status) {
+  const route = status && typeof status.route === "string" ? status.route : "";
+  return Object.prototype.hasOwnProperty.call(AGENT_ROUTE_STATUS, route)
+    ? AGENT_ROUTE_STATUS[route]
+    : null;
+}
+
+/**
+ * What a person is told when the bridge goes away underneath them.
+ *
+ * Honest about both remedies AND their cost, and it does not present the key as
+ * the default fix: reopening the browser costs nothing and uses the
+ * subscription they already pay for; a key is what you reach for when no
+ * browser can be open.
+ *
+ * Not about this device, for the same reason nothing else is: the bridge is
+ * keyed by user. A phone is connected whenever that person has a browser
+ * holding the socket anywhere.
+ */
+export const SUBSCRIPTION_LOST_NOTICE =
+  "Your Claude subscription is no longer connected. Reopen the browser where " +
+  "the xbrain extension is signed in to keep using it, or set a team API key, " +
+  "which the team is billed for.";
+
+/**
+ * Notice the moment a bridge that WAS live stops being live.
+ *
+ * A transition, never a state. Somebody who has never had a bridge — a
+ * colleague with no extension at all — is losing nothing and must not be
+ * nagged about it, so nothing fires until a live one has been seen.
+ *
+ * Dismissal sticks until the bridge genuinely comes back and goes again. A
+ * warning that reappears the moment it is dismissed is a warning people learn
+ * to ignore, and then it is worth less than nothing.
+ *
+ * Pure: no DOM, no clock, no network. The surface polls and hands observations
+ * in.
+ *
+ * @returns {{observe: Function, dismiss: Function, isShowing: Function,
+ *            hasEverConnected: Function}}
+ */
+export function createSubscriptionWatcher() {
+  let everConnected = false;
+  let dismissed = false;
+  let showing = false;
+
+  return {
+    /**
+     * Feed one observation.
+     * @param {{subscription_connected?: boolean}|null} status
+     * @returns {boolean} whether the notice should be on screen now
+     */
+    observe(status) {
+      // An unreadable observation changes nothing. A failed poll is not
+      // evidence the bridge died, and treating it as such would fire the
+      // notice every time the network hiccuped.
+      if (!status || typeof status.subscription_connected !== "boolean") {
+        return showing;
+      }
+      if (status.subscription_connected) {
+        everConnected = true;
+        // Re-armed: the next genuine loss is worth mentioning again.
+        dismissed = false;
+        showing = false;
+        return showing;
+      }
+      if (everConnected && !dismissed) showing = true;
+      return showing;
+    },
+    dismiss() {
+      dismissed = true;
+      showing = false;
+    },
+    isShowing() {
+      return showing;
+    },
+    hasEverConnected() {
+      return everConnected;
+    },
+  };
+}
+
 // ---------- Brain-aware labels (Plan 20-03) ----------
 //
 // HARD RULE: these read ONLY fields the backend already sends. They never

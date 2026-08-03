@@ -381,6 +381,44 @@ test("the pending-entry exemption list has not gone stale", () => {
   );
 });
 
+// ---- 5b. The routing status is the server's answer, never a guess -------
+
+test("the PWA reads its routing status from the server", () => {
+  const chatJs = readFileSync(join(APP_DIR, "chat.js"), "utf8");
+  assert.ok(
+    chatJs.includes("api.agentRoute("),
+    "the status must come from GET /v1/me/agent-route — the same resolution the agent runs",
+  );
+  assert.ok(
+    !/chrome\.runtime\.sendMessage[\s\S]{0,200}(route|subscription_connected)/.test(chatJs),
+    "the routing must not be inferred from whether an extension answered — a " +
+      "client that decides this eventually disagrees with the thing that routes the turn",
+  );
+});
+
+test("the routing poll stops when nobody is looking", () => {
+  // A status check every few seconds, for a condition that changes rarely, is a
+  // phone battery spent on an answer that is almost always the same one.
+  const chatJs = readFileSync(join(APP_DIR, "chat.js"), "utf8");
+  assert.ok(
+    chatJs.includes("visibilityState"),
+    "polling must be gated on the page being visible",
+  );
+  const interval = chatJs.match(/ROUTE_POLL_MS\s*=\s*([0-9_]+)/);
+  assert.ok(interval, "the poll interval must be a named constant");
+  assert.ok(
+    Number(interval[1].replace(/_/g, "")) >= 30_000,
+    "a poll under 30s is aggressive for something that changes this rarely",
+  );
+});
+
+test("both new surfaces exist in the markup they are bound to", () => {
+  const html = readFileSync(join(APP_DIR, "index.html"), "utf8");
+  for (const id of ["agent-route-status", "subscription-notice"]) {
+    assert.ok(html.includes(`id="${id}"`), `#${id} is bound by chat.js but absent from the markup`);
+  }
+});
+
 // ---- 6. English-only product strings ------------------------------------
 
 test("english-only: no accented Latin chars in index.html or chat.js", () => {

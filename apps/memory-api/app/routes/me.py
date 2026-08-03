@@ -328,3 +328,67 @@ async def revoke_api_token(
 
     log.info("me.api_token.revoked", user_id=str(user.id), token_id=token_id)
     return None
+
+
+# ── /v1/me/agent-route — which model path a turn would take right now ────────
+
+
+class AgentRouteStatus(BaseModel):
+    """What the agent would run on if this person sent a message right now.
+
+    Deliberately no key, no key id, no provider name, no session detail. The
+    question is "who answers and who pays", and every extra field on an endpoint
+    a surface polls is one more thing to leak.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    # Is there a live bridge for THIS USER anywhere? The bridge is keyed by
+    # user, never by device — a phone with no extension is connected whenever
+    # that person has a browser holding the socket somewhere. There is
+    # deliberately no per-device answer here: it would have no consumer, and it
+    # would invite copy telling a phone user their subscription is unavailable
+    # while it is answering them.
+    subscription_connected: bool
+    # The tier that would actually serve the turn, as the AGENT resolves it —
+    # not a guess assembled by the client from whether an extension answered a
+    # ping. A client that decides this for itself eventually disagrees with the
+    # thing that routes the message, and then the status is wrong in the one
+    # direction that destroys trust.
+    route: str
+
+
+@router.get("/me/agent-route", response_model=AgentRouteStatus)
+async def agent_route(
+    team_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> AgentRouteStatus:
+    """Report the routing in effect for this user and team.
+
+    Reuses the agent's OWN resolution, so the answer and the behaviour cannot
+    drift apart. Membership is required: the tier says something about the
+    team's configuration — whether they have a key of their own.
+    """
+    from app.repos import teams as teams_repo
+    from app.services import team_keys
+    from app.services.team_chat_agent import _ROUTED_VIA_BY_TIER, _user_has_live_bridge
+
+    user = _require_user(principal)
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    membership = await teams_repo.get_membership(
+        session, user_id=user.id, team_slug=team.slug
+    )
+    if membership is None:
+        raise HTTPException(403, "not a member")
+
+    connected = await _user_has_live_bridge(user.source_user_id)
+    if connected:
+        return AgentRouteStatus(subscription_connected=True, route="user_promax")
+
+    fallback = await team_keys.resolve_fallback_key(team_id=team.id)
+    return AgentRouteStatus(
+        subscription_connected=False,
+        route=_ROUTED_VIA_BY_TIER[fallback.tier],
+    )

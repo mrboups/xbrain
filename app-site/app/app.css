@@ -1048,6 +1048,57 @@ body {
   border-top: 1px solid var(--destructive);
 }
 
+/* Which model answers, and who pays for it.
+   A status, not a banner: no fill, no border, no colour of its own. Somebody
+   who wants to know glances at it; nobody else has to read past it. Both themes
+   inherit, because both define --muted-fg. */
+.xb-agent-route {
+  flex-shrink: 0;
+  padding: 4px 13px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted-fg);
+  font-family: var(--mono);
+}
+
+/* The subscription went away while this page was open.
+   Louder than the status line because it is news, quieter than an error because
+   nothing broke — --secondary with a plain border, never --destructive. The
+   dismiss control is a text button rather than a close glyph: a single
+   character at 11px on a phone is a target people miss, and a warning nobody
+   can dismiss is a warning they learn to scroll past. */
+.xb-subscription-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 9px 13px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--fg);
+  background: var(--secondary);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.xb-subscription-notice-text {
+  flex: 1 1 auto;
+}
+.xb-subscription-notice-dismiss {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted-fg);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  cursor: pointer;
+}
+.xb-subscription-notice-dismiss:hover {
+  color: var(--fg);
+  border-color: var(--fg);
+}
+
 /* The pill, copied from chrome-extension/popup.css: one bordered surface that
    houses the "+", the textarea and the "›", flush, with no inner borders. The
    focus ring lifts the whole pill rather than the field inside it. */

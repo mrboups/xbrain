@@ -32,6 +32,9 @@ import {
   StreamBuffer,
   buildMentionRegex,
   withAgentMention,
+  agentRouteStatusText,
+  createSubscriptionWatcher,
+  SUBSCRIPTION_LOST_NOTICE,
 } from "./chat_core/chat_stream.js";
 import { handleOpenUrl, isSafeHttpUrl } from "./chat_core/nudge_open.js";
 import { webPlatform } from "./platform_web.js";
@@ -175,6 +178,101 @@ function setConnectionBanner(message) {
  * banner reports a state.
  */
 const connectionStatus = createConnectionStatus({ render: setConnectionBanner });
+
+// ---------- Which model is answering, and who pays ----------
+//
+// Both halves read ONE server answer: GET /v1/me/agent-route, which runs the
+// agent's own resolution. Nothing here infers routing from whether an extension
+// replied to a message — a client that decides that for itself eventually
+// disagrees with the thing that routes the turn, and then the status is wrong
+// in the one direction that destroys trust.
+
+/** How often to re-ask while the page is in front of somebody. */
+const ROUTE_POLL_MS = 60_000;
+
+const subscriptionWatcher = createSubscriptionWatcher();
+let routePollTimer = null;
+
+/** The quiet line above the composer. Hidden when there is nothing to say. */
+function renderRouteStatus(status) {
+  const node = el("agent-route-status");
+  if (!node) return;
+  const text = agentRouteStatusText(status);
+  node.textContent = text || "";
+  node.hidden = !text;
+}
+
+/**
+ * The notice shown when a bridge that WAS live goes away.
+ *
+ * Built rather than toggled so the dismiss button is wired exactly once per
+ * appearance, and torn down completely when it should not be on screen.
+ */
+function renderSubscriptionNotice(showing) {
+  const node = el("subscription-notice");
+  if (!node) return;
+  if (!showing) {
+    node.hidden = true;
+    while (node.firstChild) node.removeChild(node.firstChild);
+    return;
+  }
+  if (!node.hidden && node.firstChild) return; // already up — do not rebuild
+  while (node.firstChild) node.removeChild(node.firstChild);
+
+  const text = document.createElement("span");
+  text.className = "xb-subscription-notice-text";
+  text.textContent = SUBSCRIPTION_LOST_NOTICE;
+  node.appendChild(text);
+
+  const dismiss = document.createElement("button");
+  dismiss.type = "button";
+  dismiss.className = "xb-subscription-notice-dismiss";
+  dismiss.textContent = "Dismiss";
+  dismiss.addEventListener("click", () => {
+    subscriptionWatcher.dismiss();
+    renderSubscriptionNotice(false);
+  });
+  node.appendChild(dismiss);
+  node.hidden = false;
+}
+
+/**
+ * Ask the server what the routing is, and act on the answer.
+ *
+ * Fail-soft in the strongest sense: a poll that cannot be answered changes
+ * nothing on screen. A failed request is not evidence the bridge died, and
+ * treating it as such would fire the notice every time a phone changed cell.
+ */
+async function refreshAgentRoute() {
+  if (!state.activeTeamId) return;
+  let status = null;
+  try {
+    status = await api.agentRoute(state.activeTeamId);
+  } catch {
+    return; // silent: this is an enhancement, not a feature that can fail
+  }
+  renderRouteStatus(status);
+  renderSubscriptionNotice(subscriptionWatcher.observe(status));
+}
+
+/**
+ * Poll while the page is in front of somebody, and stop when it is not.
+ *
+ * The routing changes rarely, so a tight interval would be a phone battery
+ * spent on an answer that is almost always the same one. Hidden pages poll not
+ * at all; becoming visible asks once, immediately, because that is exactly when
+ * the answer is most likely to have changed while nobody was looking.
+ */
+function startRoutePolling() {
+  if (routePollTimer !== null) return;
+  const tick = () => {
+    if (document.visibilityState === "visible") refreshAgentRoute();
+  };
+  routePollTimer = setInterval(tick, ROUTE_POLL_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshAgentRoute();
+  });
+}
 
 /**
  * The composer's inline error line, created on demand if the markup predates it.
@@ -692,6 +790,12 @@ async function sendMessage() {
       const empty = el("chat-empty");
       if (empty) empty.hidden = true;
     }
+    // An agent turn is the moment the routing matters, so this is the poll
+    // worth piggybacking on rather than tightening the interval for everyone.
+    // Not awaited: the message is already away, and a status must never delay
+    // it. Fires after the send so a bridge that died is noticed on the turn it
+    // affected, rather than up to a minute later.
+    refreshAgentRoute();
   } catch (e) {
     showComposerError(`Message not sent: ${e.message}`);
   } finally {
@@ -877,6 +981,11 @@ export async function bootChat(refs = {}) {
   wireComposer();
   await switchTeam(state.activeTeamId);
 
-  // 7. Drop the caret in the composer so they can just type.
+  // 7. What the agent would run on. Asked once now, then only while somebody is
+  //    looking at the page.
+  refreshAgentRoute();
+  startRoutePolling();
+
+  // 8. Drop the caret in the composer so they can just type.
   focusComposer();
 }
