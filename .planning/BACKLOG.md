@@ -126,7 +126,19 @@ Settings UI instead of editing `.env` on the VM and restarting. Shape to design:
 
 ---
 
-## Import a Claude Code or ChatGPT conversation into the team brain — 2026-08-02
+## ~~Import a Claude Code or ChatGPT conversation into the team brain~~ — SHIPPED 2026-08-02
+
+**Resolved:** `POST /v1/import/transcript` with parsers for both formats, race-safe dedupe
+(`ON CONFLICT DO NOTHING RETURNING id` — "no row came back" IS the duplicate verdict),
+capability-scoped `xbi_` tokens, and a client offering file, paste and Android's share
+sheet. The iOS route is a Shortcut posting the raw body. Deployed at migration 0032.
+
+**Deliberately NOT built:** fetching a `chatgpt.com/share/...` link server-side.
+`url_safety.py` is lexical by design and passes `http://169.254.169.254/`, which on the
+GCP VM hands out service-account tokens. A source scan now fails the build if an HTTP
+client appears in that module.
+
+### Original
 
 **Asked by the owner**, on the PWA, desktop AND mobile. Nothing for this exists yet.
 
@@ -177,6 +189,29 @@ app is on the phone, so sharing works directly.
 **Sizing:** medium. Parsers + a dedupe rule (importing the same conversation twice must
 not double the brain) + provenance tagging (`source=import:claude-code|chatgpt`, and a
 truth level — an imported transcript is not VALIDATED by virtue of being imported).
+
+## Team API keys — four server gaps the admin screen exposed — 2026-08-03
+
+The screen shipped 2026-08-03 against the existing `GET`/`PUT /v1/teams/{id}/api-keys`.
+Building it surfaced four things missing on the server side. Listed smallest-blast-radius
+last.
+
+1. **`PUT` writes no audit entry.** Every other admin mutation in `routes/teams.py`
+   (`invite`, `remove_member`, `revoke_invite_code`) calls `write_audit`. Setting a
+   **billing-relevant team credential** currently leaves no trace of who did it or when.
+   That is the one worth fixing first — it is the action most likely to be questioned later.
+2. **No way to remove a key.** There is no `DELETE` route, and `api_key` has
+   `min_length=1` so an empty string cannot clear a row either; `PUT {"keys": []}` is a
+   silent no-op. A team that pastes a key can never take it back. Suggested:
+   `DELETE /v1/teams/{team_id}/api-keys/{provider}`, same admin check.
+3. **`updated_at` is not exposed.** The column exists and `onupdate=func.now()` bumps it,
+   but `ApiKeyOut` declares only `provider`, so the screen can show `Set` / `Not set` and
+   nothing more. Two lines to add, and it makes the section meaningfully better.
+4. **`PUT` inlines its own `membership.role != "admin"` check** instead of calling
+   `_require_team_admin`, so the env-admin path that works on the other eleven team-admin
+   routes does not work here. Either the backdoor is intentional and this route is the odd
+   one out, or it is not and the other eleven are. Worth deciding rather than leaving both
+   readings live.
 
 ## Telegram bridge — chat in your team chat from Telegram
 
