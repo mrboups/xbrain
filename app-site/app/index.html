@@ -161,6 +161,22 @@
           placeholder="Talk to the team, or @agent"
           aria-label="Compose message"
         ></textarea>
+        <!--
+          Agent toggle — armed BEFORE sending, and it writes the same @agent
+          mention a person would type, so there is one summon mechanism and not
+          two. It turns itself off again after the message goes: this is a team
+          chat, and an unnoticed armed toggle would quietly send the next line
+          meant for teammates to the agent as well.
+        -->
+        <button type="button" id="btn-agent" class="xb-icon-btn xb-agent-btn" aria-pressed="false" data-state="off" title="Send this message to the agent (resets after sending)" aria-label="Send this message to the agent">
+          <svg viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+            <rect x="2.5" y="4.5" width="10" height="8" rx="0" stroke="currentColor" stroke-width="1" />
+            <path d="M7.5 1.5v3" stroke="currentColor" stroke-width="1" stroke-linecap="round" />
+            <circle cx="5.6" cy="8" r="0.9" fill="currentColor" />
+            <circle cx="9.4" cy="8" r="0.9" fill="currentColor" />
+            <path d="M5.6 10.6h3.8" stroke="currentColor" stroke-width="1" stroke-linecap="round" />
+          </svg>
+        </button>
         <button type="button" id="btn-send" class="xb-send-btn" title="Send (Enter)  ·  Shift+Enter for newline" aria-label="Send">
           <span aria-hidden="true">&rsaquo;</span>
         </button>

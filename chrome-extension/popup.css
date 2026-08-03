@@ -1001,6 +1001,25 @@ html, body {
   margin-bottom: 5px;
 }
 
+/* A turn the agent could not complete.
+   It has to READ as a failure, not as the agent's last sentence: a failed answer
+   dressed as a reply is a lie about what happened. So it sits in its own node
+   below whatever did arrive, on --destructive, behind a rule that separates it
+   from the text above. The bubble keeps its normal fill — this is one turn that
+   failed, not a broken chat. */
+.xb-msg-failure {
+  display: block;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--destructive);
+}
+/* A failure that produced no output at all leaves .xb-msg-text empty; without
+   this it still occupies a line, and the bubble opens with a blank one. */
+.xb-msg-bubble.is-failed .xb-msg-text:empty { display: none; }
+
 /* Sources disclosure (mockup .sources) — collapsed by default, mono summary. */
 .xb-msg-sources {
   margin-top: 8px;
@@ -1060,25 +1079,80 @@ html, body {
   border-color: var(--border);
 }
 
-/* Saved-to-brain badge (mockup .savetag) — shadcn Badge variant=secondary. */
+/* Indexed-attachment marker — the mark, and the text it reveals.
+   It replaced a sentence about the mechanism ("saved to brain · image indexed"),
+   which said that something happened and never what. A mark this small still
+   carries the one fact the sentence carried — the brain holds this attachment,
+   and an absent mark means it does not — and hovering or focusing it shows the
+   actual indexed text. */
 .xb-msg-savetag {
-  grid-column: 2;
-  justify-self: start;
+  position: relative; /* the tooltip anchors to it */
+  align-self: flex-end;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  width: fit-content;
-  margin-top: 3px;
-  padding: 2px 6px;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0 0 2px;
+  padding: 0;
   font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: -0.01em;
-  color: var(--secondary-fg);
-  background: var(--secondary);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--muted-fg);
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s;
 }
-.xb-msg.is-self .xb-msg-savetag { grid-column: 1; justify-self: end; }
+.xb-msg-savetag:hover {
+  background: var(--muted);
+  color: var(--fg);
+}
+.xb-msg-savetag:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.xb-savetag-mark { display: block; }
+
+/* The reveal. Opens UPWARD so it covers the bubble it belongs to rather than the
+   newer messages under it, and caps its own height so a long document extract
+   scrolls instead of filling the thread. pre-wrap keeps the paragraph break the
+   server sends between the text and its caveat. */
+.xb-savetag-tip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  width: max-content;
+  max-width: 260px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 7px 9px;
+  font-family: var(--sans);
+  font-size: 11px;
+  line-height: 1.45;
+  letter-spacing: normal;
+  text-align: left;
+  white-space: pre-wrap;
+  color: var(--card-fg);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.13);
+  cursor: text;
+}
+/* :focus-visible, not :focus — a pointer press must not leave the tooltip stuck
+   open after the pointer has gone. Keyboard focus is what needs it to stay. */
+.xb-msg-savetag:hover .xb-savetag-tip,
+.xb-msg-savetag:focus-visible .xb-savetag-tip {
+  display: block;
+}
+/* Own rows are mirrored (row-reverse), so the marker sits on the LEFT of the
+   bubble and a right-anchored tooltip would hang off the edge of the popup. */
+.xb-msg.is-self .xb-savetag-tip { right: auto; left: 0; }
 
 /* Day separator (mockup .daysep) — centered mono uppercase stamp. */
 .xb-msg-daysep {
@@ -1190,6 +1264,30 @@ html, body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Agent toggle — sits immediately left of send, in the .xb-icon-btn family (the
+   svg 15px rule comes from there). It is a TOGGLE, so its selected state has to
+   be unmistakable at a glance: off is the ghost weight every icon button has, on
+   is the filled --primary the send button wears — the strongest "this is armed"
+   the palette offers. Driven by [data-state] + [aria-pressed], which are the same
+   fact written for the eye and for a screen reader. */
+.xb-agent-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+}
+.xb-agent-btn[data-state="on"] {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-color: var(--primary);
+}
+.xb-agent-btn[data-state="on"]:hover {
+  background: var(--primary);
+  color: var(--primary-fg);
+  opacity: 0.9;
+}
+.xb-agent-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Send button — mockup .send: --primary fill, radius 0, 1px --primary border,
    opacity-dim on hover, --ring focus outline. Disabled falls back to --muted. */

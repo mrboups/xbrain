@@ -56,6 +56,82 @@ log = structlog.get_logger(__name__)
 
 MODEL_SONNET = "claude-sonnet-4-6"
 MAX_OUTPUT_TOKENS = 4000
+
+# ---------------------------------------------------------------------------
+# What a team is told when the agent cannot answer
+# ---------------------------------------------------------------------------
+#
+# A provider's error text is written for the person holding the account, and this
+# is a TEAM chat: everyone in the team reads it. The one that prompted this code
+# named the vendor, the account's billing state and a request id, to a room of
+# people who can do nothing about any of it —
+#
+#   Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error',
+#   'message': 'Your credit balance is too low to access the Anthropic API...'}}
+#
+# So nothing the provider says crosses this boundary. `classify_stream_failure`
+# is the ONLY writer of user-visible failure words, its vocabulary is fixed here,
+# and its fallback is deliberately vague — an error nobody has written a safe
+# sentence for must degrade to a vague sentence, never to the raw string. The raw
+# text stays in the structured log, where an operator can find it.
+#
+# The sentences say what happened and whether waiting helps. They never guess a
+# CAUSE: the server does not know whether a 500 was the provider or the network,
+# and a chat that invents one teaches the team to distrust the ones that are real.
+
+AGENT_FAILURE_RETRYABLE = "The agent could not answer just now. Worth trying again."
+AGENT_FAILURE_PERMANENT = (
+    "The agent could not answer. Trying again will not help — this needs an "
+    "administrator to look at the server."
+)
+AGENT_FAILURE_TIMEOUT = (
+    "The agent took too long to answer and the attempt was stopped. "
+    "Worth trying again."
+)
+
+# Failure codes are OURS, not the provider's. They exist so a client can style or
+# count outcomes without parsing a sentence, and so the sentence can be reworded
+# without breaking anything downstream.
+FAILURE_CODE_TIMEOUT = "timeout"
+FAILURE_CODE_UNAVAILABLE = "unavailable"
+FAILURE_CODE_CONFIGURATION = "configuration"
+
+
+def classify_stream_failure(exc: BaseException) -> dict[str, Any]:
+    """Turn any streaming exception into a safe {code, message, retryable}.
+
+    Classification reads the exception TYPE and, for HTTP errors, the status
+    class — never the response body, which is where a provider puts the account
+    details. 4xx is the server's own configuration (a key, a quota, a malformed
+    request): the team cannot fix it and retrying repeats it. Everything else is
+    treated as transient, which is the safe direction — telling somebody to try
+    again costs a retry, while telling them not to bother hides an outage that
+    would have cleared.
+    """
+    if isinstance(exc, (asyncio.TimeoutError, httpx.TimeoutException)):
+        return {
+            "code": FAILURE_CODE_TIMEOUT,
+            "message": AGENT_FAILURE_TIMEOUT,
+            "retryable": True,
+        }
+
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if status is None:
+        status = getattr(exc, "status_code", None)
+    if isinstance(status, int) and 400 <= status < 500 and status != 429:
+        # 429 is excluded on purpose: rate limiting IS the transient 4xx, and
+        # "an administrator must look at this" would be wrong for it.
+        return {
+            "code": FAILURE_CODE_CONFIGURATION,
+            "message": AGENT_FAILURE_PERMANENT,
+            "retryable": False,
+        }
+
+    return {
+        "code": FAILURE_CODE_UNAVAILABLE,
+        "message": AGENT_FAILURE_RETRYABLE,
+        "retryable": True,
+    }
 SYSTEM_PROMPT_PREAMBLE = (
     "You are Claude, embedded in the xbrain team chat for team {team_slug}. "
     "Answer based on the product knowledge base below, the team's memory "
@@ -199,6 +275,10 @@ async def _do_handle(
 
     full_text_parts: list[str] = []
     token_usage: dict[str, Any] = {}
+    # None while the attempt is still good. Set once, by the handler below, and
+    # read by both the persisted row and its metadata so the message and its
+    # "this is a failure" flag can never disagree.
+    failure: dict[str, Any] | None = None
 
     try:
         if has_promax:
@@ -240,14 +320,17 @@ async def _do_handle(
                     token_usage = usage
 
     except Exception as e:  # noqa: BLE001
-        # Surface the error in the chat AND log. The partial text gets persisted
-        # if we have any so the team can see what came through.
-        error_msg = f"(Claude stream interrupted: {e})"
+        # The team is told THAT the agent failed and whether waiting helps. The
+        # provider's own words go to the log and no further — see the
+        # classify_stream_failure block at the top of this module for why.
+        failure = classify_stream_failure(e)
         log.warning(
             "team_chat_agent.stream_error",
             team_id=str(team_id),
             routed_via=routed_via,
-            err=str(e),
+            failure_code=failure["code"],
+            err=str(e),  # the raw provider text lives HERE, for an operator
+            err_type=type(e).__name__,
             partial_len=sum(len(p) for p in full_text_parts),
         )
         await centrifugo_client.publish(
@@ -255,17 +338,52 @@ async def _do_handle(
             data={
                 "type": "agent_stream_error",
                 "message_id": str(message_id),
-                "error": str(e)[:200],
+                # Named `error` for the frames already in flight from older
+                # servers, but it now carries OUR sentence, never the provider's.
+                "error": failure["message"],
+                "code": failure["code"],
+                "retryable": failure["retryable"],
             },
         )
-        if not full_text_parts:
-            full_text_parts.append(error_msg)
 
-    full_text = "".join(full_text_parts).strip() or "(empty response)"
+    # What the row says, and what it says it IS.
+    #
+    # A failed attempt used to be persisted as the agent's content, so the
+    # provider's error re-rendered as the agent's reply on every reload — a
+    # message the agent never wrote, attributed to it forever. Partial text is
+    # still kept when some arrived: the team can see what came through, and the
+    # flag below is what stops it reading as a complete answer.
+    partial_text = "".join(full_text_parts).strip()
+    if failure is None:
+        full_text = partial_text or "(empty response)"
+    elif partial_text:
+        full_text = partial_text
+    else:
+        full_text = failure["message"]
+
     elapsed_ms = int((time.monotonic() - started_at) * 1000)
 
     # Persist the agent message. We re-open a fresh session so the previous
     # rollback (if any) doesn't poison the insert.
+    metadata: dict[str, Any] = {
+        "elapsed_ms": elapsed_ms,
+        "token_usage": token_usage,
+        "triggering_user_sub": triggering_user_sub,
+        "memory_cached": bundle["cached"],
+        "memory_items": bundle["item_count"],
+    }
+    if failure is not None:
+        # The row is a FAILURE, and it says so on disk. Without this the client
+        # has only the live `agent_stream_error` frame to go on, so a reload — or
+        # anyone who was not connected when it happened — reads the same row as
+        # an ordinary answer from the agent. The raw cause is NOT here: this
+        # column is served to every member of the team.
+        metadata["agent_failure"] = {
+            "code": failure["code"],
+            "retryable": failure["retryable"],
+            "partial": bool(partial_text),
+        }
+
     async with async_session_factory() as persist_session:
         agent_msg = await tm_repo.insert_agent_message(
             persist_session,
@@ -274,13 +392,7 @@ async def _do_handle(
             content=full_text,
             routed_via=routed_via,
             parent_message_id=triggering_message_id,
-            metadata={
-                "elapsed_ms": elapsed_ms,
-                "token_usage": token_usage,
-                "triggering_user_sub": triggering_user_sub,
-                "memory_cached": bundle["cached"],
-                "memory_items": bundle["item_count"],
-            },
+            metadata=metadata,
         )
         # Carry over the pre-generated message_id so clients can correlate
         # the final persisted row with the streaming chunks they saw.

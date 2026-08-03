@@ -196,6 +196,30 @@ export function createApi({ baseUrl, getToken } = {}) {
     uploadMediaRaw,
 
     /**
+     * What text an uploaded attachment actually contributed to the brain.
+     *
+     * ONE request for either kind: the server resolves an image's description
+     * child and a document's body chunks behind this path, so a surface never
+     * stitches parent → child itself (which would be two round trips per hover,
+     * per attachment). Team-scoped through the same X-Team-Scope header the
+     * upload uses, so it takes the team SLUG rather than the chat's team id.
+     *
+     * Throws on a non-2xx, which is what the caller wants: a 403 (blocked
+     * member), a 404 (wrong team / no such item) and a 500 are all "no answer",
+     * and the tooltip says so rather than rendering an empty box.
+     *
+     * @param {string} teamSlug
+     * @param {string} itemId the media item id from `metadata.media.item_id`
+     * @returns {Promise<{state: string, kind: string|null, text: string,
+     *                    truncated: boolean, chunk_total: number|null,
+     *                    detail: string}>}
+     */
+    indexedText: (teamSlug, itemId) =>
+      request(`/v1/media/${encodeURIComponent(itemId)}/indexed-text`, {
+        headers: { "X-Team-Scope": teamSlug },
+      }),
+
+    /**
      * Upload a file and get the media item back.
      *
      * @param {string} teamSlug

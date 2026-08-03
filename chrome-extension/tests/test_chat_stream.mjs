@@ -11,7 +11,11 @@
  *   bubbleClass         — CSS class assignment
  *   provenanceLabel     — Pro/Max vs API vs none
  *   brainSummaryLabel   — agent "N sources from the brain" (Plan 20-03)
- *   savedToBrainLabel   — saved-to-brain badge text  (Plan 20-03)
+ *   indexedAttachment   — the item behind an indexed-attachment marker
+ *   indexedTooltipText  — the sentence for one /indexed-text answer
+ *   agentMentionAlias   — which alias the agent toggle writes
+ *   withAgentMention    — the toggle's outgoing text, de-duped against a typed one
+ *   agentFailureText    — the closed vocabulary a failed agent turn may print
  *   sameDay             — day-separator boundary     (Plan 20-03)
  */
 
@@ -26,7 +30,13 @@ import {
   bubbleClass,
   provenanceLabel,
   brainSummaryLabel,
-  savedToBrainLabel,
+  indexedAttachment,
+  indexedTooltipText,
+  agentMentionAlias,
+  withAgentMention,
+  agentFailureText,
+  AGENT_FAILURE_TEXT,
+  AGENT_FAILURE_FALLBACK,
   sameDay,
 } from "../../packages/chat-core/chat_stream.js";
 
@@ -398,36 +408,284 @@ test("brainSummaryLabel: zero / missing / malformed → null (no empty details)"
   assert.equal(brainSummaryLabel({ memory_items: -3 }), null);
 });
 
-// ---------- savedToBrainLabel (Plan 20-03) ----------
+// ---------- indexedAttachment ----------
 //
 // Derived from the real metadata.media attachment signal — an attachment IS the
-// indexed-into-the-brain event. Plain text messages get NO badge (no spoofing).
+// indexed-into-the-brain event. Plain text messages get NO marker (no spoofing).
+// It answers with the ITEM, because the id is what the reveal fetches; the badge
+// text it replaced ("saved to brain · image indexed") said only that something
+// had happened.
 
-test("savedToBrainLabel: document attachment → document indexed", () => {
-  assert.equal(
-    savedToBrainLabel({ metadata: { media: { mime: "application/pdf" } } }),
-    "saved to brain · document indexed",
+test("indexedAttachment: document attachment → the item id and kind", () => {
+  assert.deepEqual(
+    indexedAttachment({
+      metadata: { media: { mime: "application/pdf", item_id: "i-1" } },
+    }),
+    { itemId: "i-1", kind: "document" },
   );
 });
 
-test("savedToBrainLabel: image attachment → image indexed", () => {
-  assert.equal(
-    savedToBrainLabel({ metadata: { media: { mime: "image/png" } } }),
-    "saved to brain · image indexed",
+test("indexedAttachment: image attachment → kind image", () => {
+  assert.deepEqual(
+    indexedAttachment({ metadata: { media: { mime: "image/png", item_id: "i-2" } } }),
+    { itemId: "i-2", kind: "image" },
   );
 });
 
-test("savedToBrainLabel: no media → null (never fabricate provenance)", () => {
-  assert.equal(savedToBrainLabel({ metadata: {} }), null);
-  assert.equal(savedToBrainLabel({}), null);
-  assert.equal(savedToBrainLabel(null), null);
+test("indexedAttachment: no media → null (never fabricate provenance)", () => {
+  assert.equal(indexedAttachment({ metadata: {} }), null);
+  assert.equal(indexedAttachment({}), null);
+  assert.equal(indexedAttachment(null), null);
 });
 
-test("savedToBrainLabel: media without mime still counts as a document", () => {
+test("indexedAttachment: media without item_id → null (nothing to fetch)", () => {
+  // There is no id to ask about, so a marker would be an affordance with no
+  // answer behind it.
+  assert.equal(indexedAttachment({ metadata: { media: { mime: "image/png" } } }), null);
+});
+
+test("indexedAttachment: media without mime still counts as a document", () => {
+  assert.deepEqual(indexedAttachment({ metadata: { media: { item_id: "abc" } } }), {
+    itemId: "abc",
+    kind: "document",
+  });
+});
+
+// ---------- indexedTooltipText ----------
+//
+// The point of this helper is that it is TOTAL: every input produces a sentence.
+// Before it, an image still being described, one deliberately skipped, one whose
+// indexing broke, and a request that never came back all rendered as the same
+// empty box.
+
+test("indexedTooltipText: indexed → the text itself", () => {
   assert.equal(
-    savedToBrainLabel({ metadata: { media: { item_id: "abc" } } }),
-    "saved to brain · document indexed",
+    indexedTooltipText({ state: "indexed", text: "A deploy pipeline diagram." }),
+    "A deploy pipeline diagram.",
   );
+});
+
+test("indexedTooltipText: indexed + detail → the text, then the caveat", () => {
+  const out = indexedTooltipText({
+    state: "indexed",
+    text: "Page one.",
+    detail: "Showing the first of 4 indexed parts.",
+  });
+  assert.equal(out, "Page one.\n\nShowing the first of 4 indexed parts.");
+});
+
+test("indexedTooltipText: pending → an in-flight sentence, never blank", () => {
+  assert.equal(indexedTooltipText({ state: "pending", text: "" }), "Indexing…");
+});
+
+test("indexedTooltipText: failed → a failure sentence, never blank", () => {
+  assert.equal(indexedTooltipText({ state: "failed", text: "" }), "Indexing failed.");
+  assert.equal(
+    indexedTooltipText({ state: "failed", detail: "Indexing failed. Try again." }),
+    "Indexing failed. Try again.",
+  );
+});
+
+test("indexedTooltipText: not_indexed → the server's sentence, else a default", () => {
+  assert.equal(
+    indexedTooltipText({ state: "not_indexed", detail: "This image is too large to index." }),
+    "This image is too large to index.",
+  );
+  assert.equal(indexedTooltipText({ state: "not_indexed" }), "Not indexed.");
+});
+
+test("indexedTooltipText: a load failure is its OWN sentence, not 'not indexed'", () => {
+  // The server never said anything, so claiming it said "not indexed" would be
+  // reporting an answer that does not exist.
+  assert.equal(
+    indexedTooltipText(null),
+    "The indexed text could not be loaded.",
+  );
+  assert.equal(
+    indexedTooltipText(undefined),
+    "The indexed text could not be loaded.",
+  );
+});
+
+test("indexedTooltipText: 'indexed' with no text falls back rather than going blank", () => {
+  assert.equal(indexedTooltipText({ state: "indexed", text: "   " }), "Not indexed.");
+});
+
+test("indexedTooltipText: every state produces a non-empty string", () => {
+  const inputs = [
+    null,
+    undefined,
+    {},
+    { state: "indexed" },
+    { state: "pending" },
+    { state: "failed" },
+    { state: "not_indexed" },
+    { state: "something_new_from_a_newer_server" },
+    { state: "indexed", text: "" , detail: "" },
+  ];
+  for (const input of inputs) {
+    const out = indexedTooltipText(input);
+    assert.equal(typeof out, "string");
+    assert.ok(out.trim().length > 0, `blank tooltip for ${JSON.stringify(input)}`);
+  }
+});
+
+// ---------- agentFailureText ----------
+//
+// A failure payload is exactly where a provider's error text ends up when
+// something upstream regresses — one shipped into a team chat naming the vendor
+// and the account's credit balance. So this function reads a CODE and nothing
+// else: there is no input that can make it produce words it does not already
+// contain. That is the guarantee, and it holds whatever the server sends.
+
+test("agentFailureText: a known code gets its own sentence", () => {
+  assert.equal(agentFailureText({ code: "timeout" }), AGENT_FAILURE_TEXT.timeout);
+  assert.equal(agentFailureText({ code: "unavailable" }), AGENT_FAILURE_TEXT.unavailable);
+  assert.equal(
+    agentFailureText({ code: "configuration" }),
+    AGENT_FAILURE_TEXT.configuration,
+  );
+});
+
+test("agentFailureText: the output is ALWAYS from the closed vocabulary", () => {
+  const allowed = new Set([...Object.values(AGENT_FAILURE_TEXT), AGENT_FAILURE_FALLBACK]);
+  const hostile = [
+    null,
+    undefined,
+    {},
+    { code: "" },
+    { code: 42 },
+    { code: "a_code_from_a_newer_server" },
+    { code: "toString" }, // a prototype key must not resolve to a function
+    { code: "constructor" },
+    { error: "Error code: 400 - your credit balance is too low" },
+    { message: "sk-ant-api03-XXXX" },
+    { code: "timeout", error: "raw provider text riding along" },
+  ];
+  for (const input of hostile) {
+    const out = agentFailureText(input);
+    assert.ok(
+      allowed.has(out),
+      `${JSON.stringify(input)} produced words outside the vocabulary: ${JSON.stringify(out)}`,
+    );
+  }
+});
+
+test("agentFailureText: no sentence invents a cause the client cannot know", () => {
+  for (const sentence of [...Object.values(AGENT_FAILURE_TEXT), AGENT_FAILURE_FALLBACK]) {
+    const lowered = sentence.toLowerCase();
+    for (const guess of ["because", "due to", "caused by", "billing", "credit", "quota"]) {
+      assert.ok(!lowered.includes(guess), `"${sentence}" guesses a cause`);
+    }
+    assert.ok(sentence[0] === sentence[0].toUpperCase() && sentence.endsWith("."));
+  }
+});
+
+// ---------- agentMentionAlias / withAgentMention ----------
+//
+// The agent toggle is not a second way to summon. It writes the SAME mention a
+// person would type and the server's detector decides from the text, so there is
+// one authority and nothing to disagree with. These tests are mostly about the
+// place that would break: a message that is BOTH toggled and typed must summon
+// exactly once, and it must not read as "@agent @agent ...".
+
+test("agentMentionAlias: the server's list, in the server's order", () => {
+  assert.equal(agentMentionAlias(["chad", "agent"]), "chad");
+  assert.equal(agentMentionAlias(["agent"]), "agent");
+});
+
+test("agentMentionAlias: 'claude' is skipped — it is never a client trigger", () => {
+  // buildMentionRegex drops it, so writing "@claude" would produce a message
+  // that looks summoned and is not.
+  assert.equal(agentMentionAlias(["claude", "chad"]), "chad");
+  assert.equal(agentMentionAlias(["claude"]), "agent");
+});
+
+test("agentMentionAlias: an empty / junk list falls back to the base alias", () => {
+  assert.equal(agentMentionAlias([]), "agent");
+  assert.equal(agentMentionAlias(null), "agent");
+  assert.equal(agentMentionAlias([" ", 7, null]), "agent");
+});
+
+test("withAgentMention: a bare draft gets the team's mention prepended", () => {
+  assert.equal(
+    withAgentMention("what is in the deck?", { aliases: ["agent"] }),
+    "@agent what is in the deck?",
+  );
+  assert.equal(
+    withAgentMention("status?", { aliases: ["chad", "agent"] }),
+    "@chad status?",
+  );
+});
+
+test("withAgentMention: a draft that ALREADY mentions the agent is untouched", () => {
+  // Toggled and typed must summon once, and must not read "@agent @agent ...".
+  const aliases = ["agent"];
+  const regex = buildMentionRegex(aliases);
+  for (const draft of [
+    "@agent what is in the deck?",
+    "hey @agent what is in the deck?",
+    "@AGENT case does not matter",
+  ]) {
+    assert.equal(withAgentMention(draft, { aliases, regex }), draft);
+  }
+});
+
+test("withAgentMention: the de-dupe uses the SERVER's alias list, not a guess", () => {
+  // A team whose agent is @chad: a draft naming @chad is already a summon, so
+  // prepending "@chad" again would double it.
+  const aliases = ["chad", "agent"];
+  const regex = buildMentionRegex(aliases);
+  assert.equal(withAgentMention("@chad ping", { aliases, regex }), "@chad ping");
+  // ...and a draft naming something that is NOT an alias is not a summon.
+  assert.equal(
+    withAgentMention("@marketing ping", { aliases, regex }),
+    "@chad @marketing ping",
+  );
+});
+
+test("withAgentMention: exactly ONE mention lands, however it is combined", () => {
+  const aliases = ["agent", "chad"];
+  const regex = buildMentionRegex(aliases);
+  // Counted with the SAME boundary pattern the detector uses, made global — so
+  // this asserts what the server would see, not what a substring search finds.
+  const countRe = new RegExp(regex.source, "gi");
+  const combos = [
+    "plain question",
+    "@agent typed question",
+    "hey @chad look at this",
+    "  leading space question",
+    "an email like alice@agent.com is not a mention",
+    "@marketing is not the agent",
+  ];
+  for (const draft of combos) {
+    const out = withAgentMention(draft, { aliases, regex });
+    const mentions = out.match(countRe) || [];
+    assert.equal(
+      mentions.length,
+      1,
+      `"${draft}" produced ${mentions.length} mentions: ${JSON.stringify(out)}`,
+    );
+  }
+});
+
+test("withAgentMention: an email address is not a mention, so it still gets one", () => {
+  // The boundary rules are the server's; this asserts the toggle inherits them
+  // rather than doing its own "does the text contain @agent" check.
+  assert.equal(
+    withAgentMention("mail alice@agent.com", { aliases: ["agent"] }),
+    "@agent mail alice@agent.com",
+  );
+});
+
+test("withAgentMention: leading whitespace is not preserved into a double space", () => {
+  assert.equal(withAgentMention("   hi", { aliases: ["agent"] }), "@agent hi");
+});
+
+test("withAgentMention: a non-string draft never throws", () => {
+  assert.equal(withAgentMention(null, { aliases: ["agent"] }), "@agent");
+  assert.equal(withAgentMention(undefined), "@agent");
+  assert.equal(withAgentMention(""), "@agent");
 });
 
 // ---------- sameDay (Plan 20-03) ----------

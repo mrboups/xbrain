@@ -16,8 +16,10 @@
  *     when `agent_stream_end` arrives.
  *   - mention regex BUILT FROM the server's effective alias list
  *     (GET /v1/teams/{id}/agent-aliases) via buildMentionRegex() — one source
- *     of truth with memory-api, never a hardcoded vocabulary. Used only for
- *     the composer's optimistic hint ("Will summon @agent").
+ *     of truth with memory-api, never a hardcoded vocabulary. The composer no
+ *     longer narrates a pending mention, so its only client-side use is the
+ *     agent toggle's de-dupe: a draft that already names the agent must not have
+ *     a second mention prepended to it.
  *   - formatRelative(iso) — "12s ago" / "5m ago" / "Mar 5" strings for
  *     message timestamps in bubble headers.
  *   - hostnameFromUrl, hashSourceId — small helpers reused by the clip
@@ -30,8 +32,9 @@
 // The surface fetches GET /v1/teams/{id}/agent-aliases and builds the regex from
 // that list via buildMentionRegex() — JS-escaping each alias (mirror of the
 // server's re.escape) and sorting longest-first — so the client and server can
-// never diverge again. Used only for an optimistic composer hint; the server
-// makes the final summon decision.
+// never diverge again. The server still makes the final summon decision; the
+// client's copy exists so the agent toggle can tell an already-mentioned draft
+// from a bare one and avoid summoning twice.
 
 // JS-escape one alias, mirroring Python re.escape for the metacharacters that
 // matter inside a JS regex. Defense in depth: the server already restricts
@@ -86,6 +89,110 @@ export function detectMentionClient(text, aliasesOrRegex) {
   const m = text.match(re);
   if (!m) return null;
   return { agent_name: "claude-sonnet-4-6", trigger: m[1].toLowerCase() };
+}
+
+// ---------- Agent failure ----------
+//
+// WHY THE WORDS LIVE HERE AND NOT IN THE FRAME.
+//
+// A failure frame is precisely the place an upstream bug dumps raw text: it
+// carries whatever went wrong, and what went wrong is written by a provider, for
+// the person holding the account. One shipped into a team chat naming the vendor,
+// the account's credit balance and a request id.
+//
+// The server has been fixed, and it is the wrong place to rely on. So the client
+// renders from `code` — a closed vocabulary of OUR own — and never from a text
+// field the frame carries. That is a structural guarantee rather than a filter:
+// there is no input to this function that can produce words it does not already
+// contain, whatever an older or newer server sends.
+//
+// The server keeps its own copy of these sentences for the PERSISTED row, which
+// is stored text that recall and non-xbrain consumers read. It is not a second
+// display path: a bubble whose stored content is that sentence renders the
+// failure line below instead of the content, so a reader never sees both.
+
+/** Failure code -> what a person is told. The only vocabulary the UI can print. */
+export const AGENT_FAILURE_TEXT = {
+  timeout:
+    "The agent took too long to answer and the attempt was stopped. Worth trying again.",
+  unavailable: "The agent could not answer just now. Worth trying again.",
+  configuration:
+    "The agent could not answer. Trying again will not help — this needs an " +
+    "administrator to look at the server.",
+};
+
+/** What every other code resolves to. Vague on purpose — see above. */
+export const AGENT_FAILURE_FALLBACK = "The agent could not answer.";
+
+/**
+ * The line to render for a failed agent turn.
+ *
+ * Total, and closed: any input at all — an old frame, a new code, a hostile
+ * payload, nothing — resolves to one of the strings declared above.
+ *
+ * @param {{code?: string}|null|undefined} info a stream_error frame, or
+ *   `metadata.agent_failure` off a persisted row. Both carry `code`.
+ * @returns {string}
+ */
+export function agentFailureText(info) {
+  const code = info && typeof info.code === "string" ? info.code : "";
+  return Object.prototype.hasOwnProperty.call(AGENT_FAILURE_TEXT, code)
+    ? AGENT_FAILURE_TEXT[code]
+    : AGENT_FAILURE_FALLBACK;
+}
+
+// ---------- Agent toggle ----------
+//
+// The composer's agent button is not a second way to summon the agent. It writes
+// the SAME mention a person would type, and the server's detector — the only
+// thing that decides — sees one kind of message either way. A parallel "this one
+// is for the agent" flag on the request would be a second authority that can
+// disagree with the first, and the two would drift on the first schema change.
+
+/**
+ * Which alias to write. The server's effective list, in the server's order.
+ *
+ * "claude" is skipped for the same reason `buildMentionRegex` drops it: it is
+ * reserved and never a client trigger, so writing "@claude" would produce a
+ * message that looks summoned and is not. Falls back to "agent" when the list
+ * offers nothing usable — never a hardcoded vocabulary in the ordinary path.
+ *
+ * @param {string[]|null|undefined} aliases
+ * @returns {string}
+ */
+export function agentMentionAlias(aliases) {
+  for (const alias of Array.isArray(aliases) ? aliases : []) {
+    if (typeof alias !== "string") continue;
+    const trimmed = alias.trim();
+    if (!trimmed || trimmed.toLowerCase() === "claude") continue;
+    return trimmed;
+  }
+  return "agent";
+}
+
+/**
+ * The text to send when the agent toggle is on.
+ *
+ * Returns the draft UNCHANGED when it already carries a live mention. The server
+ * acts on the first mention only, so a doubled one would still summon once — but
+ * "@agent @agent what is this" is a message nobody wrote, and the person who
+ * typed the mention and then pressed the button would see the product arguing
+ * with itself.
+ *
+ * Pure: no DOM, no state, no clock.
+ *
+ * @param {string} text the draft as typed
+ * @param {{aliases?: string[], regex?: RegExp}} [opts]
+ *   regex   — the surface's compiled alias regex (preferred: it is the server's)
+ *   aliases — the raw effective list, used to pick the alias to write
+ * @returns {string}
+ */
+export function withAgentMention(text, { aliases, regex } = {}) {
+  const body = typeof text === "string" ? text : "";
+  if (detectMentionClient(body, regex || aliases)) return body;
+  const mention = `@${agentMentionAlias(aliases)}`;
+  const rest = body.trimStart();
+  return rest ? `${mention} ${rest}` : mention;
 }
 
 // ---------- StreamBuffer ----------
@@ -253,21 +360,61 @@ export function brainSummaryLabel(agentMsgMeta) {
 }
 
 /**
- * Badge text for a message whose attachment genuinely landed in the brain.
+ * The attachment behind a message, when one genuinely landed in the brain.
  *
  * Source of truth: `metadata.media` — the backend only writes it once the
- * attachment has been ingested as a memory item, so its presence IS the
- * indexed signal. Plain text messages get no badge (the backend emits no
- * per-message saved flag, and we will not invent one).
+ * attachment has been ingested as a memory item, so its presence IS the indexed
+ * signal. Plain text messages return null and the UI renders no marker at all;
+ * the backend emits no per-message saved flag and we will not invent one.
  *
- * @param {{metadata?: {media?: {mime?: string}}}|null|undefined} msg
- * @returns {string|null}
+ * It answers with the ITEM, not with a sentence, because what the reader wants
+ * is the text that was indexed — and that lives behind
+ * `GET /v1/media/{item_id}/indexed-text`, keyed by exactly this id. A label
+ * describing the mechanism ("saved to brain · image indexed") told them only
+ * that something happened.
+ *
+ * @param {{metadata?: {media?: {mime?: string, item_id?: string}}}|null|undefined} msg
+ * @returns {{itemId: string, kind: string}|null}
  */
-export function savedToBrainLabel(msg) {
+export function indexedAttachment(msg) {
   const media = msg && msg.metadata && msg.metadata.media;
-  if (!media) return null;
+  if (!media || !media.item_id) return null;
   const isImage = typeof media.mime === "string" && media.mime.startsWith("image/");
-  return `saved to brain · ${isImage ? "image" : "document"} indexed`;
+  return { itemId: media.item_id, kind: isImage ? "image" : "document" };
+}
+
+/**
+ * The line to show for one `/indexed-text` answer.
+ *
+ * Every branch returns a NON-EMPTY string. An attachment whose text is still
+ * being written, one that was deliberately skipped, and one whose indexing broke
+ * are three different facts, and an empty tooltip renders all three — plus a
+ * request that never came back — as the same blank box.
+ *
+ * `payload` null means the request itself did not produce an answer. That is
+ * reported as its own thing rather than folded into "not indexed", which would
+ * claim the server said something it never said.
+ *
+ * Pure: no DOM, no fetch, no clock.
+ *
+ * @param {{state?: string, text?: string, detail?: string}|null|undefined} payload
+ * @returns {string}
+ */
+export function indexedTooltipText(payload) {
+  if (!payload || typeof payload !== "object") {
+    return "The indexed text could not be loaded.";
+  }
+  const detail = typeof payload.detail === "string" ? payload.detail.trim() : "";
+  const text = typeof payload.text === "string" ? payload.text.trim() : "";
+
+  if (payload.state === "indexed" && text) {
+    return detail ? `${text}\n\n${detail}` : text;
+  }
+  if (payload.state === "pending") return detail || "Indexing…";
+  if (payload.state === "failed") return detail || "Indexing failed.";
+  // not_indexed, an unrecognised state, or "indexed" that carried no text after
+  // all — in every one of those the honest thing to say is the same.
+  return detail || "Not indexed.";
 }
 
 /**

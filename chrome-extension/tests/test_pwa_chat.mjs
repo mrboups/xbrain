@@ -413,5 +413,99 @@ test("every id chat.js reads is declared in index.html", () => {
   }
 });
 
+// ===========================================================================
+// The agent toggle, on THIS surface too.
+//
+// The brief asks for both surfaces, and "both" is exactly the thing that gets
+// half-done: the extension has a contract test that would go red, this one did
+// not. The properties pinned here are the same ones — where it sits, that its
+// armed state is visible AND announced, and that it summons through the mention
+// rather than a second parallel mechanism.
+// ===========================================================================
+
+const pwaHtml = readFileSync(join(APP_DIR, "index.html"), "utf8").replace(
+  /<!--[\s\S]*?-->/g,
+  "",
+);
+const pwaChatJs = readFileSync(join(APP_DIR, "chat.js"), "utf8");
+const pwaCss = readFileSync(join(APP_DIR, "app.css"), "utf8").replace(
+  /\/\*[\s\S]*?\*\//g,
+  "",
+);
+
+test("agent toggle: #btn-agent is the control immediately left of #btn-send", () => {
+  const start = pwaHtml.indexOf('class="xb-composer-pill"');
+  assert.ok(start !== -1, "index.html has no .xb-composer-pill");
+  // Bounded at the pill's own close so a button elsewhere on the page cannot
+  // stand in for one inside the composer.
+  const open = pwaHtml.lastIndexOf("<div", start);
+  const re = /<div\b|<\/div>/g;
+  re.lastIndex = open;
+  let depth = 0;
+  let end = -1;
+  let m;
+  while ((m = re.exec(pwaHtml)) !== null) {
+    depth += m[0] === "</div>" ? -1 : 1;
+    if (depth === 0) {
+      end = m.index + m[0].length;
+      break;
+    }
+  }
+  assert.ok(end !== -1, "the composer pill is not closed");
+  const ids = [...pwaHtml.slice(open, end).matchAll(/<button[^>]*id="([^"]+)"/g)].map(
+    (x) => x[1],
+  );
+  assert.deepEqual(
+    ids.slice(-2),
+    ["btn-agent", "btn-send"],
+    `the toggle must be immediately left of send (pill order: ${ids.join(" -> ")})`,
+  );
+});
+
+test("agent toggle: it is a toggle for the eye AND for a screen reader", () => {
+  const tag = /<button[^>]*id="btn-agent"[^>]*>/.exec(pwaHtml);
+  assert.ok(tag, "index.html has no #btn-agent");
+  assert.match(tag[0], /aria-pressed="false"/);
+  assert.match(tag[0], /data-state="off"/);
+  assert.match(
+    tag[0],
+    /class="[^"]*\bxb-icon-btn\b/,
+    "the toggle belongs to the .xb-icon-btn family (shadcn Neutral, radius 0, 15px svg)",
+  );
+
+  const fn = /function\s+setAgentArmed\s*\([^)]*\)\s*\{[\s\S]*?\n\}/.exec(pwaChatJs);
+  assert.ok(fn, "chat.js has no setAgentArmed()");
+  assert.match(fn[0], /dataset\.state\s*=/, "must write [data-state] for the stylesheet");
+  assert.match(fn[0], /aria-pressed/, "must write [aria-pressed] for a screen reader");
+});
+
+test("agent toggle: the armed state is filled --primary, not a whisper", () => {
+  assert.match(
+    pwaCss,
+    /\.xb-agent-btn\[data-state="on"\]\s*\{[^}]*background:\s*var\(--primary\)/,
+    "app.css must give the armed toggle the filled --primary look",
+  );
+});
+
+test("agent toggle: ONE summon mechanism — the mention, never a parallel flag", () => {
+  const fn = /async\s+function\s+sendMessage\s*\([^)]*\)\s*\{[\s\S]*?\n\}/.exec(pwaChatJs);
+  assert.ok(fn, "chat.js has no sendMessage()");
+  const body = stripComments(fn[0]);
+  assert.ok(
+    body.includes("withAgentMention("),
+    "the toggle must compose the outgoing TEXT — that is what the server's detector reads",
+  );
+  for (const flag of ["summon", "to_agent", "toAgent", "is_agent", "mention_agent"]) {
+    assert.ok(
+      !body.includes(flag),
+      `sendMessage sends a "${flag}" field — a second summon authority that can disagree with the mention`,
+    );
+  }
+  assert.ok(
+    body.includes("setAgentArmed(false)"),
+    "a successful send must disarm the toggle — this is a shared team chat",
+  );
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

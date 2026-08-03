@@ -10,7 +10,7 @@
  *   agent_stream_start   — an agent answer begins; a streaming bubble is created
  *   agent_stream_chunk   — a delta appended to the buffer and written to the DOM
  *   agent_stream_end     — the answer is complete; the streaming class is dropped
- *   agent_stream_error   — the answer failed; the error is appended to the text
+ *   agent_stream_error   — the answer failed; the bubble becomes a failure state
  *
  * Anything else is ignored, exactly as the popup did — an unknown frame from a
  * newer server must never throw in an older client.
@@ -24,8 +24,9 @@
 /**
  * @param {{
  *   renderer: {renderMessage: Function, renderAgentBubble: Function,
- *              syncDaySeparators: Function, streamTextTarget: Function,
- *              clearStreaming: Function, scrollToBottom: Function},
+ *              renderAgentFailure: Function, syncDaySeparators: Function,
+ *              streamTextTarget: Function, clearStreaming: Function,
+ *              scrollToBottom: Function},
  *   streamBuffer: {start: Function, append: Function, get: Function, finalize: Function},
  *   onNonEmpty?: () => void
  * }} opts
@@ -81,11 +82,13 @@ export function createPublicationRouter(opts) {
       return;
     }
     if (data.type === "agent_stream_error") {
-      const textEl = renderer.streamTextTarget(data.message_id);
-      renderer.clearStreaming(data.message_id);
-      if (textEl) {
-        textEl.textContent += `\n\n(error: ${data.error || "unknown"})`;
-      }
+      // The frame is handed over WHOLE and the renderer decides what to print,
+      // from the failure code alone. Two things used to be wrong here in one
+      // line: the frame's text was appended to the answer, so a provider's error
+      // read as the agent's last sentence; and it was that provider's text, so a
+      // billing message reached every member of the team.
+      renderer.renderAgentFailure(data.message_id, data);
+      renderer.scrollToBottom();
       return;
     }
   };

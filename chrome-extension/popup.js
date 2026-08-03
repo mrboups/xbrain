@@ -14,12 +14,12 @@
 "use strict";
 
 // The label/class helpers (authorLabel, bubbleClass, provenanceLabel,
-// brainSummaryLabel, savedToBrainLabel, formatRelative, sameDay, dayLabel) are
+// brainSummaryLabel, indexedAttachment, formatRelative, sameDay, dayLabel) are
 // no longer imported here — chat_core/render.js is their only consumer now.
 import {
   StreamBuffer,
-  detectMentionClient,
   buildMentionRegex,
+  withAgentMention,
   hostnameFromUrl,
 } from "./chat_core/chat_stream.js";
 import { loadSettings, saveSettings } from "./settings.js";
@@ -70,10 +70,14 @@ const state = {
   initialLoaded: false,
   // Agent-mention aliases for the active team. Built from the server's
   // effective list (GET /v1/teams/{id}/agent-aliases); defaults to ["agent"]
-  // until the first fetch. Drives only the optimistic composer hint — the
-  // server is authoritative for the actual summon.
+  // until the first fetch. The server is authoritative for the actual summon —
+  // this copy exists so the agent toggle writes the team's OWN alias and can
+  // tell an already-mentioned draft from a bare one.
   agentAliases: ["agent"],
   mentionRe: buildMentionRegex(["agent"]),
+  // Agent toggle: armed before sending, cleared by a successful send. Never
+  // persisted — a shared team chat must not open with the agent silently armed.
+  agentArmed: false,
   // Catch-me-up (Phase 23, CATCHUP-01). The banner count is captured against
   // the STALE, pre-visit read cursor on team open (see switchTeam ordering).
   //   markReadInFlight — dedupe guard so scroll/focus don't spam POST /mark-read
@@ -140,6 +144,15 @@ function buildChatCore() {
     // late through the module-level binding: the panel is built in the same
     // DOMContentLoaded pass, and a captured null would leave every name dead.
     onAuthorClick: (uid) => peoplePanel && peoplePanel.open({ focusUserId: uid }),
+    // Hovering an attachment's marker shows the text the brain actually indexed
+    // from it. The renderer calls this at most once per item and only once
+    // somebody asks, so a thread of fifty images costs nothing until it is used.
+    // The route is scoped by team SLUG, not by the chat's team id.
+    fetchIndexedText: (itemId) => {
+      const team = state.teams.find((t) => t.id === state.activeTeamId);
+      if (!team) return Promise.resolve(null);
+      return api.indexedText(team.slug, itemId);
+    },
   });
   routeTeamFrame = createPublicationRouter({
     renderer,
@@ -1015,6 +1028,10 @@ function showCatchupSummary(placeholder) {
 // regex from it (JS-escape + longest-first via buildMentionRegex). The server
 // is the single source of truth; on any error we keep the previous regex and
 // never throw into the UI.
+//
+// The composer no longer narrates a pending mention, so the regex's remaining
+// job is the agent toggle's de-dupe: a draft that already names the agent must
+// not have a second mention prepended to it.
 async function refreshAgentAliases() {
   if (!state.activeTeamId) return;
   try {
@@ -1091,11 +1108,7 @@ async function loadOlderPage() {
 
 function wireComposer() {
   const input = $("composer-input");
-  const mentionHint = createMentionHint();
-  input.addEventListener("input", () => {
-    autoResize(input);
-    updateMentionHint(input, mentionHint);
-  });
+  input.addEventListener("input", () => autoResize(input));
   input.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
     // SHIFT+ENTER → newline (textarea default, don't intercept)
@@ -1105,6 +1118,7 @@ function wireComposer() {
     sendMessage();
   });
   $("btn-send").addEventListener("click", sendMessage);
+  $("btn-agent").addEventListener("click", () => setAgentArmed(!state.agentArmed));
   // 📎 now triggers file attach; clip overlay moved to header "add to memory".
   $("btn-clip").addEventListener("click", openFilePicker);
   $("file-picker").addEventListener("change", async (e) => {
@@ -1147,45 +1161,45 @@ function autoResize(el) {
   }
 }
 
-// Optimistic composer hint: a lightweight text line under the composer that
-// shows "Will summon @<alias>" while the draft contains a live mention. Built
-// dynamically (no popup.html/css contract touched) and styled inline with the
-// existing shadcn tokens. UX-only — the server makes the real summon decision.
-function createMentionHint() {
-  const composer = document.querySelector(".xb-composer");
-  if (!composer) return null;
-  const hint = document.createElement("div");
-  hint.className = "xb-mention-hint";
-  hint.hidden = true;
-  hint.setAttribute("aria-live", "polite");
-  hint.style.cssText =
-    "padding:2px 12px 0;font-size:11px;line-height:1.4;color:var(--muted-fg);";
-  composer.appendChild(hint);
-  return hint;
-}
-
-function updateMentionHint(input, hint) {
-  if (!hint) return;
-  const hit = detectMentionClient(input.value, state.mentionRe);
-  if (hit) {
-    hint.textContent = `Will summon @${hit.trigger}`;
-    hint.hidden = false;
-  } else {
-    hint.textContent = "";
-    hint.hidden = true;
-  }
+/**
+ * Arm or disarm the agent toggle.
+ *
+ * The button carries the state in TWO attributes because they answer two
+ * different readers: [data-state] is what the stylesheet keys the filled
+ * selected look off, [aria-pressed] is what a screen reader announces. Writing
+ * one and not the other would leave the control looking armed and reading unarmed.
+ */
+function setAgentArmed(on) {
+  state.agentArmed = Boolean(on);
+  const btn = $("btn-agent");
+  if (!btn) return;
+  btn.dataset.state = state.agentArmed ? "on" : "off";
+  btn.setAttribute("aria-pressed", state.agentArmed ? "true" : "false");
 }
 
 async function sendMessage() {
   const input = $("composer-input");
-  const content = input.value.trim();
-  if (!content || !state.activeTeamId) return;
+  const typed = input.value.trim();
+  if (!typed || !state.activeTeamId) return;
+  // ONE summon mechanism: the toggle writes the mention a person would type, and
+  // the server's detector decides from the text either way. withAgentMention
+  // leaves an already-mentioned draft alone, so toggling AND typing "@agent"
+  // summons once — as it would anyway, since the server acts on the first
+  // mention only, but "@agent @agent ..." is a message nobody wrote.
+  const content = state.agentArmed
+    ? withAgentMention(typed, { aliases: state.agentAliases, regex: state.mentionRe })
+    : typed;
   const sendBtn = $("btn-send");
   sendBtn.disabled = true;
   try {
     const sent = await api.postMessage(state.activeTeamId, { content });
     input.value = "";
     autoResize(input);
+    // Disarmed once the message is away — and only on success, so a failed send
+    // leaves the draft AND its intent intact. This is a shared team chat: an
+    // armed toggle nobody noticed would send the next line meant for teammates
+    // to the agent as well, in front of everyone.
+    setAgentArmed(false);
     // Optimistic render: show the message immediately from the POST response
     // instead of waiting for the Centrifugo echo (which can lag or be missed
     // while the popup is backgrounded). renderMessage() de-dupes by id, so the
