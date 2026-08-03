@@ -386,6 +386,11 @@ test("provenanceLabel: Pro/Max vs API vs null", () => {
   const p2 = provenanceLabel("team_api");
   assert.equal(p2.text, "via team API");
   assert.equal(p2.cls, "via-api");
+  // The team's OWN key is a different bill from the deployment's, so it is a
+  // different badge. `team_api` keeps its meaning because rows already carry it.
+  const p3 = provenanceLabel("team_key");
+  assert.equal(p3.text, "via team key");
+  assert.notEqual(p3.text, p2.text, "the two payers must not share a label");
   assert.equal(provenanceLabel(null), null);
   assert.equal(provenanceLabel(undefined), null);
 });
@@ -661,6 +666,24 @@ test("no unavailability sentence mentions this device", () => {
         `${code} says "${word}" — that makes a user-keyed condition sound device-specific`,
       );
     }
+  }
+});
+
+test("a refused team key is a failure, not an unavailability", () => {
+  // An attempt WAS made and refused, so dressing it as "not available" would
+  // understate it — and the fix belongs to the team, not to an administrator.
+  assert.equal(isAgentUnavailable({ code: "team_key_rejected" }), false);
+  const sentence = AGENT_FAILURE_TEXT.team_key_rejected;
+  assert.ok(sentence, "team_key_rejected must have its own sentence");
+  assert.ok(
+    /team/i.test(sentence),
+    "whose key failed is the useful part — say it was the team's",
+  );
+  for (const leak of ["anthropic", "401", "403", "x-api-key", "sk-"]) {
+    assert.ok(
+      !sentence.toLowerCase().includes(leak),
+      `"${sentence}" carries the provider's own words`,
+    );
   }
 });
 

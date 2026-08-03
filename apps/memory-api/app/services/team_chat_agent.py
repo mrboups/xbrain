@@ -50,7 +50,8 @@ from app.models.team import Team
 from app.models.team_message import TeamMessage
 from app.models.user import User
 from app.repos import team_messages as tm_repo
-from app.services import centrifugo_client, team_context_cache
+from app.services import centrifugo_client, team_context_cache, team_keys
+from app.services.team_keys import FallbackKey
 
 log = structlog.get_logger(__name__)
 
@@ -126,6 +127,13 @@ AGENT_UNAVAILABLE_SUBSCRIPTION_LOST = (
     "The Claude subscription is no longer connected. Open the browser where the "
     "xbrain extension is signed in, then send this again."
 )
+# Whose key failed matters. Somebody who pasted a key into team settings needs
+# to know it was theirs that was refused and not the product that broke — and
+# the sentence still carries none of the provider's own words.
+AGENT_TEAM_KEY_REJECTED = (
+    "The team's own API key was refused. It needs to be replaced in team "
+    "settings — trying again with the same key will not help."
+)
 
 # Failure codes are OURS, not the provider's. They exist so a client can style or
 # count outcomes without parsing a sentence, and so the sentence can be reworded
@@ -136,6 +144,9 @@ FAILURE_CODE_CONFIGURATION = "configuration"
 # The two that mean "there was nothing to try", not "the try went wrong".
 FAILURE_CODE_NO_ROUTE = "no_route"
 FAILURE_CODE_SUBSCRIPTION_LOST = "subscription_lost"
+# An attempt WAS made and refused, so this is a failure — but a distinct one,
+# because the fix belongs to the team rather than to an administrator.
+FAILURE_CODE_TEAM_KEY_REJECTED = "team_key_rejected"
 
 # Codes a client must render as unavailability rather than as a failure. Kept as
 # a set so the client's copy of the same distinction has something to mirror.
@@ -159,6 +170,43 @@ class BridgeSessionLost(Exception):
     sleeps mid-turn. Distinguished from a generic outage because the person can
     act on it, and because retrying will now route via the fallback key instead.
     """
+
+
+class TeamKeyRejected(Exception):
+    """The provider refused the TEAM's own key (401/403).
+
+    Carries no detail on purpose. It exists to name WHOSE key failed, and the
+    key itself must not be anywhere near an exception that gets logged.
+    """
+
+
+# How a resolved key tier is labelled on the persisted row. "team_api" is kept
+# for the deployment-wide key because rows already carry it; the team's own key
+# is a NEW value, so the two can never be confused after the fact.
+_ROUTED_VIA_BY_TIER = {
+    team_keys.TIER_TEAM: "team_key",
+    team_keys.TIER_PLATFORM: "team_api",
+    team_keys.TIER_NONE: "unavailable",
+}
+
+
+def _http_status_of(exc: BaseException) -> int | None:
+    """The status class of an exception, if it carries one. Never the body."""
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if status is None:
+        status = getattr(exc, "status_code", None)
+    return status if isinstance(status, int) else None
+
+
+def _as_team_key_failure(exc: BaseException, fallback: FallbackKey) -> BaseException:
+    """Rename a provider refusal when the key that was refused was the team's.
+
+    Returns the ORIGINAL exception untouched in every other case, so this can
+    only ever add information and never swallow one.
+    """
+    if fallback.is_team_key and _http_status_of(exc) in (401, 403):
+        return TeamKeyRejected()
+    return exc
 
 
 def classify_stream_failure(exc: BaseException) -> dict[str, Any]:
@@ -193,6 +241,13 @@ def classify_stream_failure(exc: BaseException) -> dict[str, Any]:
             "retryable": True,
         }
 
+    if isinstance(exc, TeamKeyRejected):
+        return {
+            "code": FAILURE_CODE_TEAM_KEY_REJECTED,
+            "message": AGENT_TEAM_KEY_REJECTED,
+            "retryable": False,
+        }
+
     if isinstance(exc, (asyncio.TimeoutError, httpx.TimeoutException)):
         return {
             "code": FAILURE_CODE_TIMEOUT,
@@ -200,9 +255,7 @@ def classify_stream_failure(exc: BaseException) -> dict[str, Any]:
             "retryable": True,
         }
 
-    status = getattr(getattr(exc, "response", None), "status_code", None)
-    if status is None:
-        status = getattr(exc, "status_code", None)
+    status = _http_status_of(exc)
     if isinstance(status, int) and 400 <= status < 500 and status != 429:
         # 429 is excluded on purpose: rate limiting IS the transient 4xx, and
         # "an administrator must look at this" would be wrong for it.
@@ -332,15 +385,16 @@ async def _do_handle(
         )
 
     # Decide routing. The subscription is the preferred path; a key is the floor
-    # under it; neither is an unavailability, not an error.
+    # under it; neither is an unavailability, not an error. The team's own key
+    # outranks the deployment's — they pay for the calls the subscription could
+    # not take, and only for those.
     has_promax = await _user_has_live_bridge(triggering_user_sub)
-    fallback_key = None if has_promax else (settings.ANTHROPIC_API_KEY or None)
-    if has_promax:
-        routed_via = "user_promax"
-    elif fallback_key:
-        routed_via = "team_api"
-    else:
-        routed_via = "unavailable"
+    fallback = (
+        FallbackKey(key=None, tier=team_keys.TIER_NONE)
+        if has_promax
+        else await team_keys.resolve_fallback_key(team_id=team.id)
+    )
+    routed_via = "user_promax" if has_promax else _ROUTED_VIA_BY_TIER[fallback.tier]
 
     message_id = uuid.uuid4()
     started_at = time.monotonic()
@@ -392,25 +446,32 @@ async def _do_handle(
                     )
                 if usage:
                     token_usage = usage
-        elif fallback_key:
-            async for chunk_text, usage in _stream_via_anthropic_api(
-                api_key=fallback_key,
-                system_prompt=system_prompt,
-                cached_memory_block=cached_memory_block,
-                chat_history_block=chat_history_block,
-            ):
-                if chunk_text:
-                    full_text_parts.append(chunk_text)
-                    await centrifugo_client.publish(
-                        channel=f"team:{team_id}",
-                        data={
-                            "type": "agent_stream_chunk",
-                            "message_id": str(message_id),
-                            "delta": chunk_text,
-                        },
-                    )
-                if usage:
-                    token_usage = usage
+        elif fallback.key:
+            try:
+                async for chunk_text, usage in _stream_via_anthropic_api(
+                    api_key=fallback.key,
+                    system_prompt=system_prompt,
+                    cached_memory_block=cached_memory_block,
+                    chat_history_block=chat_history_block,
+                ):
+                    if chunk_text:
+                        full_text_parts.append(chunk_text)
+                        await centrifugo_client.publish(
+                            channel=f"team:{team_id}",
+                            data={
+                                "type": "agent_stream_chunk",
+                                "message_id": str(message_id),
+                                "delta": chunk_text,
+                            },
+                        )
+                    if usage:
+                        token_usage = usage
+            except Exception as e:  # noqa: BLE001
+                # A refused TEAM key is named as such and NOT retried against
+                # the deployment key. Silently spending the operator's key on a
+                # team that supplied their own is a surprise they would find in
+                # an invoice. Status class only — the body is never read.
+                raise _as_team_key_failure(e, fallback) from None
         else:
             # Nothing to run on. Raised rather than returned so it travels the
             # same path every other outcome does — one classifier, one publish,
@@ -955,13 +1016,12 @@ async def catch_me_up(
 
         # Route exactly like the @agent path.
         has_promax = await _user_has_live_bridge(caller_user_sub)
-        fallback_key = None if has_promax else (settings.ANTHROPIC_API_KEY or None)
-        if has_promax:
-            routed_via = "user_promax"
-        elif fallback_key:
-            routed_via = "team_api"
-        else:
-            routed_via = "unavailable"
+        fallback = (
+            FallbackKey(key=None, tier=team_keys.TIER_NONE)
+            if has_promax
+            else await team_keys.resolve_fallback_key(team_id=team.id)
+        )
+        routed_via = "user_promax" if has_promax else _ROUTED_VIA_BY_TIER[fallback.tier]
 
         started_at = time.monotonic()
         log.info(
@@ -992,9 +1052,9 @@ async def catch_me_up(
                     cached_memory_block=cached_memory_block,
                     chat_history_block=chat_history_block,
                 )
-            elif fallback_key:
+            elif fallback.key:
                 stream = _stream_via_anthropic_api(
-                    api_key=fallback_key,
+                    api_key=fallback.key,
                     system_prompt=system_prompt,
                     cached_memory_block=cached_memory_block,
                     chat_history_block=chat_history_block,
@@ -1017,7 +1077,7 @@ async def catch_me_up(
             # @agent path was fixed for, on a summary nobody thought of, and it
             # would now render an empty bubble for the routing exceptions, whose
             # str() is deliberately blank. One classifier for both paths.
-            failure = classify_stream_failure(e)
+            failure = classify_stream_failure(_as_team_key_failure(e, fallback))
             log.warning(
                 "team_chat_agent.catchup.stream_error",
                 team_id=str(team_id),

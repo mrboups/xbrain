@@ -136,6 +136,13 @@ export const AGENT_FAILURE_TEXT = {
   subscription_lost:
     "The Claude subscription is no longer connected. Open the browser where " +
     "the xbrain extension is signed in, then send this again.",
+  // A real failure, not an absence: an attempt was made and refused. It gets
+  // its own sentence because whose key failed is the useful part — somebody who
+  // pasted a key into team settings needs to know it was theirs, not the
+  // product. Still none of the provider's own words.
+  team_key_rejected:
+    "The team's own API key was refused. It needs to be replaced in team " +
+    "settings — trying again with the same key will not help.",
 };
 
 /**
@@ -372,6 +379,11 @@ export function bubbleClass(msg, selfUserId) {
 
 export function provenanceLabel(routed_via) {
   if (routed_via === "user_promax") return { text: "via Pro/Max", cls: "via-promax" };
+  // Two different people get the bill for these two, so they are two different
+  // badges. `team_api` predates the distinction and still means the
+  // deployment-wide key, which is why the new tier got a new name rather than
+  // reusing it — rows already on disk would otherwise change meaning.
+  if (routed_via === "team_key") return { text: "via team key", cls: "via-api" };
   if (routed_via === "team_api") return { text: "via team API", cls: "via-api" };
   return null;
 }
