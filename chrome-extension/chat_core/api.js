@@ -135,6 +135,55 @@ export function createApi({ baseUrl, getToken } = {}) {
         body: { target_user_id: targetUserId, url },
       }),
 
+    // ---- The team's model API key ----
+    //
+    // ONE definition of these two calls, consumed by the desktop admin page AND
+    // by the PWA's settings sheet. The second surface exists because the first
+    // is unreachable from a phone — which is exactly the situation in which a
+    // second, subtly different copy of the request gets written.
+    //
+    // Raw, both of them, and for different reasons.
+    //
+    // The READ: a failed read and an empty list are NOT the same answer. `[]`
+    // means "this team has no key", and a screen may say so; a 403 or a dead
+    // network means "we do not know", and a screen that renders that as "Not
+    // set" invites an admin to overwrite a key that was working. Only the
+    // Response can tell those apart.
+    //
+    // The WRITE: the server is the authority on who may set a key, and its
+    // codes are the message. A 403 is "you are not an admin of this team", a
+    // 500 is "this deployment cannot encrypt keys at all", a 422 is a body it
+    // would not take. Collapsing them into one thrown sentence leaves every one
+    // of them reading "could not save".
+    //
+    // WHAT NEVER HAPPENS HERE: the key is not put in a path, a query, a header
+    // or a log. It travels in the PUT body, once, and the surface clears its
+    // field the moment this resolves.
+    listTeamApiKeysRaw: (teamId) => rawFetch(`/v1/teams/${teamId}/api-keys`),
+    // @param {Array<{provider: string, api_key: string}>} keys the server's own
+    //   bulk-upsert shape, verbatim: {keys: [...]} answering 204.
+    putTeamApiKeysRaw: (teamId, keys) =>
+      rawFetch(`/v1/teams/${teamId}/api-keys`, { method: "PUT", body: { keys } }),
+
+    // WHICH stored key the agent falls back to. Storing a key and selecting a
+    // provider are different actions, so they are different calls.
+    //
+    // THE ROUTE BELOW IS AN ASSUMPTION. The server half is being written in
+    // parallel; the path is spelled HERE and in no surface, so reconciling a
+    // rename is one edit and a re-sync rather than a hunt through a settings
+    // sheet and a team card. The assumed contract is documented in full on the
+    // selection block of chat_core/team_api_keys.js.
+    //
+    // Raw for a sharper reason than the others: a build whose API predates the
+    // selector answers 404, and BOTH surfaces must degrade to "no selection
+    // control" rather than throwing inside a settings sheet somebody opened to
+    // change the theme.
+    teamFallbackProviderRaw: (teamId) =>
+      rawFetch(`/v1/teams/${teamId}/fallback-provider`),
+    // @param {{provider: string}} body from fallbackSelectionBody()
+    putTeamFallbackProviderRaw: (teamId, body) =>
+      rawFetch(`/v1/teams/${teamId}/fallback-provider`, { method: "PUT", body }),
+
     // ---- Growing a team (Phase 25, JOINCODE-01) ----
     //
     // All raw, all for the same reason: the SERVER is the authority on who may

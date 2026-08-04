@@ -213,6 +213,42 @@ last.
    one out, or it is not and the other eleven are. Worth deciding rather than leaving both
    readings live.
 
+**Both surfaces now say (2) and (3) out loud** rather than working around them:
+`TEAM_KEY_REPLACE_NOTE` states that a key cannot be removed once set, only replaced,
+and no Remove control is drawn; no timestamp is invented anywhere.
+
+### The fallback-provider selector — client shipped against an ASSUMED contract — 2026-08-05
+
+The PWA's settings sheet and the admin page both render a **"Used by the agent"**
+control, because the owner wants all three keys storable with a choice of which one is
+actually spent. The server half is being built in parallel and its route shape was not
+available, so the client assumes the following — declared in
+`packages/chat-core/api.js` (`teamFallbackProviderRaw` / `putTeamFallbackProviderRaw`)
+and documented in full on the selection block of `packages/chat-core/team_api_keys.js`,
+so reconciling a rename costs one edit and a re-sync:
+
+```
+GET  /v1/teams/{team_id}/fallback-provider   any member
+     -> {"provider": "anthropic", "supported": ["anthropic"]}
+PUT  /v1/teams/{team_id}/fallback-provider   admin only, like the key write
+     body {"provider": "openai"} -> 204
+```
+
+`supported` is optional and, when present, is AUTHORITATIVE over the client's
+`API_KEY_PROVIDERS[].callable` flags — so the day the agent streams OpenAI and xAI, the
+client stops marking them inert without a redeploy of the table.
+
+**Until the routes exist both surfaces degrade correctly:** a 404 means no selection
+control is drawn at all, and the section says the agent falls back to the Anthropic key.
+Nothing throws. When the server half lands, delete nothing on the client — just confirm
+the path, and flip `callable` only in the same change that teaches the agent to stream
+that provider.
+
+**Still true today, and the reason the marking exists:** `resolve_fallback_key` is only
+ever called with `provider="anthropic"` and `_stream_via_anthropic_api` builds an
+Anthropic client, so an OpenAI or xAI key is accepted, encrypted, stored and never
+called.
+
 ## The PWA's service-worker cache version is bumped by hand — 2026-08-03
 
 `app-site/app/sw.js` precaches `/app/app.js`, `/app/chat.js` and the rest under

@@ -56,6 +56,7 @@ const REQUIRED_MODULES = [
   "publication.js",
   "realtime.js",
   "render.js",
+  "team_api_keys.js",
   "team_rail.js",
   "teams.js",
   "theme.js",

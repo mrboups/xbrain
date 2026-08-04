@@ -19,16 +19,24 @@
  * worse than no form, because it reads as the product being broken rather than
  * as permission being withheld.
  *
- * teams.js is a classic script, not a module, so it is loaded in a Function()
- * against a stubbed window/document/localStorage/fetch. Its IIFE publishes the
- * section's surface on globalThis — same idiom as librechat_autofill.js.
+ * teams.js is a MODULE now — it imports the shared provider table, validation,
+ * failure sentences and requests from packages/chat-core, because the PWA's
+ * settings sheet offers the same feature and two copies of that vocabulary is
+ * two products that disagree about what a 403 means. So it is imported here
+ * rather than run in a Function(), against stubs installed BEFORE the import.
+ * Its IIFE still publishes the section's surface on globalThis.
+ *
+ * That the import resolves at all is part of the contract: the specifier
+ * reaches ../../app/chat_core/, the PWA's generated copy, and the drift gate
+ * keeps that byte-identical to packages/chat-core. A rename on either side
+ * fails here before it reaches a browser, where it would be a blank page.
  *
  * SKIP = FAIL: nothing below is conditional on a file existing.
  */
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -163,14 +171,24 @@ globalThis.fetch = async (url, opts = {}) => {
 };
 
 // ---------------------------------------------------------------------------
-// Load the page script.
+// Load the page module. Stubs above are already installed, which is the whole
+// reason this is an import and not a require: the module body runs on import.
 // ---------------------------------------------------------------------------
 
-new Function(teamsJs)();
+await import(pathToFileURL(join(PAGE_DIR, "teams.js")).href);
 const api = globalThis.xbrainTeamApiKeys;
 assert.ok(api, "teams.js did not publish xbrainTeamApiKeys — the suite cannot drive the section");
 
 const TEAM = { id: "11111111-2222-3333-4444-555555555555", slug: "acme", display_name: "Acme" };
+
+/**
+ * The selection the fallback-provider route reports.
+ *
+ * Anthropic selected, Anthropic the only thing this build streams — which is
+ * what the server says today. `null` instead means "this build has no selector",
+ * which several tests below drive on purpose.
+ */
+const SELECTION = { provider: "anthropic", supported: ["anthropic"] };
 
 // ---------------------------------------------------------------------------
 // runner
@@ -195,13 +213,18 @@ function testAsync(name, body) {
 }
 
 /** A rendered section plus a typed-in key, ready to submit. */
-function mount({ providers = [], isAdmin = true, typed = SECRET } = {}) {
-  // Every mount starts signed in. The 401 case below is real — xbtFetch drops
+function mount({
+  providers = [],
+  isAdmin = true,
+  typed = SECRET,
+  selection = SELECTION,
+} = {}) {
+  // Every mount starts signed in. The 401 case below is real — the save drops
   // the token when the server rejects it — and without this the tests that run
   // after it would all fail for a reason that has nothing to do with what they
   // assert.
   STORE.set("xbt_token", "test-token");
-  const ui = api.buildApiKeysSection({ team: TEAM, providers, isAdmin });
+  const ui = api.buildApiKeysSection({ team: TEAM, providers, selection, isAdmin });
   if (ui.input) ui.input.value = typed;
   return ui;
 }
@@ -213,6 +236,7 @@ test("the read is presence-only: the section renders no value, ever", () => {
   const ui = api.buildApiKeysSection({
     team: TEAM,
     providers: ["anthropic"],
+    selection: SELECTION,
     isAdmin: true,
   });
   const shown = ui.el.renderedText();
@@ -229,12 +253,29 @@ test("the read is presence-only: the section renders no value, ever", () => {
 
 test("the read is narrowed to provider names, so a leakier route can't widen it", () => {
   // GET returns [{provider}] today. If a field ever joins it — a prefix, a
-  // ciphertext, a "last four" — the page must ignore it by construction rather
-  // than by nobody having written the line that renders it yet.
-  const reads = teamsJs.match(/api-keys`\)[\s\S]{0,220}?catch/);
-  assert.ok(reads, "the api-keys read moved — re-check what it takes off the response");
-  const props = reads[0].match(/\br\.\w+/g) || [];
-  assert.deepEqual([...new Set(props)], ["r.provider"], `also read: ${props.join(", ")}`);
+  // ciphertext, a "last four" — the page must ignore it by CONSTRUCTION rather
+  // than by nobody having written the line that renders it yet. So the page
+  // takes the body through the shared reader, and the reader is what is driven
+  // here: hand it a leakier row and nothing but the name survives.
+  const narrowed = api.readApiKeyProviders([
+    { provider: "anthropic", key_prefix: "sk-ant-api03", last_four: "4f2a", key_enc: SECRET },
+  ]);
+  assert.deepEqual(narrowed, ["anthropic"], "the reader let a second field through");
+  assert.ok(
+    !JSON.stringify(narrowed).includes("4f2a"),
+    "a 'last four' reached a surface — presence is all a client may know",
+  );
+  // ...and the page must actually use it, rather than destructuring the row
+  // itself somewhere the reader cannot narrow.
+  assert.match(
+    teamsJs,
+    /listTeamApiKeysRaw\(team\.id\)[\s\S]{0,320}?readApiKeyProviders\(rows\)/,
+    "the api-keys read no longer goes through readApiKeyProviders",
+  );
+  assert.ok(
+    !/\brows\.map\(|\br\.provider\b/.test(teamsJs),
+    "the page reads the row shape itself again — that is the line that grows a field",
+  );
 });
 
 test("provider names become text, never markup", () => {
@@ -254,13 +295,19 @@ test("an unlisted provider still gets a row", () => {
   const ui = api.buildApiKeysSection({
     team: TEAM,
     providers: ["mistral"],
+    selection: SELECTION,
     isAdmin: true,
   });
   assert.ok(ui.el.renderedText().includes("mistral"), "unlisted provider has no row");
 });
 
 test("a failed read says unknown rather than claiming not-set", () => {
-  const ui = api.buildApiKeysSection({ team: TEAM, providers: null, isAdmin: true });
+  const ui = api.buildApiKeysSection({
+    team: TEAM,
+    providers: null,
+    selection: SELECTION,
+    isAdmin: true,
+  });
   const shown = ui.el.renderedText();
   assert.ok(shown.includes("Unknown"), "a failed read must not be reported as absence");
   assert.ok(!shown.includes("Not set"), "absence we haven't confirmed is a lie");
@@ -417,7 +464,7 @@ test("no two failures share a message", () => {
     api.describeApiKeyFailure(Object.assign(new Error("x"), { status: 500 })),
     api.describeApiKeyFailure(Object.assign(new Error("x"), { status: 502 })),
     api.describeApiKeyFailure(new TypeError("Failed to fetch")),
-    api.describeApiKeyFailure(new Error("session expired — please sign in again")),
+    api.describeApiKeyFailure({ status: 401 }),
   ];
   assert.equal(new Set(messages).size, messages.length, `collided: ${messages.join(" | ")}`);
   for (const m of messages) {
@@ -511,7 +558,12 @@ testAsync("a malformed paste never reaches the network", async () => {
 // ---- 6. Permission: the control matches what the server would allow --------
 
 test("a member gets the status but no form", () => {
-  const ui = api.buildApiKeysSection({ team: TEAM, providers: ["anthropic"], isAdmin: false });
+  const ui = api.buildApiKeysSection({
+    team: TEAM,
+    providers: ["anthropic"],
+    selection: SELECTION,
+    isAdmin: false,
+  });
   assert.equal(ui.input, null, "a non-admin was given a field the server would 403");
   assert.equal(ui.button, null, "a non-admin was given a save button");
   assert.equal(ui.select, null, "a non-admin was given a provider picker");
@@ -521,7 +573,12 @@ test("a member gets the status but no form", () => {
 });
 
 test("a member's section has no input element anywhere in it", () => {
-  const ui = api.buildApiKeysSection({ team: TEAM, providers: [], isAdmin: false });
+  const ui = api.buildApiKeysSection({
+    team: TEAM,
+    providers: [],
+    selection: SELECTION,
+    isAdmin: false,
+  });
   const inputish = ui.el.find((n) => n.tagName === "INPUT" || n.tagName === "SELECT");
   assert.equal(inputish, null, `a non-admin section contains a ${inputish && inputish.tagName}`);
 });
@@ -537,8 +594,16 @@ test("the page reads admin from the membership row the server checks", () => {
   );
   assert.match(
     teamsJs,
-    /buildApiKeysSection\(\{\s*team,\s*providers: await keysPromise,\s*isAdmin\s*\}\)/,
+    /buildApiKeysSection\(\{[\s\S]{0,240}?providers: await keysPromise,[\s\S]{0,160}?\bisAdmin,\s*\}\)/,
     "the section is no longer passed the membership-derived admin flag",
+  );
+  // ...and the selection it renders comes from the server too, never from a
+  // client-side default. A team on OpenAI must not be shown "Anthropic"
+  // because a read failed.
+  assert.match(
+    teamsJs,
+    /selection: await selectionPromise,/,
+    "the section no longer receives the server's fallback selection",
   );
 });
 
@@ -554,10 +619,16 @@ test("both controls carry a real label bound to their id", () => {
 });
 
 test("ids are per-team, so two open cards can't collide", () => {
-  const a = api.buildApiKeysSection({ team: TEAM, providers: [], isAdmin: true });
+  const a = api.buildApiKeysSection({
+    team: TEAM,
+    providers: [],
+    selection: SELECTION,
+    isAdmin: true,
+  });
   const b = api.buildApiKeysSection({
     team: { ...TEAM, id: "99999999-8888-7777-6666-555555555555" },
     providers: [],
+    selection: SELECTION,
     isAdmin: true,
   });
   assert.notEqual(a.input.id, b.input.id, "two team cards would share one input id");
@@ -612,8 +683,193 @@ test("the cost is stated once, plainly, before anyone pastes anything", () => {
   assert.ok(note, "the section has no cost line");
   assert.match(note.textContent, /billed to your team/i, "who pays isn't stated");
   assert.match(note.textContent, /subscription/i, "that it's a fallback isn't stated");
+  // WHO CAN SPEND IT. resolve_fallback_key takes team_id and no user, so a
+  // stored key is drawn on by every member's messages, including somebody who
+  // joins tomorrow and never sees this screen. A sentence that says only
+  // "billed to your team" reads as an accounting note rather than as a shared
+  // budget, and the person pasting the key is the one who needs the difference.
+  // "member ... spend", in that order, in one clause: an alternation over three
+  // hopeful phrasings would pass on a sentence that names members and never
+  // says what they can do with the money.
+  assert.match(
+    note.textContent,
+    /member[^.]*spend/i,
+    "the cost line does not say that any member's message can spend it",
+  );
   const sentences = note.textContent.split(/\.\s|\.$/).filter((s) => s.trim());
   assert.equal(sentences.length, 1, `one sentence, not ${sentences.length}: ${note.textContent}`);
+});
+
+// ---- 9. Storing a key is not selecting a provider --------------------------
+//
+// A team may hold three keys and spend exactly one. Every assertion here exists
+// because an interface that blurs the two produces somebody who buys a key,
+// pastes it, reads "saved", and waits for an answer it was never going to give.
+
+test("the provider the agent uses is shown separately from what is stored", () => {
+  const ui = mount({ providers: ["anthropic"] });
+  assert.ok(ui.useSelect, "an admin has no control over which provider is spent");
+  assert.equal(ui.useSelect.value, "anthropic", "the server's selection was not applied");
+  const shown = ui.el.renderedText();
+  assert.match(shown, /used by the agent/i, "the selection is unlabelled");
+  assert.match(
+    shown,
+    /storing a key does not switch/i,
+    "nothing says that pasting a key is not what activates it",
+  );
+});
+
+test("the selection is described as the fallback, not as what always answers", () => {
+  const shown = mount().el.renderedText();
+  assert.match(shown, /only chooses the fallback/i, "the selection reads as a global model switch");
+  assert.match(shown, /subscription/i, "the free path is not named beside the choice");
+});
+
+test("a selection with no key stored says so at selection time", () => {
+  // The server answers unavailability NAMING that provider rather than quietly
+  // using another, so the dead end is silent unless it is said here.
+  const ui = mount({
+    providers: [],
+    selection: { provider: "anthropic", supported: ["anthropic"] },
+  });
+  assert.ok(ui.useWarning, "there is nowhere to say it");
+  assert.equal(ui.useWarning.hidden, false, "a selected provider with no key was not flagged");
+  assert.match(ui.useWarning.textContent, /no key is stored/i);
+  assert.match(ui.useWarning.textContent, /unavailable/i, "what the agent will do is not stated");
+});
+
+test("...and a selection that IS backed by a key says nothing", () => {
+  const ui = mount({ providers: ["anthropic"] });
+  assert.equal(ui.useWarning.hidden, true, `warned anyway: ${ui.useWarning.textContent}`);
+});
+
+testAsync("changing the selection writes it, and nothing else", async () => {
+  respond({ status: 204 });
+  const ui = mount({ providers: ["anthropic", "openai"] });
+  const before = CALLS.length;
+  ui.useSelect.value = "openai";
+  await ui.useSelect.fire("change");
+  assert.equal(CALLS.length, before + 1, "the selection did not reach the server exactly once");
+  const call = CALLS.at(-1);
+  assert.equal(call.opts.method, "PUT");
+  assert.equal(
+    call.url,
+    `https://api.grooveos.app/v1/teams/${TEAM.id}/fallback-provider`,
+    "the selection went to the key route",
+  );
+  assert.deepEqual(JSON.parse(call.opts.body), { provider: "openai" });
+  assert.ok(!call.opts.body.includes("api_key"), "a selection must not carry a key");
+});
+
+testAsync("a build with no selector says so instead of offering a dead control", async () => {
+  // GET /fallback-provider 404s until the server half ships. A settings screen
+  // must degrade to the truth, not to a select that fails on change.
+  const ui = mount({ providers: ["anthropic"], selection: null });
+  assert.equal(ui.useSelect, null, "a control was offered for a route that does not exist");
+  const shown = ui.el.renderedText();
+  assert.match(shown, /not available in this build/i);
+  assert.match(shown, /Anthropic/, "what the agent actually falls back to is not named");
+});
+
+test("a member sees which provider is spent but cannot change it", () => {
+  const ui = api.buildApiKeysSection({
+    team: TEAM,
+    providers: ["anthropic"],
+    selection: { provider: "openai", supported: ["anthropic", "openai"] },
+    isAdmin: false,
+  });
+  assert.equal(ui.useSelect, null, "a non-admin was given a control the server would 403");
+  assert.match(ui.el.renderedText(), /OpenAI/, "a member cannot see what the team is spending");
+  const inputish = ui.el.find((n) => n.tagName === "SELECT" || n.tagName === "INPUT");
+  assert.equal(inputish, null, `a non-admin section contains a ${inputish && inputish.tagName}`);
+});
+
+test("the member note does not read as being locked out of the agent", () => {
+  const shown = api.buildApiKeysSection({
+    team: TEAM,
+    providers: ["anthropic"],
+    selection: SELECTION,
+    isAdmin: false,
+  }).el.renderedText();
+  // The fallback resolves per team, so a member already spends the stored key
+  // without configuring anything. What they cannot do is change it.
+  assert.match(shown, /only a team admin/i, "who can act is not named");
+  assert.match(
+    shown,
+    /already[^.]{0,40}the team's key/i,
+    "a member is left believing the agent is an admin feature",
+  );
+});
+
+// ---- 10. A key that this deployment will never spend ----------------------
+
+test("a provider the agent cannot call is marked as such, on the row", () => {
+  const ui = mount({ providers: [] });
+  const marks = [...ui.el.walk()].filter((n) => n.className === "apikey-unused");
+  assert.ok(marks.length >= 2, "OpenAI and xAI are offered with nothing saying they are inert");
+  for (const m of marks) assert.match(m.textContent, /not called by the agent/i);
+  // ...and Anthropic, which IS called, must NOT carry the mark.
+  const rows = [...ui.el.walk()].filter((n) => n.className === "apikey-row");
+  const anthropicRow = rows.find((r) =>
+    [...r.walk()].some((n) => n.textContent === "Anthropic (Claude)"),
+  );
+  assert.ok(anthropicRow, "no Anthropic row");
+  assert.ok(
+    ![...anthropicRow.walk()].some((n) => n.className === "apikey-unused"),
+    "the one provider the agent does call is marked as inert",
+  );
+});
+
+test("picking one of them warns BEFORE the paste, not after the save", () => {
+  const ui = mount();
+  const warning = ui.el.find((n) => n.className === "apikey-warning" && n !== ui.useWarning);
+  assert.ok(warning, "the key form has no warning slot");
+  assert.equal(warning.hidden, true, "Anthropic is callable and must not be warned about");
+  ui.select.value = "openai";
+  ui.select.listeners.change.forEach((fn) => fn({}));
+  assert.equal(warning.hidden, false, "choosing an uncallable provider said nothing");
+  assert.match(warning.textContent, /cannot call/i);
+  assert.match(warning.textContent, /never spent|not get your team an answer/i);
+});
+
+testAsync("saving a key the agent cannot call does not say it will work", async () => {
+  respond({ status: 204 });
+  const ui = mount({ typed: "sk-" + "b".repeat(48) });
+  ui.select.value = "openai";
+  await ui.button.fire("click");
+  assert.match(ui.status.textContent, /saved/i, "the save still happened and must be reported");
+  assert.match(
+    ui.status.textContent,
+    /cannot call/i,
+    "a green line for a key that will never answer is how somebody pays for silence",
+  );
+});
+
+testAsync("saving a key for a provider that is NOT selected says it is not spent", async () => {
+  respond({ status: 204 });
+  const ui = mount({
+    providers: ["openai"],
+    selection: { provider: "openai", supported: ["anthropic", "openai"] },
+  });
+  ui.select.value = "anthropic";
+  await ui.button.fire("click");
+  assert.match(ui.status.textContent, /saved/i);
+  assert.match(
+    ui.status.textContent,
+    /not spent until|is set to use/i,
+    "a stored-but-unselected key was reported as if it were now the fallback",
+  );
+});
+
+test("the server's own supported list beats the table when it disagrees", () => {
+  // The day the agent streams all three, the server says so and no client-side
+  // table gets to keep claiming otherwise.
+  const ui = mount({
+    providers: [],
+    selection: { provider: "openai", supported: ["anthropic", "openai", "xai"] },
+  });
+  const marks = [...ui.el.walk()].filter((n) => n.className === "apikey-unused");
+  assert.deepEqual(marks, [], "a build that streams all three still marks two as inert");
 });
 
 test("the section is English, like the rest of the product", () => {

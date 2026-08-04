@@ -352,7 +352,41 @@
       padding: 5px 0;
       font-size: 12.5px;
     }
+    /* WHICH stored key is spent — its own row, above the list of what is
+       stored, because storing and selecting are different actions. */
+    .apikey-userow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .apikey-usevalue { font-size: 12.5px; color: var(--text); }
+    .apikey-userow select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border-2);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-family: inherit;
+      font-size: 12.5px;
+      outline: none;
+    }
+    .apikey-userow select:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+      border-color: var(--accent);
+    }
     .apikey-provider { color: var(--text); }
+    /* The row's honest footnote: this deployment stores a key for this
+       provider and never calls it. Quiet, because it belongs to the row and
+       not to the page; the loud version is .apikey-warning, which fires only
+       when somebody actually picks one of these. */
+    .apikey-unused {
+      flex: 1 1 auto;
+      font-size: 11px;
+      color: var(--dim);
+      font-style: italic;
+    }
     .apikey-state {
       font-size: 11px;
       color: var(--dim);
@@ -404,6 +438,19 @@
       margin-top: 8px;
       line-height: 1.5;
     }
+    /* Shown only while a provider the agent never calls is selected. Amber and
+       bordered rather than a grey line, because the cost of missing it is a
+       paid API key bought for nothing. */
+    .apikey-warning {
+      margin-top: 8px;
+      padding: 7px 10px;
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: var(--amber);
+      border: 1px solid var(--amber);
+      border-radius: 6px;
+    }
+    .apikey-warning[hidden] { display: none; }
 
     .action-status {
       font-size: 12px;
@@ -555,6 +602,15 @@
 
   <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="teams.js"></script>
+  <!--
+    type="module", because this page consumes packages/chat-core for the team
+    API key: the same provider table, validation, failure sentences and requests
+    the PWA's settings sheet uses. A classic script cannot import, and two copies
+    of that vocabulary is what the shared package exists to prevent.
+
+    Deferred, like every module script. Harmless here: everything in teams.js
+    starts from the `load` event, which fires after module evaluation.
+  -->
+  <script type="module" src="teams.js"></script>
 </body>
 </html>

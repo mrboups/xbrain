@@ -665,6 +665,139 @@ body {
   text-align: right;
 }
 
+/* ---- The team's model API key ----------------------------------------- */
+
+/* Every token below is a var(). A hard-coded colour here is what stops the
+   light theme from reaching a block that only ever gets opened in the dark, at
+   3am, by somebody whose agent just went quiet.
+
+   NO SCROLLER OF ITS OWN, and no fixed positioning: the section is a plain
+   column inside .xb-settings-body, which is the sheet's single scroller and is
+   sized off the MEASURED viewport. That is what keeps the sheet's header on
+   screen when the keyboard opens under the key field - the exact failure the
+   chat header used to have. A nested overflow here would reintroduce it one
+   surface further in. */
+
+.xb-teamkey {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.xb-teamkey-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--fg);
+}
+
+/* Which provider is spent. Its own row, above the stored list. */
+.xb-teamkey-userow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.xb-teamkey-uselabel {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-fg);
+  flex-shrink: 0;
+}
+.xb-teamkey-usevalue { font-size: 12.5px; color: var(--fg); }
+
+.xb-teamkey-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 9px;
+  font-family: var(--sans);
+  /* 16px, so iOS Safari does not zoom the whole sheet when it takes focus -
+     which on a phone reads as the layout breaking. */
+  font-size: 16px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+}
+.xb-teamkey-select:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.xb-teamkey-select:disabled { opacity: 0.6; }
+
+.xb-teamkey-rows { display: flex; flex-direction: column; }
+.xb-teamkey-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12.5px;
+}
+.xb-teamkey-provider { color: var(--fg); flex-shrink: 0; }
+/* The row's honest footnote: stored here, never called by this build. */
+.xb-teamkey-unused {
+  flex: 1 1 auto;
+  font-size: 11px;
+  color: var(--muted-fg);
+  font-style: italic;
+}
+.xb-teamkey-state {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-fg);
+}
+.xb-teamkey-state.is-set { color: var(--fg); }
+
+.xb-teamkey-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.xb-teamkey-input {
+  width: 100%;
+  padding: 8px 9px;
+  font-family: var(--mono);
+  /* 16px for the same reason as the select: a zoom on focus while pasting a
+     key pushes the sheet's own header out of view. */
+  font-size: 16px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  letter-spacing: 0.06em;
+}
+.xb-teamkey-input::placeholder { color: var(--muted-fg); letter-spacing: normal; }
+.xb-teamkey-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+
+/* Shown only while a provider the agent cannot call - or one with no key
+   stored - is selected. Bordered rather than a grey line, because the cost of
+   missing it is a paid API key bought for nothing. */
+.xb-teamkey-warning {
+  margin: 0;
+  padding: 7px 9px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--fg);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.xb-teamkey-status {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--muted-fg);
+}
+.xb-teamkey-status.success { color: var(--fg); }
+.xb-teamkey-status.error { color: var(--destructive); }
+
 /* A settings row that OPENS something rather than changing a value. Outlined
    like the fields it sits among, never filled: it is a door, not the action
    this sheet is for. */
@@ -1195,7 +1328,8 @@ body {
 .xb-subscription-notice-text {
   flex: 1 1 auto;
 }
-.xb-subscription-notice-dismiss {
+.xb-subscription-notice-dismiss,
+.xb-subscription-notice-action {
   flex: 0 0 auto;
   padding: 3px 9px;
   font-family: var(--mono);
@@ -1206,10 +1340,19 @@ body {
   border-radius: 0;
   cursor: pointer;
 }
-.xb-subscription-notice-dismiss:hover {
+.xb-subscription-notice-dismiss:hover,
+.xb-subscription-notice-action:hover {
   color: var(--fg);
   border-color: var(--fg);
 }
+.xb-subscription-notice-dismiss:focus-visible,
+.xb-subscription-notice-action:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+/* The way OUT of the notice reads as the quiet one; the way to the remedy is
+   the one somebody is looking for when they read it. */
+.xb-subscription-notice-action { color: var(--fg); border-color: var(--fg); }
 
 /* The pill, copied from chrome-extension/popup.css: one bordered surface that
    houses the "+", the textarea and the "›", flush, with no inner borders. The

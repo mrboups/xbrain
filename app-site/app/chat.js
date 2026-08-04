@@ -39,6 +39,7 @@ import {
   agentRouteStatusText,
   createSubscriptionWatcher,
   SUBSCRIPTION_LOST_NOTICE,
+  SUBSCRIPTION_NOTICE_ACTION,
 } from "./chat_core/chat_stream.js";
 import { handleOpenUrl, isSafeHttpUrl } from "./chat_core/nudge_open.js";
 import { keepFocusOnPress } from "./chat_core/dom.js";
@@ -230,6 +231,26 @@ function renderSubscriptionNotice(showing) {
   text.className = "xb-subscription-notice-text";
   text.textContent = SUBSCRIPTION_LOST_NOTICE;
   node.appendChild(text);
+
+  // THE ROUTE THE NOTICE USED TO LACK. It named a remedy - a team API key -
+  // that could only be set on the desktop admin page, which a standalone app
+  // with no address bar cannot reach. The advice was a dead end in exactly the
+  // situation it appears in.
+  //
+  // A DESTINATION, NOT AN ACT: the write is admin-only, and a control that read
+  // as "set the key" would promise a capability half the readers do not have.
+  // What it opens tells an admin how and tells a member who to ask.
+  if (typeof lastBootRefs.onOpenTeamKeys === "function") {
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "xb-subscription-notice-action";
+    open.textContent = SUBSCRIPTION_NOTICE_ACTION;
+    // On a click and nothing else. A bridge drops whenever a laptop sleeps; a
+    // sheet that opened by itself over a half-typed message, again and again,
+    // is how a warning becomes something people dismiss without reading.
+    open.addEventListener("click", () => lastBootRefs.onOpenTeamKeys());
+    node.appendChild(open);
+  }
 
   const dismiss = document.createElement("button");
   dismiss.type = "button";
@@ -445,6 +466,32 @@ export function activeTeamSlug() {
     (t) => String(t.id) === String(state.activeTeamId),
   );
   return (team && team.slug) || null;
+}
+
+/**
+ * The id of the team being read right now, or null when there is none.
+ *
+ * The ID and not the slug, unlike above: /v1/teams/{id}/api-keys, /members and
+ * /fallback-provider all carry the team in the PATH, and a slug there is a 404.
+ *
+ * A function for the same reason activeTeamSlug is one: the active team changes
+ * under every caller, and a value read once at boot is the wrong team by the
+ * first switch.
+ */
+export function activeTeamId() {
+  return state.activeTeamId || null;
+}
+
+/**
+ * Who is signed in, as the server's user id.
+ *
+ * Exported for ONE caller: the team-key section, which decides whether to draw
+ * a form by finding this person's row in /v1/teams/{id}/members and reading its
+ * role — the same membership row the server checks on the write, so the control
+ * is absent exactly when pressing it would 403.
+ */
+export function selfUserId() {
+  return (state.me && state.me.id) || null;
 }
 
 /**
@@ -993,10 +1040,14 @@ async function handleUserPublication(data) {
 /**
  * Bring the chat up for a signed-in person.
  *
- * @param {{onSignedOut?: () => void}} [refs]
+ * @param {{onSignedOut?: () => void, onOpenTeamKeys?: () => void}} [refs]
  *   onSignedOut — shown when the stored token turns out to be dead. The sign-in
  *   card belongs to app.js, so this surface reports the fact instead of owning
  *   the markup for it.
+ *   onOpenTeamKeys — where the bridge notice's control leads. The settings
+ *   sheet belongs to app.js too; this file knows only that the notice needs
+ *   somewhere to send people, which is the whole reason the notice was a dead
+ *   end before.
  */
 export async function bootChat(refs = {}) {
   const { onSignedOut } = refs;
