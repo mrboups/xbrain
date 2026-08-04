@@ -105,7 +105,6 @@ const IDS = [
   "profile-status",
   "profile-avatar-input",
   "btn-profile-avatar",
-  "btn-profile-photo",
 ];
 
 function installDocument() {
@@ -160,7 +159,7 @@ testAsync("a profile fills the name, the bio and the picture", async () => {
   assert.equal(result.editable, true);
   assert.equal(nodes["settings-profile"].hidden, false);
   assert.equal(nodes["profile-name"].value, "Ada");
-  assert.equal(nodes["profile-bio"].textContent, "Builds the engine.");
+  assert.equal(nodes["profile-bio"].value, "Builds the engine.");
   assert.equal(nodes["profile-bio"].hidden, false);
   const img = nodes["profile-avatar"].children[0];
   assert.ok(img, "an avatar_url must produce an image");
@@ -189,11 +188,17 @@ testAsync("no picture falls back to the square initial, not to an empty box", as
   assert.equal(nodes["profile-avatar"].textContent, "G");
 });
 
-testAsync("an empty bio hides its row instead of leaving a blank line", async () => {
+testAsync("an EMPTY bio still shows its field — that is how anyone finds it", async () => {
+  // The regression this replaces: the row hid itself when there was nothing in
+  // it. Defensible for a value you can only read, wrong for one you can write —
+  // somebody who has never set a bio saw no field at all and had no way to
+  // learn there was one.
   const nodes = installDocument();
   const api = makeApi({ status: 200, body: { preferred_name: "Ada", label: "Ada" } });
   await profile.mountProfile(api, null);
-  assert.equal(nodes["profile-bio"].hidden, true);
+  assert.equal(nodes["profile-bio"].hidden, false);
+  assert.equal(nodes["profile-bio"].value, "");
+  assert.equal(nodes["profile-bio"].disabled, false, "and it accepts typing");
 });
 
 testAsync("the resolved label becomes the placeholder when no name is set", async () => {
@@ -240,7 +245,11 @@ testAsync("a 404 degrades to read-only and takes nothing else down", async () =>
     "nico@example.test",
     "it falls back to the identity the shell already has, rather than sitting empty",
   );
-  assert.equal(nodes["profile-bio"].hidden, true);
+  assert.equal(
+    nodes["profile-bio"].disabled,
+    true,
+    "read-only means the bio too — a field that takes typing it cannot save is worse than one that refuses it",
+  );
 });
 
 testAsync("a read-only field is wired to nothing — typing cannot fire a save", async () => {
@@ -291,10 +300,61 @@ testAsync("blurring the field PATCHes preferred_name, and only that", async () =
   assert.deepEqual(
     Object.keys(patches[0].body),
     ["preferred_name"],
-    "the name is the only writable field; sending a bio the server may not accept yet answers typing with a 422",
+    "one key per request: the route leaves an omitted field alone, so a body that also carried the bio could blank it with a stale copy",
   );
   assert.equal(patches[0].body.preferred_name, "Ada B");
   assert.equal(nodes["profile-status"].textContent, "Saved");
+});
+
+testAsync("blurring the BIO PATCHes bio, and only bio", async () => {
+  const nodes = installDocument();
+  const api = makeApi({ status: 200, body: FULL }, { status: 200, body: FULL });
+  await profile.mountProfile(api, null);
+  nodes["profile-bio"].value = "Writes the compiler.";
+  await nodes["profile-bio"].blur();
+
+  const patches = api.sent.filter((c) => c.method === "PATCH");
+  assert.equal(patches.length, 1, "a bio-only edit is a bio-only request");
+  assert.deepEqual(Object.keys(patches[0].body), ["bio"], "the name must not ride along");
+  assert.equal(patches[0].body.bio, "Writes the compiler.");
+  assert.equal(nodes["profile-status"].textContent, "Saved");
+});
+
+testAsync("clearing a bio sends an empty string, not an absent key", async () => {
+  // "" is how the route clears a column; omitting the key means "leave it
+  // alone". Getting this wrong is a bio nobody can remove — only replace.
+  const nodes = installDocument();
+  const api = makeApi({ status: 200, body: FULL }, { status: 200, body: {} });
+  await profile.mountProfile(api, null);
+  nodes["profile-bio"].value = "";
+  await nodes["profile-bio"].blur();
+
+  const patches = api.sent.filter((c) => c.method === "PATCH");
+  assert.equal(patches.length, 1);
+  assert.ok("bio" in patches[0].body, "the key must be present, or nothing is cleared");
+  assert.equal(patches[0].body.bio, "");
+});
+
+testAsync("an unchanged bio sends nothing at all", async () => {
+  const nodes = installDocument();
+  const api = makeApi({ status: 200, body: FULL });
+  await profile.mountProfile(api, null);
+  await nodes["profile-bio"].blur();
+  assert.deepEqual(api.sent.filter((c) => c.method === "PATCH"), []);
+});
+
+testAsync("a refused bio says which field, in words about that field", async () => {
+  const nodes = installDocument();
+  const api = makeApi({ status: 200, body: FULL }, { status: 422 });
+  await profile.mountProfile(api, null);
+  nodes["profile-bio"].value = "x".repeat(401);
+  await nodes["profile-bio"].blur();
+  assert.equal(nodes["profile-status"].className, "error");
+  assert.match(
+    nodes["profile-status"].textContent,
+    /bio/i,
+    "a message about 'your name' after editing a bio sends somebody to the wrong field",
+  );
 });
 
 testAsync("an unchanged name sends nothing", async () => {
@@ -598,7 +658,6 @@ testAsync("a network failure mid-flight is reported, not swallowed", async () =>
   // And the controls come back: a failure that leaves them disabled is a
   // one-shot feature.
   assert.equal(nodes["btn-profile-avatar"].disabled, false);
-  assert.equal(nodes["btn-profile-photo"].disabled, false);
 });
 
 testAsync("the change landed but the re-read did not: it must not read as failure", async () => {
@@ -615,18 +674,12 @@ testAsync("the change landed but the re-read did not: it must not read as failur
   assert.match(nodes["profile-status"].textContent, /saved/i);
 });
 
-testAsync("both controls open the SAME picker", async () => {
+testAsync("the picture opens the picker — it IS the control now", async () => {
   const api = makeMediaApi();
   const { nodes, result } = await mountWithTeam(api);
   assert.equal(result.photoEditable, true);
   await nodes["btn-profile-avatar"].fire("click");
   assert.equal(nodes["profile-avatar-input"].clicks, 1, "tapping the picture must open the picker");
-  await nodes["btn-profile-photo"].fire("click");
-  assert.equal(
-    nodes["profile-avatar-input"].clicks,
-    2,
-    "and so must the labelled control — one code path, two doors",
-  );
 });
 
 testAsync("mounting twice does not upload the picture twice", async () => {
@@ -647,7 +700,6 @@ testAsync("no endpoint means no picture controls either", async () => {
   const { nodes, result } = await mountWithTeam(api);
   assert.equal(result.photoEditable, false);
   assert.equal(nodes["btn-profile-avatar"].disabled, true, "a control that can only fail is worse than an absent one");
-  assert.equal(nodes["btn-profile-photo"].hidden, true);
   await choose(nodes, makeFile());
   assert.deepEqual(api.uploads, [], "and it is wired to nothing, not merely greyed out");
 });
@@ -678,15 +730,22 @@ test("the profile block is the FIRST thing in the settings panel", () => {
   }
 });
 
-test("the name is an input and the bio is not — one field is editable", () => {
+test("both the name and the bio are editable fields, and both are capped", () => {
   const nameEl = /<input[^>]*id="profile-name"[^>]*>/.exec(html);
   assert.ok(nameEl, "the name must be an editable input");
   assert.ok(/maxlength="\d+"/i.test(nameEl[0]), "a length cap belongs on the field, not only on the server");
   assert.ok(/aria-label="/.test(nameEl[0]), "the field has no visible label, so it needs an accessible one");
-  assert.ok(
-    !/<input[^>]*id="profile-bio"/.test(html),
-    "the bio is display-only for now — a PATCH the server half may not accept yet answers typing with a 422",
+
+  const bioEl = /<textarea[^>]*id="profile-bio"[^>]*>/.exec(html);
+  assert.ok(bioEl, "the bio must be a textarea — the server keeps newlines, so it is prose");
+  assert.equal(
+    /maxlength="(\d+)"/.exec(bioEl[0])[1],
+    "400",
+    "the cap must match the server's MAX_BIO_LENGTH, or a paragraph is refused after it is written rather than stopped while it is typed",
   );
+  assert.ok(/placeholder="/.test(bioEl[0]), "an empty field with no placeholder is a field nobody knows is one");
+  assert.ok(/aria-label="/.test(bioEl[0]), "it has no visible label either");
+  assert.ok(!/\bhidden\b/.test(bioEl[0]), "and it is never hidden — that WAS the bug");
 });
 
 test("the picture is a real control, reachable without a mouse", () => {
@@ -695,11 +754,26 @@ test("the picture is a real control, reachable without a mouse", () => {
   assert.match(btn[0], /aria-label="[^"]+"/, "it carries no text, so it needs an accessible name");
   assert.ok(btn[0].includes('id="profile-avatar"'), "the square itself belongs inside it");
 
-  const words = /<button[^>]*id="btn-profile-photo"[\s\S]*?<\/button>/.exec(html);
-  assert.ok(words, "a labelled control must exist beside the picture");
+  // The words that used to sit under the picture are gone, so everything they
+  // carried has to be on the picture itself: an accessible name (above), a
+  // visible focus ring, and a mark that says the thing is pressable at all.
   assert.ok(
-    words[0].replace(/<[^>]*>/g, "").trim().length > 0,
-    "the second control is the one that says what tapping the photo would do — it needs words",
+    !/id="btn-profile-photo"/.test(html),
+    "the separate photo button was removed — a second door to one picker",
+  );
+  assert.ok(
+    btn[0].includes("xb-profile-avatar-edit"),
+    "with no words beside it, the picture needs its own affordance — otherwise it is an image that is secretly clickable",
+  );
+  assert.match(
+    css,
+    /\.xb-profile-avatar-btn:focus-visible\s*\{[^}]*outline:/,
+    "reachable by Tab means visible when reached",
+  );
+  assert.match(
+    css,
+    /\.xb-profile-avatar-edit svg\s*\{[^}]*width:\s*\d+px/,
+    "an unsized inline SVG renders at ~300x150 and takes the sheet apart — it has happened here before",
   );
 
   const input = /<input[^>]*id="profile-avatar-input"[^>]*>/.exec(html);
@@ -718,7 +792,7 @@ test("the picture controls sit inside the account block, not somewhere else", ()
     html.replace(/<!--[\s\S]*?-->/g, ""),
   );
   assert.ok(block, "index.html must declare #settings-profile");
-  for (const id of ["btn-profile-avatar", "profile-avatar-input", "btn-profile-photo"]) {
+  for (const id of ["btn-profile-avatar", "profile-avatar-input"]) {
     assert.ok(block[0].includes(`id="${id}"`), `#${id} belongs in the account block`);
   }
 });

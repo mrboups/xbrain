@@ -153,6 +153,30 @@ class El {
     (this.listeners[type] = this.listeners[type] || []).push(fn);
   }
 
+  removeEventListener(type, fn) {
+    const list = this.listeners[type] || [];
+    const i = list.indexOf(fn);
+    if (i !== -1) list.splice(i, 1);
+  }
+
+  /** Node.contains — self included, which is what "a tap inside" means. */
+  contains(node) {
+    if (node === this) return true;
+    for (const c of this.children || []) {
+      if (c === node || (c.contains && c.contains(node))) return true;
+    }
+    return false;
+  }
+
+  focus() {
+    if (this.ownerDocument) this.ownerDocument.activeElement = this;
+  }
+
+  blur() {
+    const doc = this.ownerDocument;
+    if (doc && doc.activeElement === this) doc.activeElement = null;
+  }
+
   setAttribute(name, value) {
     this.attributes[name] = String(value);
   }
@@ -201,9 +225,28 @@ class El {
 const opened = [];
 
 function makeDoc() {
+  // Document-level listeners are part of the contract now: a dismissible
+  // tooltip needs a tap-outside and an Escape, and the leak this stub is here
+  // to catch is one of those surviving the thing it belongs to.
+  const docListeners = {};
   const doc = {
+    activeElement: null,
     createElement: (tag) => new El(doc, tag),
     createTextNode: (t) => new TextNode(t),
+    addEventListener: (type, fn) => {
+      (docListeners[type] = docListeners[type] || []).push(fn);
+    },
+    removeEventListener: (type, fn) => {
+      const list = docListeners[type] || [];
+      const i = list.indexOf(fn);
+      if (i !== -1) list.splice(i, 1);
+    },
+    /** How many handlers this document is currently carrying for `type`. */
+    countListeners: (type) => (docListeners[type] || []).length,
+    /** Dispatch to them, newest first is irrelevant — there is at most one. */
+    fire: (type, event) => {
+      for (const fn of [...(docListeners[type] || [])]) fn({ type, ...event });
+    },
     defaultView: {
       // Run the callback inline so a forced scroll is observable in a test.
       requestAnimationFrame: (fn) => fn(),
@@ -1411,6 +1454,123 @@ await atest("reveal: the indexed text lands as TEXT, never as markup", async () 
   assert.equal(tip.children.length, 0, "no element may be created from the payload");
 });
 
+// ---- The reveal has to be closable by somebody with no mouse --------------
+//
+// Hover is a desktop mechanism and it works. What it has no answer for is a
+// finger: a tap fires a synthetic mouseenter, iOS keeps :hover on that element
+// until something else is tapped, and the tooltip opens and stays. These drive
+// the touch path — the stub has no :hover, so what is proven is the state the
+// stylesheet keys off, and the listeners that clear it.
+
+await atest("tooltip: a tap opens it, and a second tap closes it", async () => {
+  const f = countingFetcher({ state: "indexed", text: "a diagram" });
+  const { renderer, doc } = makeHarness({ fetchIndexedText: f.fn });
+  const tag = renderer.buildBubbleNode(mediaMsg()).querySelector(".xb-msg-savetag");
+
+  tag.dispatch("click");
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(tag.classList.contains("is-open"), "a tap must reveal it — there is no hover here");
+  assert.equal(tag.querySelector(".xb-savetag-tip").textContent, "a diagram");
+
+  tag.dispatch("click");
+  assert.ok(!tag.classList.contains("is-open"), "a tap on an open control implies a toggle");
+  assert.equal(doc.countListeners("pointerdown"), 0, "and it takes its listeners with it");
+});
+
+await atest("tooltip: a tap OUTSIDE closes it; a tap inside the text does not", async () => {
+  const f = countingFetcher({ state: "indexed", text: "long extract" });
+  const { renderer, doc, listEl } = makeHarness({ fetchIndexedText: f.fn });
+  const tag = renderer.buildBubbleNode(mediaMsg()).querySelector(".xb-msg-savetag");
+  const tip = tag.querySelector(".xb-savetag-tip");
+
+  tag.dispatch("click");
+  assert.equal(doc.countListeners("pointerdown"), 1, "one handler, for as long as it is open");
+
+  doc.fire("pointerdown", { target: tip });
+  assert.ok(
+    tag.classList.contains("is-open"),
+    "scrolling a long extract must not dismiss the extract being scrolled",
+  );
+
+  doc.fire("pointerdown", { target: listEl });
+  assert.ok(!tag.classList.contains("is-open"), "a tap anywhere else is how a person closes a thing");
+  assert.equal(doc.countListeners("pointerdown"), 0);
+});
+
+await atest("tooltip: Escape closes it, and gives the focus back", async () => {
+  const f = countingFetcher({ state: "indexed", text: "x" });
+  const { renderer, doc } = makeHarness({ fetchIndexedText: f.fn });
+  const tag = renderer.buildBubbleNode(mediaMsg()).querySelector(".xb-msg-savetag");
+
+  tag.focus();
+  tag.dispatch("click");
+  assert.equal(doc.activeElement, tag);
+
+  doc.fire("keydown", { key: "a" });
+  assert.ok(tag.classList.contains("is-open"), "any other key is somebody typing");
+
+  doc.fire("keydown", { key: "Escape" });
+  assert.ok(!tag.classList.contains("is-open"));
+  assert.notEqual(
+    doc.activeElement,
+    tag,
+    "the keyboard path shows the tooltip from :focus-visible, which no class change can override — Escape has to actually release the focus or it dismisses the state and leaves the tooltip on screen",
+  );
+  assert.equal(doc.countListeners("keydown"), 0);
+});
+
+await atest("tooltip: opening a second one closes the first", async () => {
+  const f = countingFetcher({ state: "indexed", text: "x" });
+  const { renderer, doc } = makeHarness({ fetchIndexedText: f.fn });
+  const a = renderer.buildBubbleNode(mediaMsg("row-a")).querySelector(".xb-msg-savetag");
+  const b = renderer.buildBubbleNode(mediaMsg("row-b")).querySelector(".xb-msg-savetag");
+
+  a.dispatch("click");
+  b.dispatch("click");
+  assert.ok(!a.classList.contains("is-open"), "a scroll through a media-heavy thread would otherwise leave a trail");
+  assert.ok(b.classList.contains("is-open"));
+  assert.equal(
+    doc.countListeners("pointerdown"),
+    1,
+    "one open tooltip, one handler — not one per marker ever rendered",
+  );
+});
+
+await atest("tooltip: dismissing and reopening does not re-request the text", async () => {
+  const f = countingFetcher({ state: "indexed", text: "cached" });
+  const { renderer, doc } = makeHarness({ fetchIndexedText: f.fn });
+  const tag = renderer.buildBubbleNode(mediaMsg()).querySelector(".xb-msg-savetag");
+
+  tag.dispatch("click");
+  await new Promise((r) => setTimeout(r, 0));
+  doc.fire("keydown", { key: "Escape" });
+  tag.dispatch("click");
+  await new Promise((r) => setTimeout(r, 0));
+
+  assert.deepEqual(f.calls, ["item-9"], "the cache answers the second open");
+  assert.equal(tag.querySelector(".xb-savetag-tip").textContent, "cached");
+});
+
+await atest("tooltip: clearing the thread takes the document listeners with it", async () => {
+  // The leak that would grow with the thread. clear() runs on every team
+  // switch, and the node an open tooltip refers to is about to stop existing.
+  const f = countingFetcher({ state: "indexed", text: "x" });
+  const { renderer, doc } = makeHarness({ fetchIndexedText: f.fn });
+  renderer.renderMessage(mediaMsg(), { prepend: false });
+  const marker = renderer
+    .buildBubbleNode(mediaMsg("row-live"))
+    .querySelector(".xb-msg-savetag");
+
+  marker.dispatch("click");
+  assert.equal(doc.countListeners("pointerdown"), 1);
+  assert.equal(doc.countListeners("keydown"), 1);
+
+  renderer.clear();
+  assert.equal(doc.countListeners("pointerdown"), 0, "a handler that outlives its tooltip is a leak per team switch");
+  assert.equal(doc.countListeners("keydown"), 0);
+  assert.ok(!marker.classList.contains("is-open"));
+});
+
 test("both stylesheets style the marker and open its reveal on hover AND focus", () => {
   for (const rel of [
     join("chrome-extension", "popup.css"),
@@ -1420,8 +1580,13 @@ test("both stylesheets style the marker and open its reveal on hover AND focus",
     assert.ok(/\.xb-savetag-tip\s*\{/.test(css), `${rel} has no .xb-savetag-tip rule`);
     assert.match(
       css,
-      /\.xb-msg-savetag:hover\s+\.xb-savetag-tip\s*,\s*\.xb-msg-savetag:focus-visible\s+\.xb-savetag-tip\s*\{[^}]*display:\s*block/,
-      `${rel}: the reveal must open on keyboard focus too — a hover-only tooltip does not exist for a keyboard`,
+      /@media \(hover: hover\) and \(pointer: fine\)\s*\{\s*\.xb-msg-savetag:hover\s+\.xb-savetag-tip\s*\{[^}]*display:\s*block/,
+      `${rel}: hover must be gated to surfaces that HAVE hover — on a touch screen iOS keeps :hover on the last thing tapped, so an ungated rule opens the tooltip and nothing closes it`,
+    );
+    assert.match(
+      css,
+      /\.xb-msg-savetag:focus-visible\s+\.xb-savetag-tip\s*,\s*\.xb-msg-savetag\.is-open\s+\.xb-savetag-tip\s*\{[^}]*display:\s*block/,
+      `${rel}: the reveal must open on keyboard focus AND on the state render.js drives — a hover-only tooltip does not exist for a keyboard or for a finger`,
     );
     assert.match(
       css,

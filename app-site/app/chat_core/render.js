@@ -34,6 +34,89 @@ import {
 } from "./chat_stream.js";
 
 /**
+ * How far from the end of a thread still counts as reading the newest message.
+ *
+ * A tolerance rather than an equality: a scroller lands on fractional offsets,
+ * an image finishing its decode moves the end by a few pixels, and a person who
+ * nudged the list by a line has not stopped following the conversation.
+ */
+export const NEAR_BOTTOM_PX = 120;
+
+/**
+ * Is this scroller at its end — or WAS it, before `absorbed` pixels of it were
+ * taken away?
+ *
+ * THE ONE DEFINITION of "at the bottom" in this product. Auto-scrolling on a new
+ * message and re-anchoring after the viewport changes are the same question
+ * asked twice, and two copies of the arithmetic drift into two different answers
+ * for the same thread.
+ *
+ * `absorbed` is what makes it usable from a viewport handler. When the on-screen
+ * keyboard opens, the shell shrinks and the scroller absorbs the loss: its
+ * scrollTop and scrollHeight are untouched while its clientHeight drops, so the
+ * measured gap grows by exactly the pixels that went away and a reader who WAS
+ * at the end now measures as hundreds of pixels short of it. Subtracting the
+ * loss asks the question the caller actually means — "was this person at the
+ * bottom before the keyboard took the room" — instead of a question whose answer
+ * is always no.
+ *
+ * @param {{scrollHeight: number, scrollTop: number, clientHeight: number}|null} el
+ * @param {number} [absorbed] pixels of viewport the scroller has just lost
+ * @returns {boolean}
+ */
+export function isNearBottom(el, absorbed = 0) {
+  if (!el) return false;
+  const lost = Number.isFinite(absorbed) ? absorbed : 0;
+  return el.scrollHeight - el.scrollTop - el.clientHeight - lost < NEAR_BOTTOM_PX;
+}
+
+/**
+ * A handler that keeps the newest message in view when the viewport changes
+ * size — and only for a reader who was already there.
+ *
+ * THE BUG IT EXISTS FOR. Tap the composer on a phone and the shell loses about
+ * 300px to the on-screen keyboard. The scroller keeps the scrollTop it had, so
+ * the message somebody was replying to ends up behind the composer: they tapped
+ * the field to answer it and it disappeared. Nothing reacted to a viewport
+ * change at all — auto-scroll ran on send, on receive and on load, and a
+ * keyboard is none of those.
+ *
+ * WHAT IT MUST NOT DO is drag somebody back to the present because they tapped
+ * the field while reading history. That would be a worse bug than the one being
+ * fixed and a harder one to describe, so the decision is `isNearBottom` — the
+ * same question, from the same place, that auto-scroll asks.
+ *
+ * By the time a viewport handler runs, the shell has already shrunk and the
+ * scroller has already absorbed the loss: the raw gap reads ~300px even for
+ * somebody sitting exactly at the end. `previousHeight` is what makes the answer
+ * mean anything — subtracting the pixels that just went away asks about the
+ * position they were in a moment ago, which is the only one that expresses
+ * intent.
+ *
+ * @param {{getScrollEl: () => (Element|null), scrollToBottom: Function}} refs
+ * @returns {(change: {height: number, previousHeight: number}) => boolean}
+ *   the handler; true when it re-anchored, so the decision is observable.
+ */
+export function createViewportAnchor(refs = {}) {
+  const getScrollEl =
+    typeof refs.getScrollEl === "function" ? refs.getScrollEl : () => null;
+  const scrollToBottom =
+    typeof refs.scrollToBottom === "function" ? refs.scrollToBottom : () => {};
+
+  return function viewportChanged(change) {
+    const { height = 0, previousHeight = 0 } = change || {};
+    const el = getScrollEl();
+    if (!el) return false;
+    const absorbed = Math.max(0, (previousHeight || height) - height);
+    if (!isNearBottom(el, absorbed)) return false;
+    // force, because the unforced path re-asks the question against the exact
+    // geometry the keyboard has just invalidated, and answers no.
+    scrollToBottom({ force: true });
+    return true;
+  };
+}
+
+/**
  * Build the renderer for one chat surface.
  *
  * @param {{
@@ -109,6 +192,63 @@ export function createRenderer(opts) {
     return indexedTextCache.get(itemId);
   }
 
+  /**
+   * The one indexed-text tooltip that may be open, and the listeners that close
+   * it.
+   *
+   * WHY A STATE AND NOT JUST :hover. Hover is a desktop mechanism and it works
+   * there. On a touch screen a tap fires a synthetic mouseenter and iOS then
+   * KEEPS :hover on that element until something else is tapped, so the reveal
+   * opens and stays — there is no gesture that closes it, because the one that
+   * would (a tap elsewhere) does not reliably reach it. So the stylesheet gates
+   * hover behind `@media (hover: hover)` and this drives the touch path
+   * explicitly: tap to open, tap again, tap outside, or Escape to close.
+   *
+   * ONE AT A TIME, and the listeners exist only while one is open. A document
+   * handler per rendered marker would grow with the thread and outlive every
+   * message in it; two handlers that come and go with the tooltip cannot.
+   */
+  let openTip = null;
+  let tipListeners = null;
+
+  function closeIndexedTip() {
+    if (tipListeners) {
+      doc.removeEventListener("pointerdown", tipListeners.outside, true);
+      doc.removeEventListener("keydown", tipListeners.escape, true);
+      tipListeners = null;
+    }
+    if (!openTip) return;
+    const tag = openTip;
+    openTip = null;
+    tag.classList.remove("is-open");
+    // The keyboard path shows the tooltip from :focus-visible, which no class
+    // change can override. Escape has to actually give the focus back, or it
+    // dismisses the state and leaves the tooltip on screen.
+    if (doc.activeElement === tag && typeof tag.blur === "function") tag.blur();
+  }
+
+  function openIndexedTip(tag) {
+    if (openTip === tag) return;
+    closeIndexedTip();
+    openTip = tag;
+    tag.classList.add("is-open");
+    tipListeners = {
+      // Capture, so a tap that some other handler stops still closes this.
+      outside: (event) => {
+        const target = event && event.target;
+        // Inside the marker OR inside its tooltip (a child of it): scrolling a
+        // long extract must not dismiss the thing being scrolled.
+        if (target && typeof tag.contains === "function" && tag.contains(target)) return;
+        closeIndexedTip();
+      },
+      escape: (event) => {
+        if (event && event.key === "Escape") closeIndexedTip();
+      },
+    };
+    doc.addEventListener("pointerdown", tipListeners.outside, true);
+    doc.addEventListener("keydown", tipListeners.escape, true);
+  }
+
   // The surface's view, resolved from the injected document rather than a global
   // so this module holds no reference to the ambient browser object. Both the
   // frame scheduler and the "open the full image" action hang off it, and both
@@ -132,6 +272,9 @@ export function createRenderer(opts) {
    * for the "convenient" version on a node that DOES carry untrusted data.
    */
   function clear() {
+    // Before the nodes go: an open tooltip holds a document listener, and a
+    // reference to an element that is about to stop existing.
+    closeIndexedTip();
     while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
   }
 
@@ -410,6 +553,13 @@ export function createRenderer(opts) {
     };
     tag.addEventListener("mouseenter", reveal);
     tag.addEventListener("focus", reveal);
+    // The touch path. A tap implies a toggle, so a second one closes what the
+    // first opened; the fetch still happens at most once, from the cache above.
+    tag.addEventListener("click", () => {
+      reveal();
+      if (openTip === tag) closeIndexedTip();
+      else openIndexedTip(tag);
+    });
 
     return tag;
   }
@@ -691,8 +841,7 @@ export function createRenderer(opts) {
       });
       return;
     }
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (nearBottom) {
+    if (isNearBottom(el)) {
       el.scrollTop = el.scrollHeight;
     }
   }

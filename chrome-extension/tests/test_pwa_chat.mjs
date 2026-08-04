@@ -29,7 +29,7 @@
 
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -542,6 +542,225 @@ test("agent toggle: ONE summon mechanism — the mention, never a parallel flag"
   assert.ok(
     body.includes("setAgentArmed(false)"),
     "a successful send must disarm the toggle — this is a shared team chat",
+  );
+});
+
+// ---- The composer must not close the keyboard it is being typed into -----
+//
+// Stated as FOCUS OWNERSHIP, which is the provable half. A stub has no keyboard,
+// so an assertion about one would be theatre; what actually broke is that focus
+// left the textarea, and that is visible here. The unprovable half — that iOS
+// runs the focus change as mousedown's default action, and that a keyboard once
+// closed cannot be reopened from script — is named in dom.js and in the report.
+
+const dom = await import(pathToFileURL(join(CORE_DIR, "dom.js")).href);
+
+/** The smallest document that can lose focus: elements, listeners, activeElement. */
+function makeDoc() {
+  const doc = { activeElement: null };
+  const make = (id) => {
+    const handlers = {};
+    const node = {
+      id,
+      disabled: false,
+      addEventListener: (type, fn) => {
+        (handlers[type] = handlers[type] || []).push(fn);
+      },
+      removeEventListener: (type, fn) => {
+        const list = handlers[type] || [];
+        const i = list.indexOf(fn);
+        if (i !== -1) list.splice(i, 1);
+      },
+      focus: () => {
+        doc.activeElement = node;
+      },
+      blur: () => {
+        if (doc.activeElement === node) doc.activeElement = null;
+      },
+      count: (type) => (handlers[type] || []).length,
+      /**
+       * A press, as a browser performs one: mousedown, then the default action
+       * that moves focus HERE — unless somebody cancelled it — then click.
+       */
+      press: () => {
+        let prevented = false;
+        const event = {
+          type: "mousedown",
+          preventDefault: () => {
+            prevented = true;
+          },
+        };
+        for (const fn of handlers.mousedown || []) fn(event);
+        if (!prevented) doc.activeElement = node;
+        for (const fn of handlers.click || []) fn({ type: "click" });
+      },
+    };
+    return node;
+  };
+  doc.make = make;
+  return doc;
+}
+
+test("the stub can show the bug: an unguarded press takes focus off the field", () => {
+  // Without this, the next test would pass against a stub that could not move
+  // focus at all — an assertion that cannot fail for the reason the bug happens
+  // is not evidence.
+  const doc = makeDoc();
+  const input = doc.make("composer-input");
+  const button = doc.make("btn-send");
+  let clicks = 0;
+  button.addEventListener("click", () => clicks++);
+
+  input.focus();
+  button.press();
+  assert.equal(doc.activeElement, button, "this IS the defect: focus moved, and on iOS the keyboard follows it");
+  assert.equal(clicks, 1);
+});
+
+test("...and keepFocusOnPress changes exactly that, and nothing else", () => {
+  const doc = makeDoc();
+  const input = doc.make("composer-input");
+  const button = doc.make("btn-send");
+  let clicks = 0;
+  button.addEventListener("click", () => clicks++);
+  const detach = dom.keepFocusOnPress(button);
+
+  input.focus();
+  button.press();
+  assert.equal(
+    doc.activeElement,
+    input,
+    "the field must still hold focus after the send control is pressed — losing it is what closed the keyboard",
+  );
+  assert.equal(clicks, 1, "the control must still DO its job; a swallowed click sends nothing");
+
+  detach();
+  assert.equal(button.count("mousedown"), 0, "the guard comes off cleanly");
+});
+
+test("disabling the button mid-send cannot take focus, because it never had it", () => {
+  // The second cause: disabling an element that holds focus moves focus to the
+  // body. Order matters here only if the first cause was left in place.
+  const doc = makeDoc();
+  const input = doc.make("composer-input");
+  const button = doc.make("btn-send");
+  dom.keepFocusOnPress(button);
+  input.focus();
+
+  button.press();
+  button.disabled = true; // in flight
+  button.disabled = false; // finally
+  assert.equal(doc.activeElement, input, "focus never left, so there was nothing for the disable to steal");
+});
+
+test("keepFocusOnPress survives being handed nothing", () => {
+  assert.equal(typeof dom.keepFocusOnPress(), "function");
+  assert.equal(typeof dom.keepFocusOnPress(null)(), "undefined");
+});
+
+test("EVERY control in the pill is guarded, not just the send button", () => {
+  const body = stripComments(pwaChatJs);
+  assert.match(
+    body,
+    /import \{ keepFocusOnPress \} from "\.\/chat_core\/dom\.js"/,
+    "the guard is shared code, not a local preventDefault somebody will delete",
+  );
+  const loop = /for \(const control of \[([^\]]*)\]\) keepFocusOnPress\(control\)/.exec(body);
+  assert.ok(loop, "chat.js must guard its composer controls");
+  for (const name of ["sendBtn", "agentBtn", "clipBtn"]) {
+    assert.ok(
+      loop[1].includes(name),
+      `${name} is unguarded — pressing it drops the keyboard mid-compose, and the agent toggle is pressed BEFORE the message it applies to`,
+    );
+  }
+});
+
+test("the recovery focus() stays, and is not mistaken for the fix", () => {
+  const fn = /async\s+function\s+sendMessage\s*\([^)]*\)\s*\{[\s\S]*?\n\}/.exec(pwaChatJs);
+  assert.ok(fn, "chat.js has no sendMessage()");
+  assert.match(
+    stripComments(fn[0]),
+    /input\.focus\(\)/,
+    "correct on desktop, where a click genuinely does move focus",
+  );
+});
+
+// ---- The thread's own furniture: no scrollbar, one way back to the end ----
+
+test("the thread hides its scrollbar across all three engines", () => {
+  const scroll = /#chat-scroll\s*\{([^}]*)\}/.exec(pwaCss);
+  assert.ok(scroll, "app.css has no #chat-scroll rule");
+  assert.match(scroll[1], /scrollbar-width:\s*none/, "Firefox");
+  assert.match(scroll[1], /-ms-overflow-style:\s*none/, "old Edge");
+  assert.match(
+    pwaCss,
+    /#chat-scroll::-webkit-scrollbar\s*\{[^}]*display:\s*none/,
+    "WebKit — and without it the bar is still there on the phone this is for",
+  );
+  assert.match(
+    scroll[1],
+    /overflow-y:\s*auto/,
+    "hiding the indicator must not hide the overflow: the thread still scrolls",
+  );
+});
+
+test("the jump control exists, is a real control, and starts hidden", () => {
+  const btn = /<button[^>]*id="btn-jump-latest"[^>]*>/.exec(pwaHtml);
+  assert.ok(btn, "index.html has no #btn-jump-latest");
+  assert.match(btn[0], /\bhidden\b/, "at the bottom of a thread there is nothing to jump to");
+  assert.match(
+    btn[0],
+    /aria-label="[^"]+"/,
+    "an icon-only button with no accessible name is a control only sighted pointer users have",
+  );
+  assert.match(btn[0], /type="button"/, "inside no form, but never a submit");
+  assert.match(
+    pwaCss,
+    /\.xb-jump:focus-visible\s*\{[^}]*outline:/,
+    "keyboard-reachable means keyboard-VISIBLE; a focusable control with no focus ring is reachable and untraceable",
+  );
+  assert.match(
+    pwaCss,
+    /\.xb-jump svg\s*\{[^}]*width:\s*15px/,
+    "an inline SVG with no intrinsic size renders at ~300x150 — it has already bitten this project once",
+  );
+});
+
+test("the jump control is anchored by layout, not by a measured offset", () => {
+  const slot = /\.xb-jump-slot\s*\{([^}]*)\}/.exec(pwaCss);
+  assert.ok(slot, "app.css has no .xb-jump-slot");
+  assert.match(
+    slot[1],
+    /height:\s*0/,
+    "a zero-height slot is what keeps the button a fixed distance above the composer's TOP edge — through a grown textarea, an upload error, the safe-area inset and the keyboard alike",
+  );
+  assert.match(slot[1], /position:\s*relative/, "the button positions against it");
+  const idx = pwaHtml.indexOf('class="xb-jump-slot"');
+  assert.ok(idx > pwaHtml.indexOf('id="chat-scroll"'), "it belongs after the thread");
+  assert.ok(idx < pwaHtml.indexOf('id="composer"'), "and before the composer it sits above");
+});
+
+test("the jump control agrees with the rest of the app about where the bottom is", () => {
+  const body = stripComments(pwaChatJs);
+  assert.match(
+    body,
+    /function syncJumpLatest\(\)[\s\S]*?isNearBottom\(scrollEl\)/,
+    "a second threshold here would show the button while the app believes it is at the bottom — and pressing it would then do nothing",
+  );
+  assert.match(
+    body,
+    /scrollEl\.addEventListener\("scroll",[\s\S]*?syncJumpLatest\(\)/,
+    "it is driven by the scroll it describes",
+  );
+  assert.match(
+    body,
+    /syncJumpLatest\(\);/,
+    "and re-asked after a team switch, or it survives into a thread it does not describe",
+  );
+  assert.match(
+    body,
+    /if \(btn\.hidden !== atBottom\) btn\.hidden = atBottom;/,
+    "a scroll handler writes only when the answer changed",
   );
 });
 

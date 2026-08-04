@@ -24,7 +24,11 @@
  */
 
 import { createApi, MAX_MEDIA_BYTES } from "./chat_core/api.js";
-import { createRenderer } from "./chat_core/render.js";
+import {
+  createRenderer,
+  createViewportAnchor,
+  isNearBottom,
+} from "./chat_core/render.js";
 import { createPublicationRouter } from "./chat_core/publication.js";
 import { connectRealtime, createConnectionStatus } from "./chat_core/realtime.js";
 import { createTeamRail } from "./chat_core/team_rail.js";
@@ -37,7 +41,9 @@ import {
   SUBSCRIPTION_LOST_NOTICE,
 } from "./chat_core/chat_stream.js";
 import { handleOpenUrl, isSafeHttpUrl } from "./chat_core/nudge_open.js";
+import { keepFocusOnPress } from "./chat_core/dom.js";
 import { webPlatform } from "./platform_web.js";
+import { onViewportChange } from "./viewport.js";
 import { ensureBridge } from "./bridge_link.js";
 import { bootPanels } from "./panels.js";
 import { MEMORY_API_BASE, getToken, signOut } from "./auth.js";
@@ -488,6 +494,10 @@ async function switchTeam(teamId) {
   await refreshNameCache();
   await refreshAgentAliases();
   await loadInitialHistory();
+  // A team switch lands at the bottom of a different thread. Without this the
+  // jump control would survive the switch from a team somebody had scrolled up
+  // in, offering to take them somewhere they already are.
+  syncJumpLatest();
 
   // Advance this user's read cursor for the team they are now looking at.
   // Without it the rail's badges would only ever grow: the counts come from the
@@ -610,6 +620,53 @@ async function loadOlderPage() {
   }
 }
 
+// ---------- The keyboard, and where the thread has to be when it opens ------
+
+let viewportWired = false;
+
+/**
+ * Point chat-core's viewport anchor at this surface's thread.
+ *
+ * The two halves are deliberately in different files: viewport.js measures and
+ * announces, chat-core decides whether the reader's position means it may
+ * re-anchor (createViewportAnchor carries that reasoning, and the test that
+ * drives it). This function is the wire between them and nothing else.
+ *
+ * Wired once per session — the subscription is module-level and bootChat runs
+ * again after a re-sign-in.
+ */
+function wireViewportAnchor() {
+  if (viewportWired) return;
+  viewportWired = true;
+  onViewportChange(
+    createViewportAnchor({
+      getScrollEl: () => el("chat-scroll"),
+      scrollToBottom: (opts) => renderer.scrollToBottom(opts),
+    }),
+  );
+}
+
+/**
+ * Show the jump control exactly while the newest message is out of sight.
+ *
+ * The same `isNearBottom` the auto-scroll and the keyboard anchor ask, for the
+ * reason all three must agree: a button offering to take somebody to the bottom
+ * of a thread the app already considers itself at the bottom of is a button that
+ * does nothing when pressed.
+ *
+ * Cheap, because it runs on every scroll event: three geometry reads and an
+ * attribute written only when the answer actually changed. Assigning `hidden`
+ * to the value it already holds is free in every engine, but the comparison
+ * makes that a property of this code rather than of theirs.
+ */
+function syncJumpLatest() {
+  const btn = el("btn-jump-latest");
+  const scrollEl = el("chat-scroll");
+  if (!btn || !scrollEl) return;
+  const atBottom = isNearBottom(scrollEl);
+  if (btn.hidden !== atBottom) btn.hidden = atBottom;
+}
+
 // ---------- Composer ----------
 
 let composerWired = false;
@@ -655,9 +712,34 @@ function wireComposer() {
     });
   }
 
+  // EVERY control in the pill, and for one reason: pressing any of them used to
+  // take focus off the textarea, and on iOS a field that loses focus takes the
+  // keyboard with it. Sending closed it; so did arming the agent, which is
+  // pressed mid-sentence, before the message it applies to. The keyboard cannot
+  // be reopened from script, so the only fix is to never let focus leave —
+  // keepFocusOnPress cancels the press's focus move while leaving its click
+  // alone. See packages/chat-core/dom.js for what that rests on.
+  for (const control of [sendBtn, agentBtn, clipBtn]) keepFocusOnPress(control);
+
+  // Jump to the newest message. Guarded like the pill's controls: somebody who
+  // scrolled up mid-sentence and comes back must find their draft AND their
+  // keyboard, not just the draft.
+  const jumpBtn = el("btn-jump-latest");
+  if (jumpBtn) {
+    keepFocusOnPress(jumpBtn);
+    jumpBtn.addEventListener("click", () => {
+      renderer.scrollToBottom({ force: true });
+      // Hidden now rather than on the scroll event the jump will produce: the
+      // press already said where they want to be, and a control that lingers
+      // for a frame after doing its job reads as one that did not work.
+      jumpBtn.hidden = true;
+    });
+  }
+
   if (scrollEl) {
     scrollEl.addEventListener("scroll", () => {
       if (scrollEl.scrollTop < 80) loadOlderPage();
+      syncJumpLatest();
     });
   }
 }
@@ -805,7 +887,16 @@ async function sendMessage() {
   } catch (e) {
     showComposerError(`Message not sent: ${e.message}`);
   } finally {
+    // Re-enabled before focus is touched: disabling an element that holds focus
+    // moves focus to the body, and this one has been disabled since the send
+    // began. It never held focus — keepFocusOnPress saw to that — but the order
+    // costs nothing and the failure it prevents is invisible.
     if (sendBtn) sendBtn.disabled = false;
+    // The DESKTOP path, and only that. A click there does move focus, and this
+    // puts it back. On iOS it is a no-op wearing a useful name: a .focus() after
+    // an await is outside the user gesture, so the caret returns and the
+    // keyboard does not — which is why the keyboard is kept rather than
+    // recovered.
     input.focus();
   }
 }
@@ -985,6 +1076,7 @@ export async function bootChat(refs = {}) {
 
   // 6. Claim the channel and load the thread.
   wireComposer();
+  wireViewportAnchor();
   await switchTeam(state.activeTeamId);
 
   // 7. What the agent would run on. Asked once now, then only while somebody is

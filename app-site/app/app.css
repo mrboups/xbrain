@@ -141,10 +141,35 @@ body {
      not enough either — it tracks browser chrome and is never updated by the
      virtual keyboard, which is exactly how the header used to scroll away. */
   height: var(--xb-viewport-height, 100dvh);
+  /* ...AND WHERE IT SITS, which is a separate question with a separate answer.
+     The visible window is not always flush with the top of the layout viewport:
+     with the keyboard open over a page that cannot scroll, iOS slides the window
+     down instead, and a shell painted from the top of the layout viewport then
+     ends above the bottom of the screen — the black band between the composer
+     and the keys. viewport.js measures that slide; this puts the column back
+     inside the window.
+
+     A transform rather than `top`, deliberately: it also makes this element the
+     containing block for the fixed overlays below, so the settings sheet and the
+     members card follow the same window instead of being laid out against a
+     layout viewport that still includes the space behind the keyboard. Unset is
+     0px — every platform that keeps the two viewports flush pays nothing. */
+  transform: translateY(var(--xb-viewport-offset-top, 0px));
   overflow: hidden;
   /* No rubber-band on the page itself. The message list is the one scroller,
      and a bounce here reads as the whole app coming loose. */
   overscroll-behavior: none;
+  /* Double-tap-to-zoom is a DOCUMENT gesture and this is not a document: people
+     double-tap a message to select a word and the whole interface jumps.
+     `manipulation` drops that gesture (and the 300ms click delay that comes with
+     it) while leaving panning and PINCH-ZOOM alone — magnifying text stays
+     possible, and it must: user-scalable=no would take it away on the browsers
+     that still honour it, and iOS has ignored it since iOS 10 anyway, so it
+     would read as a fix and be none. viewport.js stands down at any scale other
+     than 1 for the same reason: a pinch is a supported gesture here.
+     Touch behaviour is the intersection down the ancestor chain, so declaring it
+     on the shell covers everything inside it, overlays included. */
+  touch-action: manipulation;
   background: var(--bg);
   color: var(--fg);
   font-family: var(--sans);
@@ -466,6 +491,7 @@ body {
    does on hover. line-height: 0 keeps the button exactly as tall as the square
    it wraps. */
 .xb-profile-avatar-btn {
+  position: relative;              /* the edit badge sits on the square */
   flex-shrink: 0;
   display: inline-flex;
   padding: 0;
@@ -475,6 +501,34 @@ body {
   line-height: 0;
   cursor: pointer;
 }
+
+/* The affordance the words under the picture used to carry. Small, square,
+   bottom-right, on the palette — a mark that says "this changes", not a second
+   button competing with the name. */
+.xb-profile-avatar-edit {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--card-fg);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+/* Inline SVGs carry a viewBox and no intrinsic size: unsized, this one renders
+   at the UA default (~300x150) and takes the settings sheet apart. It has
+   happened here before. */
+.xb-profile-avatar-edit svg { width: 9px; height: 9px; display: block; }
+.xb-profile-avatar-btn:hover:not(:disabled) .xb-profile-avatar-edit {
+  border-color: var(--ring);
+}
+/* Read-only: the picture stops inviting a press, so the mark that promises one
+   goes with it. */
+.xb-profile-avatar-btn:disabled .xb-profile-avatar-edit { display: none; }
 .xb-profile-avatar-btn:hover:not(:disabled) .xb-profile-avatar {
   border-color: var(--ring);
   color: var(--fg);
@@ -484,24 +538,6 @@ body {
    keeps its full contrast and simply stops inviting a press. */
 .xb-profile-avatar-btn:disabled { cursor: default; }
 
-/* The same picker, said in words, for anyone who would not think to tap a
-   photo. Quiet on purpose: it sits under a name, and a filled button there
-   would outrank the name itself. */
-.xb-profile-photo-btn {
-  align-self: flex-start;
-  margin-top: 3px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--muted-fg);
-  font-family: inherit;
-  font-size: 11px;
-  text-decoration: underline;
-  cursor: pointer;
-}
-.xb-profile-photo-btn:hover:not(:disabled) { color: var(--fg); }
-.xb-profile-photo-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.xb-profile-photo-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .xb-profile-fields {
   display: flex;
   flex-direction: column;
@@ -540,13 +576,35 @@ body {
   border-color: transparent;
 }
 .xb-profile-name::placeholder { color: var(--muted-fg); font-weight: 500; }
+/* The bio reads as the quiet line under a name until it is touched, exactly
+   like the name field above it: same transparent border, same border-on-focus,
+   so the block is a profile line and not a form. */
 .xb-profile-bio {
-  font-size: 12px;
+  width: 100%;
+  background: transparent;
   color: var(--muted-fg);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 3px 5px;
+  margin-left: -5px;
+  font-family: var(--sans);
+  /* 16px, for the same reason the name field is: iOS Safari zooms the page in
+     on a focused field below that size and never zooms back out. */
+  font-size: 16px;
   line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  resize: none;
+  outline: none;
 }
+.xb-profile-bio:hover:not(:disabled) { border-color: var(--border); }
+.xb-profile-bio:focus { border-color: var(--input); background: var(--bg); color: var(--fg); }
+.xb-profile-bio:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.xb-profile-bio:disabled {
+  color: var(--muted-fg);
+  opacity: 1;
+  cursor: default;
+  border-color: transparent;
+}
+.xb-profile-bio::placeholder { color: var(--muted-fg); }
 .xb-profile-status {
   margin: -4px 0 10px;
   font-size: 11px;
@@ -1006,7 +1064,21 @@ body {
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
+  /* No visible track. On a desktop browser this app is a phone-shaped column,
+     and a permanent bar down its right edge is the one piece of window
+     furniture in it.
+
+     THE TRADE-OFF, stated rather than glossed: the track is also the passive
+     cue that there is more to read, and the only sense of WHERE you are in a
+     long thread. The first is answered by the jump-to-latest control below;
+     the second is not answered at all, and that is an accepted cost. Scrolling
+     itself is untouched — this hides the indicator, not the overflow.
+
+     Three declarations because three engines: Firefox, old Edge, WebKit. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+#chat-scroll::-webkit-scrollbar { display: none; }
 
 #message-list {
   display: flex;
@@ -1021,6 +1093,46 @@ body {
   font-size: 12.5px;
   color: var(--muted-fg);
 }
+
+/* ---- Jump to the newest message -------------------------------------- */
+
+/* A zero-height box under the thread. The control hangs upward out of it, over
+   the last messages, so it clears everything below it — the route status, an
+   upload error, a composer grown to three rows, the safe-area inset with the
+   keyboard closed and the keyboard itself with it open — without measuring any
+   of them. That is layout doing the work: an offset computed in script would
+   have to be recomputed for every one of those, and would still be wrong on
+   some device nobody tested. */
+.xb-jump-slot {
+  position: relative;
+  flex-shrink: 0;
+  height: 0;
+}
+
+.xb-jump {
+  position: absolute;
+  right: 13px;
+  bottom: 10px;
+  z-index: 5;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  color: var(--muted-fg);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+  transition: background 0.14s, color 0.14s;
+}
+.xb-jump:hover { background: var(--muted); color: var(--fg); }
+.xb-jump:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+/* Same reason as every other inline SVG here: no intrinsic size means the UA
+   default (~300x150) and a button the size of the thread. */
+.xb-jump svg { width: 15px; height: 15px; display: block; }
 
 /* Older-page spinner text. It is INSIDE the scroller and above the list, which
    is where the pull happens, and it takes no height while hidden so the
@@ -1605,10 +1717,19 @@ body {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.13);
   cursor: text;
 }
+/* Hover reveals it — on the surfaces that HAVE hover, and only there. A touch
+   screen fires a synthetic mouseenter on tap and iOS then keeps :hover on that
+   element until something else is tapped, so on a phone this rule opened the
+   tooltip and nothing closed it. Behind the query, the touch path is `.is-open`
+   alone: render.js opens it on tap and closes it on a second tap, on a tap
+   outside, or on Escape. */
+@media (hover: hover) and (pointer: fine) {
+  .xb-msg-savetag:hover .xb-savetag-tip { display: block; }
+}
 /* :focus-visible, not :focus — a pointer press must not leave the tooltip stuck
    open after the pointer has gone. Keyboard focus is what needs it to stay. */
-.xb-msg-savetag:hover .xb-savetag-tip,
-.xb-msg-savetag:focus-visible .xb-savetag-tip {
+.xb-msg-savetag:focus-visible .xb-savetag-tip,
+.xb-msg-savetag.is-open .xb-savetag-tip {
   display: block;
 }
 /* Own rows are mirrored (row-reverse), so the marker sits on the LEFT of the

@@ -1,5 +1,5 @@
 /**
- * The two DOM chores every panel in this product repeats (Phase 27, D-27-04).
+ * The DOM chores every panel in this product repeats (Phase 27, D-27-04).
  *
  * Small on purpose. They live here because both surfaces and every panel below
  * them need exactly these two behaviours, and the versions that were written
@@ -51,4 +51,39 @@ export function setStatusLine(el, text, type) {
 export function clearChildren(el) {
   if (!el) return;
   while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+/**
+ * Let a control be pressed without taking focus off whatever holds it.
+ *
+ * THE BUG THIS EXISTS FOR. Sending a message closed the on-screen keyboard, so
+ * every line meant re-tapping the field. Three things caused it and all three
+ * are focus, not keyboard: pressing a <button> moves focus to it, disabling an
+ * element that holds focus moves focus to the body, and the `.focus()` that
+ * tried to recover afterwards runs after an await — outside the user gesture, so
+ * iOS restores focus WITHOUT reopening the keyboard.
+ *
+ * That last one is the whole reason this is a prevention and not a repair: on
+ * iOS a keyboard cannot be reopened programmatically, so it must never be
+ * closed. Preventing the default action of `mousedown` is what stops focus
+ * moving in the first place — the press still produces a `click`, so nothing
+ * about what the control DOES changes. It is the same trick every rich-text
+ * toolbar uses to survive being clicked, and iOS dispatches mousedown for a tap
+ * before it moves focus.
+ *
+ * The ASSUMPTION, named because no test in this repo can reach it: that iOS
+ * Safari's tap sequence still runs the focus change as mousedown's default
+ * action. If that ever stops being true the keyboard closes again — it does not
+ * fail in some other, quieter way.
+ *
+ * @param {Element|null} el a control that must not steal focus
+ * @returns {() => void} detach
+ */
+export function keepFocusOnPress(el) {
+  if (!el || typeof el.addEventListener !== "function") return () => {};
+  const hold = (event) => {
+    if (event && typeof event.preventDefault === "function") event.preventDefault();
+  };
+  el.addEventListener("mousedown", hold);
+  return () => el.removeEventListener("mousedown", hold);
 }

@@ -5,10 +5,8 @@
  * from PATCH). The server half is being written in parallel, so every field is
  * optional to this file and nothing here breaks if one is missing:
  *
- *   preferred_name  string|null  the name the person set on themselves. The ONLY
- *                                writable field — PATCH sends {preferred_name}
- *                                and nothing else.
- *   bio             string|null  free text, rendered read-only (see below).
+ *   preferred_name  string|null  the name the person set on themselves.
+ *   bio             string|null  free text about themselves. Writable too.
  *   label           string       the RESOLVED name: preferred_name -> the
  *                                provider's display_name -> the email local
  *                                part. It is what teammates see, so it is the
@@ -33,10 +31,17 @@
  * invented: an absent name shows the account identity the app signed in with,
  * and an absent picture shows the same square initial the chat draws.
  *
- * BIO IS DISPLAY-ONLY, deliberately. The brief made the name the editable
- * field, and PATCHing a `bio` the server half may not accept yet would answer a
- * person's typing with a 422 they cannot act on. The element hides itself when
- * there is nothing in it, so nobody is shown an empty row that never fills.
+ * THE BIO IS EDITABLE, and it is ALWAYS ON SCREEN. It used to be display-only
+ * and to hide itself when empty, on the reasoning that PATCHing a field the
+ * server might not accept would answer somebody's typing with a 422 they could
+ * not act on. The route settles it: PATCH /v1/me/profile takes `preferred_name`
+ * and/or `bio`, an omitted field is left alone, and "" clears one. So the field
+ * is live — and it cannot go on hiding when empty, because a field nobody with
+ * an empty bio can see is a field nobody without a bio can ever fill.
+ *
+ * ONE FIELD PER SAVE. Each input PATCHes only its own key, which is exactly what
+ * the route's "omitting a field leaves it untouched" is for: editing a bio can
+ * then never blank a name by sending it back stale.
  *
  * THE PICTURE IS A MEDIA ITEM, not a second upload path. There is no avatar
  * upload endpoint and there should not be one: the file goes through the same
@@ -158,7 +163,6 @@ export async function mountProfile(api, fallbackLabel, refs = {}) {
   const status = el("profile-status");
   const picker = el("profile-avatar-input");
   const avatarBtn = el("btn-profile-avatar");
-  const photoBtn = el("btn-profile-photo");
   if (!block || !nameInput) return { editable: false, photoEditable: false };
 
   block.hidden = false;
@@ -182,20 +186,52 @@ export async function mountProfile(api, fallbackLabel, refs = {}) {
     // that can only fail is worse than an absent one.
     nameInput.readOnly = true;
     nameInput.disabled = true;
+    if (bio) {
+      bio.readOnly = true;
+      bio.disabled = true;
+    }
     if (avatarBtn) avatarBtn.disabled = true;
-    if (photoBtn) photoBtn.hidden = true;
     return { editable: false, photoEditable: false };
   }
 
   nameInput.readOnly = false;
   nameInput.disabled = false;
+  if (bio) {
+    bio.readOnly = false;
+    bio.disabled = false;
+  }
   if (avatarBtn) avatarBtn.disabled = false;
-  if (photoBtn) photoBtn.hidden = false;
-  wireSave(api, nameInput, status, resolved);
+  // Two fields, two independent saves, each sending its own key only.
+  wireFieldSave(api, {
+    input: nameInput,
+    field: "preferred_name",
+    noun: "name",
+    status,
+    commitOnEnter: true,
+    // The server answers with the resolved label, which is what teammates see:
+    // the placeholder follows it so clearing a name shows what it fell back to.
+    onSaved: (body, next) => {
+      const label =
+        (body && (body.label || body.author_label || body.display_label)) ||
+        next ||
+        resolved;
+      nameInput.placeholder = label || "Your name";
+    },
+  });
+  if (bio) {
+    wireFieldSave(api, {
+      input: bio,
+      field: "bio",
+      noun: "bio",
+      status,
+      // Enter is a NEWLINE here. The server keeps them, so a bio is prose and
+      // the key that ends a line must not also end the editing.
+      commitOnEnter: false,
+    });
+  }
   wireAvatar(api, {
     picker,
     avatarBtn,
-    photoBtn,
     status,
     getTeamSlug:
       typeof refs.getTeamSlug === "function" ? refs.getTeamSlug : () => null,
@@ -210,11 +246,12 @@ export async function mountProfile(api, fallbackLabel, refs = {}) {
     // suggests they have no name, when in fact teammates already see one.
     nameInput.placeholder = label || "Your name";
 
-    const bioText = (data && data.bio) || "";
     if (bio) {
-      bio.textContent = bioText;
-      // Hidden when empty — an always-blank row reads as something broken.
-      bio.hidden = !bioText;
+      // .value, not .textContent: this is a field now. And never hidden — an
+      // empty bio is the state that most needs the field to be visible, since
+      // it is the only way to discover there is one.
+      bio.value = (data && data.bio) || "";
+      bio.hidden = false;
     }
 
     paintAvatar(data, label);
@@ -250,59 +287,67 @@ export async function mountProfile(api, fallbackLabel, refs = {}) {
 }
 
 /**
- * Save on blur and on Enter — not on every keystroke.
+ * Save ONE field on blur — not on every keystroke, and never its neighbour.
  *
- * A per-keystroke PATCH would send a request for every letter of a name and
- * race its own replies, so the last write to land could be a prefix of what
- * they typed. Nothing is sent when the value has not changed.
+ * A per-keystroke PATCH would send a request for every letter and race its own
+ * replies, so the last write to land could be a prefix of what they typed.
+ * Nothing is sent when the value has not changed.
+ *
+ * ONE KEY PER REQUEST. The route leaves an omitted field untouched, so editing
+ * the bio sends `{bio}` and nothing else — a body that also carried the name
+ * could blank it with a stale copy, and that failure would look like the server
+ * losing data.
+ *
+ * AN EMPTY STRING IS SENT, not suppressed. "" is how the route clears a column,
+ * which is the undo path for both fields: somebody must be able to REMOVE a bio,
+ * not only replace it. Dropping the key instead would silently keep the old one.
+ *
+ * @param {Object} api the shared client
+ * @param {{input: Element, field: string, noun: string, status: Element,
+ *   commitOnEnter?: boolean, onSaved?: (body: Object|null, next: string) => void}} refs
  */
-function wireSave(api, nameInput, status, resolvedAtLoad) {
-  let lastSaved = nameInput.value;
+function wireFieldSave(api, refs) {
+  const { input, field, noun, status, commitOnEnter = false, onSaved } = refs;
+  let lastSaved = input.value;
   let saving = false;
 
   async function commit() {
-    const next = nameInput.value.trim();
+    const next = input.value.trim();
     if (saving || next === lastSaved.trim()) return;
     saving = true;
     setStatusLine(status, "Saving...", "loading");
     try {
       const res = await api.rawFetch(PROFILE_PATH, {
         method: "PATCH",
-        // The one writable field. Empty string clears it, which restores the
-        // provider's own name — that is the documented way back, so it is sent
-        // rather than suppressed.
-        body: { preferred_name: next },
+        body: { [field]: next },
       });
       if (res.ok) {
         lastSaved = next;
         const body = await res.json().catch(() => null);
-        const label =
-          (body && (body.label || body.author_label || body.display_label)) ||
-          next ||
-          resolvedAtLoad;
-        nameInput.placeholder = label || "Your name";
+        if (onSaved) onSaved(body, next);
         setStatusLine(status, "Saved", "success");
       } else if (res.status === 404) {
         // The endpoint went away under us (a rollback between load and save).
-        setStatusLine(status, "Names cannot be changed right now.", "error");
-        nameInput.readOnly = true;
+        setStatusLine(status, `Your ${noun} cannot be changed right now.`, "error");
+        input.readOnly = true;
       } else if (res.status === 422) {
-        setStatusLine(status, "That name is too long or not allowed.", "error");
+        setStatusLine(status, `That ${noun} is too long or not allowed.`, "error");
       } else {
-        setStatusLine(status, `Could not save your name (HTTP ${res.status}).`, "error");
+        setStatusLine(status, `Could not save your ${noun} (HTTP ${res.status}).`, "error");
       }
     } catch (e) {
-      setStatusLine(status, "Network error - your name was not saved.", "error");
+      setStatusLine(status, `Network error - your ${noun} was not saved.`, "error");
     } finally {
       saving = false;
     }
   }
 
-  nameInput.addEventListener("blur", commit);
-  nameInput.addEventListener("keydown", (event) => {
+  input.addEventListener("blur", commit);
+  if (!commitOnEnter) return;
+  input.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
-    nameInput.blur(); // which commits, so there is one save path and not two
+    input.blur(); // which commits, so there is one save path and not two
   });
 }
 
@@ -331,15 +376,13 @@ function wireSave(api, nameInput, status, resolvedAtLoad) {
  * @param {Object} refs picker/buttons/status + getTeamSlug + onChanged
  */
 function wireAvatar(api, refs) {
-  const { picker, avatarBtn, photoBtn, status, getTeamSlug, onChanged } = refs;
-  // No picker in the markup: the two buttons would open nothing, so they are
-  // not wired at all rather than wired to a dead end.
+  const { picker, avatarBtn, status, getTeamSlug, onChanged } = refs;
+  // No picker in the markup: the button would open nothing, so it is not wired
+  // at all rather than wired to a dead end.
   if (!picker || wiredPickers.has(picker)) return;
   wiredPickers.add(picker);
 
-  const openPicker = () => picker.click();
-  if (avatarBtn) avatarBtn.addEventListener("click", openPicker);
-  if (photoBtn) photoBtn.addEventListener("click", openPicker);
+  if (avatarBtn) avatarBtn.addEventListener("click", () => picker.click());
 
   let busy = false;
 
@@ -352,11 +395,10 @@ function wireAvatar(api, refs) {
     await upload(file);
   });
 
-  /** Both controls disabled while a picture is in flight, and back after. */
+  /** The control is disabled while a picture is in flight, and back after. */
   function setBusy(value) {
     busy = value;
     if (avatarBtn) avatarBtn.disabled = value;
-    if (photoBtn) photoBtn.disabled = value;
   }
 
   async function upload(file) {
