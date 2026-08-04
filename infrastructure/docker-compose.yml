@@ -220,6 +220,21 @@ services:
       LIBRECHAT_INTERNAL_URL: ${LIBRECHAT_INTERNAL_URL:-http://librechat:3080}
       # Phase 7 — Anthropic SDK fallback when @claude mentioner has no Pro/Max bridge.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Team-selectable agent fallback provider. A team stores keys for any of the three
+      # and chooses which one is SPENT when no live browser bridge exists; the Pro/Max
+      # subscription is untouched and stays preferred. XAI_API_KEY is the deployment-wide
+      # floor under a team's own xAI key — the other two already reached this container,
+      # so an xAI key was the only one with nothing under it. The four model/base-URL
+      # knobs are forwarded because a default a compose file never passes is a default
+      # that cannot be changed without a rebuild. Defaults here MUST match app/config.py.
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      AGENT_MODEL_ANTHROPIC: ${AGENT_MODEL_ANTHROPIC:-claude-sonnet-4-6}
+      AGENT_MODEL_OPENAI: ${AGENT_MODEL_OPENAI:-gpt-4o}
+      AGENT_MODEL_XAI: ${AGENT_MODEL_XAI:-grok-3}
+      AGENT_XAI_BASE_URL: ${AGENT_XAI_BASE_URL:-https://api.x.ai/v1}
+      # Empty = the OpenAI SDK's own host. Point it at a local vLLM/LiteLLM/Ollama to
+      # keep the OpenAI path inside your own network.
+      AGENT_OPENAI_BASE_URL: ${AGENT_OPENAI_BASE_URL:-}
       # Phase 13 — Haiku relevance filter + brain ingest knobs.
       RELEVANCE_HAIKU_ENABLED: ${RELEVANCE_HAIKU_ENABLED:-true}
       RELEVANCE_HAIKU_MODEL: ${RELEVANCE_HAIKU_MODEL:-claude-haiku-4-5-20251001}

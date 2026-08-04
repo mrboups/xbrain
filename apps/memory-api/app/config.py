@@ -398,6 +398,38 @@ class Settings(BaseSettings):
     # (and the event loop) in one burst.
     TRANSCRIPT_IMPORT_CONCURRENCY: int = 4
 
+    # === Team-selectable agent fallback provider ===
+    # A team stores keys for any of three providers (teams.agent_provider, migration
+    # 0033) and picks which one the agent SPENDS when no live browser bridge exists.
+    # The subscription is untouched and stays preferred: a bridge answers through the
+    # user's Claude Pro/Max session, free, whatever is selected here.
+    #
+    # Deliberately NO field_validator (mirrors NUDGE/CATCHUP/EMBED/DOCBODY/BOARD/PUSH):
+    # a zero-key OSS install MUST boot. With every key empty the agent simply has
+    # nothing to fall back to and says so — absent, never a crash-boot.
+    #
+    # ANTHROPIC_API_KEY and OPENAI_API_KEY are declared far above (Phase 7 / Phase 2);
+    # only xAI's was missing, so a stored xAI team key had no deployment-wide floor
+    # under it while the other two did.
+    XAI_API_KEY: str = ""
+    # One default model PER PROVIDER, because they are not interchangeable strings and
+    # a single shared MODEL setting would be wrong for two of the three. Env-overridable
+    # and forwarded by compose: an operator with access to a newer model changes one
+    # variable, not an image. If a default has been retired by its vendor the call comes
+    # back 4xx and the team is told an administrator must look at the server — visible
+    # and fixable, never silent.
+    AGENT_MODEL_ANTHROPIC: str = "claude-sonnet-4-6"
+    AGENT_MODEL_OPENAI: str = "gpt-4o"
+    AGENT_MODEL_XAI: str = "grok-3"
+    # xAI speaks the OpenAI wire protocol, so it is the same client with a different
+    # base URL rather than a third integration (the pattern apps/agent-runtime already
+    # uses for its Grok second opinion).
+    AGENT_XAI_BASE_URL: str = "https://api.x.ai/v1"
+    # Empty = the OpenAI SDK's own default host. Set it to point the OpenAI path at any
+    # OpenAI-compatible endpoint — a local vLLM, LiteLLM, or Ollama — which is the
+    # difference between "OSS-friendly" and "OSS as long as you pay OpenAI".
+    AGENT_OPENAI_BASE_URL: str = ""
+
     @property
     def vapid_is_signable(self) -> bool:
         """True when a signing key is configured — WITHOUT handing the key out.
