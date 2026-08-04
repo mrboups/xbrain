@@ -165,6 +165,25 @@ export function createApi({ baseUrl, getToken } = {}) {
     putTeamApiKeysRaw: (teamId, keys) =>
       rawFetch(`/v1/teams/${teamId}/api-keys`, { method: "PUT", body: { keys } }),
 
+    // WHICH stored key the agent falls back to. Storing a key and selecting a
+    // provider are different actions, so they are different calls.
+    //
+    // THE ROUTE BELOW IS AN ASSUMPTION. The server half is being written in
+    // parallel; the path is spelled HERE and in no surface, so reconciling a
+    // rename is one edit and a re-sync rather than a hunt through a settings
+    // sheet and a team card. The assumed contract is documented in full on the
+    // selection block of chat_core/team_api_keys.js.
+    //
+    // Raw for a sharper reason than the others: a build whose API predates the
+    // selector answers 404, and BOTH surfaces must degrade to "no selection
+    // control" rather than throwing inside a settings sheet somebody opened to
+    // change the theme.
+    teamFallbackProviderRaw: (teamId) =>
+      rawFetch(`/v1/teams/${teamId}/fallback-provider`),
+    // @param {{provider: string}} body from fallbackSelectionBody()
+    putTeamFallbackProviderRaw: (teamId, body) =>
+      rawFetch(`/v1/teams/${teamId}/fallback-provider`, { method: "PUT", body }),
+
     // ---- Growing a team (Phase 25, JOINCODE-01) ----
     //
     // All raw, all for the same reason: the SERVER is the authority on who may

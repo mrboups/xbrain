@@ -24,7 +24,48 @@
  *     `https://grooveos.app/account/teams/` as an Authorization callback URL.
  *   - Google OAuth client must list `https://grooveos.app` (and
  *     `https://xbrain-495115.web.app` if used) in its "Authorized JavaScript origins".
+ *
+ * IT IS A MODULE NOW, and the import below is why. The team API key is set from
+ * two places -- this page and the PWA's settings sheet, which exists because
+ * this page is unreachable from a phone with no address bar. Both consume
+ * packages/chat-core: the same provider table, the same validation, the same
+ * failure sentences, the same two requests. A `<script src>` cannot import, so
+ * index.html loads this with type="module" -- deferred, which is harmless
+ * because everything here starts from the `load` event anyway.
+ *
+ * The specifier reaches ../../app/chat_core/, the PWA's generated copy, rather
+ * than adding a third sync target for one page. On disk and over HTTP that path
+ * resolves identically (app-site/ IS the web root), and the drift gate keeps
+ * that copy byte-identical to packages/chat-core.
  */
+
+import { createApi } from "../../app/chat_core/api.js";
+import {
+  API_KEY_PROVIDERS,
+  PROVIDER_ANTHROPIC,
+  apiKeyProvider,
+  providerLabel,
+  providerIsCallable,
+  readApiKeyProviders,
+  readFallbackSelection,
+  fallbackSelectionBody,
+  missingKeyForSelectionWarning,
+  validateApiKey,
+  describeApiKeyFailure,
+  teamKeySavedMessage,
+  unusedProviderWarning,
+  TEAM_KEY_UNUSED_MARK,
+  TEAM_KEY_COST_NOTE,
+  TEAM_KEY_REPLACE_NOTE,
+  TEAM_KEY_MEMBER_NOTE,
+  TEAM_KEY_SELECTION_LABEL,
+  TEAM_KEY_FALLBACK_ONLY_NOTE,
+  TEAM_KEY_STORE_IS_NOT_SELECT,
+  TEAM_KEY_NO_SELECTOR_NOTE,
+  TEAM_KEY_SET,
+  TEAM_KEY_NOT_SET,
+  TEAM_KEY_UNKNOWN,
+} from "../../app/chat_core/team_api_keys.js";
 
 (function () {
   "use strict";
@@ -47,23 +88,29 @@
   // GitHub OAuth CSRF state (sessionStorage, never localStorage).
   const STORAGE_OAUTH_STATE = "xbrain_github_oauth_state";
 
-  // Providers offered for a team-owned model key. `team_api_keys.provider` is a
-  // plain 64-char column and the server accepts any non-empty string, so this
-  // table is the whole definition of the offered set — adding a fourth provider
-  // is one line here, not a rewrite. A provider the server returns that isn't
-  // listed still gets a row (see buildApiKeysSection), so a key set by another
-  // surface is never invisible.
-  const API_KEY_PROVIDERS = [
-    { id: "anthropic", label: "Anthropic (Claude)", prefix: "sk-ant-" },
-    { id: "openai", label: "OpenAI (GPT)", prefix: "sk-" },
-    { id: "xai", label: "xAI (Grok)", prefix: "xai-" },
-  ];
-
   const state = {
     me: null,             // /v1/me result
     teams: [],
     expanded: new Set(),
   };
+
+  /**
+   * The shared client, for the API-key calls only.
+   *
+   * NOT a replacement for xbtFetch, which every other call on this page still
+   * uses and which is this page's own session policy (drop the token on 401,
+   * throw an Error carrying .status). Migrating the rest is a separate change
+   * with its own failure surface; what had to move now is the pair of requests
+   * the PWA also makes, so that the two surfaces cannot spell the route, the
+   * method or the body differently.
+   *
+   * The base origin is INJECTED, like every other surface's: chat-core hardcodes
+   * no host, and a test asserts it.
+   */
+  const chatCoreApi = createApi({
+    baseUrl: MEMORY_API_BASE,
+    getToken: async () => localStorage.getItem(STORAGE_TOKEN),
+  });
 
   // ── Initialization ────────────────────────────────────────────────────────
 
@@ -613,9 +660,26 @@
     // Fired alongside the members read rather than after it — opening a card
     // shouldn't cost two serial round-trips. The .catch is attached here, on
     // the same tick, so a rejection can never surface as unhandled; null means
-    // "we don't know", which the section renders as such.
-    const keysPromise = xbtFetch(`/v1/teams/${team.id}/api-keys`)
-      .then((rows) => (Array.isArray(rows) ? rows.map((r) => r.provider) : []))
+    // "we don't know", which the section renders as such — and a non-2xx is
+    // exactly that, which is why this reads the Response rather than throwing.
+    //
+    // readApiKeyProviders is what narrows the body: the route answers
+    // [{provider}] and nothing else, and taking the field through the shared
+    // reader means a leakier response could not widen this page by accident.
+    const keysPromise = chatCoreApi
+      .listTeamApiKeysRaw(team.id)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((rows) => (rows === null ? null : readApiKeyProviders(rows)))
+      .catch(() => null);
+
+    // WHICH of those keys the agent spends — a different fact, from a different
+    // route, and one this build's server may not have yet. null means "no
+    // selection to show", which the section renders as the static truth about
+    // what gets called rather than as a control that would 404.
+    const selectionPromise = chatCoreApi
+      .teamFallbackProviderRaw(team.id)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => (body === null ? null : readFallbackSelection(body)))
       .catch(() => null);
 
     let members;
@@ -723,10 +787,16 @@
       });
     }
 
-    // Model API key — every member sees whether one is set; only an admin,
-    // which is what the server enforces on PUT, gets the form.
+    // Model API key — every member sees whether one is set and which one the
+    // agent spends; only an admin, which is what the server enforces on both
+    // PUTs, gets the controls.
     body.appendChild(
-      buildApiKeysSection({ team, providers: await keysPromise, isAdmin }).el,
+      buildApiKeysSection({
+        team,
+        providers: await keysPromise,
+        selection: await selectionPromise,
+        isAdmin,
+      }).el,
     );
 
     // Status line
@@ -795,91 +865,13 @@
   // the PUT body. It is never put in a URL, an error string, a dataset
   // attribute, module state, or a console call, and the field is cleared the
   // moment the server accepts it.
-
-  function apiKeyProvider(id) {
-    return API_KEY_PROVIDERS.find((p) => p.id === id) || null;
-  }
-
-  function providerLabel(id) {
-    const p = apiKeyProvider(id);
-    return p ? p.label : String(id);
-  }
-
-  /**
-   * Decide whether a pasted value is plausibly a key for `providerId`, BEFORE
-   * spending a round-trip on it. The server takes any non-empty string, so a
-   * fat-fingered paste would otherwise be stored and only surface later as an
-   * agent that silently stops answering.
-   *
-   * Deliberately loose — prefix plus length, not a full-shape regex — because a
-   * provider rotating its key format must not lock admins out of their own
-   * screen. Returns {ok:true, key} with the trimmed value, or {ok:false,
-   * message} where the message names what was expected.
-   */
-  function validateApiKey(providerId, raw) {
-    const key = String(raw == null ? "" : raw).trim();
-    if (!key) return { ok: false, message: "Paste a key first." };
-    if (/\s/.test(key)) {
-      return {
-        ok: false,
-        message: "That key has a space or line break in it — copy it again as a single line.",
-      };
-    }
-    const provider = apiKeyProvider(providerId);
-    if (!provider) {
-      // Unknown provider (one the server returned that this page doesn't list).
-      // Length is all we can honestly check.
-      if (key.length < 12) {
-        return { ok: false, message: "That key looks too short — copy the whole value." };
-      }
-      return { ok: true, key };
-    }
-    if (!key.startsWith(provider.prefix)) {
-      return {
-        ok: false,
-        message: `That doesn't look like a key for ${provider.label} — it should start with "${provider.prefix}".`,
-      };
-    }
-    if (key.length < 20) {
-      return {
-        ok: false,
-        message: `That key for ${provider.label} looks truncated — copy the whole value.`,
-      };
-    }
-    return { ok: true, key };
-  }
-
-  /**
-   * Turn a failed save into something the admin can act on.
-   *
-   * Every branch returns a fixed string: the error's own message and body are
-   * never interpolated, so no server echo can carry the pasted value back into
-   * the page.
-   */
-  function describeApiKeyFailure(err) {
-    const status = err && err.status;
-    const msg = (err && err.message) || "";
-    if (msg.includes("session expired")) {
-      return "Your session expired — sign in again, then save the key.";
-    }
-    if (status === 403) {
-      return "You're not an admin of this team, so you can't set its key. Ask a team admin.";
-    }
-    if (status === 404) {
-      return "This team no longer exists — reload the page.";
-    }
-    if (status === 422) {
-      return "The server rejected that key — check you copied the whole value.";
-    }
-    if (status === 500) {
-      return "The server can't store keys right now (its encryption key isn't configured). Nothing was saved.";
-    }
-    if (typeof status === "number") {
-      return `The server refused the key (HTTP ${status}). Nothing was saved.`;
-    }
-    // fetch() itself rejected — DNS, offline, CORS, TLS. No request landed.
-    return "Couldn't reach the server, so nothing was saved. Check your connection and try again.";
-  }
+  //
+  // THE PROVIDER TABLE, THE VALIDATION AND THE FAILURE SENTENCES NOW LIVE IN
+  // packages/chat-core/team_api_keys.js. They were declared here until the PWA
+  // needed the same feature, at which point the choice was one definition or
+  // two products that disagree about what a 403 means. What is left below is
+  // this page's own shape: a section inside a team card, built out of the
+  // classes the invite form above it uses.
 
   function setApiKeyStatus(el, text, type) {
     if (!el) return;
@@ -893,8 +885,15 @@
   /**
    * Validate, PUT, and forget. Resolves {ok} — callers never see the key.
    *
-   * The PUT body is the server's shape verbatim: {keys:[{provider, api_key}]},
-   * a bulk upsert answering 204. The key travels in that body and nowhere else.
+   * The request is chat-core's `putTeamApiKeysRaw`, which spells the route, the
+   * method and the server's body shape — {keys:[{provider, api_key}]}, a bulk
+   * upsert answering 204 — in the one place the PWA reads them from too. The key
+   * travels in that body and nowhere else.
+   *
+   * RAW, so the status survives. Every code means something different to the
+   * person holding the key, and describeApiKeyFailure turns each into its own
+   * sentence; a thrown Error carrying an interpolated body would collapse them
+   * AND would be the one string on this path that could echo the paste back.
    */
   async function saveTeamApiKey(ctx) {
     const { team, provider, input, button, status } = ctx;
@@ -906,24 +905,78 @@
     if (button) button.disabled = true;
     setApiKeyStatus(status, "Saving…");
     try {
-      await xbtFetch(`/v1/teams/${team.id}/api-keys`, {
-        method: "PUT",
-        body: { keys: [{ provider, api_key: verdict.key }] },
-      });
+      const res = await chatCoreApi.putTeamApiKeysRaw(team.id, [
+        { provider, api_key: verdict.key },
+      ]);
+      if (!res.ok) {
+        // 401 is this page's session policy, not the key's problem: the stored
+        // token is dead and keeping it would fail every later call the same
+        // way. Dropped here, exactly as xbtFetch drops it everywhere else.
+        if (res.status === 401) localStorage.removeItem(STORAGE_TOKEN);
+        setApiKeyStatus(status, describeApiKeyFailure({ status: res.status }), "error");
+        return { ok: false, reason: "server" };
+      }
       // Accepted — drop it out of the DOM before anything else can read it.
       if (input) input.value = "";
       setApiKeyStatus(
         status,
-        `${providerLabel(provider)} key saved. The agent will use it when the subscription is unreachable.`,
+        teamKeySavedMessage(provider, {
+          selected: ctx.selected,
+          supported: ctx.supported,
+        }),
         "success",
       );
       if (typeof ctx.onSaved === "function") ctx.onSaved(provider);
       return { ok: true };
     } catch (e) {
-      setApiKeyStatus(status, describeApiKeyFailure(e), "error");
-      return { ok: false, reason: "server" };
+      // fetch() itself rejected — DNS, offline, CORS, TLS. No status, because
+      // no response arrived, which is its own sentence.
+      setApiKeyStatus(status, describeApiKeyFailure(null), "error");
+      return { ok: false, reason: "network" };
     } finally {
       if (button) button.disabled = false;
+    }
+  }
+
+  /**
+   * Change WHICH stored key the agent falls back to. No secret involved — the
+   * body is a provider name — but the same admin gate and the same distinct
+   * failures.
+   */
+  async function saveFallbackProvider(ctx) {
+    const { team, provider, select, status } = ctx;
+    if (select) select.disabled = true;
+    setApiKeyStatus(status, "Saving…");
+    try {
+      const res = await chatCoreApi.putTeamFallbackProviderRaw(
+        team.id,
+        fallbackSelectionBody(provider),
+      );
+      if (!res.ok) {
+        if (res.status === 401) localStorage.removeItem(STORAGE_TOKEN);
+        // A 404 here does not mean the team vanished — it means this build has
+        // no selector — so it gets its own sentence instead of the key write's.
+        setApiKeyStatus(
+          status,
+          res.status === 404
+            ? TEAM_KEY_NO_SELECTOR_NOTE
+            : describeApiKeyFailure({ status: res.status }),
+          "error",
+        );
+        return { ok: false };
+      }
+      setApiKeyStatus(
+        status,
+        `The agent will now fall back to the ${providerLabel(provider)} key.`,
+        "success",
+      );
+      if (typeof ctx.onSaved === "function") ctx.onSaved(provider);
+      return { ok: true };
+    } catch (e) {
+      setApiKeyStatus(status, describeApiKeyFailure(null), "error");
+      return { ok: false };
+    } finally {
+      if (select) select.disabled = false;
     }
   }
 
@@ -933,11 +986,16 @@
    * than as "not set" — claiming absence we haven't confirmed would invite an
    * admin to overwrite a working key).
    *
+   * `selection` is {provider, supported} from the fallback-provider route, or
+   * null when this build has no such route (or the read failed). Null is NOT
+   * "Anthropic": a team that had selected OpenAI must not be told it is on
+   * Claude because a request failed.
+   *
    * `isAdmin` comes from this user's membership row, which is the same fact the
-   * server checks on PUT (role === "admin"), so the form is absent exactly when
-   * pressing it would 403.
+   * server checks on both PUTs, so the controls are absent exactly when pressing
+   * them would 403.
    */
-  function buildApiKeysSection({ team, providers, isAdmin }) {
+  function buildApiKeysSection({ team, providers, selection, isAdmin }) {
     const el = document.createElement("div");
     el.className = "apikey-section";
 
@@ -948,16 +1006,73 @@
 
     const note = document.createElement("p");
     note.className = "apikey-note";
-    note.textContent =
-      "This key is billed to your team, and the agent only spends it when no " +
-      "browser is sharing the Claude subscription.";
+    note.textContent = TEAM_KEY_COST_NOTE;
     el.appendChild(note);
 
     const present = new Set(providers || []);
+    const supported = (selection && selection.supported) || null;
+    let selected = (selection && selection.provider) || null;
+
     const ids = API_KEY_PROVIDERS.map((p) => p.id);
     for (const extra of providers || []) {
       if (!ids.includes(extra)) ids.push(extra);
     }
+    if (selected && !ids.includes(selected)) ids.push(selected);
+
+    // ── Which one is spent ────────────────────────────────────────────────
+    //
+    // FIRST, and separate from the form below, because storing a key and
+    // selecting a provider are different actions and an interface that runs
+    // them together is one where somebody pastes a key and waits for an answer
+    // it was never going to give.
+    const useRow = document.createElement("div");
+    useRow.className = "apikey-userow";
+    const useLabel = document.createElement("label");
+    useLabel.className = "apikey-label";
+    useLabel.textContent = TEAM_KEY_SELECTION_LABEL;
+    useRow.appendChild(useLabel);
+
+    let useSelect = null;
+    let useValue = null;
+    const useWarning = document.createElement("p");
+    useWarning.className = "apikey-warning";
+    useWarning.hidden = true;
+
+    if (selection === null) {
+      // No selector on this server. Say what IS true rather than leaving a gap.
+      useValue = document.createElement("span");
+      useValue.className = "apikey-usevalue";
+      useValue.textContent = providerLabel(PROVIDER_ANTHROPIC);
+      useRow.appendChild(useValue);
+    } else if (isAdmin) {
+      const useId = `apikey-use-${team.id}`;
+      useLabel.setAttribute("for", useId);
+      useSelect = document.createElement("select");
+      useSelect.id = useId;
+      for (const id of ids) {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = providerLabel(id);
+        useSelect.appendChild(opt);
+      }
+      if (selected) useSelect.value = selected;
+      useRow.appendChild(useSelect);
+    } else {
+      useValue = document.createElement("span");
+      useValue.className = "apikey-usevalue";
+      useValue.textContent = selected ? providerLabel(selected) : TEAM_KEY_UNKNOWN;
+      useRow.appendChild(useValue);
+    }
+    el.appendChild(useRow);
+    el.appendChild(useWarning);
+
+    const fallbackNote = document.createElement("p");
+    fallbackNote.className = "apikey-hint";
+    fallbackNote.textContent =
+      selection === null ? TEAM_KEY_NO_SELECTOR_NOTE : TEAM_KEY_FALLBACK_ONLY_NOTE;
+    el.appendChild(fallbackNote);
+
+    // ── What is stored ────────────────────────────────────────────────────
 
     const stateEls = new Map();
     for (const id of ids) {
@@ -967,6 +1082,15 @@
       name.className = "apikey-provider";
       name.textContent = providerLabel(id);
       row.appendChild(name);
+      // Which of these the agent can actually call, said on the row itself.
+      // Without it, three rows in one list read as three equivalent choices,
+      // and two of them are keys this deployment stores and never spends.
+      if (!providerIsCallable(id, supported)) {
+        const unused = document.createElement("span");
+        unused.className = "apikey-unused";
+        unused.textContent = TEAM_KEY_UNUSED_MARK;
+        row.appendChild(unused);
+      }
       const st = document.createElement("span");
       st.className = "apikey-state";
       row.appendChild(st);
@@ -981,15 +1105,16 @@
     let select = null;
     let input = null;
     let button = null;
+    let warning = null;
 
     function paintStates() {
       for (const [id, st] of stateEls) {
         if (providers === null) {
-          st.textContent = "Unknown";
+          st.textContent = TEAM_KEY_UNKNOWN;
           st.className = "apikey-state";
         } else {
           const set = present.has(id);
-          st.textContent = set ? "Set" : "Not set";
+          st.textContent = set ? TEAM_KEY_SET : TEAM_KEY_NOT_SET;
           st.className = "apikey-state" + (set ? " is-set" : "");
         }
       }
@@ -1000,6 +1125,33 @@
         const p = apiKeyProvider(select.value);
         input.placeholder = p ? p.prefix + "…" : "paste the key";
       }
+      // BEFORE the paste, not after the save: the whole cost of picking a
+      // provider the agent never calls is a key somebody bought for nothing.
+      if (warning && select) {
+        const text = unusedProviderWarning(select.value, supported);
+        warning.textContent = text;
+        warning.hidden = text === "";
+      }
+      paintSelection();
+    }
+
+    /**
+     * What the CURRENT selection means, said at selection time.
+     *
+     * Two ways a selection is a dead end, and both are silent otherwise: the
+     * provider has no key stored (the server reports it unavailable rather than
+     * reaching for another), or this build cannot call it at all.
+     */
+    function paintSelection() {
+      const current = useSelect ? useSelect.value : selected;
+      let text = "";
+      if (current && !providerIsCallable(current, supported)) {
+        text = unusedProviderWarning(current, supported);
+      } else if (current && providers !== null && !present.has(current)) {
+        text = missingKeyForSelectionWarning(current);
+      }
+      useWarning.textContent = text;
+      useWarning.hidden = text === "";
     }
 
     if (isAdmin) {
@@ -1020,10 +1172,17 @@
       for (const p of API_KEY_PROVIDERS) {
         const opt = document.createElement("option");
         opt.value = p.id;
-        opt.textContent = p.label;
+        // The marker rides in the option text as well as on the row, because
+        // the picker is where the choice is actually made and a person reading
+        // a dropdown is not reading the list above it.
+        opt.textContent = providerIsCallable(p.id, supported)
+          ? p.label
+          : `${p.label} — ${TEAM_KEY_UNUSED_MARK}`;
         select.appendChild(opt);
       }
-      select.value = API_KEY_PROVIDERS[0].id;
+      // The one the agent calls, selected by default. Anything else has to be
+      // chosen deliberately, past a warning.
+      select.value = PROVIDER_ANTHROPIC;
       form.appendChild(select);
 
       const keyLabel = document.createElement("label");
@@ -1046,11 +1205,17 @@
 
       el.appendChild(form);
 
+      // Between the form and the hint, so it sits directly under the field it
+      // is about. Painted by paintStates(), which runs on every change of the
+      // picker as well as at build time.
+      warning = document.createElement("p");
+      warning.className = "apikey-warning";
+      warning.hidden = true;
+      el.appendChild(warning);
+
       const hint = document.createElement("p");
       hint.className = "apikey-hint";
-      hint.textContent =
-        "Saving replaces whatever is stored for that provider. The key is " +
-        "encrypted on arrival and can never be read back — not here, not by us.";
+      hint.textContent = TEAM_KEY_REPLACE_NOTE;
       el.appendChild(hint);
 
       const submit = () =>
@@ -1060,6 +1225,8 @@
           input,
           button,
           status,
+          selected,
+          supported,
           onSaved: (id) => {
             present.add(id);
             if (!stateEls.has(id)) return;
@@ -1068,20 +1235,50 @@
         });
 
       button.addEventListener("click", submit);
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") submit();
-      });
+      // The promise is RETURNED, not dropped: the click path hands `submit`
+      // straight to the listener and therefore returns it, and a keyboard path
+      // that swallowed it would be a save nothing can await. That asymmetry is
+      // invisible in a browser and is exactly how the Enter path ends up
+      // untested.
+      input.addEventListener("keydown", (e) => (e.key === "Enter" ? submit() : undefined));
       select.addEventListener("change", paintStates);
+
+      if (useSelect) {
+        // A selection changes what the team spends, so it is written on change
+        // rather than collected behind a second button nobody presses. The
+        // warning repaints FIRST: somebody who picks a provider with no key
+        // sees why before the request even lands.
+        useSelect.addEventListener("change", () => {
+          paintSelection();
+          saveFallbackProvider({
+            team,
+            provider: useSelect.value,
+            select: useSelect,
+            status,
+            onSaved: (id) => {
+              selected = id;
+              paintSelection();
+            },
+          });
+        });
+      }
     } else {
       const hint = document.createElement("p");
       hint.className = "apikey-hint";
-      hint.textContent = "Only a team admin can set or replace this key.";
+      hint.textContent = TEAM_KEY_MEMBER_NOTE;
       el.appendChild(hint);
     }
 
+    // Beside the form and never above it: a team can hold a key per provider,
+    // and only the selected one is spent.
+    const storeNote = document.createElement("p");
+    storeNote.className = "apikey-hint";
+    storeNote.textContent = TEAM_KEY_STORE_IS_NOT_SELECT;
+    el.appendChild(storeNote);
+
     paintStates();
     el.appendChild(status);
-    return { el, select, input, button, status };
+    return { el, select, input, button, status, useSelect, useWarning };
   }
 
   async function removeMember(team, m) {
@@ -1135,17 +1332,21 @@
       .replace(/'/g, "&#39;");
   }
 
-  // Expose the API-key surface for the node suite, which loads this file in a
-  // Function() against a stubbed document — same idiom as
-  // chrome-extension/librechat_autofill.js. Functions only: no token, no key,
-  // no state. Nothing here grants a capability a page script doesn't already
-  // have, since the token it would need is in this origin's localStorage.
+  // Expose the API-key surface for the node suite, which imports this module
+  // against a stubbed document. Functions only: no token, no key, no state.
+  // Nothing here grants a capability a page script doesn't already have, since
+  // the token it would need is in this origin's localStorage.
+  //
+  // The shared definitions are re-exposed alongside the page's own two, so the
+  // suite drives THIS page through exactly the objects it uses at runtime
+  // rather than through a second import of the package.
   if (typeof globalThis !== "undefined") {
     globalThis.xbrainTeamApiKeys = {
       API_KEY_PROVIDERS,
       providerLabel,
       validateApiKey,
       describeApiKeyFailure,
+      readApiKeyProviders,
       buildApiKeysSection,
       saveTeamApiKey,
     };
