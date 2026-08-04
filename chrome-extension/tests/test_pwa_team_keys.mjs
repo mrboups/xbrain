@@ -518,6 +518,19 @@ testAsync("a save that lands says so, and says when the key is spent", async () 
   assert.match(line.textContent, /subscription/i, "when it gets spent is not stated");
 });
 
+testAsync("a save does not silently move the picker off what was chosen", async () => {
+  // paint() runs again after a save. Resetting the picker there would leave
+  // "OpenAI key saved" on screen above a form pointing at Anthropic, which is
+  // how the next paste lands under the wrong provider.
+  await mount();
+  const picker = NODES.get("team-key-provider");
+  picker.value = "openai";
+  NODES.get("team-key-input").value = "sk-" + "c".repeat(48);
+  await NODES.get("btn-team-key-save").fire("click");
+  assert.match(NODES.get("team-key-status").textContent, /OpenAI/, "the save named another provider");
+  assert.equal(picker.value, "openai", "the picker jumped back under the person's hands");
+});
+
 testAsync("a saved key flips its row to Set without a reload", async () => {
   await mount({ stored: [] });
   assert.ok(shown().includes("Not set"));

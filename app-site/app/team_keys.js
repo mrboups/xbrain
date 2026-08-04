@@ -135,6 +135,10 @@ export function mountTeamKeys(api, refs = {}) {
    */
   function fillProviders(ids, supported) {
     if (providerSelect) {
+      // What the person had picked, kept across a repaint. paint() runs again
+      // after a save, and resetting the picker there would leave "OpenAI key
+      // saved" on screen above a form pointing at Anthropic.
+      const wasPicked = providerSelect.value;
       clearChildren(providerSelect);
       for (const p of API_KEY_PROVIDERS) {
         const opt = document.createElement("option");
@@ -147,7 +151,9 @@ export function mountTeamKeys(api, refs = {}) {
           : `${p.label} - ${TEAM_KEY_UNUSED_MARK}`;
         providerSelect.appendChild(opt);
       }
-      providerSelect.value = PROVIDER_ANTHROPIC;
+      // The one the agent calls is the default; anything else is a deliberate
+      // choice made past a warning, and one already made is not undone here.
+      providerSelect.value = apiKeyProvider(wasPicked) ? wasPicked : PROVIDER_ANTHROPIC;
     }
     if (useSelect) {
       clearChildren(useSelect);
