@@ -71,6 +71,52 @@ export function isNearBottom(el, absorbed = 0) {
 }
 
 /**
+ * A handler that keeps the newest message in view when the viewport changes
+ * size — and only for a reader who was already there.
+ *
+ * THE BUG IT EXISTS FOR. Tap the composer on a phone and the shell loses about
+ * 300px to the on-screen keyboard. The scroller keeps the scrollTop it had, so
+ * the message somebody was replying to ends up behind the composer: they tapped
+ * the field to answer it and it disappeared. Nothing reacted to a viewport
+ * change at all — auto-scroll ran on send, on receive and on load, and a
+ * keyboard is none of those.
+ *
+ * WHAT IT MUST NOT DO is drag somebody back to the present because they tapped
+ * the field while reading history. That would be a worse bug than the one being
+ * fixed and a harder one to describe, so the decision is `isNearBottom` — the
+ * same question, from the same place, that auto-scroll asks.
+ *
+ * By the time a viewport handler runs, the shell has already shrunk and the
+ * scroller has already absorbed the loss: the raw gap reads ~300px even for
+ * somebody sitting exactly at the end. `previousHeight` is what makes the answer
+ * mean anything — subtracting the pixels that just went away asks about the
+ * position they were in a moment ago, which is the only one that expresses
+ * intent.
+ *
+ * @param {{getScrollEl: () => (Element|null), scrollToBottom: Function}} refs
+ * @returns {(change: {height: number, previousHeight: number}) => boolean}
+ *   the handler; true when it re-anchored, so the decision is observable.
+ */
+export function createViewportAnchor(refs = {}) {
+  const getScrollEl =
+    typeof refs.getScrollEl === "function" ? refs.getScrollEl : () => null;
+  const scrollToBottom =
+    typeof refs.scrollToBottom === "function" ? refs.scrollToBottom : () => {};
+
+  return function viewportChanged(change) {
+    const { height = 0, previousHeight = 0 } = change || {};
+    const el = getScrollEl();
+    if (!el) return false;
+    const absorbed = Math.max(0, (previousHeight || height) - height);
+    if (!isNearBottom(el, absorbed)) return false;
+    // force, because the unforced path re-asks the question against the exact
+    // geometry the keyboard has just invalidated, and answers no.
+    scrollToBottom({ force: true });
+    return true;
+  };
+}
+
+/**
  * Build the renderer for one chat surface.
  *
  * @param {{

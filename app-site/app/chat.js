@@ -24,7 +24,7 @@
  */
 
 import { createApi, MAX_MEDIA_BYTES } from "./chat_core/api.js";
-import { createRenderer } from "./chat_core/render.js";
+import { createRenderer, createViewportAnchor } from "./chat_core/render.js";
 import { createPublicationRouter } from "./chat_core/publication.js";
 import { connectRealtime, createConnectionStatus } from "./chat_core/realtime.js";
 import { createTeamRail } from "./chat_core/team_rail.js";
@@ -38,6 +38,7 @@ import {
 } from "./chat_core/chat_stream.js";
 import { handleOpenUrl, isSafeHttpUrl } from "./chat_core/nudge_open.js";
 import { webPlatform } from "./platform_web.js";
+import { onViewportChange } from "./viewport.js";
 import { ensureBridge } from "./bridge_link.js";
 import { bootPanels } from "./panels.js";
 import { MEMORY_API_BASE, getToken, signOut } from "./auth.js";
@@ -610,6 +611,32 @@ async function loadOlderPage() {
   }
 }
 
+// ---------- The keyboard, and where the thread has to be when it opens ------
+
+let viewportWired = false;
+
+/**
+ * Point chat-core's viewport anchor at this surface's thread.
+ *
+ * The two halves are deliberately in different files: viewport.js measures and
+ * announces, chat-core decides whether the reader's position means it may
+ * re-anchor (createViewportAnchor carries that reasoning, and the test that
+ * drives it). This function is the wire between them and nothing else.
+ *
+ * Wired once per session — the subscription is module-level and bootChat runs
+ * again after a re-sign-in.
+ */
+function wireViewportAnchor() {
+  if (viewportWired) return;
+  viewportWired = true;
+  onViewportChange(
+    createViewportAnchor({
+      getScrollEl: () => el("chat-scroll"),
+      scrollToBottom: (opts) => renderer.scrollToBottom(opts),
+    }),
+  );
+}
+
 // ---------- Composer ----------
 
 let composerWired = false;
@@ -985,6 +1012,7 @@ export async function bootChat(refs = {}) {
 
   // 6. Claim the channel and load the thread.
   wireComposer();
+  wireViewportAnchor();
   await switchTeam(state.activeTeamId);
 
   // 7. What the agent would run on. Asked once now, then only while somebody is

@@ -578,6 +578,136 @@ test("viewport.js never reaches into the chat's DOM", () => {
   }
 });
 
+// ---- 4c. What the thread does about it ----------------------------------
+//
+// The decision lives in chat-core (createViewportAnchor) precisely so it can be
+// driven here rather than described. chat.js's own part is three lines of
+// wiring, and those are asserted as text further down — a stub cannot press a
+// key, so what is proven below is the arithmetic, not the phone.
+
+const render = await import(
+  pathToFileURL(join(APP_DIR, "chat_core", "render.js")).href
+);
+
+/**
+ * A scroller, and the ONE fact that makes this bug what it is: when the shell
+ * loses height the scroller absorbs it, so clientHeight drops while scrollTop
+ * and scrollHeight stay exactly as they were.
+ */
+function makeScroller({ scrollHeight = 2000, clientHeight = 800, scrollTop = 0 }) {
+  return {
+    scrollHeight,
+    clientHeight,
+    scrollTop,
+    /** The keyboard opening, as the scroller experiences it. */
+    absorb(px) {
+      this.clientHeight -= px;
+    },
+  };
+}
+
+test("the keyboard opening re-anchors a thread that was AT the bottom", () => {
+  const scroller = makeScroller({ scrollHeight: 2000, clientHeight: 800, scrollTop: 1200 });
+  let forced = 0;
+  const anchor = render.createViewportAnchor({
+    getScrollEl: () => scroller,
+    scrollToBottom: (opts) => {
+      if (opts && opts.force) forced++;
+      scroller.scrollTop = scroller.scrollHeight;
+    },
+  });
+
+  scroller.absorb(336); // the shell shrank first; the handler runs after
+  const anchored = anchor({ height: 508, previousHeight: 844 });
+
+  assert.equal(
+    anchored,
+    true,
+    "the reader was sitting exactly at the end — after the shrink the raw gap reads 336px, and an implementation that measures it without subtracting what the viewport lost decides they are far from the bottom and leaves the message they are replying to behind the composer",
+  );
+  assert.equal(forced, 1, "the unforced path would re-ask against the invalidated geometry");
+});
+
+test("...and does NOT re-anchor somebody who had scrolled up to read", () => {
+  // 500px up: reading history. Tapping the field must not throw them back to
+  // the present — that is a worse bug than the one being fixed.
+  const scroller = makeScroller({ scrollHeight: 2000, clientHeight: 800, scrollTop: 700 });
+  let calls = 0;
+  const anchor = render.createViewportAnchor({
+    getScrollEl: () => scroller,
+    scrollToBottom: () => calls++,
+  });
+
+  scroller.absorb(336);
+  assert.equal(anchor({ height: 508, previousHeight: 844 }), false);
+  assert.equal(calls, 0, "their position is theirs");
+  assert.equal(scroller.scrollTop, 700, "and it is untouched");
+});
+
+test("a nudge of a few lines still counts as following the conversation", () => {
+  const scroller = makeScroller({ scrollHeight: 2000, clientHeight: 800, scrollTop: 1140 });
+  let calls = 0;
+  const anchor = render.createViewportAnchor({
+    getScrollEl: () => scroller,
+    scrollToBottom: () => calls++,
+  });
+  scroller.absorb(336);
+  assert.equal(
+    anchor({ height: 508, previousHeight: 844 }),
+    true,
+    "60px off the end is the same tolerance auto-scroll already uses; two different answers to one question is how the thread and the unread badge start disagreeing",
+  );
+  assert.equal(calls, 1);
+});
+
+test("the keyboard CLOSING gives the room back without moving a reader", () => {
+  // Growing absorbs nothing, so the gap is read as it stands. Somebody who was
+  // 500px up while typing is still 500px up when the keys go away.
+  const scroller = makeScroller({ scrollHeight: 2000, clientHeight: 508, scrollTop: 992 });
+  let calls = 0;
+  const anchor = render.createViewportAnchor({
+    getScrollEl: () => scroller,
+    scrollToBottom: () => calls++,
+  });
+  scroller.clientHeight = 844;
+  assert.equal(anchor({ height: 844, previousHeight: 508 }), false);
+  assert.equal(calls, 0);
+});
+
+test("an anchor with no thread to anchor decides nothing", () => {
+  const anchor = render.createViewportAnchor({
+    getScrollEl: () => null,
+    scrollToBottom: () => {
+      throw new Error("must not be called");
+    },
+  });
+  assert.equal(anchor({ height: 508, previousHeight: 844 }), false);
+  assert.equal(render.createViewportAnchor()({ height: 1, previousHeight: 2 }), false);
+});
+
+test("chat.js wires the two halves together, and declares neither", () => {
+  const chat = readFileSync(join(APP_DIR, "chat.js"), "utf8");
+  assert.match(
+    chat,
+    /import \{ onViewportChange \} from "\.\/viewport\.js"/,
+    "the thread must subscribe to the measurement rather than measure for itself",
+  );
+  assert.match(chat, /createViewportAnchor/, "and use chat-core's decision");
+  assert.equal(
+    (chat.match(/onViewportChange\(/g) || []).length,
+    1,
+    "one subscription: a second would scroll the thread twice on every frame of a keyboard animation",
+  );
+  assert.ok(
+    !/function\s+(isNearBottom|createViewportAnchor)\s*\(/.test(chat),
+    "a second definition of these is a second answer to where the reader is",
+  );
+  assert.ok(
+    !/\b120\b/.test(chat.replace(/\/\*[\s\S]*?\*\//g, "")),
+    "the near-bottom threshold belongs to chat-core; a copy here drifts silently",
+  );
+});
+
 test("no VisualViewport: nothing is written, nothing throws, teardown still works", () => {
   const root = makeRoot();
   const view = { innerHeight: 800, scrollY: 0 };
