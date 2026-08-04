@@ -195,7 +195,8 @@ async def test_catch_me_up_gate(client, monkeypatch):
         stream_calls: list[str] = []
 
         async def _fake_stream(
-            *, api_key, system_prompt, cached_memory_block, chat_history_block
+            *, api_key, system_prompt, cached_memory_block, chat_history_block,
+            model=None,
         ):
             # Capture the gathered since-window (chat_history_block) so the test can
             # assert EXACTLY which messages the real gather handed the model.

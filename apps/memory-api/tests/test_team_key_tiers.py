@@ -178,9 +178,17 @@ class TestARejectedTeamKeyDoesNotFallThrough:
             "the agent is reaching for the deployment key directly — the tier "
             "resolver is the only thing that may choose one"
         )
-        assert source.count("_stream_via_anthropic_api") == 1, (
+        # The routing block calls ONE dispatcher, which picks a provider and
+        # returns one stream. Counting the dispatcher rather than the Anthropic
+        # helper is the same guarantee expressed against the shape that now
+        # exists: two provider calls here would be the fall-through.
+        assert source.count("_stream_via_fallback_provider") == 1, (
             "a second provider call in the routing block is a fall-through: a "
             "refused team key must not be retried on the operator's key"
+        )
+        assert "_stream_via_openai_compatible_api" not in source, (
+            "the routing block is choosing a provider itself — that decision "
+            "belongs to the one dispatcher, or there are two ways to fall through"
         )
 
 
