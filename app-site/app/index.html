@@ -262,12 +262,19 @@
           a field nobody came here to edit.
         -->
         <div id="settings-profile" class="xb-profile">
-          <!-- The picture IS the control: tapping it opens the picker. A real
-               button, not an image wearing a click handler, so it is reachable
-               by keyboard and announces what it does. -->
+          <!-- The picture IS the control, and it carries its own affordance: a
+               pencil badge over the square, so nobody has to guess that a photo
+               is tappable. A real <button>, never an image wearing a click
+               handler — it takes Tab, it shows a focus ring, Enter and Space
+               press it, and it announces what it does. That is what the words
+               under it used to provide, and it is not optional now that they
+               are gone. -->
           <button type="button" id="btn-profile-avatar" class="xb-profile-avatar-btn"
-                  title="Change your picture" aria-label="Change your picture">
+                  title="Change profile photo" aria-label="Change profile photo">
             <span id="profile-avatar" class="xb-profile-avatar" aria-hidden="true"></span>
+            <span class="xb-profile-avatar-edit" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>
+            </span>
           </button>
           <input type="file" id="profile-avatar-input"
                  accept="image/png,image/jpeg,image/webp,image/gif" hidden />
@@ -275,11 +282,16 @@
             <input type="text" id="profile-name" class="xb-profile-name"
                    maxlength="128" autocomplete="name" spellcheck="false"
                    placeholder="Your name" aria-label="Your name" />
-            <span id="profile-bio" class="xb-profile-bio" hidden></span>
-            <!-- The same picker, in words. Nobody has to guess that a photo is
-                 tappable, and it opens exactly the one code path the picture
-                 opens. -->
-            <button type="button" id="btn-profile-photo" class="xb-profile-photo-btn">Change photo</button>
+            <!-- ALWAYS present, empty or not. It used to hide itself when there
+                 was nothing in it, which is defensible for a value you can only
+                 read and wrong for one you can write: somebody who has never set
+                 a bio saw no bio field and had no way to learn there was one.
+                 A textarea because the server keeps newlines, and maxlength
+                 matches the server's own ceiling so a long paragraph is stopped
+                 while it is typed rather than refused after it is written. -->
+            <textarea id="profile-bio" class="xb-profile-bio" rows="2" maxlength="400"
+                      spellcheck="false" placeholder="Add a short bio"
+                      aria-label="Your bio"></textarea>
           </span>
         </div>
         <p id="profile-status" class="xb-profile-status" role="status" hidden></p>

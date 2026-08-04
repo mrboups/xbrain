@@ -491,6 +491,7 @@ body {
    does on hover. line-height: 0 keeps the button exactly as tall as the square
    it wraps. */
 .xb-profile-avatar-btn {
+  position: relative;              /* the edit badge sits on the square */
   flex-shrink: 0;
   display: inline-flex;
   padding: 0;
@@ -500,6 +501,34 @@ body {
   line-height: 0;
   cursor: pointer;
 }
+
+/* The affordance the words under the picture used to carry. Small, square,
+   bottom-right, on the palette — a mark that says "this changes", not a second
+   button competing with the name. */
+.xb-profile-avatar-edit {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--card-fg);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+/* Inline SVGs carry a viewBox and no intrinsic size: unsized, this one renders
+   at the UA default (~300x150) and takes the settings sheet apart. It has
+   happened here before. */
+.xb-profile-avatar-edit svg { width: 9px; height: 9px; display: block; }
+.xb-profile-avatar-btn:hover:not(:disabled) .xb-profile-avatar-edit {
+  border-color: var(--ring);
+}
+/* Read-only: the picture stops inviting a press, so the mark that promises one
+   goes with it. */
+.xb-profile-avatar-btn:disabled .xb-profile-avatar-edit { display: none; }
 .xb-profile-avatar-btn:hover:not(:disabled) .xb-profile-avatar {
   border-color: var(--ring);
   color: var(--fg);
@@ -509,24 +538,6 @@ body {
    keeps its full contrast and simply stops inviting a press. */
 .xb-profile-avatar-btn:disabled { cursor: default; }
 
-/* The same picker, said in words, for anyone who would not think to tap a
-   photo. Quiet on purpose: it sits under a name, and a filled button there
-   would outrank the name itself. */
-.xb-profile-photo-btn {
-  align-self: flex-start;
-  margin-top: 3px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--muted-fg);
-  font-family: inherit;
-  font-size: 11px;
-  text-decoration: underline;
-  cursor: pointer;
-}
-.xb-profile-photo-btn:hover:not(:disabled) { color: var(--fg); }
-.xb-profile-photo-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.xb-profile-photo-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .xb-profile-fields {
   display: flex;
   flex-direction: column;
@@ -565,13 +576,35 @@ body {
   border-color: transparent;
 }
 .xb-profile-name::placeholder { color: var(--muted-fg); font-weight: 500; }
+/* The bio reads as the quiet line under a name until it is touched, exactly
+   like the name field above it: same transparent border, same border-on-focus,
+   so the block is a profile line and not a form. */
 .xb-profile-bio {
-  font-size: 12px;
+  width: 100%;
+  background: transparent;
   color: var(--muted-fg);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 3px 5px;
+  margin-left: -5px;
+  font-family: var(--sans);
+  /* 16px, for the same reason the name field is: iOS Safari zooms the page in
+     on a focused field below that size and never zooms back out. */
+  font-size: 16px;
   line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  resize: none;
+  outline: none;
 }
+.xb-profile-bio:hover:not(:disabled) { border-color: var(--border); }
+.xb-profile-bio:focus { border-color: var(--input); background: var(--bg); color: var(--fg); }
+.xb-profile-bio:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.xb-profile-bio:disabled {
+  color: var(--muted-fg);
+  opacity: 1;
+  cursor: default;
+  border-color: transparent;
+}
+.xb-profile-bio::placeholder { color: var(--muted-fg); }
 .xb-profile-status {
   margin: -4px 0 10px;
   font-size: 11px;
