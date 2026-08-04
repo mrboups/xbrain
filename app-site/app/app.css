@@ -141,6 +141,20 @@ body {
      not enough either — it tracks browser chrome and is never updated by the
      virtual keyboard, which is exactly how the header used to scroll away. */
   height: var(--xb-viewport-height, 100dvh);
+  /* ...AND WHERE IT SITS, which is a separate question with a separate answer.
+     The visible window is not always flush with the top of the layout viewport:
+     with the keyboard open over a page that cannot scroll, iOS slides the window
+     down instead, and a shell painted from the top of the layout viewport then
+     ends above the bottom of the screen — the black band between the composer
+     and the keys. viewport.js measures that slide; this puts the column back
+     inside the window.
+
+     A transform rather than `top`, deliberately: it also makes this element the
+     containing block for the fixed overlays below, so the settings sheet and the
+     members card follow the same window instead of being laid out against a
+     layout viewport that still includes the space behind the keyboard. Unset is
+     0px — every platform that keeps the two viewports flush pays nothing. */
+  transform: translateY(var(--xb-viewport-offset-top, 0px));
   overflow: hidden;
   /* No rubber-band on the page itself. The message list is the one scroller,
      and a bounce here reads as the whole app coming loose. */

@@ -46,6 +46,16 @@
 const HEIGHT_VAR = "--xb-viewport-height";
 
 /**
+ * How far the visible window sits BELOW the top of the layout viewport.
+ *
+ * app.css translates the shell by it, which is the difference between a column
+ * that is the right size and one that is also in the right place. Unset means
+ * zero, which is the answer on every platform that keeps the two viewports
+ * flush — the variable earns its keep on exactly one, and that one is the phone.
+ */
+const OFFSET_TOP_VAR = "--xb-viewport-offset-top";
+
+/**
  * Stamped on the root for as long as a keyboard covers part of the viewport.
  *
  * It buys one thing: the composer's bottom safe-area inset collapses while the
@@ -64,6 +74,57 @@ const KEYBOARD_MIN_PX = 120;
 
 /** A pinch of zoom either side of 1 is measurement noise, not a gesture. */
 const SCALE_EPSILON = 0.01;
+
+/**
+ * Everyone who wants to be told the visible window changed.
+ *
+ * WHY A SUBSCRIPTION AND NOT A CALL. This module measures; it does not know what
+ * anything else should do about the measurement. The thread has to re-anchor
+ * when the keyboard takes 300px away — but whether it may is a question about
+ * where the reader is in the conversation, which is the chat's business and not
+ * a viewport's. Reaching into the thread's own element from here would put the
+ * two facts in the wrong module and make this file un-testable without a chat.
+ * A test asserts that no element id of another surface appears below, comments
+ * included: a gate that passes because prose was reworded is worse than none.
+ *
+ * Module-level rather than per-binding: a document has exactly one visual
+ * viewport, and a subscriber is wired once for the session while the binding
+ * itself can be taken down and put back by a re-boot.
+ */
+const listeners = new Set();
+
+/**
+ * Be told when the measured viewport changes.
+ *
+ * @param {(change: {height: number, previousHeight: number, offsetTop: number,
+ *   keyboard: boolean}) => void} handler
+ *   height         — what the shell is now laid out against
+ *   previousHeight — what it was laid out against a moment ago. The difference
+ *                    is what the message list just lost, which is the only way a
+ *                    reader's position before the change can still be recovered.
+ *   offsetTop      — how far the visible window sits below the layout viewport
+ *   keyboard       — whether that loss is big enough to be a keyboard
+ * @returns {() => void} unsubscribe. Always a function.
+ */
+export function onViewportChange(handler) {
+  if (typeof handler !== "function") return () => {};
+  listeners.add(handler);
+  return () => listeners.delete(handler);
+}
+
+/** Tell the subscribers, and survive one of them throwing. */
+function notify(change) {
+  for (const handler of [...listeners]) {
+    try {
+      handler(change);
+    } catch (e) {
+      // The height IS the layout. A subscriber that throws must not take the
+      // measurement down with it and freeze the shell at whatever the keyboard
+      // left behind.
+      console.warn("[xbrain] viewport subscriber failed:", e);
+    }
+  }
+}
 
 /**
  * Drive the shell's height from the visual viewport.
@@ -89,6 +150,12 @@ export function bindViewport(refs = {}) {
   // content. Writing nothing is the correct outcome, not a degraded one.
   if (!viewport) return () => {};
 
+  // What was last WRITTEN, so a change can be told from the dozens of events
+  // that repeat it: iOS fires scroll continuously, and re-announcing the same
+  // height would have every subscriber re-doing its work on every frame.
+  let lastHeight = null;
+  let lastOffsetTop = null;
+
   const measure = () => {
     // A pinch-zoomed visual viewport is a window onto the page, not a keyboard
     // measurement. Resizing the shell to it would shrink the app under the
@@ -100,6 +167,19 @@ export function bindViewport(refs = {}) {
     if (height <= 0) return;
     root.style.setProperty(HEIGHT_VAR, `${height}px`);
 
+    // WHERE the visible window is, which is a different question from how tall
+    // it is — and the one that was never asked. The visual viewport is not
+    // always flush with the top of the layout viewport: when the keyboard opens
+    // over a document that CANNOT scroll (this one: body is overflow:hidden and
+    // exactly viewport-tall) iOS still has to bring the focused field into view,
+    // and the only move left to it is to slide the visible window down inside
+    // the layout viewport. The shell then paints from the top of the LAYOUT
+    // viewport, its last `offsetTop` pixels fall below the visible window, and
+    // what is left in their place, between the composer and the keys, is a band
+    // of bare canvas.
+    const offsetTop = Math.max(0, Math.round(viewport.offsetTop || 0));
+    root.style.setProperty(OFFSET_TOP_VAR, `${offsetTop}px`);
+
     const covered = Math.round((view.innerHeight || height) - height);
     if (covered >= KEYBOARD_MIN_PX) root.setAttribute(KEYBOARD_ATTR, "open");
     else root.removeAttribute(KEYBOARD_ATTR);
@@ -108,9 +188,32 @@ export function bindViewport(refs = {}) {
     // nothing left to scroll. If it is scrolled anyway, that IS the bug this
     // file exists for: iOS scrolled the layout viewport to reveal the focused
     // field and took the header with it. Put it back.
+    //
+    // Not the same correction as the offset above, and neither replaces the
+    // other: scrollY is the document's position inside the layout viewport,
+    // offsetTop is the visible window's position inside that same layout
+    // viewport. A page pinned at scrollY 0 can still be looked at through a
+    // window that has moved.
     if (view.scrollY > 0 && typeof view.scrollTo === "function") {
       view.scrollTo(0, 0);
     }
+
+    if (height === lastHeight && offsetTop === lastOffsetTop) return;
+    // First measurement: nothing has moved yet, so the change is zero-sized.
+    // A subscriber deriving "how much did the list just lose" from it must get
+    // 0 here rather than the whole height.
+    const previousHeight = lastHeight === null ? height : lastHeight;
+    lastHeight = height;
+    lastOffsetTop = offsetTop;
+    // AFTER the style is written and the page is back at the top: a subscriber
+    // that re-measures its own scroller must see the layout this change
+    // produced, not the one it replaced.
+    notify({
+      height,
+      previousHeight,
+      offsetTop,
+      keyboard: covered >= KEYBOARD_MIN_PX,
+    });
   };
 
   measure();
@@ -122,8 +225,10 @@ export function bindViewport(refs = {}) {
     viewport.removeEventListener("scroll", measure);
     // Back to the stylesheet's fallback rather than to a stale pixel count: a
     // detached binding must not leave the shell frozen at whatever height the
-    // keyboard happened to leave behind.
+    // keyboard happened to leave behind — nor translated down by an offset
+    // nothing is measuring any more, which would strand the header off screen.
     root.style.removeProperty(HEIGHT_VAR);
+    root.style.removeProperty(OFFSET_TOP_VAR);
     root.removeAttribute(KEYBOARD_ATTR);
   };
 }
