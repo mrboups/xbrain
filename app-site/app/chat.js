@@ -37,6 +37,7 @@ import {
   SUBSCRIPTION_LOST_NOTICE,
 } from "./chat_core/chat_stream.js";
 import { handleOpenUrl, isSafeHttpUrl } from "./chat_core/nudge_open.js";
+import { keepFocusOnPress } from "./chat_core/dom.js";
 import { webPlatform } from "./platform_web.js";
 import { onViewportChange } from "./viewport.js";
 import { ensureBridge } from "./bridge_link.js";
@@ -682,6 +683,15 @@ function wireComposer() {
     });
   }
 
+  // EVERY control in the pill, and for one reason: pressing any of them used to
+  // take focus off the textarea, and on iOS a field that loses focus takes the
+  // keyboard with it. Sending closed it; so did arming the agent, which is
+  // pressed mid-sentence, before the message it applies to. The keyboard cannot
+  // be reopened from script, so the only fix is to never let focus leave —
+  // keepFocusOnPress cancels the press's focus move while leaving its click
+  // alone. See packages/chat-core/dom.js for what that rests on.
+  for (const control of [sendBtn, agentBtn, clipBtn]) keepFocusOnPress(control);
+
   if (scrollEl) {
     scrollEl.addEventListener("scroll", () => {
       if (scrollEl.scrollTop < 80) loadOlderPage();
@@ -832,7 +842,16 @@ async function sendMessage() {
   } catch (e) {
     showComposerError(`Message not sent: ${e.message}`);
   } finally {
+    // Re-enabled before focus is touched: disabling an element that holds focus
+    // moves focus to the body, and this one has been disabled since the send
+    // began. It never held focus — keepFocusOnPress saw to that — but the order
+    // costs nothing and the failure it prevents is invisible.
     if (sendBtn) sendBtn.disabled = false;
+    // The DESKTOP path, and only that. A click there does move focus, and this
+    // puts it back. On iOS it is a no-op wearing a useful name: a .focus() after
+    // an await is outside the user gesture, so the caret returns and the
+    // keyboard does not — which is why the keyboard is kept rather than
+    // recovered.
     input.focus();
   }
 }

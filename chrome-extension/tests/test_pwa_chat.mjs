@@ -29,7 +29,7 @@
 
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -542,6 +542,146 @@ test("agent toggle: ONE summon mechanism — the mention, never a parallel flag"
   assert.ok(
     body.includes("setAgentArmed(false)"),
     "a successful send must disarm the toggle — this is a shared team chat",
+  );
+});
+
+// ---- The composer must not close the keyboard it is being typed into -----
+//
+// Stated as FOCUS OWNERSHIP, which is the provable half. A stub has no keyboard,
+// so an assertion about one would be theatre; what actually broke is that focus
+// left the textarea, and that is visible here. The unprovable half — that iOS
+// runs the focus change as mousedown's default action, and that a keyboard once
+// closed cannot be reopened from script — is named in dom.js and in the report.
+
+const dom = await import(pathToFileURL(join(CORE_DIR, "dom.js")).href);
+
+/** The smallest document that can lose focus: elements, listeners, activeElement. */
+function makeDoc() {
+  const doc = { activeElement: null };
+  const make = (id) => {
+    const handlers = {};
+    const node = {
+      id,
+      disabled: false,
+      addEventListener: (type, fn) => {
+        (handlers[type] = handlers[type] || []).push(fn);
+      },
+      removeEventListener: (type, fn) => {
+        const list = handlers[type] || [];
+        const i = list.indexOf(fn);
+        if (i !== -1) list.splice(i, 1);
+      },
+      focus: () => {
+        doc.activeElement = node;
+      },
+      blur: () => {
+        if (doc.activeElement === node) doc.activeElement = null;
+      },
+      count: (type) => (handlers[type] || []).length,
+      /**
+       * A press, as a browser performs one: mousedown, then the default action
+       * that moves focus HERE — unless somebody cancelled it — then click.
+       */
+      press: () => {
+        let prevented = false;
+        const event = {
+          type: "mousedown",
+          preventDefault: () => {
+            prevented = true;
+          },
+        };
+        for (const fn of handlers.mousedown || []) fn(event);
+        if (!prevented) doc.activeElement = node;
+        for (const fn of handlers.click || []) fn({ type: "click" });
+      },
+    };
+    return node;
+  };
+  doc.make = make;
+  return doc;
+}
+
+test("the stub can show the bug: an unguarded press takes focus off the field", () => {
+  // Without this, the next test would pass against a stub that could not move
+  // focus at all — an assertion that cannot fail for the reason the bug happens
+  // is not evidence.
+  const doc = makeDoc();
+  const input = doc.make("composer-input");
+  const button = doc.make("btn-send");
+  let clicks = 0;
+  button.addEventListener("click", () => clicks++);
+
+  input.focus();
+  button.press();
+  assert.equal(doc.activeElement, button, "this IS the defect: focus moved, and on iOS the keyboard follows it");
+  assert.equal(clicks, 1);
+});
+
+test("...and keepFocusOnPress changes exactly that, and nothing else", () => {
+  const doc = makeDoc();
+  const input = doc.make("composer-input");
+  const button = doc.make("btn-send");
+  let clicks = 0;
+  button.addEventListener("click", () => clicks++);
+  const detach = dom.keepFocusOnPress(button);
+
+  input.focus();
+  button.press();
+  assert.equal(
+    doc.activeElement,
+    input,
+    "the field must still hold focus after the send control is pressed — losing it is what closed the keyboard",
+  );
+  assert.equal(clicks, 1, "the control must still DO its job; a swallowed click sends nothing");
+
+  detach();
+  assert.equal(button.count("mousedown"), 0, "the guard comes off cleanly");
+});
+
+test("disabling the button mid-send cannot take focus, because it never had it", () => {
+  // The second cause: disabling an element that holds focus moves focus to the
+  // body. Order matters here only if the first cause was left in place.
+  const doc = makeDoc();
+  const input = doc.make("composer-input");
+  const button = doc.make("btn-send");
+  dom.keepFocusOnPress(button);
+  input.focus();
+
+  button.press();
+  button.disabled = true; // in flight
+  button.disabled = false; // finally
+  assert.equal(doc.activeElement, input, "focus never left, so there was nothing for the disable to steal");
+});
+
+test("keepFocusOnPress survives being handed nothing", () => {
+  assert.equal(typeof dom.keepFocusOnPress(), "function");
+  assert.equal(typeof dom.keepFocusOnPress(null)(), "undefined");
+});
+
+test("EVERY control in the pill is guarded, not just the send button", () => {
+  const body = stripComments(pwaChatJs);
+  assert.match(
+    body,
+    /import \{ keepFocusOnPress \} from "\.\/chat_core\/dom\.js"/,
+    "the guard is shared code, not a local preventDefault somebody will delete",
+  );
+  const loop = /for \(const control of \[([^\]]*)\]\) keepFocusOnPress\(control\)/.exec(body);
+  assert.ok(loop, "chat.js must guard its composer controls");
+  for (const name of ["sendBtn", "agentBtn", "clipBtn"]) {
+    assert.ok(
+      loop[1].includes(name),
+      `${name} is unguarded — pressing it drops the keyboard mid-compose, and the agent toggle is pressed BEFORE the message it applies to`,
+    );
+  }
+});
+
+test("the recovery focus() stays, and is not mistaken for the fix", () => {
+  const fn = /async\s+function\s+sendMessage\s*\([^)]*\)\s*\{[\s\S]*?\n\}/.exec(pwaChatJs);
+  assert.ok(fn, "chat.js has no sendMessage()");
+  assert.match(
+    stripComments(fn[0]),
+    /input\.focus\(\)/,
+    "correct on desktop, where a click genuinely does move focus",
   );
 });
 
