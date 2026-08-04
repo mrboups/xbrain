@@ -236,6 +236,57 @@ Also fixed at the same time, and worth keeping: `**/*.@(css|js)` was served with
 `max-age=3600` site-wide. `/app/**` now revalidates instead — for un-hashed files that
 change every deploy, an hour of staleness costs more than the bytes a 304 saves.
 
+## A private lane to the brain — a composer tag whose message the team never sees — 2026-08-05
+
+**Requested by the owner.** Two composer tags, one at each end of the field:
+- **agent tag, far LEFT** — summons the agent (exists today; it currently sits next to
+  send and moves).
+- **brain tag, far RIGHT** — sends a note to the brain, or asks the brain a question,
+  **without the message appearing in the team chat**. Only the person who wrote it sees
+  it, and only they see the answer.
+
+This would be the **first per-user privacy inside a team chat**. Today every
+`team_messages` row is visible to every member by design (see
+[[project-xbrain-team-shared-no-1to1]]), so this is new ground rather than a filter on
+existing behaviour.
+
+### The three things that decide whether it is safe
+
+1. **It must not be published on `team:<id>`.** Every message today goes out on the team
+   channel, which every member receives. A private message published there is read by
+   everyone *before* any display filtering applies — the leak happens on the wire, not in
+   the UI. It has to go out on the author's own `user:` channel. This is the same class of
+   hazard an agent caught on 2026-08-03, where routing publications by the `team:` prefix
+   would have painted one team's messages into another's thread.
+2. **The read filter is security-critical, not cosmetic.** History loads through
+   `GET /v1/teams/{id}/messages`; getting the predicate wrong exposes every member's
+   private notes to the whole team. It wants testing as an isolation property — a second
+   member must provably not receive the row — not as an appearance.
+3. **The agent's answer must inherit the privacy.** Otherwise the question is invisible
+   and the reply is public, which reveals it in outline. The reply row needs the same
+   visibility and the same channel treatment as the question.
+
+### The open decision — the owner's to make
+
+A private note still lands in the **team's** brain, because that is the point: the brain
+learns. But then a teammate's agent query can surface its content, so the tag means
+*"this does not clutter the chat"*, **not** *"this is secret"*.
+
+The alternative is a genuinely personal lane whose items only feed the author's own
+recall — more confidential, but it fractures the collective memory that is the product's
+reason to exist.
+
+**Recommendation: the first, on the condition that the UI says so plainly.** Unstated,
+someone will put a password or an HR note behind that tag believing it is private. The
+`visibility` field in the tagging contract (`private` / `team` / `org` / `public`) already
+exists for exactly this distinction and should carry it rather than a new flag.
+
+### Sizing
+
+Medium, and it touches the two places this project is most careful about: the realtime
+publish path and the message read path. Not to be started while other work is in flight
+in `team_chat.py`, `chat.js` or the composer — it collides with all three.
+
 ## Telegram bridge — chat in your team chat from Telegram
 
 **Requested:** 2026-07-12. Feasibility checked against the live code, not assumed.
