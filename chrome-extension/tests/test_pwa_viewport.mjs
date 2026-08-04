@@ -172,6 +172,24 @@ test("the composer keeps its safe-area inset, and drops it only while the keys a
   );
 });
 
+test("double-tap zooms nothing, and pinch still zooms everything", () => {
+  const body = props(selectorBlock(css, "body"));
+  assert.equal(
+    body["touch-action"],
+    "manipulation",
+    "without it a double-tap on a message zooms the whole app — and `manipulation` is the value that drops that gesture while KEEPING pinch-zoom",
+  );
+  const meta = /<meta[^>]+name="viewport"[^>]*>/.exec(html);
+  assert.ok(
+    !/user-scalable\s*=\s*(no|0)/.test(meta[0]),
+    "user-scalable=no is the mistake this invites: iOS has ignored it since iOS 10, so it fixes nothing there, and on the browsers that honour it somebody who needs to magnify the text no longer can",
+  );
+  assert.ok(
+    !/maximum-scale/.test(meta[0]),
+    "maximum-scale is the same accessibility regression wearing a different name",
+  );
+});
+
 test("an overlay card is sized against the same measured viewport", () => {
   const card = props(selectorBlock(css, ".xb-overlay-card"));
   assert.match(
@@ -672,6 +690,19 @@ test("the keyboard CLOSING gives the room back without moving a reader", () => {
   scroller.clientHeight = 844;
   assert.equal(anchor({ height: 844, previousHeight: 508 }), false);
   assert.equal(calls, 0);
+});
+
+test("the near-bottom threshold is one number, and it is where it says it is", () => {
+  // Three behaviours read this: auto-scroll on a new message, the keyboard
+  // re-anchor above, and the jump-to-latest control. They must agree — a button
+  // offering to take somebody to a bottom the app thinks it is already at does
+  // nothing when pressed.
+  const at = (gap) => ({ scrollHeight: 1000, clientHeight: 500, scrollTop: 500 - gap });
+  assert.equal(render.isNearBottom(at(0)), true, "exactly at the end");
+  assert.equal(render.isNearBottom(at(119)), true, "a nudge is still following");
+  assert.equal(render.isNearBottom(at(120)), false, "and 120 is where reading history starts");
+  assert.equal(render.NEAR_BOTTOM_PX, 120, "the number is exported, so nobody has to restate it");
+  assert.equal(render.isNearBottom(null), false, "no scroller is not 'at the bottom'");
 });
 
 test("an anchor with no thread to anchor decides nothing", () => {

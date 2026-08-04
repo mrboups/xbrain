@@ -159,6 +159,17 @@ body {
   /* No rubber-band on the page itself. The message list is the one scroller,
      and a bounce here reads as the whole app coming loose. */
   overscroll-behavior: none;
+  /* Double-tap-to-zoom is a DOCUMENT gesture and this is not a document: people
+     double-tap a message to select a word and the whole interface jumps.
+     `manipulation` drops that gesture (and the 300ms click delay that comes with
+     it) while leaving panning and PINCH-ZOOM alone — magnifying text stays
+     possible, and it must: user-scalable=no would take it away on the browsers
+     that still honour it, and iOS has ignored it since iOS 10 anyway, so it
+     would read as a fix and be none. viewport.js stands down at any scale other
+     than 1 for the same reason: a pinch is a supported gesture here.
+     Touch behaviour is the intersection down the ancestor chain, so declaring it
+     on the shell covers everything inside it, overlays included. */
+  touch-action: manipulation;
   background: var(--bg);
   color: var(--fg);
   font-family: var(--sans);
@@ -1020,7 +1031,21 @@ body {
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
+  /* No visible track. On a desktop browser this app is a phone-shaped column,
+     and a permanent bar down its right edge is the one piece of window
+     furniture in it.
+
+     THE TRADE-OFF, stated rather than glossed: the track is also the passive
+     cue that there is more to read, and the only sense of WHERE you are in a
+     long thread. The first is answered by the jump-to-latest control below;
+     the second is not answered at all, and that is an accepted cost. Scrolling
+     itself is untouched — this hides the indicator, not the overflow.
+
+     Three declarations because three engines: Firefox, old Edge, WebKit. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+#chat-scroll::-webkit-scrollbar { display: none; }
 
 #message-list {
   display: flex;
@@ -1035,6 +1060,45 @@ body {
   font-size: 12.5px;
   color: var(--muted-fg);
 }
+
+/* ---- Jump to the newest message -------------------------------------- */
+
+/* A zero-height box between the thread and the composer. The control hangs
+   upward out of it, so it sits a fixed distance above the composer's top edge
+   no matter what the composer is doing — grown to three rows, carrying an
+   upload error, or holding the safe-area inset with the keyboard closed. That
+   is layout doing the work; a measured offset would have to be recomputed on
+   every one of those and would still be wrong on some device. */
+.xb-jump-slot {
+  position: relative;
+  flex-shrink: 0;
+  height: 0;
+}
+
+.xb-jump {
+  position: absolute;
+  right: 13px;
+  bottom: 10px;
+  z-index: 5;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  color: var(--muted-fg);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+  transition: background 0.14s, color 0.14s;
+}
+.xb-jump:hover { background: var(--muted); color: var(--fg); }
+.xb-jump:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+/* Same reason as every other inline SVG here: no intrinsic size means the UA
+   default (~300x150) and a button the size of the thread. */
+.xb-jump svg { width: 15px; height: 15px; display: block; }
 
 /* Older-page spinner text. It is INSIDE the scroller and above the list, which
    is where the pull happens, and it takes no height while hidden so the
