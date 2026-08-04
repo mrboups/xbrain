@@ -153,11 +153,11 @@
       Jump to the newest message, shown only while it is off screen.
 
       The slot is a zero-height box: the button hangs upward out of it, over the
-      thread, and lands a fixed distance above the composer's top edge whatever
-      the composer is doing — grown to three rows, holding an upload error, or
-      sitting on the safe-area inset with the keyboard closed. Anchoring it to
-      the layout costs nothing per frame and cannot be wrong on a device nobody
-      tested; a measured offset would be both.
+      last messages, and everything below it — the route status, an upload
+      error, a composer grown to three rows, the safe-area inset, the keyboard —
+      pushes it up by existing. Anchoring it to the layout costs nothing per
+      frame and cannot be wrong on a device nobody tested; an offset computed in
+      script would be both.
     -->
     <div class="xb-jump-slot">
       <button type="button" id="btn-jump-latest" class="xb-jump" hidden

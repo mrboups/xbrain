@@ -1096,12 +1096,13 @@ body {
 
 /* ---- Jump to the newest message -------------------------------------- */
 
-/* A zero-height box between the thread and the composer. The control hangs
-   upward out of it, so it sits a fixed distance above the composer's top edge
-   no matter what the composer is doing — grown to three rows, carrying an
-   upload error, or holding the safe-area inset with the keyboard closed. That
-   is layout doing the work; a measured offset would have to be recomputed on
-   every one of those and would still be wrong on some device. */
+/* A zero-height box under the thread. The control hangs upward out of it, over
+   the last messages, so it clears everything below it — the route status, an
+   upload error, a composer grown to three rows, the safe-area inset with the
+   keyboard closed and the keyboard itself with it open — without measuring any
+   of them. That is layout doing the work: an offset computed in script would
+   have to be recomputed for every one of those, and would still be wrong on
+   some device nobody tested. */
 .xb-jump-slot {
   position: relative;
   flex-shrink: 0;
