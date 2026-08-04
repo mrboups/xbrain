@@ -31,8 +31,12 @@
  * shared modules and a panels surface.
  * v4 — the keyboard fix (viewport.js) and the full-screen settings overlay.
  * v5 — importing a past conversation (import.js) joined the shell.
+ * v8 — the team API key section: chat_core/team_api_keys.js and team_keys.js.
+ *      ONE bump for the whole change even though the two files land in separate
+ *      commits — v8 has not been deployed in between, so a second name would
+ *      only mean a second cache to evict for no shipped difference.
  */
-const CACHE = "xb-app-shell-v7";
+const CACHE = "xb-app-shell-v8";
 
 /**
  * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07
@@ -72,6 +76,7 @@ const SHELL = [
   "/app/chat_core/realtime.js",
   "/app/chat_core/people.js",
   "/app/chat_core/invite.js",
+  "/app/chat_core/team_api_keys.js",
   "/app/chat_core/team_rail.js",
   "/app/chat_core/teams.js",
 ];

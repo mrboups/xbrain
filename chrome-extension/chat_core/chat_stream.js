@@ -429,14 +429,35 @@ export function agentRouteStatusText(status) {
  * subscription they already pay for; a key is what you reach for when no
  * browser can be open.
  *
+ * "a team admin can set" rather than "or set": the PUT is admin-only, and the
+ * person most likely to read this is on a phone with no way to check which they
+ * are. Naming the role means the sentence is true for both, and the member who
+ * cannot act at least learns who can.
+ *
  * Not about this device, for the same reason nothing else is: the bridge is
  * keyed by user. A phone is connected whenever that person has a browser
  * holding the socket anywhere.
  */
 export const SUBSCRIPTION_LOST_NOTICE =
   "Your Claude subscription is no longer connected. Reopen the browser where " +
-  "the xbrain extension is signed in to keep using it, or set a team API key, " +
-  "which the team is billed for.";
+  "the xbrain extension is signed in to keep using it, or a team admin can set " +
+  "a team API key, which the team is billed for.";
+
+/**
+ * The label on the control that takes somebody from that notice to the place
+ * the key is actually set.
+ *
+ * A DESTINATION, NOT AN ACT. "Set a team API key" would promise a capability
+ * the reader may not have — the write is admin-only — and a button that reads
+ * as an action and then shows a sentence about asking somebody else is a
+ * button that lied. This one names where it goes; the section it opens is where
+ * an admin finds a form and a member finds the ask-an-admin line.
+ *
+ * The notice used to name the remedy with no route to it at all, which on a
+ * standalone PWA — no address bar, no way to reach the desktop admin page — was
+ * advice that could not be followed.
+ */
+export const SUBSCRIPTION_NOTICE_ACTION = "Team API key";
 
 /**
  * Notice the moment a bridge that WAS live stops being live.
