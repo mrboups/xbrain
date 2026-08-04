@@ -324,6 +324,35 @@ Medium, and it touches the two places this project is most careful about: the re
 publish path and the message read path. Not to be started while other work is in flight
 in `team_chat.py`, `chat.js` or the composer — it collides with all three.
 
+## "New messages" prompt on relaunch or refocus — 2026-08-05
+
+**Requested by the owner.** When the app is relaunched or regains focus and a team has
+messages that arrived while it was away, show a small prompt: **go and look**, or
+**dismiss**. Switchable off in Settings.
+
+**Reuse the read cursor; do not invent a second one.** `team_members.last_read_at` and
+`/unread-summary` already decide what "new" means, and they feed the unread badges on the
+team rail. A prompt computing its own answer would eventually disagree with the badge
+sitting three centimetres away.
+
+**The traps, from what this project has already paid for:**
+- **It is a transition, not a state.** Fire on returning to the app with something new,
+  not on every focus event — a phone raises `focus` on every keyboard dismissal and every
+  app-switcher glance.
+- **Dismissing must stick for that batch.** A prompt that returns on the next focus is one
+  people learn to tap away without reading, which then hides the one that mattered.
+- **It must not fight the keyboard work.** A dialog appearing over a half-typed message is
+  the interruption pattern already rejected for the bridge-lost notice; the composer and
+  the settings sheet own that space.
+- Phase 23's catch-me-up banner suppressed itself because `scrollToBottom` fired a native
+  scroll event that marked the chat read before the banner was captured. Anything reading
+  the cursor on open needs the same ordering care — see the `readyForAutoMarkRead` flag.
+- **The setting defaults ON** (the owner asked for the prompt), and lives with the other
+  notification preferences rather than in a new section.
+
+**Sizing:** small, but it lands in the chat's open/focus path, which is where the
+ordering bugs live.
+
 ## Telegram bridge — chat in your team chat from Telegram
 
 **Requested:** 2026-07-12. Feasibility checked against the live code, not assumed.
