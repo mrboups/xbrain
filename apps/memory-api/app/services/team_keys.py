@@ -44,6 +44,41 @@ log = structlog.get_logger(__name__)
 # provider-aware rather than assuming one vendor — the schema anticipated more
 # than one and the agent should not be the thing that forgets.
 PROVIDER_ANTHROPIC = "anthropic"
+PROVIDER_OPENAI = "openai"
+PROVIDER_XAI = "xai"
+
+# THE CLOSED SET. A team picks one of these and nothing else. It is duplicated in
+# exactly two other places on purpose — the CHECK constraint in migration 0033 and
+# the route's validator — because each is a different kind of refusal and the
+# innermost one must hold even if a caller skips the others. All three are pinned
+# equal by tests/test_migration_0033.py.
+SUPPORTED_PROVIDERS: tuple[str, ...] = (PROVIDER_ANTHROPIC, PROVIDER_OPENAI, PROVIDER_XAI)
+
+# What a team gets if it never chooses: today's behaviour, unchanged.
+DEFAULT_PROVIDER = PROVIDER_ANTHROPIC
+
+# How each provider is NAMED to a team. Our words for a vendor, not the vendor's
+# words for itself — this table is the only thing allowed to put a provider's name
+# in front of a person, and it is a fixed lookup so no value read from a database
+# or an exception can ever be rendered as one.
+PROVIDER_LABELS: dict[str, str] = {
+    PROVIDER_ANTHROPIC: "Claude",
+    PROVIDER_OPENAI: "OpenAI",
+    PROVIDER_XAI: "Grok",
+}
+
+
+def normalize_provider(value: str | None) -> str | None:
+    """Fold a submitted provider to its canonical form, or None if unsupported.
+
+    Case and surrounding whitespace are forgiven because they are typing, not
+    intent. Everything else is refused: the caller turns None into a rejection
+    rather than storing free text and discovering it on the billing path.
+    """
+    if not value:
+        return None
+    folded = value.strip().lower()
+    return folded if folded in SUPPORTED_PROVIDERS else None
 
 TIER_TEAM = "team_key"
 TIER_PLATFORM = "platform_key"
