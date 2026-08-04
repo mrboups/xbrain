@@ -1683,10 +1683,19 @@ body {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.13);
   cursor: text;
 }
+/* Hover reveals it — on the surfaces that HAVE hover, and only there. A touch
+   screen fires a synthetic mouseenter on tap and iOS then keeps :hover on that
+   element until something else is tapped, so on a phone this rule opened the
+   tooltip and nothing closed it. Behind the query, the touch path is `.is-open`
+   alone: render.js opens it on tap and closes it on a second tap, on a tap
+   outside, or on Escape. */
+@media (hover: hover) and (pointer: fine) {
+  .xb-msg-savetag:hover .xb-savetag-tip { display: block; }
+}
 /* :focus-visible, not :focus — a pointer press must not leave the tooltip stuck
    open after the pointer has gone. Keyboard focus is what needs it to stay. */
-.xb-msg-savetag:hover .xb-savetag-tip,
-.xb-msg-savetag:focus-visible .xb-savetag-tip {
+.xb-msg-savetag:focus-visible .xb-savetag-tip,
+.xb-msg-savetag.is-open .xb-savetag-tip {
   display: block;
 }
 /* Own rows are mirrored (row-reverse), so the marker sits on the LEFT of the

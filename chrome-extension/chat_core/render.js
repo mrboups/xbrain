@@ -192,6 +192,63 @@ export function createRenderer(opts) {
     return indexedTextCache.get(itemId);
   }
 
+  /**
+   * The one indexed-text tooltip that may be open, and the listeners that close
+   * it.
+   *
+   * WHY A STATE AND NOT JUST :hover. Hover is a desktop mechanism and it works
+   * there. On a touch screen a tap fires a synthetic mouseenter and iOS then
+   * KEEPS :hover on that element until something else is tapped, so the reveal
+   * opens and stays — there is no gesture that closes it, because the one that
+   * would (a tap elsewhere) does not reliably reach it. So the stylesheet gates
+   * hover behind `@media (hover: hover)` and this drives the touch path
+   * explicitly: tap to open, tap again, tap outside, or Escape to close.
+   *
+   * ONE AT A TIME, and the listeners exist only while one is open. A document
+   * handler per rendered marker would grow with the thread and outlive every
+   * message in it; two handlers that come and go with the tooltip cannot.
+   */
+  let openTip = null;
+  let tipListeners = null;
+
+  function closeIndexedTip() {
+    if (tipListeners) {
+      doc.removeEventListener("pointerdown", tipListeners.outside, true);
+      doc.removeEventListener("keydown", tipListeners.escape, true);
+      tipListeners = null;
+    }
+    if (!openTip) return;
+    const tag = openTip;
+    openTip = null;
+    tag.classList.remove("is-open");
+    // The keyboard path shows the tooltip from :focus-visible, which no class
+    // change can override. Escape has to actually give the focus back, or it
+    // dismisses the state and leaves the tooltip on screen.
+    if (doc.activeElement === tag && typeof tag.blur === "function") tag.blur();
+  }
+
+  function openIndexedTip(tag) {
+    if (openTip === tag) return;
+    closeIndexedTip();
+    openTip = tag;
+    tag.classList.add("is-open");
+    tipListeners = {
+      // Capture, so a tap that some other handler stops still closes this.
+      outside: (event) => {
+        const target = event && event.target;
+        // Inside the marker OR inside its tooltip (a child of it): scrolling a
+        // long extract must not dismiss the thing being scrolled.
+        if (target && typeof tag.contains === "function" && tag.contains(target)) return;
+        closeIndexedTip();
+      },
+      escape: (event) => {
+        if (event && event.key === "Escape") closeIndexedTip();
+      },
+    };
+    doc.addEventListener("pointerdown", tipListeners.outside, true);
+    doc.addEventListener("keydown", tipListeners.escape, true);
+  }
+
   // The surface's view, resolved from the injected document rather than a global
   // so this module holds no reference to the ambient browser object. Both the
   // frame scheduler and the "open the full image" action hang off it, and both
@@ -215,6 +272,9 @@ export function createRenderer(opts) {
    * for the "convenient" version on a node that DOES carry untrusted data.
    */
   function clear() {
+    // Before the nodes go: an open tooltip holds a document listener, and a
+    // reference to an element that is about to stop existing.
+    closeIndexedTip();
     while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
   }
 
@@ -493,6 +553,13 @@ export function createRenderer(opts) {
     };
     tag.addEventListener("mouseenter", reveal);
     tag.addEventListener("focus", reveal);
+    // The touch path. A tap implies a toggle, so a second one closes what the
+    // first opened; the fetch still happens at most once, from the cache above.
+    tag.addEventListener("click", () => {
+      reveal();
+      if (openTip === tag) closeIndexedTip();
+      else openIndexedTip(tag);
+    });
 
     return tag;
   }
