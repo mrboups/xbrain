@@ -34,6 +34,43 @@ import {
 } from "./chat_stream.js";
 
 /**
+ * How far from the end of a thread still counts as reading the newest message.
+ *
+ * A tolerance rather than an equality: a scroller lands on fractional offsets,
+ * an image finishing its decode moves the end by a few pixels, and a person who
+ * nudged the list by a line has not stopped following the conversation.
+ */
+export const NEAR_BOTTOM_PX = 120;
+
+/**
+ * Is this scroller at its end — or WAS it, before `absorbed` pixels of it were
+ * taken away?
+ *
+ * THE ONE DEFINITION of "at the bottom" in this product. Auto-scrolling on a new
+ * message and re-anchoring after the viewport changes are the same question
+ * asked twice, and two copies of the arithmetic drift into two different answers
+ * for the same thread.
+ *
+ * `absorbed` is what makes it usable from a viewport handler. When the on-screen
+ * keyboard opens, the shell shrinks and the scroller absorbs the loss: its
+ * scrollTop and scrollHeight are untouched while its clientHeight drops, so the
+ * measured gap grows by exactly the pixels that went away and a reader who WAS
+ * at the end now measures as hundreds of pixels short of it. Subtracting the
+ * loss asks the question the caller actually means — "was this person at the
+ * bottom before the keyboard took the room" — instead of a question whose answer
+ * is always no.
+ *
+ * @param {{scrollHeight: number, scrollTop: number, clientHeight: number}|null} el
+ * @param {number} [absorbed] pixels of viewport the scroller has just lost
+ * @returns {boolean}
+ */
+export function isNearBottom(el, absorbed = 0) {
+  if (!el) return false;
+  const lost = Number.isFinite(absorbed) ? absorbed : 0;
+  return el.scrollHeight - el.scrollTop - el.clientHeight - lost < NEAR_BOTTOM_PX;
+}
+
+/**
  * Build the renderer for one chat surface.
  *
  * @param {{
@@ -691,8 +728,7 @@ export function createRenderer(opts) {
       });
       return;
     }
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (nearBottom) {
+    if (isNearBottom(el)) {
       el.scrollTop = el.scrollHeight;
     }
   }
