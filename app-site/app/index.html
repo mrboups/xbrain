@@ -314,6 +314,71 @@
           <span id="settings-push-state" class="xb-settings-value">Notifications off</span>
         </div>
         <!--
+          The team's model API key.
+
+          IT IS HERE BECAUSE THE ADVICE HAD NOWHERE TO GO. The agent falls back
+          to a team key when no browser is sharing the Claude subscription, and
+          the notice that says so used to name a remedy set only on the desktop
+          admin page - unreachable from a standalone app with no address bar,
+          in exactly the situation the notice appears. The bridge notice now
+          leads straight here.
+
+          Two blocks, not one, because storing a key and choosing which
+          provider is spent are different actions: a team may hold three keys
+          and spend one. team_keys.js fills both from chat-core, so this page
+          and the desktop one cannot list different providers or disagree about
+          what a 403 means.
+
+          THE FIELD IS WRITE-ONLY. The route answers provider names and nothing
+          else, so there is nothing to mask and nothing to reveal; the rows say
+          Set or Not set and no more. Nothing here is precached with a value in
+          it, and the input is cleared the moment a save lands.
+        -->
+        <div class="xb-settings-head">
+          <!-- tabindex="-1" so the bridge notice can put the caret HERE rather
+               than in the key field, which would raise the keyboard before
+               anybody asked to type. -->
+          <span class="xb-settings-title" id="team-key-heading" tabindex="-1">Team API key</span>
+        </div>
+        <div id="settings-team-key" class="xb-teamkey" hidden>
+          <p id="team-key-note" class="xb-teamkey-note"></p>
+
+          <!-- Which provider the agent actually spends. Above the stored list,
+               because it is the fact that decides what happens tonight. -->
+          <div id="team-key-use-row" class="xb-teamkey-userow">
+            <label class="xb-teamkey-uselabel" for="team-key-use">Used by the agent</label>
+            <select id="team-key-use" class="xb-teamkey-select" hidden></select>
+            <span id="team-key-use-value" class="xb-teamkey-usevalue"></span>
+          </div>
+          <p id="team-key-use-warning" class="xb-teamkey-warning" hidden></p>
+          <p id="team-key-fallback-note" class="xb-hint"></p>
+
+          <!-- What is stored, presence only. Filled by team_keys.js. -->
+          <div id="team-key-rows" class="xb-teamkey-rows"></div>
+          <!-- ...and the sentence that keeps the two blocks apart in somebody's
+               head: pasting a key is not what activates it. -->
+          <p id="team-key-store-note" class="xb-hint"></p>
+
+          <!-- Admin only: absent, not disabled, when the server would 403. -->
+          <div id="team-key-form" class="xb-teamkey-form" hidden>
+            <label class="xb-teamkey-uselabel" for="team-key-provider">Store a key for</label>
+            <select id="team-key-provider" class="xb-teamkey-select"></select>
+            <label class="xb-teamkey-uselabel" id="team-key-label" for="team-key-input">Key</label>
+            <input type="password" id="team-key-input" class="xb-teamkey-input"
+                   autocomplete="off" spellcheck="false" autocapitalize="off"
+                   autocorrect="off" />
+            <button type="button" id="btn-team-key-save"
+                    class="xb-btn xb-btn-primary xb-btn-block">Save key</button>
+          </div>
+          <p id="team-key-warning" class="xb-teamkey-warning" hidden></p>
+          <p id="team-key-hint" class="xb-hint" hidden></p>
+          <!-- ...and what a member is told instead. Not nothing: somebody who
+               cannot fix it themselves still needs the next step. -->
+          <p id="team-key-member-note" class="xb-hint" hidden></p>
+          <p id="team-key-status" class="xb-teamkey-status" role="status" aria-live="polite" hidden></p>
+        </div>
+
+        <!--
           Bringing a past conversation in. It opens its own full-screen sheet
           rather than growing this one: the chooser, the paste box and the
           result together are a page, and a page inside a settings list is a

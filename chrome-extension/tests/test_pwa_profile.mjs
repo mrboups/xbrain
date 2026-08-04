@@ -834,10 +834,18 @@ test("the shell hands the profile a LATE team slug, not one captured at boot", (
     /mountProfile\(api, identity, \{ getTeamSlug: activeTeamSlug \}\)/,
     "a slug read once at boot is the wrong team by the first switch",
   );
+  // The import list grows (the team-key section needs the team ID and the
+  // signed-in user id from the same place), so what is pinned is the property:
+  // the active team is chat.js's to know, and app.js imports it rather than
+  // working it out a second time.
   assert.match(
     appJs,
-    /import \{ bootChat, activeTeamSlug \}/,
+    /import \{[^}]*\bactiveTeamSlug\b[^}]*\} from "\.\/chat\.js"/,
     "the active team belongs to chat.js — a second copy here would drift",
+  );
+  assert.ok(
+    !/function activeTeamSlug/.test(appJs),
+    "app.js works the active team out for itself — that is the second copy",
   );
 });
 

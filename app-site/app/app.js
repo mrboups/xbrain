@@ -21,9 +21,10 @@ import { THEME_STORAGE_KEY, resolveInitialTheme, applyTheme } from "./chat_core/
 import { createApi } from "./chat_core/api.js";
 import { webPlatform } from "./platform_web.js";
 import { MEMORY_API_BASE, getToken, getUserSub, signOut, mountSignIn } from "./auth.js";
-import { bootChat, activeTeamSlug } from "./chat.js";
+import { bootChat, activeTeamSlug, activeTeamId, selfUserId } from "./chat.js";
 import { mountProfile, hideProfile } from "./profile.js";
 import { mountImport, isImportOpen, hideImport } from "./import.js";
+import { mountTeamKeys, hideTeamKeys } from "./team_keys.js";
 import { wirePushButton, refreshPushButton, resyncPush } from "./push.js";
 import { bindViewport } from "./viewport.js";
 
@@ -67,9 +68,11 @@ function showSignedOut() {
   el("push-hint").hidden = true;
   // Signing out must not leave somebody's name and picture on the screen for
   // whoever signs in next on the same device. Nor a transcript they had loaded
-  // but not yet sent.
+  // but not yet sent, nor a team's key state - or an unsent key still sitting
+  // in the field.
   hideProfile();
   hideImport();
+  hideTeamKeys();
 }
 
 function showSignedIn(identity) {
@@ -96,6 +99,23 @@ function showSignedIn(identity) {
  * same variable twice.
  */
 let releaseViewport = null;
+
+/**
+ * The settings sheet's own open/close, published for the callers that must
+ * reach it: the bridge notice, which sends somebody to the team-key section.
+ *
+ * A pair of no-ops until wireSettingsPanel runs, so nothing can open a sheet
+ * that has not been wired yet.
+ */
+let settingsSheet = { open: () => {}, close: () => {} };
+
+/**
+ * The team-key block, once the chat has booted.
+ *
+ * Null before then, and every caller checks: the block needs a token and a
+ * team, and neither exists on the sign-in screen.
+ */
+let teamKeys = null;
 
 /**
  * Point the shell's height at what the person can actually see.
@@ -139,6 +159,12 @@ function wireSettingsPanel() {
     btn.setAttribute("aria-expanded", "true");
     const first = closeBtn || panel;
     if (first && typeof first.focus === "function") first.focus();
+    // The team-key block reads on open rather than at boot: two requests per
+    // launch for a block most people never open is two requests wasted on
+    // every cold start, and the active team changes under it anyway. Never
+    // awaited and it never throws - a settings sheet must open at the speed of
+    // a tap.
+    if (teamKeys) teamKeys.refresh();
   };
 
   const closeSettings = () => {
@@ -169,6 +195,31 @@ function wireSettingsPanel() {
     if (isImportOpen()) return;
     closeSettings();
   });
+
+  settingsSheet = { open: openSettings, close: closeSettings };
+}
+
+/**
+ * Open Settings on the team-key section, for somebody the bridge notice sent
+ * here.
+ *
+ * ON A CLICK AND NOTHING ELSE. A bridge drops whenever a laptop sleeps, and a
+ * sheet that opened by itself over a half-typed message - repeatedly - is how
+ * people learn to dismiss things without reading them. It would also fight the
+ * keyboard work the sheet is built around. So the notice offers a route and
+ * this is the far end of it; nothing here fires on its own.
+ *
+ * The caret lands on the section's heading, never on the key field: focusing a
+ * text input raises the on-screen keyboard before anybody asked to type, and a
+ * member has no field to focus at all.
+ */
+function openTeamKeys() {
+  settingsSheet.open();
+  if (!teamKeys) return;
+  // Painted from the LAST read first, so the section is never blank while the
+  // three requests are in flight; then focused once the fresh answer lands.
+  teamKeys.focus();
+  teamKeys.refresh().then(() => teamKeys.focus());
 }
 
 /**
@@ -234,7 +285,15 @@ function showSignInCard() {
  */
 async function startChat(identity) {
   showSignedIn(identity);
-  await bootChat({ onSignedOut: showSignInCard });
+  await bootChat({ onSignedOut: showSignInCard, onOpenTeamKeys: openTeamKeys });
+
+  // The team-key block. Wired here rather than at boot for the same reason the
+  // profile is: it needs a token. It reads nothing until the sheet is opened,
+  // so mounting costs one function call and no requests.
+  teamKeys = mountTeamKeys(api, {
+    getTeamId: activeTeamId,
+    getSelfUserId: selfUserId,
+  });
 
   // The account block at the top of Settings. Needs a token, like push, so it
   // waits for the chat to boot. It never throws: an endpoint that is not

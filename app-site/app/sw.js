@@ -58,6 +58,7 @@ const SHELL = [
   "/app/panels.js",
   "/app/profile.js",
   "/app/import.js",
+  "/app/team_keys.js",
   "/app/viewport.js",
   "/app/bridge_link.js",
   "/app/manifest.webmanifest",
