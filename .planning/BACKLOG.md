@@ -302,20 +302,21 @@ existing behaviour.
    and the reply is public, which reveals it in outline. The reply row needs the same
    visibility and the same channel treatment as the question.
 
-### The open decision — the owner's to make
+### DECIDED 2026-08-05 — it stays retrievable by the whole team
 
-A private note still lands in the **team's** brain, because that is the point: the brain
-learns. But then a teammate's agent query can surface its content, so the tag means
-*"this does not clutter the chat"*, **not** *"this is secret"*.
+The owner has ruled: a note sent through this tag lands in the **team's** brain and
+**every member can recall it**. The tag governs the chat surface only.
 
-The alternative is a genuinely personal lane whose items only feed the author's own
-recall — more confidential, but it fractures the collective memory that is the product's
-reason to exist.
+So the honest description is **"this does not clutter the chat"**, never "this is
+private". The `visibility` field in the tagging contract carries the chat-surface
+distinction; the memory item itself stays team-scoped and team-readable like everything
+else.
 
-**Recommendation: the first, on the condition that the UI says so plainly.** Unstated,
-someone will put a password or an HR note behind that tag believing it is private. The
-`visibility` field in the tagging contract (`private` / `team` / `org` / `public`) already
-exists for exactly this distinction and should carry it rather than a new flag.
+**This makes the UI wording load-bearing rather than cosmetic.** Unstated, someone will
+put a password, a salary or an HR note behind that tag believing nobody else can reach
+it — and they would be wrong in a way the product caused. The label and any first-use
+explanation must say that the team's brain still learns it and teammates can still ask
+about it.
 
 ### Sizing
 
