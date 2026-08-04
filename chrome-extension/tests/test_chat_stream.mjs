@@ -42,6 +42,7 @@ import {
   createSubscriptionWatcher,
   AGENT_ROUTE_STATUS,
   SUBSCRIPTION_LOST_NOTICE,
+  SUBSCRIPTION_NOTICE_ACTION,
   AGENT_FAILURE_FALLBACK,
   sameDay,
 } from "../../packages/chat-core/chat_stream.js";
@@ -820,6 +821,33 @@ test("the notice offers both remedies and is honest about their cost", () => {
   for (const word of ["this device", "phone", "mobile", "desktop", "laptop"]) {
     assert.ok(!lowered.includes(word), `the notice says "${word}"`);
   }
+});
+
+test("the notice names WHO can set the key, because most readers cannot", () => {
+  // The PUT is admin-only. The person most likely to be reading this is on a
+  // phone with no way to check which they are, and "or set a team API key"
+  // reads as an instruction to everybody. Naming the role makes the sentence
+  // true for both, and tells the member who to ask.
+  assert.match(
+    SUBSCRIPTION_LOST_NOTICE,
+    /team admin/i,
+    "the notice tells every reader to do something only an admin can",
+  );
+});
+
+test("the remedy it names now has a control to reach it", () => {
+  // The whole defect this closes: the notice named a key that could only be set
+  // on a desktop admin page, and a standalone PWA has no address bar to get
+  // there with. A label with no destination is worse than no label.
+  assert.equal(typeof SUBSCRIPTION_NOTICE_ACTION, "string");
+  assert.ok(SUBSCRIPTION_NOTICE_ACTION.trim().length > 0, "the control has no label");
+  // A DESTINATION, not an act. "Set a team API key" on a control half the
+  // readers cannot use is a button that lied to them.
+  assert.ok(
+    !/^set\b/i.test(SUBSCRIPTION_NOTICE_ACTION),
+    `"${SUBSCRIPTION_NOTICE_ACTION}" promises a capability a member does not have`,
+  );
+  assert.match(SUBSCRIPTION_NOTICE_ACTION, /key/i, "the label does not say where it goes");
 });
 
 // ---------- agentMentionAlias / withAgentMention ----------
