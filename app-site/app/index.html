@@ -149,6 +149,23 @@
       <div id="chat-empty" hidden></div>
     </div>
 
+    <!--
+      Jump to the newest message, shown only while it is off screen.
+
+      The slot is a zero-height box: the button hangs upward out of it, over the
+      thread, and lands a fixed distance above the composer's top edge whatever
+      the composer is doing — grown to three rows, holding an upload error, or
+      sitting on the safe-area inset with the keyboard closed. Anchoring it to
+      the layout costs nothing per frame and cannot be wrong on a device nobody
+      tested; a measured offset would be both.
+    -->
+    <div class="xb-jump-slot">
+      <button type="button" id="btn-jump-latest" class="xb-jump" hidden
+              title="Jump to the newest message" aria-label="Jump to the newest message">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+      </button>
+    </div>
+
     <p id="composer-error" class="xb-composer-error" role="alert" hidden></p>
 
     <!--

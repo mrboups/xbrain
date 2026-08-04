@@ -685,5 +685,84 @@ test("the recovery focus() stays, and is not mistaken for the fix", () => {
   );
 });
 
+// ---- The thread's own furniture: no scrollbar, one way back to the end ----
+
+test("the thread hides its scrollbar across all three engines", () => {
+  const scroll = /#chat-scroll\s*\{([^}]*)\}/.exec(pwaCss);
+  assert.ok(scroll, "app.css has no #chat-scroll rule");
+  assert.match(scroll[1], /scrollbar-width:\s*none/, "Firefox");
+  assert.match(scroll[1], /-ms-overflow-style:\s*none/, "old Edge");
+  assert.match(
+    pwaCss,
+    /#chat-scroll::-webkit-scrollbar\s*\{[^}]*display:\s*none/,
+    "WebKit — and without it the bar is still there on the phone this is for",
+  );
+  assert.match(
+    scroll[1],
+    /overflow-y:\s*auto/,
+    "hiding the indicator must not hide the overflow: the thread still scrolls",
+  );
+});
+
+test("the jump control exists, is a real control, and starts hidden", () => {
+  const btn = /<button[^>]*id="btn-jump-latest"[^>]*>/.exec(pwaHtml);
+  assert.ok(btn, "index.html has no #btn-jump-latest");
+  assert.match(btn[0], /\bhidden\b/, "at the bottom of a thread there is nothing to jump to");
+  assert.match(
+    btn[0],
+    /aria-label="[^"]+"/,
+    "an icon-only button with no accessible name is a control only sighted pointer users have",
+  );
+  assert.match(btn[0], /type="button"/, "inside no form, but never a submit");
+  assert.match(
+    pwaCss,
+    /\.xb-jump:focus-visible\s*\{[^}]*outline:/,
+    "keyboard-reachable means keyboard-VISIBLE; a focusable control with no focus ring is reachable and untraceable",
+  );
+  assert.match(
+    pwaCss,
+    /\.xb-jump svg\s*\{[^}]*width:\s*15px/,
+    "an inline SVG with no intrinsic size renders at ~300x150 — it has already bitten this project once",
+  );
+});
+
+test("the jump control is anchored by layout, not by a measured offset", () => {
+  const slot = /\.xb-jump-slot\s*\{([^}]*)\}/.exec(pwaCss);
+  assert.ok(slot, "app.css has no .xb-jump-slot");
+  assert.match(
+    slot[1],
+    /height:\s*0/,
+    "a zero-height slot is what keeps the button a fixed distance above the composer's TOP edge — through a grown textarea, an upload error, the safe-area inset and the keyboard alike",
+  );
+  assert.match(slot[1], /position:\s*relative/, "the button positions against it");
+  const idx = pwaHtml.indexOf('class="xb-jump-slot"');
+  assert.ok(idx > pwaHtml.indexOf('id="chat-scroll"'), "it belongs after the thread");
+  assert.ok(idx < pwaHtml.indexOf('id="composer"'), "and before the composer it sits above");
+});
+
+test("the jump control agrees with the rest of the app about where the bottom is", () => {
+  const body = stripComments(pwaChatJs);
+  assert.match(
+    body,
+    /function syncJumpLatest\(\)[\s\S]*?isNearBottom\(scrollEl\)/,
+    "a second threshold here would show the button while the app believes it is at the bottom — and pressing it would then do nothing",
+  );
+  assert.match(
+    body,
+    /scrollEl\.addEventListener\("scroll",[\s\S]*?syncJumpLatest\(\)/,
+    "it is driven by the scroll it describes",
+  );
+  assert.match(
+    body,
+    /syncJumpLatest\(\);/,
+    "and re-asked after a team switch, or it survives into a thread it does not describe",
+  );
+  assert.match(
+    body,
+    /if \(btn\.hidden !== atBottom\) btn\.hidden = atBottom;/,
+    "a scroll handler writes only when the answer changed",
+  );
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

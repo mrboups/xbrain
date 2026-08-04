@@ -24,7 +24,11 @@
  */
 
 import { createApi, MAX_MEDIA_BYTES } from "./chat_core/api.js";
-import { createRenderer, createViewportAnchor } from "./chat_core/render.js";
+import {
+  createRenderer,
+  createViewportAnchor,
+  isNearBottom,
+} from "./chat_core/render.js";
 import { createPublicationRouter } from "./chat_core/publication.js";
 import { connectRealtime, createConnectionStatus } from "./chat_core/realtime.js";
 import { createTeamRail } from "./chat_core/team_rail.js";
@@ -490,6 +494,10 @@ async function switchTeam(teamId) {
   await refreshNameCache();
   await refreshAgentAliases();
   await loadInitialHistory();
+  // A team switch lands at the bottom of a different thread. Without this the
+  // jump control would survive the switch from a team somebody had scrolled up
+  // in, offering to take them somewhere they already are.
+  syncJumpLatest();
 
   // Advance this user's read cursor for the team they are now looking at.
   // Without it the rail's badges would only ever grow: the counts come from the
@@ -638,6 +646,27 @@ function wireViewportAnchor() {
   );
 }
 
+/**
+ * Show the jump control exactly while the newest message is out of sight.
+ *
+ * The same `isNearBottom` the auto-scroll and the keyboard anchor ask, for the
+ * reason all three must agree: a button offering to take somebody to the bottom
+ * of a thread the app already considers itself at the bottom of is a button that
+ * does nothing when pressed.
+ *
+ * Cheap, because it runs on every scroll event: three geometry reads and an
+ * attribute written only when the answer actually changed. Assigning `hidden`
+ * to the value it already holds is free in every engine, but the comparison
+ * makes that a property of this code rather than of theirs.
+ */
+function syncJumpLatest() {
+  const btn = el("btn-jump-latest");
+  const scrollEl = el("chat-scroll");
+  if (!btn || !scrollEl) return;
+  const atBottom = isNearBottom(scrollEl);
+  if (btn.hidden !== atBottom) btn.hidden = atBottom;
+}
+
 // ---------- Composer ----------
 
 let composerWired = false;
@@ -692,9 +721,25 @@ function wireComposer() {
   // alone. See packages/chat-core/dom.js for what that rests on.
   for (const control of [sendBtn, agentBtn, clipBtn]) keepFocusOnPress(control);
 
+  // Jump to the newest message. Guarded like the pill's controls: somebody who
+  // scrolled up mid-sentence and comes back must find their draft AND their
+  // keyboard, not just the draft.
+  const jumpBtn = el("btn-jump-latest");
+  if (jumpBtn) {
+    keepFocusOnPress(jumpBtn);
+    jumpBtn.addEventListener("click", () => {
+      renderer.scrollToBottom({ force: true });
+      // Hidden now rather than on the scroll event the jump will produce: the
+      // press already said where they want to be, and a control that lingers
+      // for a frame after doing its job reads as one that did not work.
+      jumpBtn.hidden = true;
+    });
+  }
+
   if (scrollEl) {
     scrollEl.addEventListener("scroll", () => {
       if (scrollEl.scrollTop < 80) loadOlderPage();
+      syncJumpLatest();
     });
   }
 }
