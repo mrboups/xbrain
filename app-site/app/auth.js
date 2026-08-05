@@ -57,6 +57,156 @@ const GENERIC_REJECT = "Invalid email or password.";
 const GENERIC_THROTTLE = "Too many attempts - try again shortly.";
 
 /**
+ * Google sign-in WITHOUT a popup, for the installed app.
+ *
+ * THE BUG THESE EXIST FOR. Signing in to the home-screen app on an iPhone took
+ * about twenty-three attempts: "Verify it's you", then "Something went wrong",
+ * then a bare HTTP 400 from accounts.google.com. Nothing below this line was
+ * wrong — the problem is WHERE the question is asked. Google Identity Services
+ * defaults to `ux_mode: "popup"`, and in a browser tab that popup shares the
+ * browser's cookie jar, so Google recognises the account and the device. In a
+ * standalone web app it does not: iOS opens it as a detached in-app browser
+ * sheet with its own storage, Google finds no session, asks to verify every
+ * single time, and that verification is what fails.
+ *
+ * So on that surface the sign-in becomes a top-level navigation the app itself
+ * makes, through /v1/auth/google/start, and comes back to /app/ with the Google
+ * credential on the fragment. The session Google establishes on the way through
+ * belongs to the app's own context and is still there next time.
+ *
+ * The popup is KEPT everywhere else. It works in a tab, it is one fewer page
+ * load, and it is the flow /join/ has always used.
+ */
+const GOOGLE_WEB_CONFIG_PATH = "/v1/auth/google/web-config";
+const GOOGLE_WEB_START_PATH = "/v1/auth/google/start";
+
+/**
+ * Fragment keys the callback hands back on. They are FRAGMENT keys, never query
+ * parameters: a fragment is not sent to a server, so the credential cannot land
+ * in a hosting access log or a Referer. The same reasoning the invite code on
+ * /join/ is built on.
+ */
+export const GOOGLE_CREDENTIAL_FRAGMENT_KEY = "google_credential";
+export const GOOGLE_ERROR_FRAGMENT_KEY = "google_error";
+
+/**
+ * Is this document the INSTALLED app rather than a browser tab?
+ *
+ * Two readings because two browsers answer differently: `display-mode` is the
+ * standard one, and `navigator.standalone` is the only one iOS has had for most
+ * of its life. Either is enough — this decides which sign-in surface to draw,
+ * and drawing the redirect one in a tab would still work, while missing it on
+ * the phone is the whole bug.
+ *
+ * @param {Object} [view] the window to interrogate. Injected so this is testable.
+ * @returns {boolean}
+ */
+export function isStandaloneDisplay(view) {
+  const w = view || (typeof window === "undefined" ? null : window);
+  if (!w) return false;
+  try {
+    if (w.navigator && w.navigator.standalone === true) return true;
+    if (typeof w.matchMedia === "function") {
+      const m = w.matchMedia("(display-mode: standalone)");
+      if (m && m.matches) return true;
+    }
+  } catch (e) {
+    // A browser that throws on either read is a browser this cannot classify.
+    // The popup is the honest default: it is what shipped and what works in a tab.
+    return false;
+  }
+  return false;
+}
+
+/**
+ * Ask the server whether the redirect flow is usable at all.
+ *
+ * IT IS ASKED, NOT ASSUMED, and that is the point. The redirect flow needs a
+ * callback URI registered by hand as an Authorized redirect URI on the Google
+ * client; until somebody has done that, sending anyone down it produces a
+ * redirect_uri_mismatch — a sign-in that fails every time instead of one that
+ * fails most times. The server answers false while it is unconfigured, and this
+ * page keeps the popup. Mirrors how push.js reads /v1/push/config before it
+ * offers anything.
+ *
+ * Any failure answers false. An API that cannot be reached must not take the
+ * sign-in card down with it.
+ *
+ * @returns {Promise<boolean>}
+ */
+export async function googleWebSignInEnabled(fetchImpl) {
+  const doFetch = fetchImpl || (typeof fetch === "function" ? fetch : null);
+  if (!doFetch) return false;
+  try {
+    const res = await doFetch(`${MEMORY_API_BASE}${GOOGLE_WEB_CONFIG_PATH}`);
+    if (!res || !res.ok) return false;
+    const data = await res.json();
+    return !!(data && data.enabled);
+  } catch (e) {
+    return false;
+  }
+}
+
+/** Where a click on the redirect button sends the browser. */
+export function googleWebStartUrl() {
+  return `${MEMORY_API_BASE}${GOOGLE_WEB_START_PATH}`;
+}
+
+/**
+ * Read the result the callback left on the URL, and take it OFF the URL.
+ *
+ * Stripped whether or not the caller does anything with it, and stripped before
+ * this function returns: a credential that stays in `location.hash` is a
+ * credential in the session history, readable by anything that runs later on
+ * this page. `replaceState` rather than assigning `location.hash = ""`, which
+ * would leave a bare "#" behind and push a history entry.
+ *
+ * @param {Object} [view] the window to read. Injected so this is testable.
+ * @returns {{credential: string|null, error: string|null}|null} null when this
+ *   load is not a return from the redirect flow, which is almost every load.
+ */
+export function takeGoogleRedirectResult(view) {
+  const w = view || (typeof window === "undefined" ? null : window);
+  const loc = w && w.location;
+  const hash = (loc && loc.hash) || "";
+  if (hash.length < 2) return null;
+
+  let params;
+  try {
+    params = new URLSearchParams(hash.slice(1));
+  } catch (e) {
+    return null;
+  }
+  const credential = params.get(GOOGLE_CREDENTIAL_FRAGMENT_KEY);
+  const error = params.get(GOOGLE_ERROR_FRAGMENT_KEY);
+  if (!credential && !error) return null;
+
+  try {
+    if (w.history && typeof w.history.replaceState === "function") {
+      w.history.replaceState(null, "", `${loc.pathname || ""}${loc.search || ""}`);
+    }
+  } catch (e) {
+    // Nothing to do about it, and it must not stop the sign-in it is guarding.
+  }
+  return { credential: credential || null, error: error || null };
+}
+
+/**
+ * What to tell somebody who came back without a credential.
+ *
+ * "denied" is not a failure — it is somebody closing the account chooser — so it
+ * gets no error styling anywhere it is used. Everything else is one sentence and
+ * a way to try again, never a slug.
+ *
+ * @param {string} slug
+ * @returns {string}
+ */
+export function googleRedirectErrorMessage(slug) {
+  if (slug === "denied") return "Google sign-in was cancelled.";
+  return "Could not complete Google sign-in. Try again.";
+}
+
+/**
  * The stored personal token, or null.
  * @returns {Promise<string|null>}
  */
@@ -248,6 +398,52 @@ function mountGoogleButton({ slotEl, hintEl, onCredential }, attempt) {
 }
 
 /**
+ * The redirect surface: our own button, and a navigation this app performs.
+ *
+ * A plain button rather than GIS's rendered one, because GIS's button exists to
+ * open GIS's popup and this flow deliberately does not have one. It carries the
+ * same words Google's button does so nobody has to learn a second control, and
+ * it moves the browser only on a CLICK — never on load, which would send someone
+ * who is merely reading the page off to an account chooser.
+ */
+function mountGoogleRedirectButton({ slotEl, hintEl, view }) {
+  if (!slotEl) return;
+  const doc = slotEl.ownerDocument;
+  const button = doc.createElement("button");
+  button.type = "button";
+  button.id = "google-redirect-btn";
+  button.className = "xb-btn xb-btn-primary xb-btn-block";
+  button.textContent = "Continue with Google";
+  button.addEventListener("click", () => {
+    const w = view || (typeof window === "undefined" ? null : window);
+    if (w && w.location) w.location.assign(googleWebStartUrl());
+  });
+  slotEl.textContent = "";
+  slotEl.appendChild(button);
+  if (hintEl) {
+    hintEl.textContent = "Continue with your Google account.";
+  }
+}
+
+/**
+ * Pick the Google surface this browser can actually complete a sign-in on.
+ *
+ * The popup is the default and the fallback: it is what shipped, it works in a
+ * tab, and it is what runs whenever the server says the redirect flow is not
+ * configured. The redirect is taken only where the popup is known to be a
+ * detached context — the installed app — AND the server has confirmed it will
+ * work.
+ */
+async function mountGoogleSurface(refs) {
+  const { slotEl, hintEl, onCredential, view, fetchImpl } = refs;
+  if (isStandaloneDisplay(view) && (await googleWebSignInEnabled(fetchImpl))) {
+    mountGoogleRedirectButton({ slotEl, hintEl, view });
+    return;
+  }
+  mountGoogleButton({ slotEl, hintEl, onCredential });
+}
+
+/**
  * Wire the sign-in card: the Google button plus the password form.
  *
  * @param {{
@@ -287,9 +483,15 @@ export function mountSignIn(refs) {
     bannerEl.hidden = false;
   }
 
-  mountGoogleButton({
+  // Not awaited: choosing the surface asks the server a question, and the
+  // password form below must be usable while that answer is in flight. A
+  // rejected promise cannot happen (every path inside answers false) but the
+  // catch stays, because an unhandled one here would be invisible.
+  mountGoogleSurface({
     slotEl,
     hintEl,
+    view: refs.view,
+    fetchImpl: refs.fetchImpl,
     onCredential: async (credential) => {
       showBusy("Signing you in...");
       const result = await signInWithGoogleCredential(credential);
@@ -300,6 +502,8 @@ export function mountSignIn(refs) {
       }
       showError(result.error);
     },
+  }).catch((e) => {
+    console.warn("[xbrain] google sign-in surface failed:", e);
   });
 
   if (formEl) {
