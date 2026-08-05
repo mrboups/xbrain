@@ -353,6 +353,61 @@ sitting three centimetres away.
 **Sizing:** small, but it lands in the chat's open/focus path, which is where the
 ordering bugs live.
 
+## Simplify truth levels to four, and let the AI do the classifying — 2026-08-05
+
+**Owner's design.** Five levels, of which a human can operate none in practice. Replace
+with four, of which the AI sets three:
+
+1. **not interesting** — skipped, never stored
+2. **normal working information** — indexed
+3. **important / final** — flagged by the AI, and **de-flaggable** when something
+   supersedes it
+4. **starred** — the ONLY level a human sets (double-click a message, or a submenu), and
+   the AI weights it higher
+
+**The production data backs this.** 19 items at WORKING, 1 at EPHEMERAL, and **zero** at
+VALIDATED, CANONICAL or PUBLIC. The three upper levels have never been used once — the
+levels nobody can operate are exactly the levels nobody used.
+
+### The cheap path: keep the enum, change who sets it
+
+`truth_level` appears in **116 files** with CHECK constraints on five tables and a
+promotion audit table, so replacing the enum is a migration and a rewrite. It is not
+necessary. Levels 1 and 2 **already ship**: `services/relevance_filter.py::classify()`
+returns a bool — keep or skip — and is already wired into `brain_ingest` and
+`/v1/brain/ingest`. Clips now land at WORKING by default (2026-08-05).
+
+So the mapping is a relabelling plus one new setter:
+
+| Owner's level | Stored as | Who sets it |
+|---|---|---|
+| not interesting | *nothing stored* | the relevance classifier (**exists**) |
+| normal working | `WORKING` | ingest default (**exists**) |
+| important / final | `VALIDATED` | **the AI — new**, and reversible |
+| starred | `CANONICAL` | **a human — new**, one-way |
+
+`EPHEMERAL` and `PUBLIC` simply stop having a producer. No migration, no CHECK change,
+the audit table keeps working.
+
+### The one invariant this deliberately breaks
+
+"Promotion is one-way and requires a human" exists so that a high level means something.
+Once the AI sets and clears *important/final*, that level is a **model opinion, not a
+human warrant** — which is why the owner's name for it is better than ours: "important"
+does not claim "validated". Keep that distinction sharp in the UI, and keep **starred**
+human-only and one-way, or nothing is left that carries a person's judgement.
+
+### The actual work is supersession, not the level
+
+"De-flagged when another takes over" needs a notion of what supersedes what — recency is
+not enough, and this is a graph question (Graphiti/Neo4j are already deployed). Scope that
+separately: the flag is cheap, deciding it has been superseded is the feature.
+
+### Open
+
+Dropping `PUBLIC` removes the only level meaning "shareable beyond the team". Nothing
+uses it today, but confirm the capability is not wanted before letting it die.
+
 ## Telegram bridge — chat in your team chat from Telegram
 
 **Requested:** 2026-07-12. Feasibility checked against the live code, not assumed.
