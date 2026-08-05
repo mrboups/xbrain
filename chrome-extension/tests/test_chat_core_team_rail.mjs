@@ -307,6 +307,78 @@ await test("clicking the ACTIVE square does nothing", async () => {
   assert.deepEqual(state.selected, []);
 });
 
+// ---- 4b. Adjacency: the order and the switch a swipe borrows ---------------
+//
+// The PWA's swipe gesture moves along the rail. It must borrow BOTH halves from
+// here — the order and the act of switching — or a swipe and the squares above
+// it will disagree the first time somebody rearranges them.
+
+await test("teamIds reads the order off the rail, INCLUDING an unsaved drag", async () => {
+  // Recomputing from getTeams() + stored order would be right until a drop, and
+  // silently wrong for the rest of the session. This is why it reads the DOM.
+  const { rail, railEl } = harness();
+  await rail.render();
+  assert.deepEqual(rail.teamIds(), ["t1", "t2", "t3"]);
+  await railEl.children[0].fire("drop", dragEvent("t3", 5));
+  assert.deepEqual(rail.teamIds(), ["t3", "t1", "t2"], "the rail as it now looks");
+});
+
+await test("selectAdjacent(+1) switches to the square on the RIGHT", async () => {
+  const { rail, state } = harness({ active: "t1" });
+  await rail.render();
+  assert.equal(rail.selectAdjacent(1), "t2");
+  assert.deepEqual(state.selected, ["t2"], "through onSelectTeam — the rail's own switch");
+});
+
+await test("selectAdjacent(-1) switches to the square on the LEFT", async () => {
+  const { rail, state } = harness({ active: "t2" });
+  await rail.render();
+  assert.equal(rail.selectAdjacent(-1), "t1");
+  assert.deepEqual(state.selected, ["t1"]);
+});
+
+await test("NO WRAP-AROUND: at either end, nothing happens at all", async () => {
+  // A mis-swipe at the end of the rail must not jump across the whole list.
+  const first = harness({ active: "t1" });
+  await first.rail.render();
+  assert.equal(first.rail.selectAdjacent(-1), null);
+  assert.deepEqual(first.state.selected, [], "no switch was even attempted");
+
+  const last = harness({ active: "t3" });
+  await last.rail.render();
+  assert.equal(last.rail.selectAdjacent(1), null);
+  assert.deepEqual(last.state.selected, []);
+});
+
+await test("selectAdjacent follows a REARRANGED rail, not the API's order", async () => {
+  // The whole reason a swipe may not compute its own adjacency.
+  const { rail, railEl, state } = harness({ active: "t1" });
+  await rail.render();
+  await railEl.children[0].fire("drop", dragEvent("t3", 5)); // -> t3, t1, t2
+  assert.equal(rail.selectAdjacent(1), "t2", "t1's right-hand neighbour is now t2");
+  assert.equal(rail.selectAdjacent(-1), "t3", "and its left-hand one is t3");
+  assert.deepEqual(state.selected, ["t2", "t3"]);
+});
+
+await test("selectAdjacent does nothing when there is no team open, or one square", async () => {
+  const none = harness({ active: null });
+  await none.rail.render();
+  assert.equal(none.rail.selectAdjacent(1), null);
+  assert.deepEqual(none.state.selected, []);
+
+  const solo = harness({ teams: [{ id: "only", display_name: "Only" }], active: "only" });
+  await solo.rail.render();
+  assert.equal(solo.rail.selectAdjacent(1), null);
+  assert.equal(solo.rail.selectAdjacent(-1), null);
+  assert.deepEqual(solo.state.selected, [], "a single team has no neighbours either side");
+});
+
+await test("selectAdjacent before the first render is inert, not a crash", async () => {
+  const { rail, state } = harness({ active: "t1" });
+  assert.equal(rail.selectAdjacent(1), null);
+  assert.deepEqual(state.selected, []);
+});
+
 // ---- 5. Drag to rearrange -------------------------------------------------
 
 /** A DataTransfer stub carrying one payload. */

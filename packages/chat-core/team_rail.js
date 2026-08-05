@@ -115,7 +115,12 @@ function parseStoredOrder(raw) {
  *                     or null when there is nothing to show. A surface that does
  *                     not track read state passes null and gets no badges rather
  *                     than badges that never clear.
- * @returns {{render: () => Promise<void>, refreshBadges: () => Promise<void>}}
+ * @returns {{
+ *   render: () => Promise<void>,
+ *   refreshBadges: () => Promise<void>,
+ *   teamIds: () => Array<string>,
+ *   selectAdjacent: (step: number) => (string|null)
+ * }}
  */
 export function createTeamRail(opts) {
   const cfg = opts || {};
@@ -275,5 +280,47 @@ export function createTeamRail(opts) {
     }
   }
 
-  return { render: paintRail, refreshBadges: paintBadges };
+  /**
+   * The teams as the rail SHOWS them, left to right.
+   *
+   * Read off the DOM rather than recomputed from `getTeams()` and the stored
+   * order, and that is the whole point: a drag that has happened but not yet been
+   * persisted has already moved the squares, so anything deriving its own order
+   * would disagree with what is on screen for the rest of the session.
+   *
+   * @returns {Array<string>}
+   */
+  function teamIds() {
+    return railIcons()
+      .map((el) => el.dataset.teamId)
+      .filter(Boolean);
+  }
+
+  /**
+   * Move `step` places along the rail from the team that is open, and switch.
+   *
+   * THE RAIL'S OWN SWITCH, deliberately: `onSelectTeam` is what a click calls,
+   * which is what tears down the subscription, moves the read cursor and repaints
+   * the badges. A caller that changed the active team by itself would produce a
+   * view of one team still subscribed to another — the worst outcome available,
+   * because it looks like it worked.
+   *
+   * NO WRAP-AROUND at either end. A swipe is easy to make by accident on a phone,
+   * and one that jumps from the last team to the first crosses the entire list —
+   * a mis-swipe that is expensive to undo, versus one that costs nothing.
+   *
+   * @param {number} step -1 for the team on the left, +1 for the one on the right
+   * @returns {string|null} the id switched to, or null when nothing moved
+   */
+  function selectAdjacent(step) {
+    const ids = teamIds();
+    const from = ids.indexOf(String(getActiveTeamId()));
+    if (from === -1) return null; // no team open, or one not in the rail
+    const to = from + (step < 0 ? -1 : 1);
+    if (to < 0 || to >= ids.length) return null; // an end, and ends are ends
+    onSelectTeam(ids[to]);
+    return ids[to];
+  }
+
+  return { render: paintRail, refreshBadges: paintBadges, teamIds, selectAdjacent };
 }

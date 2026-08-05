@@ -18,40 +18,28 @@
  */
 
 /**
- * Bumped whenever the shell's CONTENT changes, not just its file list.
+ * GENERATED. Do not edit this value by hand — run `make shell-cache`.
  *
- * Re-adding the same entries into the same cache would already refresh them at
- * install, so this is not load-bearing — it is auditable. A new name means
- * `activate` deletes the previous shell outright, so there is no window in which
- * a half-updated mix of old and new files can be served together.
+ * It is a hash of every file in SHELL below, computed by scripts/shell-cache.mjs
+ * and written here. Change any precached file and the name changes; change none
+ * of them and it does not. `activate` deletes every cache that is not this one,
+ * so a new name means the previous shell goes in one piece and there is no window
+ * where a half-updated mix of old and new files is served together.
  *
- * v2 — the header adopted the extension's design (team rail, icon actions,
- * settings panel, composer pill).
- * v3 — members, invite and add-a-team joined the app, so the shell grew four
- * shared modules and a panels surface.
- * v4 — the keyboard fix (viewport.js) and the full-screen settings overlay.
- * v5 — importing a past conversation (import.js) joined the shell.
- * v8 — the team API key section: chat_core/team_api_keys.js and team_keys.js.
- *      ONE bump for the whole change even though the two files land in separate
- *      commits — v8 has not been deployed in between, so a second name would
- *      only mean a second cache to evict for no shipped difference.
- * v11 — TWO changes landed together, each of which had independently claimed v10
- *      while the other was still in a worktree. Neither v10 was ever deployed, so
- *      one name covers both — but the near miss is the point: a hand-bumped
- *      constant cannot be reserved, and two agents reaching for the same number
- *      is exactly how a shell ships stale. See BACKLOG.md.
+ * WHY IT IS DERIVED RATHER THAN BUMPED. This constant was hand-maintained through
+ * v11 and missed three times in three days. The last miss is the argument: two
+ * agents independently reserved `v10` in separate worktrees, and only the merge
+ * revealed it. A number nobody can RESERVE will eventually be taken twice, and
+ * every miss presents as a broken feature — a module the cache never fetched, an
+ * old chat against a new API — rather than as a caching problem, which is why
+ * each one cost hours to find.
  *
- *      (a) the agent's answers render as markdown — a new chat_core/markdown.js,
- *          a rewritten render.js and publication.js, and the `.xb-md` rules;
- *      (b) removing a message — chat_core/message_menu.js joins the shell, and
- *          chat.js, app.css and chat_core/{api,publication,realtime}.js changed.
- *
- *      Every one of those is precached. Without a new name a returning reader gets
- *      the new render.js importing a module the cache has never heard of, and the
- *      old chat talking to the new API — both of which look exactly like a broken
- *      fix rather than a caching problem.
+ * A derived name has no step to forget. `node scripts/shell-cache.mjs --check`
+ * is the gate that says so: it runs beside the chat-core drift check, in the
+ * Makefile and in verify-phase27.sh, and goes red when a precached file changed
+ * and this line did not.
  */
-const CACHE = "xb-app-shell-v11";
+const CACHE = "xb-app-shell-cb2003a34150";
 
 /**
  * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07
@@ -95,6 +83,7 @@ const SHELL = [
   "/app/chat_core/people.js",
   "/app/chat_core/invite.js",
   "/app/chat_core/team_api_keys.js",
+  "/app/chat_core/swipe_nav.js",
   "/app/chat_core/team_rail.js",
   "/app/chat_core/teams.js",
 ];

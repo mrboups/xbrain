@@ -873,12 +873,16 @@ export function createRenderer(opts) {
    *
    * @param {string} messageId
    * @param {string} text the full answer so far
+   * @param {{partial?: boolean}} [opts] `partial: true` while chunks are still
+   *   arriving. It reaches exactly one decision — a bare URL at the very end of
+   *   the buffer is not linked yet, because half a URL is a link to the wrong
+   *   place. The router renders once more without it at `agent_stream_end`.
    * @returns {HTMLElement|null} the body element, or null if the row is gone
    */
-  function writeStreamText(messageId, text) {
+  function writeStreamText(messageId, text, opts) {
     const el = streamTextTarget(messageId);
     if (!el) return null;
-    renderMarkdownInto(el, text);
+    renderMarkdownInto(el, text, opts);
     return el;
   }
 

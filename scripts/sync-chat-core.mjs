@@ -37,13 +37,19 @@ const TARGETS = [
 const checkOnly = process.argv.includes("--check");
 
 /**
- * Modules both surfaces are known to import.
+ * Modules a SHIPPING SURFACE imports.
  *
  * The file list below is discovered from disk, which is what keeps a NEW module
  * covered without touching this script. The failure that discovery cannot see is
  * the opposite one: a module deleted from the package stops being copied, the
- * orphan sweep removes it from both targets, and the check goes green while two
- * surfaces sit on a broken import. Naming the modules makes that a red gate.
+ * orphan sweep removes it from both targets, and the check goes green while a
+ * surface sits on a broken import. Naming the modules makes that a red gate.
+ *
+ * "A surface", not "both surfaces": `swipe_nav.js` is imported by the PWA alone
+ * today, because the gesture it recognises is a touch gesture and the extension
+ * ships a desktop popup. It is in this list all the same — deleting it would
+ * break the PWA exactly as loudly as deleting a module both import, and a list
+ * that only covered the intersection would have nothing to say about it.
  */
 const REQUIRED_MODULES = [
   "api.js",
@@ -58,6 +64,7 @@ const REQUIRED_MODULES = [
   "publication.js",
   "realtime.js",
   "render.js",
+  "swipe_nav.js",
   "team_api_keys.js",
   "team_rail.js",
   "teams.js",

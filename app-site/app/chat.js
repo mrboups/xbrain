@@ -33,6 +33,7 @@ import { createPublicationRouter } from "./chat_core/publication.js";
 import { createMessageMenu, removeMessageRow } from "./chat_core/message_menu.js";
 import { connectRealtime, createConnectionStatus } from "./chat_core/realtime.js";
 import { createTeamRail } from "./chat_core/team_rail.js";
+import { createSwipeNavigator } from "./chat_core/swipe_nav.js";
 import {
   StreamBuffer,
   buildMentionRegex,
@@ -494,6 +495,50 @@ const teamRail = createTeamRail({
     return summary ? summary.count : null;
   },
 });
+
+/**
+ * Swipe the thread sideways to move along the rail — the phone gesture for what
+ * the squares above already do with a tap.
+ *
+ * IT ASKS THE RAIL. `selectAdjacent` reads the order off the rail's own DOM and
+ * calls the rail's own `onSelectTeam`, which is `switchTeam` below. So a swipe
+ * and a tap are the same operation: the same teardown, the same subscription,
+ * the same read cursor. A second order computed here would be right until the
+ * first drag-to-reorder and silently wrong afterwards, and a switch that skipped
+ * `switchTeam` would leave this screen showing one team while the socket carried
+ * another — which looks like it worked, and is the worst thing this could do.
+ *
+ * Nothing happens at either end of the rail. Wired once at module scope; the
+ * listeners live on the scroller, which outlives every team switch.
+ */
+const swipeTeams = createSwipeNavigator({
+  surfaceEl: el("chat-scroll"),
+  // Where a swipe is not a swipe: the text somebody is typing into, the rail
+  // that already owns tap-and-drag, and the per-message overlay.
+  blockSelectors: ["#composer", "#team-rail", ".xb-msg-menu", ".xb-msg-menu-scrim"],
+  onSwipe: (direction) => {
+    const moved = teamRail.selectAdjacent(direction === "next" ? 1 : -1);
+    if (moved) markSwipeDirection(direction);
+  },
+});
+
+/**
+ * Tell the stylesheet which way the thread just moved, for one paint.
+ *
+ * The animation itself is declared inside a `prefers-reduced-motion:
+ * no-preference` block, so a reader who has asked their OS for less motion gets
+ * the new team with no movement at all — the attribute is still written and the
+ * rule that reads it simply does not exist for them. Doing it that way rather
+ * than testing the preference here means there is no second place to forget.
+ */
+function markSwipeDirection(direction) {
+  const scrollEl = el("chat-scroll");
+  if (!scrollEl) return;
+  scrollEl.dataset.swipe = direction;
+  window.setTimeout(() => {
+    if (scrollEl.dataset.swipe === direction) delete scrollEl.dataset.swipe;
+  }, 240);
+}
 
 /**
  * The slug of the team being read right now, or null when there is none.
@@ -1190,6 +1235,10 @@ export async function bootChat(refs = {}) {
   // 6. Claim the channel and load the thread.
   wireComposer();
   wireViewportAnchor();
+  // Idempotent by construction: the same four listener functions are added to
+  // the same element, and addEventListener de-duplicates an identical triple —
+  // so a re-boot after a re-sign-in cannot end up switching two teams per swipe.
+  swipeTeams.attach();
   await switchTeam(state.activeTeamId);
 
   // 7. What the agent would run on. Asked once now, then only while somebody is

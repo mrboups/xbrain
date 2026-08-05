@@ -1213,6 +1213,33 @@ body {
 }
 #chat-scroll::-webkit-scrollbar { display: none; }
 
+/* Swipe to switch team — the movement that says WHICH WAY the rail went.
+
+   A team switch is otherwise instantaneous and silent: the thread is replaced
+   in place, and on a phone there is no rail animation to say whether you went
+   left or right. A short slide-in from the side you came from is the whole
+   feedback, and it is over before the new history has finished loading.
+
+   DECLARED ONLY UNDER no-preference, which is the point. A reader who has asked
+   their OS for less motion gets the new team with no movement at all — not a
+   movement that a later rule tries to switch off, but a rule that does not
+   exist for them. There is no second place to remember.
+
+   chat.js writes data-swipe for ~240ms and removes it; the animation is on the
+   list rather than the scroller so the scroll position is never transformed. */
+@media (prefers-reduced-motion: no-preference) {
+  #chat-scroll[data-swipe="next"] #message-list { animation: xb-swipe-from-right 180ms ease-out; }
+  #chat-scroll[data-swipe="previous"] #message-list { animation: xb-swipe-from-left 180ms ease-out; }
+  @keyframes xb-swipe-from-right {
+    from { transform: translateX(14px); opacity: 0.4; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes xb-swipe-from-left {
+    from { transform: translateX(-14px); opacity: 0.4; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+}
+
 #message-list {
   display: flex;
   flex-direction: column;

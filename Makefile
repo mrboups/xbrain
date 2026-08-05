@@ -55,6 +55,23 @@ sync-chat-core:  ## Copy packages/chat-core into both surfaces (extension + PWA)
 check-chat-core:  ## Fail if either surface's chat-core copy has drifted
 	node scripts/sync-chat-core.mjs --check
 
+# === PWA shell cache (derived, never hand-bumped) ===
+# app-site/app/sw.js precaches the app shell under a cache name that is a HASH of
+# the precached files. Hand-bumping it was missed three times in three days, and
+# once by two agents reserving the same number in two worktrees. check-shell-cache
+# is the gate; it runs next to check-chat-core for the same reason.
+.PHONY: shell-cache
+shell-cache:  ## Recompute the PWA shell-cache name from the files it precaches
+	node scripts/shell-cache.mjs
+
+.PHONY: check-shell-cache
+check-shell-cache:  ## Fail if a precached file changed and the cache name did not
+	node scripts/shell-cache.mjs --check
+
+.PHONY: check-client
+check-client: check-chat-core check-shell-cache  ## Every client-side gate, before a deploy
+	node chrome-extension/tests/run_tests.mjs
+
 .PHONY: lint
 lint:  ## Lint Python (ruff)
 	cd apps/memory-api && ruff check .
