@@ -5,6 +5,9 @@ Quick task 260512-tcr Wave 2.3:
       → insert user message + Centrifugo publish + maybe enqueue agent task
   GET  /v1/teams/{team_id}/messages?before=<iso>&limit=50
       → paginated history (newest first), excluding deleted_at IS NOT NULL
+  DELETE /v1/teams/{team_id}/messages/{message_id}?scope=message|message_and_brain
+      → soft-delete the message (author or team admin) and, on the wider scope,
+        the memory items it seeded — including their linked children
   POST /v1/me/centrifugo-token
       → issue HS256-signed client JWT scoped to the caller's team channels
   GET  /v1/teams/{team_id}/agent-context-bundle
@@ -21,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+from enum import Enum
 from typing import Any
 from uuid import UUID
 
@@ -30,8 +34,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import write_audit
 from app.config import settings
-from app.deps import get_current_principal, get_session
+from app.deps import get_current_principal, get_memory_provider, get_session
 from app.models.team import Team
 from app.models.user import User
 from app.repos import team_messages as tm_repo
@@ -42,6 +47,7 @@ from app.services import (
     brain_ingest,
     centrifugo_client,
     mention_detector,
+    message_brain_links,
     rate_limit,
     team_chat_agent,
     team_context_cache,
@@ -230,9 +236,24 @@ async def list_team_messages(
         session, team_id=team_id, before_created_at=before, limit=limit
     )
     labels = await _author_labels_for(session, messages)
+    membership = await teams_repo.get_membership(
+        session, user_id=user.id, team_slug=team.slug
+    )
     return {
         "messages": [_serialize_message(m, team.slug, labels) for m in messages],
         "next_before": messages[-1].created_at.isoformat() if messages else None,
+        # What THIS caller may do to OTHER people's messages in this team — the
+        # server stating its own delete policy so a client never draws a control
+        # the server would refuse (and never hides one it would allow).
+        #
+        # It rides on the history response, NOT on each message, because the same
+        # serialized message is published to the whole team over Centrifugo: a
+        # per-message permission field would broadcast the SENDER's rights to
+        # every recipient. This response has exactly one reader.
+        "viewer": {
+            "user_id": str(user.id),
+            "can_moderate": bool(membership is not None and membership.role == "admin"),
+        },
     }
 
 
@@ -302,6 +323,9 @@ async def post_team_message(
             content=body.content,
             author_sub=user.source_user_id,
             aliases=aliases,
+            # The back-link that makes "remove this from the brain too" exact
+            # rather than a content match — see services/message_brain_links.py.
+            message_id=msg.id,
         )
     )
 
@@ -382,6 +406,294 @@ async def post_team_message(
             log.warning("team_chat.mention_push_failed", team_id=str(team_id), err=str(exc))
 
     return payload
+
+
+# ── /v1/teams/{team_id}/messages/{message_id} — delete ───────────────────────
+
+
+class DeleteScope(str, Enum):
+    """What a deletion is allowed to reach.
+
+    Two values, and they are genuinely different outcomes rather than a flag on
+    one action. `message` takes the bubble out of the chat and leaves the team's
+    memory able to answer from what was said; `message_and_brain` also removes the
+    memory items the message seeded. Someone deleting a mistake or something
+    sensitive needs those to be distinguishable, and the audit trail records them
+    as two different actions for the same reason.
+
+    Both are SOFT deletes with a 30-day retention window (the janitor hard-purges
+    after that), which is what the UI copy says. Neither is erasure.
+    """
+
+    MESSAGE = "message"
+    MESSAGE_AND_BRAIN = "message_and_brain"
+
+
+#: How many item ids the audit payload spells out in full. A chunked document can
+#: produce hundreds; the COUNTS are always exact, the id list is a sample beyond
+#: this point and says so via `item_ids_truncated`.
+_AUDIT_ID_SAMPLE = 100
+
+#: The two audit actions. Named, not built inline, so the sibling work that will
+#: log starring and sharing under the same `team_message.` prefix has something to
+#: copy — the whole trail is then greppable as one story.
+AUDIT_ACTION_DELETE = "team_message.delete"
+AUDIT_ACTION_DELETE_WITH_BRAIN = "team_message.delete_with_brain"
+
+
+async def _assert_can_delete_message(
+    session: AsyncSession,
+    *,
+    user,
+    team: Team,
+    message,
+) -> str:
+    """Raise 403 unless this caller may delete this message. Returns WHY they may.
+
+    THE RULE, stated once:
+
+      * the AUTHOR of the message — always. It is their sentence.
+      * a TEAM ADMIN (`team_members.role = 'admin'` for THIS team) — always. A
+        group chat with no way to remove a teammate's message is a group chat
+        where anything posted by mistake is permanent for everyone.
+      * anybody else — no. Including a plain member, and including an ordinary
+        member who happens to be an env superadmin: cross-team moderation already
+        has a route (`DELETE /v1/brain/events/team_message/{id}`, audited under
+        `brain.soft_delete`), and widening a member-facing endpoint to reach every
+        team buys nothing and costs blast radius.
+
+    AGENT frames have `author_user_id IS NULL`, so nobody can be their author and
+    only a team admin can remove one — the same answer `assert_can_edit_brain_event`
+    gives for rows with no author column.
+
+    Blocked membership never reaches here: `_resolve_team_and_check_membership`
+    already refused it, which is the check this project has shipped a bypass on
+    once and now applies on every team-scoped path.
+
+    The returned string ("author" / "team_admin") goes in the audit payload, so a
+    row says not just who deleted but on what authority.
+    """
+    if message.author_user_id is not None and message.author_user_id == user.id:
+        return "author"
+    membership = await teams_repo.get_membership(
+        session, user_id=user.id, team_slug=team.slug
+    )
+    if membership is not None and membership.role == "admin":
+        return "team_admin"
+    raise HTTPException(
+        403,
+        "You can only delete your own messages. A team admin can delete any "
+        "message in this team.",
+    )
+
+
+@router.delete("/teams/{team_id}/messages/{message_id}")
+async def delete_team_message(
+    team_id: UUID,
+    message_id: UUID,
+    scope: DeleteScope = Query(
+        DeleteScope.MESSAGE,
+        description=(
+            "message = remove the bubble only; message_and_brain = also remove "
+            "the memory items this message seeded, and their linked children"
+        ),
+    ),
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+    provider=Depends(get_memory_provider),
+) -> dict[str, Any]:
+    """Soft-delete one team-chat message, optionally with what it put in the brain.
+
+    Ordering is load-bearing — every rejection returns BEFORE the first write, so
+    a refused deletion provably changes nothing and, just as deliberately, writes
+    NO audit row (a trail that records attempts as if they were actions is worse
+    than none):
+
+      1. caller must be a user principal                → 403
+      2. caller must be a non-blocked member of team_id → 403 / 404 (no team)
+      3. the message must exist, live, IN THIS TEAM     → 404 (no existence oracle)
+      4. caller must be its author or a team admin      → 403
+      5. THEN: collect the linked memory items, flip the message, flip the items
+         and write the audit row — one transaction, one commit
+      6. AFTER the commit: Qdrant, the context cache, and the realtime fan-out
+
+    Step 5 being one transaction is the point of doing the audit here rather than
+    afterwards: a deletion that succeeded while its audit row was lost is exactly
+    the case the trail exists for.
+
+    Step 6 runs after because Postgres is the source of truth. Qdrant is
+    best-effort (the nightly janitor reconciles); the publish is awaited rather
+    than detached so a client that gets a 200 knows the other clients were told —
+    a message that vanishes for one person and stays for everyone else is worse
+    than no feature at all.
+
+    THE ACTOR IS ALWAYS A HUMAN HERE. `_require_user_principal` refuses bridge and
+    service JWTs, so `actor_user_id` on a `team_message.delete*` row is never NULL
+    by design — a NULL on one of these rows means a bug, not an agent. Nothing
+    non-human can reach this path.
+    """
+    user = _require_user_principal(principal)
+
+    # 1-2. Membership + block check (also resolves the Team → 404 if absent).
+    team = await _resolve_team_and_check_membership(session, user.id, team_id)
+
+    # 3. The message must exist, be live, and belong to THIS team. One 404 covers
+    #    all three so a member cannot probe another team's message ids.
+    message = await tm_repo.get_live_message(
+        session, team_id=team_id, message_id=message_id
+    )
+    if message is None:
+        raise HTTPException(404, "message not found")
+
+    # 4. Authorization — the server is the authority, never the client's UI.
+    actor_role = await _assert_can_delete_message(
+        session, user=user, team=team, message=message
+    )
+
+    # 5. Everything below is one transaction.
+    #
+    #    The linked items are collected BEFORE the message row is flipped: the
+    #    collector reads the message's own content and metadata, and it is the
+    #    only chance to learn what this message owns.
+    linked = message_brain_links.LinkedItems()
+    if scope is DeleteScope.MESSAGE_AND_BRAIN:
+        author_sub = None
+        if message.author_user_id is not None:
+            author = await users_repo.get_user_by_id(session, message.author_user_id)
+            author_sub = getattr(author, "source_user_id", None) if author else None
+        linked = await message_brain_links.collect_linked_items(
+            session,
+            team_scope=team.slug,
+            message_id=message.id,
+            content=message.content,
+            author_sub=author_sub,
+            message_metadata=message.metadata_,
+        )
+
+    deleted_at = await tm_repo.soft_delete_message(
+        session, team_id=team_id, message_id=message_id, deleted_by=user.id
+    )
+    if deleted_at is None:
+        # Vanished between the fetch and the update — a concurrent delete. Surface
+        # it as the same 404 rather than reporting a removal this call did not do.
+        raise HTTPException(404, "message not found")
+
+    removed_ids: list[str] = []
+    if scope is DeleteScope.MESSAGE_AND_BRAIN and linked.all_ids:
+        removed_ids = await message_brain_links.soft_delete_items(
+            session,
+            team_scope=team.slug,
+            item_ids=linked.all_ids,
+            deleted_by=user.id,
+            deleted_at=deleted_at,
+        )
+
+    audit_payload: dict[str, Any] = {
+        # Named explicitly rather than inferred from the absence of something.
+        "actor_kind": principal.get("kind"),
+        "actor_sub": getattr(user, "source_user_id", None),
+        "actor_role": actor_role,
+        "team_id": str(team_id),
+        "team_scope": team.slug,
+        "message_id": str(message_id),
+        "message_kind": message.kind,
+        "message_author_user_id": (
+            str(message.author_user_id) if message.author_user_id else None
+        ),
+        "message_agent_name": message.agent_name,
+        "scope": scope.value,
+        "deleted_at": deleted_at.isoformat(),
+    }
+    if scope is DeleteScope.MESSAGE_AND_BRAIN:
+        # What actually went with it. Counts are exact; the id list is capped
+        # because a chunked document is legitimately hundreds of rows, and it says
+        # when it was capped rather than looking complete.
+        audit_payload["brain"] = {
+            "items_removed": len(removed_ids),
+            "root_count": len(linked.roots),
+            "child_count": len(linked.children),
+            "item_ids": removed_ids[:_AUDIT_ID_SAMPLE],
+            "item_ids_truncated": len(removed_ids) > _AUDIT_ID_SAMPLE,
+            "matched_legacy_text": linked.matched_legacy_text,
+            "link_scan_truncated": linked.truncated,
+        }
+
+    await write_audit(
+        session,
+        actor_user_id=user.id,
+        team_scope=team.slug,
+        action=(
+            AUDIT_ACTION_DELETE_WITH_BRAIN
+            if scope is DeleteScope.MESSAGE_AND_BRAIN
+            else AUDIT_ACTION_DELETE
+        ),
+        target_id=str(message_id),
+        payload=audit_payload,
+    )
+    await session.commit()
+
+    # 6. After the commit.
+    if removed_ids:
+        await message_brain_links.mark_deleted_in_qdrant(
+            provider, removed_ids, deleted_at
+        )
+        # The agent's memory block is cached for 5 minutes. Without this it would
+        # keep quoting the removed item for up to that long, to the person who
+        # just watched it disappear.
+        try:
+            team_context_cache.invalidate(team_id)
+        except Exception:  # noqa: BLE001 — a cache miss is not a failed deletion
+            pass
+
+    # Tell every other client. AWAITED, not detached like the send path: the whole
+    # point of the feature is that it reaches the other screens, so a publish that
+    # failed must not be reported as a clean success. It still cannot FAIL the
+    # deletion — that is already committed — so the outcome travels in the 200 as
+    # `broadcast`, and a client that sees false can say "reload to be sure".
+    #
+    # The channel is the ACTIVE TEAM's, derived server-side from the verified
+    # membership. The realtime token grants every team the caller belongs to, so a
+    # deletion routed on a bare `team:` prefix would reach threads it has nothing
+    # to do with; the client half refuses anything but the open team channel and
+    # the caller's own user channel, and this half never names anything else.
+    broadcast = False
+    try:
+        broadcast = bool(
+            await centrifugo_client.publish(
+                channel=f"team:{team_id}",
+                data={
+                    "type": "message_deleted",
+                    "message_id": str(message_id),
+                    "team_id": str(team_id),
+                    "scope": scope.value,
+                },
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 — publish() swallows its own, this is belt-and-braces
+        log.warning(
+            "team_chat.message_deleted.publish_failed",
+            team_id=str(team_id),
+            message_id=str(message_id),
+            err=str(exc),
+        )
+
+    log.info(
+        "team_chat.message.deleted",
+        team_id=str(team_id),
+        message_id=str(message_id),
+        actor_user_id=str(user.id),
+        actor_role=actor_role,
+        scope=scope.value,
+        brain_items_removed=len(removed_ids),
+    )
+    return {
+        "status": "deleted",
+        "message_id": str(message_id),
+        "scope": scope.value,
+        "deleted_at": deleted_at.isoformat(),
+        "brain_items_removed": len(removed_ids),
+        "broadcast": broadcast,
+    }
 
 
 # ── /v1/teams/{team_id}/mark-read + unread-summary — read cursor (CATCHUP-01) ─

@@ -68,11 +68,20 @@ async def ingest_team_message(
     content: str,
     author_sub: str | None,
     aliases: list[str] | None = None,
+    message_id: Any = None,
 ) -> None:
     """Fire-and-forget: upsert a relevant team-chat message into the brain.
 
     `aliases` is THIS team's effective mention-alias list (WR-01) — so agent
     COMMANDS to a team's custom name are skipped from ingest like `@agent`.
+
+    `message_id` is the `team_messages` row this text came from. It is written
+    into the item's metadata as the BACK-LINK that "remove this message from the
+    brain too" resolves: without it the only way to find the item again is to
+    match its text, which is a guess. Optional and keyword-only so nothing that
+    calls this without a message (an import, a test) has to change; a message
+    ingested without one falls back to the content match documented in
+    `services/message_brain_links.py`.
 
     Never raises — ingestion must never break the chat-send response path.
     """
@@ -86,11 +95,21 @@ async def ingest_team_message(
             return
         provider = get_memory_provider()
         now = datetime.now(timezone.utc)
+        metadata: dict[str, Any] = {
+            "origin": "team-chat",
+            "author_sub": author_sub or "",
+        }
+        # Only written when there IS one — an absent key and an empty string are
+        # different answers to "which message is this?", and the delete path
+        # matches on `metadata->>'message_id'`, which an empty string would make
+        # collide across every message that also has none.
+        if message_id is not None:
+            metadata["message_id"] = str(message_id)
         item = MemoryItem(
             id=str(uuid.uuid4()),
             team_scope=team_scope,
             content=content.strip(),
-            metadata={"origin": "team-chat", "author_sub": author_sub or ""},
+            metadata=metadata,
             visibility=Visibility.TEAM,
             truth_level=TruthLevel.WORKING,
             confidence=0.7,
