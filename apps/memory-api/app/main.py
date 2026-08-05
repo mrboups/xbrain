@@ -21,6 +21,7 @@ from app.routes import (
     agents,
     audit,
     auth_github,
+    auth_google_web,
     auth_local,
     boards,
     brain,
@@ -122,6 +123,10 @@ CORE_ROUTERS: list[tuple[APIRouter, str, list[str]]] = [
     # paid feature. Core in every edition, OSS included.
     (me_profile.router, "/v1", ["me"]),
     (auth_github.router, "/v1", ["auth"]),
+    # Signing in from a home-screen web app, where the GIS popup is a detached
+    # context Google cannot recognise. Core: it is how a phone signs in, and a
+    # self-hoster's phone is the same phone.
+    (auth_google_web.router, "/v1", ["auth"]),
     (auth_local.router, "/v1", ["auth-local"]),
     (teams.router, "/v1", ["teams"]),
     (conversations.router, "/v1", ["conversations"]),

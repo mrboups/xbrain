@@ -926,6 +926,41 @@ test("the safe areas are respected — this link is opened on a phone", () => {
 // 6. English only, and the shared constants
 // ===========================================================================
 
+test("the invite code never leaves this document, so sign-in may not either", () => {
+  // /app/ moved its Google sign-in off the GIS popup and onto a top-level
+  // redirect, because in a HOME-SCREEN web app the popup is a detached context
+  // Google cannot recognise. Copying that here would break the front door rather
+  // than fix it, and this asserts the two properties that make it so.
+  //
+  // 1. The code lives in the fragment and is moved into a variable on load. A
+  //    redirect leaves the document; the variable dies with it and the fragment
+  //    has already been stripped, so the invitee comes back signed in to nothing.
+  // 2. This page is outside the manifest scope (/app/), so it is never the
+  //    surface the popup is broken on in the first place.
+  assert.match(
+    PAGE_SCRIPT,
+    /location\.hash/,
+    "the invite code must still be read from the fragment",
+  );
+  assert.ok(
+    !/\/v1\/auth\/google\/(start|web-config)/.test(PAGE_SCRIPT),
+    "this page must not enter the redirect sign-in flow — leaving the document loses the invite code",
+  );
+  assert.ok(
+    !/location\.assign\(|location\.href\s*=\s*["'`]https:\/\/(accounts\.google|api\.)/.test(PAGE_SCRIPT),
+    "no top-level navigation away from this page before the code has been redeemed",
+  );
+
+  const manifest = JSON.parse(
+    readFileSync(join(REPO_ROOT, "app-site", "app", "manifest.webmanifest"), "utf8"),
+  );
+  assert.equal(
+    manifest.scope,
+    "/app/",
+    "if the installed app's scope ever covered /join/, this page WOULD run standalone and the popup would break here too",
+  );
+});
+
 test("the shared constants are neither renamed nor duplicated", () => {
   assert.ok(html.includes('"xbt_token"'), "the canonical token key was renamed");
   assert.ok(html.includes('"user_sub"'), "the canonical identity key was renamed");

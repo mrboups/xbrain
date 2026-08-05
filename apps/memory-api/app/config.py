@@ -33,6 +33,21 @@ class Settings(BaseSettings):
 
     # Drive OAuth config (Phase 3 — plan 03-10)
     GOOGLE_CLIENT_SECRET: str = ""
+
+    # === Google sign-in without a popup (app/routes/auth_google_web.py) ===
+    # Where the browser is sent back to once the authorization code has been
+    # exchanged — the PWA's start URL, e.g. https://grooveos.app/app/. It must be
+    # inside the web app manifest's `scope`, because that is what makes iOS hand
+    # the navigation back to an INSTALLED app instead of leaving it in the in-app
+    # browser sheet the whole bug is about.
+    #
+    # EMPTY IS THE DEFAULT AND IT DISABLES THE FLOW. Deliberately NO validator
+    # (mirrors NUDGE/CATCHUP/EMBED/DOCBODY/BOARD/PUSH): a zero-key OSS install
+    # must boot. More than that, the flow needs an Authorized redirect URI
+    # registered by hand on the Google client, which no amount of code can do —
+    # so it stays off until an operator has done both, and the client keeps using
+    # the popup meanwhile rather than walking people into a redirect_uri_mismatch.
+    GOOGLE_WEB_SIGNIN_RETURN_URL: str = ""
     # Fernet key — generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     OAUTH_CREDENTIALS_ENCRYPTION_KEY: str = ""
     # Used to build OAuth redirect_uri returned to Google

@@ -20,7 +20,16 @@
 import { THEME_STORAGE_KEY, resolveInitialTheme, applyTheme } from "./chat_core/theme.js";
 import { createApi } from "./chat_core/api.js";
 import { webPlatform } from "./platform_web.js";
-import { MEMORY_API_BASE, getToken, getUserSub, signOut, mountSignIn } from "./auth.js";
+import {
+  MEMORY_API_BASE,
+  getToken,
+  getUserSub,
+  signOut,
+  mountSignIn,
+  signInWithGoogleCredential,
+  takeGoogleRedirectResult,
+  googleRedirectErrorMessage,
+} from "./auth.js";
 import { bootChat, activeTeamSlug, activeTeamId, selfUserId } from "./chat.js";
 import { mountProfile, hideProfile } from "./profile.js";
 import { mountImport, isImportOpen, hideImport } from "./import.js";
@@ -262,8 +271,17 @@ function wireThemeToggle() {
  * the API rejected. chat.js calls it through the onSignedOut hook rather than
  * owning any sign-in markup itself.
  */
-function showSignInCard() {
+function showSignInCard(message) {
   showSignedOut();
+  // A sentence about why they are looking at this card again, when there is one.
+  // Only the redirect flow produces one; every other caller passes nothing and
+  // the banner stays hidden, exactly as before.
+  const banner = el("signin-banner");
+  if (banner && message) {
+    banner.textContent = message;
+    banner.className = "xb-banner is-error";
+    banner.hidden = false;
+  }
   mountSignIn({
     slotEl: el("google-btn"),
     hintEl: el("google-hint"),
@@ -351,6 +369,29 @@ async function boot() {
       await signOut();
       window.location.reload();
     });
+  }
+
+  // Coming back from the popup-free Google flow (auth.js explains why it
+  // exists). FIRST, before the stored token is read: this call also STRIPS the
+  // credential off the URL, and a load that returned early would leave it
+  // sitting in the address the session history keeps.
+  //
+  // A person who is already signed in is not sent through any of this — there is
+  // no credential on the URL unless they just came back from the account
+  // chooser, and without one this is a null and two comparisons.
+  const back = takeGoogleRedirectResult(window);
+  if (back && back.credential) {
+    const result = await signInWithGoogleCredential(back.credential);
+    if (result.ok) {
+      await startChat(result.email);
+      return;
+    }
+    showSignInCard(result.error);
+    return;
+  }
+  if (back && back.error) {
+    showSignInCard(googleRedirectErrorMessage(back.error));
+    return;
   }
 
   if (await getToken()) {
