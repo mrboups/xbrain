@@ -121,15 +121,23 @@ export function readApiKeyProviders(rows) {
  * an answer that was never going to come from it.
  *
  * THE SERVER HALF IS BEING BUILT IN PARALLEL and its route shape is an
- * ASSUMPTION, declared here and nowhere else so that reconciling it costs one
- * edit. What is assumed:
+ * SHIPPED, and reconciled here on 2026-08-05. The assumption cost exactly one edit,
+ * which is why it was declared in one place. What the server actually serves:
  *
- *   GET  /v1/teams/{id}/fallback-provider  — any member.
- *        -> {provider: "anthropic", supported: ["anthropic"]}
- *           `provider` is the team's current selection. `supported` is optional;
- *           when present it is the set this build can actually stream.
- *   PUT  /v1/teams/{id}/fallback-provider  — admin only, like the key write.
- *        body {provider: "openai"} -> 204
+ *   GET  /v1/teams/{id}/agent-provider  — any ACTIVE member (blocked -> 403).
+ *        -> {provider, supported, labels, available}
+ *           `provider` is the team's current selection.
+ *           `supported` is the set this build can stream — authoritative over the
+ *           local `callable` flags, so the day a provider is wired the client stops
+ *           marking it inert with no redeploy of the table.
+ *           `available` is the set for which a key RESOLVES — across the team tier
+ *           AND the deployment tier, deliberately: `GET /api-keys` alone would warn a
+ *           team that stores no key of its own while the deployment key answers their
+ *           messages perfectly well. It never says which tier, and never the key.
+ *   PATCH /v1/teams/{id}/agent-provider  — team admin only.
+ *        body {provider: "openai"} -> the same shape back.
+ *        Case and whitespace are forgiven and stored canonical; anything else is a
+ *        422 that does not echo the input.
  *
  * UNTIL IT EXISTS, both routes answer 404, and both surfaces must degrade to
  * "no selection control, and the static table's word on what gets called"

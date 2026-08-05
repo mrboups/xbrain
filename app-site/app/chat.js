@@ -472,7 +472,7 @@ export function activeTeamSlug() {
  * The id of the team being read right now, or null when there is none.
  *
  * The ID and not the slug, unlike above: /v1/teams/{id}/api-keys, /members and
- * /fallback-provider all carry the team in the PATH, and a slug there is a 404.
+ * /agent-provider all carry the team in the PATH, and a slug there is a 404.
  *
  * A function for the same reason activeTeamSlug is one: the active team changes
  * under every caller, and a value read once at boot is the wrong team by the

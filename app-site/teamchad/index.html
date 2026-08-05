@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TeamChad — one memory. every human, every agent, every tool.</title>
+  <meta name="description" content="A team chat where people and AI agents share one thread and one memory, running as a Chrome extension and an installable web app. Open source and free to self-host. The hosted service sells hosting, not features." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    /* ================================================================
+       THEME VARIABLES — identical to the GrooveOS home page
+    ================================================================ */
+    :root {
+      --bg:       #0D1117;
+      --bg-2:     #161B22;
+      --bg-3:     #21262D;
+      --text:     #E6EDF3;
+      --muted:    #8B949E;
+      --accent:   #22D3EE;
+      --green:    #3FB950;
+      --amber:    #D29922;
+      --red:      #F85149;
+      --border:   #30363D;
+      --tag-bg:   rgba(34,211,238,.12);
+    }
+    [data-theme="light"] {
+      --bg:       #FFFFFF;
+      --bg-2:     #F6F8FA;
+      --bg-3:     #EAEEF2;
+      --text:     #1F2328;
+      --muted:    #57606A;
+      --accent:   #0E7490;
+      --green:    #1A7F37;
+      --amber:    #9A6700;
+      --red:      #CF222E;
+      --border:   #D0D7DE;
+      --tag-bg:   rgba(14,116,144,.08);
+    }
+
+    /* ================================================================
+       BASE
+    ================================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+    body {
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13.5px;
+      line-height: 1.7;
+      transition: background .15s ease, color .15s ease;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      background: var(--bg-3);
+      color: var(--accent);
+      padding: 1px 6px;
+      font-family: inherit;
+      font-size: .9em;
+    }
+
+    /* ================================================================
+       NAV
+    ================================================================ */
+    .nav {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px; height: 46px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .nav__logo {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      letter-spacing: .14em; white-space: nowrap;
+    }
+    .nav__logo span { color: var(--accent); }
+    .nav__logo:hover { text-decoration: none; }
+    .nav__links {
+      display: flex; align-items: center; gap: 20px;
+      flex: 1; justify-content: center;
+    }
+    .nav__link { color: var(--muted); font-size: 12.5px; transition: color .1s; }
+    .nav__link:hover { color: var(--text); text-decoration: none; }
+    .nav__right { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+    .theme-btn {
+      background: none; border: 1px solid var(--border);
+      color: var(--muted); cursor: pointer; font-family: inherit;
+      font-size: 11.5px; padding: 3px 10px; border-radius: 3px;
+      transition: border-color .15s, color .15s;
+    }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-cta {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--accent); color: var(--bg);
+      padding: 5px 14px; border-radius: 3px;
+      font-size: 12.5px; font-weight: 500;
+      transition: opacity .15s; white-space: nowrap;
+    }
+    .btn-cta:hover { opacity: .85; text-decoration: none; }
+    .btn-outline {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid var(--border); color: var(--muted);
+      padding: 5px 14px; border-radius: 3px; font-size: 12.5px;
+      transition: border-color .15s, color .15s; white-space: nowrap;
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+
+    /* ================================================================
+       LAYOUT
+    ================================================================ */
+    .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+    .sec  { padding: 56px 0; }
+    .sec-sm { padding: 32px 0; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+    /* ================================================================
+       SECTION HEADER
+    ================================================================ */
+    .sh {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 24px; font-size: 14px; font-weight: 700;
+      letter-spacing: .14em; text-transform: uppercase; color: var(--text);
+    }
+    .sh::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* ================================================================
+       HERO
+    ================================================================ */
+    .hero-box {
+      border: 1px solid var(--border);
+      padding: 32px 28px 28px;
+      position: relative;
+    }
+    .hero-box::before {
+      content: "// teamchad · the light edition of the groove brain";
+      position: absolute; top: -9px; left: 20px;
+      background: var(--bg); padding: 0 8px;
+      font-size: 11px; color: var(--muted); letter-spacing: .1em;
+    }
+    .hero-headline {
+      font-size: clamp(22px, 3.8vw, 36px); font-weight: 700;
+      line-height: 1.2; letter-spacing: -.01em;
+      margin-bottom: 16px; color: var(--text);
+    }
+    .hero-headline .hl { color: var(--accent); }
+    .hero-sub {
+      font-size: 13.5px; color: var(--muted);
+      line-height: 1.8; max-width: 620px; margin-bottom: 24px;
+    }
+    .hero-sub strong { color: var(--text); font-weight: 500; }
+    .hero-meta {
+      font-size: 11.5px; color: var(--muted);
+      border-top: 1px solid var(--border);
+      padding-top: 16px; margin-top: 24px;
+      display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center;
+    }
+    .badge {
+      display: inline-flex; align-items: center;
+      font-size: 10.5px; font-weight: 600; letter-spacing: .05em;
+      padding: 2px 8px; border: 1px solid var(--border);
+      color: var(--muted); border-radius: 2px;
+    }
+    .badge-green { border-color: var(--green); color: var(--green); background: rgba(63,185,80,.08); }
+    .badge-accent { border-color: var(--accent); color: var(--accent); background: var(--tag-bg); }
+    .dot-live {
+      display: inline-block; width: 7px; height: 7px;
+      border-radius: 50%; background: var(--green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+    .hero-note { font-size: 11.5px; color: var(--muted); margin-top: 14px; }
+
+    /* ================================================================
+       3-LAYER GRID
+    ================================================================ */
+    .layer-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      border: 1px solid var(--border); border-right: none;
+    }
+    @media (max-width: 640px) { .layer-grid { grid-template-columns: 1fr; border-right: 1px solid var(--border); } }
+    .layer-col { border-right: 1px solid var(--border); padding: 20px; }
+    .layer-name {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
+    }
+    .layer-name .marker { color: var(--accent); font-weight: 400; }
+    .layer-desc { font-size: 12px; color: var(--muted); line-height: 1.7; }
+
+    /* ================================================================
+       INFO BOX
+    ================================================================ */
+    .info-box {
+      border: 1px solid var(--border);
+      padding: 20px 22px; font-size: 13px;
+      line-height: 1.8; color: var(--muted); position: relative;
+    }
+    .info-box::before {
+      content: attr(data-label);
+      position: absolute; top: -9px; left: 16px;
+      background: var(--bg); padding: 0 6px;
+      font-size: 10.5px; color: var(--muted); letter-spacing: .1em;
+    }
+    .info-box strong { color: var(--text); font-weight: 500; }
+    .info-box .hl { color: var(--accent); }
+
+    /* ================================================================
+       THE SPLIT — two columns
+    ================================================================ */
+    .split-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      border: 1px solid var(--border); border-right: none;
+      margin-top: 24px;
+    }
+    @media (max-width: 640px) { .split-grid { grid-template-columns: 1fr; border-right: 1px solid var(--border); } }
+    .split-col {
+      border-right: 1px solid var(--border);
+      padding: 24px 20px; display: flex; flex-direction: column;
+    }
+    .split-col.featured { background: var(--bg-2); }
+    .split-tier {
+      font-size: 10.5px; font-weight: 700; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .split-col.featured .split-tier { color: var(--accent); }
+    .split-flag {
+      font-size: 10px; font-weight: 700; letter-spacing: .06em;
+      background: var(--tag-bg); color: var(--accent);
+      padding: 1px 6px; border-radius: 2px;
+    }
+    .split-flag.green { background: rgba(63,185,80,.10); color: var(--green); }
+    .split-price { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1; margin-bottom: 4px; }
+    .split-price .unit { font-size: 13px; font-weight: 400; color: var(--muted); }
+    .split-line { font-size: 11.5px; color: var(--muted); margin-bottom: 20px; }
+    .split-list { list-style: none; flex: 1; margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
+    .split-list li { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: flex-start; line-height: 1.55; }
+    .split-list .ok { color: var(--green); flex-shrink: 0; }
+    .split-list .dot { color: var(--accent); flex-shrink: 0; }
+    .split-list strong { color: var(--text); font-weight: 500; }
+    .split-cost { font-size: 11.5px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 14px; margin-bottom: 18px; }
+    .split-cost strong { color: var(--text); font-weight: 500; }
+
+    /* ================================================================
+       CTA BOX
+    ================================================================ */
+    .cta-box {
+      border: 1px solid var(--border); padding: 40px 32px;
+      position: relative; background: var(--bg-2); text-align: center;
+    }
+    .cta-box::before {
+      content: "// the code is open";
+      position: absolute; top: -9px; left: 24px;
+      background: var(--bg-2); padding: 0 8px;
+      font-size: 11px; color: var(--accent); letter-spacing: .1em;
+    }
+
+    /* ================================================================
+       FOOTER
+    ================================================================ */
+    .footer { border-top: 1px solid var(--border); padding: 28px 24px 20px; }
+    .footer-inner { max-width: 900px; margin: 0 auto; }
+    .footer-main {
+      display: flex; flex-wrap: wrap; justify-content: space-between;
+      align-items: center; gap: 16px;
+    }
+    .footer-logo { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: .12em; }
+    .footer-logo span { color: var(--accent); }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+    .flink { font-size: 12px; color: var(--muted); }
+    .flink:hover { color: var(--accent); text-decoration: none; }
+    .footer-oss {
+      margin-top: 14px; padding-top: 14px;
+      border-top: 1px solid var(--border);
+      font-size: 11px; color: var(--muted);
+    }
+    .footer-oss a { color: var(--muted); }
+    .footer-oss a:hover { color: var(--accent); text-decoration: none; }
+
+    /* ================================================================
+       MOBILE
+    ================================================================ */
+    @media (max-width: 640px) {
+      .nav__links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════
+       NAV
+  ═══════════════════════════════════════════════════ -->
+  <header class="nav">
+    <a href="./" class="nav__logo">TEAM<span>CHAD</span></a>
+
+    <nav class="nav__links">
+      <a href="#what"  class="nav__link">what it is</a>
+      <a href="#split" class="nav__link">self-hosted vs hosted</a>
+      <a href="../docs/index.html" class="nav__link">docs</a>
+      <a href="../" class="nav__link">grooveos</a>
+    </nav>
+
+    <div class="nav__right">
+      <button class="theme-btn" id="theme-toggle" aria-label="Toggle theme">◑ light</button>
+      <a href="#" onclick="openWaitlist('TeamChad — Hosted');return false;" class="btn-cta">→ join waitlist</a>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════
+       HERO
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec">
+    <div class="hero-box">
+      <div class="hero-headline">
+        One memory. Every human,<br/>
+        <span class="hl">every agent, every tool.</span>
+      </div>
+      <p class="hero-sub">
+        A team chat where <strong>people and AI agents share one thread and one memory</strong>,
+        running as a Chrome extension and an installable web app.
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+        <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener" class="btn-cta">self-host it ↗</a>
+        <a href="#" onclick="openWaitlist('TeamChad — Hosted');return false;" class="btn-outline">join the waitlist</a>
+        <a href="#split" class="btn-outline">what costs money</a>
+      </div>
+      <p class="hero-note">
+        The same code has run in production for months. This is that system, cut to a core one person can install.
+      </p>
+
+      <div class="hero-meta">
+        <span><span class="dot-live"></span>&nbsp; self-host available today · hosted in private beta</span>
+        <span class="badge badge-accent">humans + agents</span>
+        <span class="badge">claude · gpt · grok</span>
+        <span class="badge">chrome extension + PWA</span>
+        <span class="badge badge-green">open source</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       WHAT IT IS
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="what">
+    <div class="sh">// what it is · three parts, one system</div>
+
+    <div class="layer-grid">
+      <div class="layer-col">
+        <div class="layer-name"><span class="marker">—</span> One thread</div>
+        <div class="layer-desc">
+          People and AI agents talk in the same conversation, and <code>@agent</code> answers
+          from everything the company has said, decided or uploaded.
+        </div>
+      </div>
+      <div class="layer-col">
+        <div class="layer-name"><span class="marker">—</span> One memory</div>
+        <div class="layer-desc">
+          Every message, document, meeting note and tool output lands in a single store — one per
+          team, isolated from the rest — that Claude, GPT, Grok, ChatGPT, Claude Code and
+          background agents all read and write.
+        </div>
+      </div>
+      <div class="layer-col">
+        <div class="layer-name"><span class="marker">—</span> Five truth levels</div>
+        <div class="layer-desc">
+          A fact climbs from passing remark to company canon only through review and approval,
+          every step logged, and the agent names the level it answered from.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       THE SPLIT
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec" id="split">
+    <div class="sh">// self-hosted vs hosted · what actually differs</div>
+
+    <div class="info-box" data-label="// the rule">
+      <strong>No feature sits behind a payment.</strong> The whole product is open source, and the
+      hosted plan sells <span class="hl">hosting, not features</span>.
+    </div>
+
+    <div class="split-grid">
+
+      <!-- ── SELF-HOSTED ── -->
+      <div class="split-col">
+        <div class="split-tier">self-hosted <span class="split-flag green">MIT · open source</span></div>
+        <div class="split-price">Free<span class="unit"> · forever</span></div>
+        <div class="split-line">Free, open source, complete. Nothing held back for a paid tier.</div>
+
+        <ul class="split-list">
+          <li><span class="ok">✓</span> Ten containers, one command, about 25€ a month on a cloud VM.</li>
+          <li><span class="ok">✓</span> No third-party keys: local email accounts, embeddings computed in the container.</li>
+          <li><span class="ok">✓</span> <strong>Included:</strong> team chat, the agent, the whole memory, five truth levels, audit trail.</li>
+          <li><span class="ok">✓</span> Team isolation, uploads with text extraction, semantic search, web clipper.</li>
+          <li><span class="ok">✓</span> File storage, the ChatGPT and Claude.ai connector, real deletion after thirty days.</li>
+          <li><span class="ok">✓</span> CRM and contact extraction, task tracking, meeting intelligence — free here too.</li>
+          <li><span class="ok">✓</span> Free extras, one setting each: Drive, GitHub, calendar, decks, web search.</li>
+          <li><span class="ok">✓</span> Same for a second-opinion model, a knowledge graph, full observability.</li>
+          <li><span class="ok">✓</span> One AI key — Anthropic, OpenAI or Grok — drives the whole thing.</li>
+          <li><span class="ok">✓</span> With no key at all, the brain still ingests and retrieves.</li>
+          <li><span class="ok">✓</span> Data stays on the company's own machine. Nothing proprietary in the path.</li>
+        </ul>
+
+        <div class="split-cost">
+          <strong>The price:</strong> the company runs its own updates, backups and monitoring.
+        </div>
+
+        <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener" class="btn-outline" style="justify-content:center;text-align:center;">self-host it ↗</a>
+      </div>
+
+      <!-- ── HOSTED ── -->
+      <div class="split-col featured">
+        <div class="split-tier">hosted <span class="split-flag">private beta</span></div>
+        <div class="split-price">$15<span class="unit"> /human/month</span></div>
+        <div class="split-line">Same product, our servers, billed by the number of humans.</div>
+
+        <ul class="split-list">
+          <li><span class="dot">›</span> No VM, no updates, no backups, no monitoring.</li>
+          <li><span class="dot">›</span> <strong>Priced per human.</strong> AI agents are unlimited and free on every plan.</li>
+          <li><span class="dot">›</span> A solo founder with two agents pays for one seat.</li>
+          <li><span class="dot">›</span> <strong>Starter:</strong> free forever, one human, unlimited agents, 100 memories a day.</li>
+          <li><span class="dot">›</span> <strong>Team:</strong> $15 per human monthly, $99 per human yearly, two humans minimum.</li>
+          <li><span class="dot">›</span> Team adds unlimited memories, the full truth engine, team and project scoping.</li>
+          <li><span class="dot">›</span> Plus CRM and contact extraction, task tracking, meeting intelligence, Drive sync.</li>
+          <li><span class="dot">›</span> <strong>Enterprise:</strong> custom, from ten humans — SSO, SAML, custom policies, audit logs.</li>
+          <li><span class="dot">›</span> Plus dedicated support and an SLA.</li>
+          <li><span class="dot">›</span> Only here: billing and multi-tenant machinery, meaningless on a private server.</li>
+          <li><span class="dot">›</span> Only here: a member's Claude Pro or Max plan can replace the company key.</li>
+        </ul>
+
+        <div class="split-cost">
+          The hosted service is not open yet. There is a waitlist.
+        </div>
+
+        <a href="#" onclick="openWaitlist('TeamChad — Hosted');return false;" class="btn-cta" style="justify-content:center;">join the waitlist →</a>
+      </div>
+
+    </div>
+  </section>
+
+  <div class="wrap"><hr/></div>
+
+  <!-- ═══════════════════════════════════════════════════
+       CTA
+  ═══════════════════════════════════════════════════ -->
+  <section class="wrap sec">
+    <div class="cta-box">
+      <div class="hero-headline" style="margin-bottom:12px;">
+        The code is open.<br/>
+        <span class="hl">Only the server is for sale.</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:20px;margin-top:22px;">
+        <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener" class="btn-cta">self-host it ↗</a>
+        <a href="#" onclick="openWaitlist('TeamChad — Hosted');return false;" class="btn-outline">join the waitlist</a>
+      </div>
+      <p style="font-size:11.5px;color:var(--muted);">team@grooveos.app</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       FOOTER
+  ═══════════════════════════════════════════════════ -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-main">
+        <span class="footer-logo">TEAM<span>CHAD</span></span>
+        <div class="footer-links">
+          <a href="../docs/index.html" class="flink">docs</a>
+          <a href="#split" class="flink">pricing</a>
+          <a href="../" class="flink">grooveos</a>
+          <a href="mailto:team@grooveos.app" class="flink">contact</a>
+        </div>
+        <span style="font-size:11px;color:var(--muted);">© 2026 GrooveOS</span>
+      </div>
+      <div class="footer-oss">
+        open-source engine: <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener">xbrain (MIT)</a> ·
+        self-host on your own machine · <a href="https://github.com/mrboups/xbrain" target="_blank" rel="noopener">github ↗</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ═══════════════ WAITLIST MODAL ═══════════════ -->
+  <style>
+    #wl-overlay {
+      display: none; position: fixed; inset: 0; z-index: 9999;
+      background: rgba(0,0,0,.72); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center;
+    }
+    #wl-overlay.open { display: flex; }
+    #wl-box {
+      background: var(--bg-2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 36px 32px; width: 100%; max-width: 420px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.6); position: relative;
+    }
+    #wl-title { font-size: 1.15rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    #wl-sub   { font-size: 0.8rem; color: var(--muted); margin-bottom: 24px; }
+    #wl-box label { display: block; font-size: .78rem; color: var(--muted); margin-bottom: 5px; }
+    #wl-box input {
+      width: 100%; box-sizing: border-box;
+      background: var(--bg-3); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 9px 12px;
+      font-family: inherit; font-size: .875rem; margin-bottom: 14px; outline: none;
+    }
+    #wl-box input:focus { border-color: var(--accent); }
+    #wl-submit {
+      width: 100%; padding: 10px; border-radius: 6px; border: none; cursor: pointer;
+      background: var(--accent); color: #0D1117; font-weight: 700;
+      font-family: inherit; font-size: .875rem; transition: opacity .15s;
+    }
+    #wl-submit:hover { opacity: .85; }
+    #wl-submit:disabled { opacity: .5; cursor: default; }
+    #wl-close {
+      position: absolute; top: 14px; right: 16px; background: none; border: none;
+      color: var(--muted); font-size: 1.2rem; cursor: pointer; line-height: 1;
+    }
+    #wl-close:hover { color: var(--text); }
+    #wl-msg { font-size: .8rem; margin-top: 10px; min-height: 18px; }
+    #wl-msg.ok  { color: var(--green); }
+    #wl-msg.err { color: var(--red); }
+  </style>
+
+  <div id="wl-overlay" onclick="if(event.target===this)closeWaitlist()">
+    <div id="wl-box">
+      <button id="wl-close" onclick="closeWaitlist()" aria-label="Close">✕</button>
+      <div id="wl-title">Join the waitlist</div>
+      <div id="wl-sub">We'll reach out as soon as your spot opens.</div>
+      <form id="wl-form" onsubmit="submitWaitlist(event)">
+        <label for="wl-name">Name</label>
+        <input id="wl-name" type="text" placeholder="Your name" required autocomplete="name" />
+        <label for="wl-email">Email</label>
+        <input id="wl-email" type="email" placeholder="you@company.com" required autocomplete="email" />
+        <input id="wl-plan" type="hidden" value="" />
+        <button id="wl-submit" type="submit">Request early access →</button>
+        <div id="wl-msg"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       SCRIPTS
+  ═══════════════════════════════════════════════════ -->
+  <script>
+    /* ── theme toggle ── */
+    const btn  = document.getElementById('theme-toggle');
+    const html = document.documentElement;
+    function setTheme(t) {
+      html.setAttribute('data-theme', t);
+      btn.textContent = t === 'dark' ? '◑ light' : '◐ dark';
+      try { localStorage.setItem('xb-theme', t); } catch(e) {}
+    }
+    btn.addEventListener('click', () => {
+      setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+    try {
+      const saved = localStorage.getItem('xb-theme');
+      if (saved === 'light' || saved === 'dark') setTheme(saved);
+    } catch(e) {}
+
+    /* ── waitlist ── */
+    function openWaitlist(plan) {
+      document.getElementById('wl-plan').value = plan || '';
+      document.getElementById('wl-msg').textContent = '';
+      document.getElementById('wl-msg').className = '';
+      document.getElementById('wl-form').reset();
+      document.getElementById('wl-overlay').classList.add('open');
+      setTimeout(function(){ document.getElementById('wl-name').focus(); }, 80);
+    }
+    function closeWaitlist() {
+      document.getElementById('wl-overlay').classList.remove('open');
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeWaitlist();
+    });
+    async function submitWaitlist(e) {
+      e.preventDefault();
+      var name  = document.getElementById('wl-name').value.trim();
+      var email = document.getElementById('wl-email').value.trim();
+      var plan  = document.getElementById('wl-plan').value || 'TeamChad — Hosted';
+      var btn   = document.getElementById('wl-submit');
+      var msg   = document.getElementById('wl-msg');
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      msg.textContent = '';
+      msg.className = '';
+      try {
+        var res = await fetch('https://api.grooveos.app/v1/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, email: email, plan: plan })
+        });
+        var data = await res.json().catch(function(){ return {}; });
+        if (res.ok) {
+          msg.textContent = "You're on the list! We'll be in touch.";
+          msg.className = 'ok';
+          btn.textContent = '✓ Done';
+          setTimeout(closeWaitlist, 2200);
+        } else {
+          var errMsg = data.detail || data.message || ('HTTP ' + res.status);
+          msg.textContent = 'Error: ' + errMsg;
+          msg.className = 'err';
+          btn.disabled = false;
+          btn.textContent = 'Try again →';
+        }
+      } catch(err) {
+        msg.textContent = 'Network error: ' + err.message;
+        msg.className = 'err';
+        btn.disabled = false;
+        btn.textContent = 'Try again →';
+      }
+    }
+  </script>
+</body>
+</html>

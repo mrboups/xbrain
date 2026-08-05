@@ -751,10 +751,10 @@ testAsync("changing the selection writes it, and nothing else", async () => {
   await ui.useSelect.fire("change");
   assert.equal(CALLS.length, before + 1, "the selection did not reach the server exactly once");
   const call = CALLS.at(-1);
-  assert.equal(call.opts.method, "PUT");
+  assert.equal(call.opts.method, "PATCH");
   assert.equal(
     call.url,
-    `https://api.grooveos.app/v1/teams/${TEAM.id}/fallback-provider`,
+    `https://api.grooveos.app/v1/teams/${TEAM.id}/agent-provider`,
     "the selection went to the key route",
   );
   assert.deepEqual(JSON.parse(call.opts.body), { provider: "openai" });

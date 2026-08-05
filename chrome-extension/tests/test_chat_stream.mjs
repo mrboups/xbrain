@@ -76,9 +76,13 @@ test("detectMentionClient: builds from a server list (@agent / @chad / @a)", () 
   assert.equal(detectMentionClient("@chad hi", list)?.trigger, "chad");
   assert.equal(detectMentionClient("@a hi", list)?.trigger, "a");
   assert.equal(detectMentionClient("@agent hi", list)?.trigger, "agent");
+  // No model claim in the OPTIMISTIC bubble: a team may fall back to OpenAI or
+  // xAI, and only the server's start frame knows which model actually answers.
+  // Naming Claude here flashed the wrong model at every team not using it.
   assert.equal(
     detectMentionClient("@agent hi", list)?.agent_name,
-    "claude-sonnet-4-6",
+    null,
+    "the optimistic bubble must not claim a model the server has not named yet",
   );
 });
 
@@ -644,9 +648,17 @@ test("an unavailability sentence never reads as a failed attempt", () => {
 });
 
 test("an unavailability sentence says what would make it work", () => {
+  // The INTENT is that an absence always names something the reader can do.
+  // The original spelling of that intent was "mentions the extension", which was
+  // true while both codes had the extension as their remedy — and wrong the
+  // moment provider_key_missing arrived, whose remedy is team settings. A test
+  // that encodes one remedy rejects every other correct sentence, so it now
+  // asserts the intent instead: at least one real destination is named.
+  const REMEDIES = ["extension", "team settings", "choose a provider"];
   for (const code of AGENT_UNAVAILABLE_CODES) {
+    const text = AGENT_FAILURE_TEXT[code].toLowerCase();
     assert.ok(
-      AGENT_FAILURE_TEXT[code].toLowerCase().includes("extension"),
+      REMEDIES.some((r) => text.includes(r)),
       `${code} names no remedy — an absence with no remedy is just bad news`,
     );
   }

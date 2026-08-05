@@ -88,7 +88,11 @@ export function detectMentionClient(text, aliasesOrRegex) {
       : buildMentionRegex(aliasesOrRegex || ["agent"]);
   const m = text.match(re);
   if (!m) return null;
-  return { agent_name: "claude-sonnet-4-6", trigger: m[1].toLowerCase() };
+  // No model claim: a team may fall back to OpenAI or xAI, and the server names
+  // the real one on the start frame. authorLabel renders a falsy agent_name as
+  // "agent", so the bubble says nothing untrue while it waits rather than
+  // flashing Claude at a team that is not using it.
+  return { agent_name: null, trigger: m[1].toLowerCase() };
 }
 
 // ---------- Agent failure ----------
@@ -143,6 +147,21 @@ export const AGENT_FAILURE_TEXT = {
   team_key_rejected:
     "The team's own API key was refused. It needs to be replaced in team " +
     "settings — trying again with the same key will not help.",
+  // An absence: the team chose a provider it has stored no key for, and the
+  // server deliberately did NOT quietly bill a different one. `provider` is a
+  // closed set on the frame, so naming it here stays inside the vocabulary.
+  provider_key_missing:
+    "The team's agent is set to a provider with no key stored for it. Add that " +
+    "key in team settings, or choose a provider the team already has a key for.",
+  // A failure, not an absence: the request went out, the transport reported
+  // success, and nothing came back. The likeliest cause is a signed-out
+  // claude.ai session in the browser holding the extension — a minute to fix —
+  // so the sentence names the check without asserting a cause the server only
+  // inferred from an empty body.
+  empty_answer:
+    "The agent returned nothing. If it is answering through a Claude " +
+    "subscription, check that the browser holding the xbrain extension is still " +
+    "signed in to claude.ai, then send this again.",
 };
 
 /**
@@ -152,7 +171,14 @@ export const AGENT_FAILURE_TEXT = {
  * unavailability line get different classes, so a state nobody can fix by
  * retrying does not carry the visual weight of a malfunction.
  */
-export const AGENT_UNAVAILABLE_CODES = new Set(["no_route", "subscription_lost"]);
+export const AGENT_UNAVAILABLE_CODES = new Set([
+  "no_route",
+  "subscription_lost",
+  // Nothing was attempted: the selected provider has no key. `empty_answer` is
+  // deliberately NOT here — an attempt was made and produced nothing, which is a
+  // malfunction and should carry a malfunction's weight.
+  "provider_key_missing",
+]);
 
 /**
  * Is this outcome an absence rather than a failure?

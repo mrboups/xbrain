@@ -179,10 +179,10 @@ export function createApi({ baseUrl, getToken } = {}) {
     // control" rather than throwing inside a settings sheet somebody opened to
     // change the theme.
     teamFallbackProviderRaw: (teamId) =>
-      rawFetch(`/v1/teams/${teamId}/fallback-provider`),
+      rawFetch(`/v1/teams/${teamId}/agent-provider`),
     // @param {{provider: string}} body from fallbackSelectionBody()
     putTeamFallbackProviderRaw: (teamId, body) =>
-      rawFetch(`/v1/teams/${teamId}/fallback-provider`, { method: "PUT", body }),
+      rawFetch(`/v1/teams/${teamId}/agent-provider`, { method: "PATCH", body }),
 
     // ---- Growing a team (Phase 25, JOINCODE-01) ----
     //

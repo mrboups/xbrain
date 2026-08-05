@@ -986,7 +986,7 @@ import {
    * than as "not set" — claiming absence we haven't confirmed would invite an
    * admin to overwrite a working key).
    *
-   * `selection` is {provider, supported} from the fallback-provider route, or
+   * `selection` is {provider, supported, available} from the agent-provider route, or
    * null when this build has no such route (or the read failed). Null is NOT
    * "Anthropic": a team that had selected OpenAI must not be told it is on
    * Claude because a request failed.
