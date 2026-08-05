@@ -1,23 +1,28 @@
-"""Which key the agent falls back to when the subscription is not reachable.
+"""Which provider the agent falls back to, and which key it spends doing it.
 
 THE MODEL. The subscription is the preferred path; a key is the FLOOR under it.
 A team pays for API calls only in the moments no browser is holding their bridge.
-Resolution order, most-specific first:
+Resolution order, most-specific first, ALWAYS within one provider:
 
-  1. the TEAM's own key for the provider, decrypted from `team_api_keys`
-  2. the deployment-wide `settings.ANTHROPIC_API_KEY`
+  1. the TEAM's own key for that provider, decrypted from `team_api_keys`
+  2. the deployment-wide key FOR THAT SAME PROVIDER
   3. neither — which is an unavailability, not an error
 
 Everything below already existed except the last link: `team_api_keys`, its
 encryption, its repo functions and its routes have been there since Phase 10, and
 the agent never read any of it. It went straight to the deployment key.
 
-TWO RULES THAT LOOK LIKE DETAILS AND ARE NOT.
+THREE RULES THAT LOOK LIKE DETAILS AND ARE NOT.
 
 A rejected team key does NOT fall through to the deployment key. A team that
 supplied its own key expects its own billing, and quietly spending the
 operator's instead is a surprise nobody asked for — and one they would discover
 in an invoice. The caller says the team's key was refused and stops.
+
+Neither tier crosses PROVIDERS. A team that selected OpenAI and has no OpenAI key
+is unavailable; it does not quietly get billed for Anthropic because a key for
+that happened to be lying around. Same reasoning as the rule above, one level up:
+the surprise is bigger, not smaller, when the wrong vendor is the one invoicing.
 
 The key is never logged, never returned, never put in a message or an exception.
 The only thing that leaves this module in the clear is the string itself, to the
@@ -44,6 +49,87 @@ log = structlog.get_logger(__name__)
 # provider-aware rather than assuming one vendor — the schema anticipated more
 # than one and the agent should not be the thing that forgets.
 PROVIDER_ANTHROPIC = "anthropic"
+PROVIDER_OPENAI = "openai"
+PROVIDER_XAI = "xai"
+
+# THE CLOSED SET. A team picks one of these and nothing else. It is duplicated in
+# exactly two other places on purpose — the CHECK constraint in migration 0033 and
+# the route's validator — because each is a different kind of refusal and the
+# innermost one must hold even if a caller skips the others. All three are pinned
+# equal by tests/test_migration_0033.py.
+SUPPORTED_PROVIDERS: tuple[str, ...] = (PROVIDER_ANTHROPIC, PROVIDER_OPENAI, PROVIDER_XAI)
+
+# What a team gets if it never chooses: today's behaviour, unchanged.
+DEFAULT_PROVIDER = PROVIDER_ANTHROPIC
+
+# How each provider is NAMED to a team. Our words for a vendor, not the vendor's
+# words for itself — this table is the only thing allowed to put a provider's name
+# in front of a person, and it is a fixed lookup so no value read from a database
+# or an exception can ever be rendered as one.
+PROVIDER_LABELS: dict[str, str] = {
+    PROVIDER_ANTHROPIC: "Claude",
+    PROVIDER_OPENAI: "OpenAI",
+    PROVIDER_XAI: "Grok",
+}
+
+
+def normalize_provider(value: str | None) -> str | None:
+    """Fold a submitted provider to its canonical form, or None if unsupported.
+
+    Case and surrounding whitespace are forgiven because they are typing, not
+    intent. Everything else is refused: the caller turns None into a rejection
+    rather than storing free text and discovering it on the billing path.
+    """
+    if not value:
+        return None
+    folded = value.strip().lower()
+    return folded if folded in SUPPORTED_PROVIDERS else None
+
+
+def label_for(provider: str) -> str | None:
+    """The name a team reads for a provider, or None for anything unrecognised.
+
+    Returning None rather than the raw input is deliberate. This is the only
+    function permitted to put a vendor name into a sentence a team sees, and a
+    passthrough would make it a channel for whatever string reached it.
+    """
+    return PROVIDER_LABELS.get(provider)
+
+
+def _platform_key_for(provider: str) -> str:
+    """The deployment-wide key for ONE provider. Never another provider's."""
+    return {
+        PROVIDER_ANTHROPIC: settings.ANTHROPIC_API_KEY,
+        PROVIDER_OPENAI: settings.OPENAI_API_KEY,
+        PROVIDER_XAI: settings.XAI_API_KEY,
+    }.get(provider, "") or ""
+
+
+def default_model_for(provider: str) -> str:
+    """Which model this provider answers with, per deployment configuration.
+
+    Read at call time, not at import: an operator who changes the variable and
+    restarts gets the new model, and a test can set one without reloading the
+    module.
+    """
+    return {
+        PROVIDER_ANTHROPIC: settings.AGENT_MODEL_ANTHROPIC,
+        PROVIDER_OPENAI: settings.AGENT_MODEL_OPENAI,
+        PROVIDER_XAI: settings.AGENT_MODEL_XAI,
+    }.get(provider, settings.AGENT_MODEL_ANTHROPIC)
+
+
+def base_url_for(provider: str) -> str | None:
+    """The host to talk to, or None to let the SDK use its own default.
+
+    xAI is the reason this exists: it speaks the OpenAI wire protocol, so it is
+    the same client pointed somewhere else rather than a third integration.
+    """
+    if provider == PROVIDER_XAI:
+        return settings.AGENT_XAI_BASE_URL or None
+    if provider == PROVIDER_OPENAI:
+        return settings.AGENT_OPENAI_BASE_URL or None
+    return None
 
 TIER_TEAM = "team_key"
 TIER_PLATFORM = "platform_key"
@@ -160,11 +246,28 @@ async def resolve_fallback_key(
     if team_key:
         return FallbackKey(key=team_key, tier=TIER_TEAM)
 
-    platform_key = settings.ANTHROPIC_API_KEY or None
+    # The deployment's key FOR THIS PROVIDER, and no other. A team that chose
+    # OpenAI must not silently be billed for Anthropic because the operator
+    # happens to have one of those configured.
+    platform_key = _platform_key_for(provider.lower()) or None
     if platform_key:
         return FallbackKey(key=platform_key, tier=TIER_PLATFORM)
 
     return FallbackKey(key=None, tier=TIER_NONE)
+
+
+async def has_fallback_key(*, team_id: UUID, provider: str) -> bool:
+    """Is there ANY usable key for this team and provider — without saying which.
+
+    For the settings UI, which needs to warn that a selected provider has nothing
+    behind it. It returns a boolean and never the key, and it deliberately does
+    not distinguish the team tier from the deployment tier: a member asking
+    whether the agent will answer does not need to learn what the operator has
+    configured. Goes through the same cache, so a whole settings page costs at
+    most one lookup per provider per TTL.
+    """
+    resolved = await resolve_fallback_key(team_id=team_id, provider=provider)
+    return resolved.key is not None
 
 
 def _reset_cache_for_tests() -> None:

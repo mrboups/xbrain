@@ -14,6 +14,10 @@ class Team(Base):
     __tablename__ = "teams"
     __table_args__ = (
         CheckConstraint("visibility IN ('open', 'closed')", name="teams_visibility_check"),
+        CheckConstraint(
+            "agent_provider IN ('anthropic', 'openai', 'xai')",
+            name="teams_agent_provider_check",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -27,12 +31,26 @@ class Team(Base):
     # effective list a team summons on (defaults union custom, '@agent' always) is
     # resolved server-side by mention_detector.effective_aliases().
     agent_aliases: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Which provider the agent FALLS BACK to when no live browser bridge exists
+    # (migration 0033). NOT the subscription: a live bridge answers through the
+    # user's Claude Pro/Max session whatever this says, costs the team nothing,
+    # and stays preferred. This column decides only what gets SPENT.
+    #
+    # One of app.services.team_keys.SUPPORTED_PROVIDERS, enforced by a CHECK
+    # constraint as well as by the route — a column that can hold free text
+    # eventually does, and this one is read on the path that picks a vendor to
+    # bill. Defaults to 'anthropic' so every team that predates the column keeps
+    # exactly today's behaviour.
+    agent_provider: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="anthropic", server_default="anthropic"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     def __init__(self, **kwargs: object) -> None:
         kwargs.setdefault("visibility", "closed")
+        kwargs.setdefault("agent_provider", "anthropic")
         super().__init__(**kwargs)
 
 

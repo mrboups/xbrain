@@ -34,6 +34,7 @@ from app.services.team_chat_agent import (
     BridgeSessionLost,
     FAILURE_CODE_CONFIGURATION,
     FAILURE_CODE_NO_ROUTE,
+    FAILURE_CODE_PROVIDER_KEY_MISSING,
     FAILURE_CODE_SUBSCRIPTION_LOST,
     FAILURE_CODE_TIMEOUT,
     FAILURE_CODE_UNAVAILABLE,
@@ -228,9 +229,15 @@ class TestNotAvailableIsNotBroken:
         assert failure["retryable"] is True
 
     def test_both_are_flagged_as_unavailability_for_the_client(self):
+        # provider_key_missing joined this set when a team could choose which
+        # provider its agent falls back to: selecting one and storing no key for
+        # it is an absence, not a failed attempt. Its own vocabulary is pinned in
+        # test_agent_provider_selection.py — here it only has to be on the
+        # unavailability side of the line.
         assert UNAVAILABILITY_CODES == {
             FAILURE_CODE_NO_ROUTE,
             FAILURE_CODE_SUBSCRIPTION_LOST,
+            FAILURE_CODE_PROVIDER_KEY_MISSING,
         }
         for code in UNAVAILABILITY_CODES:
             assert code not in {

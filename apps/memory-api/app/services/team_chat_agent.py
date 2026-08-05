@@ -1,6 +1,6 @@
-"""Team chat @claude mention handler — Pro/Max routing + Anthropic fallback.
+"""Team chat @agent mention handler — Pro/Max routing + a team-chosen fallback.
 
-Quick task 260512-tcr Wave 2.5. When memory-api detects a `@claude` mention
+Quick task 260512-tcr Wave 2.5. When memory-api detects an `@agent` mention
 in a posted team message, this handler runs in a background task:
 
   1. Resolve the triggering user via source_user_id.
@@ -8,16 +8,32 @@ in a posted team message, this handler runs in a background task:
      - If yes: route the chat via the user's Pro/Max subscription (sign a
        bridge JWT with `acting_user_sub=<user>` and POST bridge
        /v1/chat/completions). Cost = 0 to xbrain.
-     - If no: fall back to Anthropic SDK with the team API key. Cost
-       absorbed by xbrain.
+     - If no: fall back to the provider the TEAM selected (teams.agent_provider,
+       migration 0033) with that provider's key. Cost billed to whoever's key
+       resolved — the team's own if they supplied one, the operator's otherwise.
   3. Stream tokens to Centrifugo channel `team:<team_id>` so all subscribed
-     clients (extension + future PWA) see Claude typing in realtime.
+     clients (extension + future PWA) see the agent typing in realtime.
   4. Persist the final reply as one `team_messages` row with kind='agent',
-     agent_name='claude-sonnet-4-6', routed_via='user_promax' | 'team_api'.
+     agent_name=<the model that actually answered>, routed_via='user_promax' |
+     'team_key' | 'team_api'.
+
+THE SUBSCRIPTION IS NOT A PROVIDER CHOICE. A team's selection governs step 2's
+FALLBACK and nothing else. A live bridge answers through that person's Claude
+Pro/Max session whatever the team selected, because that path is free and is the
+whole point of the extension. Choosing OpenAI does not opt a team out of it.
+
+AND THE NAME IS THE MODEL THAT ANSWERED. `agent_name` used to be the constant
+`claude-sonnet-4-6` on both the streamed frame and the persisted row, which was
+true right up until a team could answer on something else — after which a team on
+OpenAI would have had every reply in its history labelled as Claude. It is now
+decided ONCE per turn, before the first frame goes out, so a reload can never
+disagree with what was on screen.
 
 The Anthropic prompt is built around a CACHED memory block (5min TTL via
 team_context_cache) so subsequent mentions in the same window get
-~90% input cost reduction from Anthropic's ephemeral cache.
+~90% input cost reduction from Anthropic's ephemeral cache. The OpenAI-compatible
+path has no equivalent breakpoint mechanism, so the same blocks are flattened to
+one system string there.
 
 Hard caps for v1:
   - 4k output tokens (decision #15)
@@ -36,11 +52,14 @@ from typing import Any
 from urllib.parse import quote
 from uuid import UUID
 
+import anthropic
 import httpx
+import openai
 import sqlalchemy as sa
 import structlog
 from anthropic import AsyncAnthropic
 from authlib.jose import jwt as jose_jwt
+from openai import AsyncOpenAI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -99,6 +118,62 @@ AGENT_FAILURE_TIMEOUT = (
     "The agent took too long to answer and the attempt was stopped. "
     "Worth trying again."
 )
+# ---------------------------------------------------------------------------
+# An answer that was never sent is not an answer
+# ---------------------------------------------------------------------------
+#
+# The request went out, the transport reported success, and nothing came back.
+# This used to be persisted as the agent's CONTENT, literally `(empty response)`
+# — a parenthetical apology in the thread, attributed to the agent, and
+# indistinguishable from the agent choosing to say nothing. Two of them landed in
+# production thirty minutes apart while every log line said `team_chat_agent.done`.
+#
+# It gets its own code because the condition is genuinely distinct from a refused
+# key and from an absent route, and the two transports fail this way for different
+# reasons — so the sentence names which one came back empty. The row's
+# `routed_via` says the same thing in machine-readable form, which is how a person
+# can tell which path answered.
+#
+# IT IS PER-USER, WHICH IS THE WHOLE CLUE. Observed in production: two people in
+# ONE team, both routed `user_promax`, one getting answers and one getting
+# nothing — and the FRESHER bridge was the one failing (49 seconds vs three
+# hours), which rules out liveness. session-bridge logged `chat.routed` and 200
+# OK. The socket was alive, the browser ran the fetch, and claude.ai gave that
+# browser nothing usable. docs/session-bridge-guide.md §9 names the likeliest
+# reason first: not signed in to the provider in that browser profile, or the
+# session expired.
+#
+# So the subscription sentence names a CHECK the person can perform in under a
+# minute, not a cause the server is in no position to verify. It never says "you
+# are logged out" — the server saw an empty body, nothing more — but it does say
+# where to look, because the alternative is telling somebody a product is broken
+# when they are one sign-in away from it working.
+#
+# WHY THE SUBSCRIPTION PATH DOES NOT FALL THROUGH TO A KEY.
+#
+# It is the tempting repair and it is wrong twice over.
+#
+# If the cause is a stale claude.ai session, the fall-through bills the team's API
+# key for a LOGIN problem — money spent on something that was free and that the
+# person could have fixed themselves, and they would find out from an invoice.
+#
+# If the cause is instead our own SSE parsing — the other failure §9 records, a
+# CRLF delimiter against a client splitting on "\n\n": zero blocks parsed, 200 OK,
+# empty reply — then it is not occasional but TOTAL, and the fall-through quietly
+# pays per turn, forever, to route around a bug we control.
+#
+# The same reasoning already applies twice in this file: a refused team key is not
+# retried on the operator's, and a selected provider with no key is not answered
+# by a different one. Spending money the person did not ask for is what all three
+# rules refuse.
+AGENT_FAILURE_EMPTY_SUBSCRIPTION = (
+    "The Claude subscription accepted the request and sent nothing back. Check "
+    "that you are signed in to claude.ai in the browser where the xbrain "
+    "extension is signed in, then send this again."
+)
+AGENT_FAILURE_EMPTY_PROVIDER = (
+    "The provider accepted the request and sent nothing back. Worth trying again."
+)
 
 # ---------------------------------------------------------------------------
 # Not available is not the same as broken
@@ -134,6 +209,22 @@ AGENT_TEAM_KEY_REJECTED = (
     "The team's own API key was refused. It needs to be replaced in team "
     "settings — trying again with the same key will not help."
 )
+# A team that CHOSE a provider and stored no key for it. Naming the provider is
+# the point: the remedy is specific, and a team that picked Grok and reads a
+# sentence about a missing key with no vendor in it will go looking in the wrong
+# place. The name comes from team_keys.PROVIDER_LABELS — a fixed table of OUR
+# words for a vendor — and never from a provider's own text or from anything a
+# database happened to hold. An unrecognised value renders the generic sentence
+# instead, so this template has no path to unvalidated input.
+#
+# The alternative to this state was answering on a DIFFERENT provider, which is
+# a team discovering in an invoice that they were billed by a vendor they did
+# not choose. Same reasoning as a refused team key, one level up.
+AGENT_UNAVAILABLE_PROVIDER_KEY_MISSING = (
+    "The agent is set to fall back to {provider}, and no API key is stored for "
+    "it. Add one in team settings, or open the browser where the xbrain "
+    "extension is signed in to use the Claude subscription."
+)
 
 # Failure codes are OURS, not the provider's. They exist so a client can style or
 # count outcomes without parsing a sentence, and so the sentence can be reworded
@@ -141,9 +232,12 @@ AGENT_TEAM_KEY_REJECTED = (
 FAILURE_CODE_TIMEOUT = "timeout"
 FAILURE_CODE_UNAVAILABLE = "unavailable"
 FAILURE_CODE_CONFIGURATION = "configuration"
-# The two that mean "there was nothing to try", not "the try went wrong".
+# An attempt succeeded at the transport level and produced no text at all.
+FAILURE_CODE_EMPTY_ANSWER = "empty_answer"
+# The three that mean "there was nothing to try", not "the try went wrong".
 FAILURE_CODE_NO_ROUTE = "no_route"
 FAILURE_CODE_SUBSCRIPTION_LOST = "subscription_lost"
+FAILURE_CODE_PROVIDER_KEY_MISSING = "provider_key_missing"
 # An attempt WAS made and refused, so this is a failure — but a distinct one,
 # because the fix belongs to the team rather than to an administrator.
 FAILURE_CODE_TEAM_KEY_REJECTED = "team_key_rejected"
@@ -151,7 +245,11 @@ FAILURE_CODE_TEAM_KEY_REJECTED = "team_key_rejected"
 # Codes a client must render as unavailability rather than as a failure. Kept as
 # a set so the client's copy of the same distinction has something to mirror.
 UNAVAILABILITY_CODES = frozenset(
-    {FAILURE_CODE_NO_ROUTE, FAILURE_CODE_SUBSCRIPTION_LOST}
+    {
+        FAILURE_CODE_NO_ROUTE,
+        FAILURE_CODE_SUBSCRIPTION_LOST,
+        FAILURE_CODE_PROVIDER_KEY_MISSING,
+    }
 )
 
 
@@ -180,6 +278,43 @@ class TeamKeyRejected(Exception):
     """
 
 
+class EmptyAnswer(Exception):
+    """The transport reported success and streamed no text at all.
+
+    Raised at the END of a clean stream rather than detected afterwards, so it
+    travels the same path every other outcome does — one classifier, one publish,
+    one persisted row. That is what makes the live frame and the reloaded row
+    agree: there is no second way for a turn to end.
+
+    Carries WHICH path came back empty, as a boolean, and no text. The two
+    sentences it selects between are fixed.
+    """
+
+    def __init__(self, *, via_subscription: bool) -> None:
+        super().__init__()
+        self.via_subscription = via_subscription
+
+
+class ProviderKeyMissing(Exception):
+    """The team CHOSE a provider and stored no key for it.
+
+    Raised BEFORE any provider is contacted, like AgentRouteUnavailable: nothing
+    was attempted, so nothing failed. It is a separate exception because the
+    remedy is specific to one vendor, and a team that picked Grok needs to be
+    told about Grok.
+
+    Carries the canonical provider id as an ATTRIBUTE and deliberately leaves the
+    base exception message EMPTY. `str()` of it is "" — so even if a future caller
+    forgets and stringifies it into something, there is nothing to leak. The id is
+    turned into words only by team_keys.PROVIDER_LABELS, which refuses anything it
+    does not recognise.
+    """
+
+    def __init__(self, provider: str) -> None:
+        super().__init__()
+        self.provider = provider
+
+
 # How a resolved key tier is labelled on the persisted row. "team_api" is kept
 # for the deployment-wide key because rows already carry it; the team's own key
 # is a NEW value, so the two can never be confused after the fact.
@@ -196,6 +331,34 @@ def _http_status_of(exc: BaseException) -> int | None:
     if status is None:
         status = getattr(exc, "status_code", None)
     return status if isinstance(status, int) else None
+
+
+# Every timeout type the three transports can raise, named EXPLICITLY.
+#
+# A new client's exception types are new. `openai.APITimeoutError` is not an
+# `asyncio.TimeoutError` and not an `httpx.TimeoutException` — it subclasses
+# `APIConnectionError` — so without this tuple every OpenAI and xAI timeout would
+# have landed in the catch-all below. The catch-all is safe (it stringifies
+# nothing), but it would have told a team "worth trying again" without saying the
+# attempt was stopped for taking too long, which is the one detail that makes the
+# advice make sense. Anthropic's own timeout type is here for the same reason:
+# it was already falling through.
+_TIMEOUT_TYPES: tuple[type[BaseException], ...] = (
+    asyncio.TimeoutError,
+    httpx.TimeoutException,
+    anthropic.APITimeoutError,
+    openai.APITimeoutError,
+)
+
+# The status-carrying base of each SDK. Both expose `.status_code` and a
+# `.response`; `_http_status_of` reads the STATUS and never the response, which
+# is where a provider writes the account details. Named here so the property is
+# asserted against the real types rather than assumed from duck-typing.
+_STATUS_ERROR_TYPES: tuple[type[BaseException], ...] = (
+    httpx.HTTPStatusError,
+    anthropic.APIStatusError,
+    openai.APIStatusError,
+)
 
 
 def _as_team_key_failure(exc: BaseException, fallback: FallbackKey) -> BaseException:
@@ -223,6 +386,13 @@ def classify_stream_failure(exc: BaseException) -> dict[str, Any]:
     The routing exceptions are matched by type FIRST. They are ours, they carry
     no provider text by construction, and they are the only inputs that produce
     an unavailability rather than a failure.
+
+    THREE transports now reach this function — the bridge (httpx), Anthropic, and
+    the OpenAI-compatible client that also serves xAI — and each raises its own
+    types. Those types are enumerated in `_TIMEOUT_TYPES` above rather than left
+    to the catch-all: an unmapped exception here is not a leak (the fallback
+    stringifies nothing and returns a fixed sentence) but it IS wrong advice, and
+    a client that has to guess is the thing this function exists to prevent.
     """
     if isinstance(exc, AgentRouteUnavailable):
         return {
@@ -241,6 +411,41 @@ def classify_stream_failure(exc: BaseException) -> dict[str, Any]:
             "retryable": True,
         }
 
+    if isinstance(exc, ProviderKeyMissing):
+        # The ONLY parameterised sentence in this module, and the parameter comes
+        # from a fixed table keyed on a value the route validated against a closed
+        # set. `label_for` returns None for anything else, and an unnameable
+        # provider degrades to the sentence that names none — so no string from a
+        # database, a header or an exception can reach the format slot.
+        label = team_keys.label_for(getattr(exc, "provider", ""))
+        if label is None:
+            return {
+                "code": FAILURE_CODE_NO_ROUTE,
+                "message": AGENT_UNAVAILABLE_NO_ROUTE,
+                "retryable": False,
+            }
+        return {
+            "code": FAILURE_CODE_PROVIDER_KEY_MISSING,
+            "message": AGENT_UNAVAILABLE_PROVIDER_KEY_MISSING.format(provider=label),
+            # A key that is not there will not be there on the next attempt.
+            "retryable": False,
+        }
+
+    if isinstance(exc, EmptyAnswer):
+        # Retryable, and honestly so: an empty stream is transient far more often
+        # than not. If it is NOT transient — a changed SSE shape, say — every turn
+        # comes back here, which is a far better signal than every turn quietly
+        # spending a key.
+        return {
+            "code": FAILURE_CODE_EMPTY_ANSWER,
+            "message": (
+                AGENT_FAILURE_EMPTY_SUBSCRIPTION
+                if getattr(exc, "via_subscription", False)
+                else AGENT_FAILURE_EMPTY_PROVIDER
+            ),
+            "retryable": True,
+        }
+
     if isinstance(exc, TeamKeyRejected):
         return {
             "code": FAILURE_CODE_TEAM_KEY_REJECTED,
@@ -248,7 +453,7 @@ def classify_stream_failure(exc: BaseException) -> dict[str, Any]:
             "retryable": False,
         }
 
-    if isinstance(exc, (asyncio.TimeoutError, httpx.TimeoutException)):
+    if isinstance(exc, _TIMEOUT_TYPES):
         return {
             "code": FAILURE_CODE_TIMEOUT,
             "message": AGENT_FAILURE_TIMEOUT,
@@ -270,12 +475,24 @@ def classify_stream_failure(exc: BaseException) -> dict[str, Any]:
         "message": AGENT_FAILURE_RETRYABLE,
         "retryable": True,
     }
+# The preamble is byte-STABLE across turns on purpose. It sits in front of the
+# cache_control'd product KB block, and Anthropic matches cached prefixes, so a
+# preamble that varied per turn would invalidate the KB cache on every message.
+# That is why the rule about web content lives here (always true) while the
+# per-turn FACT of what was fetched lives in the uncached user turn — see
+# NO_WEB_CONTENT_MARKER.
 SYSTEM_PROMPT_PREAMBLE = (
-    "You are Claude, embedded in the xbrain team chat for team {team_slug}. "
+    "You are the xbrain agent, embedded in the team chat for team {team_slug}. "
     "Answer based on the product knowledge base below, the team's memory "
     "items, and the recent chat history. Be concise, factual, and reference "
     "specific items when relevant. If you don't know, say so — do not "
-    "hallucinate."
+    "hallucinate.\n\n"
+    "You cannot browse the web. The ONLY web page content you can see is what "
+    "appears under '## Fetched web content' in this conversation. If that "
+    "section says nothing was fetched, you have not read the linked page: say "
+    "plainly that you cannot see its contents and ask for the relevant text to "
+    "be pasted in. Never state or imply that you fetched, opened, visited, or "
+    "read a link — not even as a preamble to explaining that you could not."
 )
 
 # Path to the markdown product KB shipped in the repo. Loaded once at module
@@ -371,30 +588,47 @@ async def _do_handle(
     cached_memory_block = _format_memory_block(bundle["bundle"])
     chat_history_block = _format_chat_history(recent)
 
-    # Pre-fetch URLs mentioned in the triggering message and append to the
-    # (uncached) user turn so @claude can read linked pages. Fail-soft.
-    web_block = await _build_fetched_web_block(
-        triggering_message.content or "", team.slug
+    # Pre-fetch the links this mention is plausibly about and append them to the
+    # (uncached) user turn. The window is the recent conversation, not just the
+    # summoning message: "paste a link, then ask about it" is how people actually
+    # use a chat, and reading only the mention found nothing in exactly that case.
+    #
+    # The block is appended UNCONDITIONALLY. When there is nothing to fetch it
+    # says so, because a prompt that silently omits the section invites the model
+    # to claim a fetch that never happened — which is what it did.
+    prefetch_urls = _recent_urls(triggering_message=triggering_message, recent=recent)
+    chat_history_block = chat_history_block + await _build_fetched_web_block(
+        prefetch_urls, team.slug
     )
-    if web_block:
-        chat_history_block = chat_history_block + web_block
-        log.info(
-            "team_chat_agent.web_prefetch",
-            team_id=str(team_id),
-            urls=web_block.count("### "),
-        )
+    log.info(
+        "team_chat_agent.web_prefetch",
+        team_id=str(team_id),
+        urls=len(prefetch_urls),
+    )
 
     # Decide routing. The subscription is the preferred path; a key is the floor
     # under it; neither is an unavailability, not an error. The team's own key
     # outranks the deployment's — they pay for the calls the subscription could
     # not take, and only for those.
+    #
+    # The team's selection is read HERE, fresh from the row loaded this turn, so
+    # switching provider takes effect on the very next mention with nothing to
+    # invalidate. It governs the fallback ONLY: a live bridge answers on the
+    # person's Claude subscription whatever was selected, because that path is
+    # free and is why the extension exists.
+    provider = _selected_provider(team)
     has_promax = await _user_has_live_bridge(triggering_user_sub)
     fallback = (
         FallbackKey(key=None, tier=team_keys.TIER_NONE)
         if has_promax
-        else await team_keys.resolve_fallback_key(team_id=team.id)
+        else await team_keys.resolve_fallback_key(team_id=team.id, provider=provider)
     )
     routed_via = "user_promax" if has_promax else _ROUTED_VIA_BY_TIER[fallback.tier]
+    # WHO ANSWERS, decided once, before the first frame leaves. Both the frame
+    # below and the persisted row read this single variable, so a reload cannot
+    # disagree with what was on screen — which is exactly what a hardcoded
+    # constant in two places guaranteed it eventually would.
+    agent_name = _answering_model(provider=provider, has_promax=has_promax)
 
     message_id = uuid.uuid4()
     started_at = time.monotonic()
@@ -403,6 +637,8 @@ async def _do_handle(
         team_id=str(team_id),
         triggering_user_sub=triggering_user_sub,
         routed_via=routed_via,
+        provider=provider,
+        agent_name=agent_name,
         message_id=str(message_id),
         memory_cached=bundle["cached"],
         memory_items=bundle["item_count"],
@@ -414,7 +650,8 @@ async def _do_handle(
         data={
             "type": "agent_stream_start",
             "message_id": str(message_id),
-            "agent_name": MODEL_SONNET,
+            "agent_name": agent_name,
+            "provider": provider,
             "routed_via": routed_via,
         },
     )
@@ -448,7 +685,8 @@ async def _do_handle(
                     token_usage = usage
         elif fallback.key:
             try:
-                async for chunk_text, usage in _stream_via_anthropic_api(
+                async for chunk_text, usage in _stream_via_fallback_provider(
+                    provider=provider,
                     api_key=fallback.key,
                     system_prompt=system_prompt,
                     cached_memory_block=cached_memory_block,
@@ -489,7 +727,25 @@ async def _do_handle(
             # Nothing to run on. Raised rather than returned so it travels the
             # same path every other outcome does — one classifier, one publish,
             # one persisted row, and no second way for a turn to end.
-            raise AgentRouteUnavailable()
+            #
+            # NOT a quiet retry on some other provider's key: a team that chose
+            # OpenAI and got billed for Anthropic is a surprise nobody asked for,
+            # and the same reasoning already applies one level down to a refused
+            # team key.
+            raise _no_route_for(provider)
+
+        if not "".join(full_text_parts).strip():
+            # The transport said 200 and sent no text. Raised HERE, inside the
+            # same try, so it is classified, published and persisted by the same
+            # three lines every other outcome uses — which is what stops a reload
+            # from disagreeing with the live view.
+            #
+            # It deliberately does NOT retry on the fallback key when the
+            # subscription came back empty. See AGENT_FAILURE_EMPTY_SUBSCRIPTION
+            # above: the likeliest cause is our own SSE parsing, that failure is
+            # total rather than occasional, and silently paying per turn to route
+            # around it is how a team finds out from an invoice.
+            raise EmptyAnswer(via_subscription=has_promax)
 
     except Exception as e:  # noqa: BLE001
         # The team is told THAT the agent failed and whether waiting helps. The
@@ -515,6 +771,17 @@ async def _do_handle(
                 "error": failure["message"],
                 "code": failure["code"],
                 "retryable": failure["retryable"],
+                # The client renders from `code` alone and deliberately ignores
+                # the text above — that is what makes a leak structurally
+                # impossible rather than filtered. Two of the codes are now
+                # PARAMETERISED (which provider was selected; which path came
+                # back empty), so the client needs those parameters to build the
+                # same sentence. Both are closed sets — one of three providers,
+                # one of four routes — so nothing free-text crosses here, and the
+                # client does not have to have seen the stream_start frame to
+                # know them.
+                "provider": provider,
+                "routed_via": routed_via,
             },
         )
 
@@ -525,13 +792,13 @@ async def _do_handle(
     # message the agent never wrote, attributed to it forever. Partial text is
     # still kept when some arrived: the team can see what came through, and the
     # flag below is what stops it reading as a complete answer.
+    # There is no third branch any more. A clean stream that produced nothing
+    # raised EmptyAnswer above, so `failure is None` now GUARANTEES text. The
+    # parenthetical placeholder that used to live here was a failure wearing an
+    # answer's clothes: it went into the thread as the agent's own words and read
+    # as the agent choosing to say nothing.
     partial_text = "".join(full_text_parts).strip()
-    if failure is None:
-        full_text = partial_text or "(empty response)"
-    elif partial_text:
-        full_text = partial_text
-    else:
-        full_text = failure["message"]
+    full_text = partial_text if partial_text else failure["message"]  # type: ignore[index]
 
     elapsed_ms = int((time.monotonic() - started_at) * 1000)
 
@@ -541,6 +808,9 @@ async def _do_handle(
         "elapsed_ms": elapsed_ms,
         "token_usage": token_usage,
         "triggering_user_sub": triggering_user_sub,
+        # Which provider this turn was routed to. Not a secret — the team chose
+        # it — and it is what makes an old row readable after a team switches.
+        "provider": provider,
         "memory_cached": bundle["cached"],
         "memory_items": bundle["item_count"],
     }
@@ -560,7 +830,10 @@ async def _do_handle(
         agent_msg = await tm_repo.insert_agent_message(
             persist_session,
             team_id=team_id,
-            agent_name=MODEL_SONNET,
+            # The SAME variable the stream_start frame carried. A reload reads
+            # the row; a live client read the frame; they must name the same
+            # model or one of them is lying.
+            agent_name=agent_name,
             content=full_text,
             routed_via=routed_via,
             parent_message_id=triggering_message_id,
@@ -600,6 +873,49 @@ async def _do_handle(
 
 def _build_system_prompt(*, team_slug: str) -> str:
     return SYSTEM_PROMPT_PREAMBLE.format(team_slug=team_slug)
+
+
+def _selected_provider(team: Team) -> str:
+    """The team's chosen fallback provider, normalised, defaulting safely.
+
+    A row written before migration 0033, or one somehow holding a value this
+    build does not implement, resolves to the default rather than to a crash. The
+    column has a CHECK constraint and the route validates, so this is the third
+    line of defence — but it is the one running on the path that spends money, and
+    an agent turn that dies on an unexpected string is a worse outcome than one
+    that answers on the documented default.
+    """
+    return team_keys.normalize_provider(
+        getattr(team, "agent_provider", None)
+    ) or team_keys.DEFAULT_PROVIDER
+
+
+def _answering_model(*, provider: str, has_promax: bool) -> str:
+    """The model that will actually produce this turn's answer.
+
+    The Pro/Max path is claude.ai through the extension and the request body pins
+    MODEL_SONNET, so that is the honest name there — whatever the team selected
+    for its FALLBACK, which this turn is not using. Every other turn names the
+    model the selected provider is configured to answer with.
+    """
+    if has_promax:
+        return MODEL_SONNET
+    return team_keys.default_model_for(provider)
+
+
+def _no_route_for(provider: str) -> Exception:
+    """The right kind of "nothing to run on" for this provider.
+
+    The DEFAULT provider is not a choice anybody made, so a team that never
+    touched the setting gets the sentence it has always got — one that explains
+    the subscription as well as the key, because for Claude both are real routes.
+
+    A team that DID choose gets its choice named back, so the remedy points at the
+    right settings field instead of at a generic absence.
+    """
+    if provider == team_keys.DEFAULT_PROVIDER:
+        return AgentRouteUnavailable()
+    return ProviderKeyMissing(provider)
 
 
 def _format_memory_block(bundle_str: str) -> str:
@@ -693,6 +1009,27 @@ _TRAILING_PUNCT = set(".,;:!?)]}\"'>")
 _MAX_FETCHED_CHARS = 6000
 _MAX_URLS = 3
 
+# HOW FAR BACK A LINK COUNTS AS "the one being asked about".
+#
+# The pre-fetch used to read the summoning message and nothing else, which is
+# exactly as written and wrong in practice: pasting a link and THEN asking about
+# it is the normal way people use a chat. Nobody composes
+# "@agent what is https://… about" in one breath. A real transcript —
+#
+#   23:15  someone   https://pitch.example/
+#   23:18  someone   @agent When is it and where?
+#
+# — fetched nothing at all, and the agent then answered about a page it had never
+# seen.
+#
+# Both bounds exist to stop the opposite error. Re-fetching a link from last week
+# because it is still in the history buffer is a different bug, and one that
+# spends a scraper call plus 6000 characters of context on something nobody
+# asked about. Ten messages is comfortably wider than the "paste, then ask"
+# pattern; thirty minutes is a conversation, not a backlog.
+_URL_LOOKBACK_MESSAGES = 10
+_URL_LOOKBACK_S = 30 * 60
+
 
 def _extract_urls(text: str) -> list[str]:
     """Extract up to 3 unique http(s) URLs from text, stripping trailing punctuation."""
@@ -706,6 +1043,62 @@ def _extract_urls(text: str) -> list[str]:
             if len(result) >= _MAX_URLS:
                 break
     return result
+
+
+def _within_lookback(anchor: datetime | None, created: datetime | None) -> bool:
+    """Is `created` recent enough relative to the summoning message?
+
+    Unknown timestamps are treated as in-window: the message-count bound still
+    applies, and dropping a link because a row had no `created_at` would fail in
+    the direction of not answering.
+    """
+    if anchor is None or created is None:
+        return True
+    try:
+        return (anchor - created).total_seconds() <= _URL_LOOKBACK_S
+    except TypeError:
+        # Mixed naive/aware datetimes. Both come from the same TIMESTAMPTZ column
+        # so this should not happen; falling back to "in window" keeps a turn
+        # working rather than killing it over a comparison.
+        return True
+
+
+def _recent_urls(*, triggering_message: TeamMessage, recent: list[TeamMessage]) -> list[str]:
+    """The links this mention is plausibly about, newest first, capped at 3.
+
+    Scans backwards from the summoning message through the recent window the
+    agent already loaded for context, so a link pasted a moment earlier is found.
+    Newest first, because when a thread carries more links than the cap the newest
+    are the ones being asked about.
+
+    HUMAN messages only. The agent's own replies quote links it produced, and
+    fetching those would let one hallucinated URL turn into a fetch, then into
+    context, then into the next answer.
+    """
+    anchor = getattr(triggering_message, "created_at", None)
+    ordered: list[TeamMessage] = [triggering_message]
+    ordered += [
+        m for m in reversed(recent) if getattr(m, "id", None) != triggering_message.id
+    ]
+
+    picked: list[str] = []
+    seen: set[str] = set()
+    for examined, message in enumerate(ordered):
+        if examined >= _URL_LOOKBACK_MESSAGES:
+            break
+        if getattr(message, "kind", None) != "user":
+            continue
+        if not _within_lookback(anchor, getattr(message, "created_at", None)):
+            # Ordered newest-first, so everything past here is older still.
+            break
+        for url in _extract_urls(message.content or ""):
+            if url in seen:
+                continue
+            seen.add(url)
+            picked.append(url)
+            if len(picked) >= _MAX_URLS:
+                return picked
+    return picked
 
 
 async def _fetch_url_via_scraper(url: str, team_scope: str) -> str | None:
@@ -745,16 +1138,30 @@ async def _fetch_url_via_scraper(url: str, team_scope: str) -> str | None:
         return None
 
 
-async def _build_fetched_web_block(text: str, team_scope: str) -> str:
-    """Extract URLs from text, fetch each via scraper, return formatted block.
+# The exact words the model reads when nothing was fetched. It is a STATEMENT,
+# not an omission, and that is the whole point: a prompt that simply leaves the
+# section out invites the model to imagine one. The turn this replaces opened
+# with "I was able to fetch the URL from your message" and contradicted itself
+# three sentences later — someone reading only the first line believes the page
+# was read.
+NO_WEB_CONTENT_MARKER = (
+    "(no web page content was fetched for this turn — you have NOT seen any "
+    "linked page)"
+)
 
-    Returns "" if no URLs found. Each URL gets its own section under
-    "## Fetched web content". Failed fetches render as "(could not fetch this URL)".
+
+async def _build_fetched_web_block(urls: list[str], team_scope: str) -> str:
+    """Fetch each URL via the scraper and render the block the model reads.
+
+    ALWAYS returns a section, even with nothing to put in it. Each URL gets its
+    own heading; a failed fetch renders as "(could not fetch this URL)" and never
+    stops the turn, because an unreachable page is worth less than an answer
+    about everything else the person asked.
     """
-    urls = _extract_urls(text)
-    if not urls:
-        return ""
     sections: list[str] = ["\n\n## Fetched web content"]
+    if not urls:
+        sections.append(f"\n{NO_WEB_CONTENT_MARKER}\n")
+        return "".join(sections)
     for url in urls:
         content = await _fetch_url_via_scraper(url, team_scope)
         sections.append(f"\n### {url}\n{content or '(could not fetch this URL)'}\n")
@@ -849,9 +1256,25 @@ async def _stream_via_promax(
                     f"bridge route failed: HTTP {response.status_code} "
                     f"{err_body.decode(errors='replace')[:200]}"
                 )
+            # "The socket is alive" and "the socket returned an answer" are
+            # different claims, and only the first is checked before we get here.
+            # These three counters make the difference visible in one log line
+            # WITHOUT reading a body: lines that arrived at all, lines that looked
+            # like SSE data, and payloads that parsed into JSON. The failure this
+            # is aimed at is the one docs/session-bridge-guide.md §9 records —
+            # claude.ai changed its delimiter to CRLF, a client split on "\n\n",
+            # zero blocks parsed, 200 OK, empty reply. That shows up here as
+            # `lines` high and `parsed` zero, which is a diagnosis rather than a
+            # mystery.
+            lines_seen = 0
+            data_lines = 0
+            parsed = 0
+            text_deltas = 0
             async for line in response.aiter_lines():
+                lines_seen += 1
                 if not line.startswith("data: "):
                     continue
+                data_lines += 1
                 payload = line[len("data: ") :].strip()
                 if payload == "[DONE]":
                     break
@@ -859,33 +1282,88 @@ async def _stream_via_promax(
                     chunk = json.loads(payload)
                 except json.JSONDecodeError:
                     continue
+                parsed += 1
                 choices = chunk.get("choices") or []
                 if choices:
                     delta = choices[0].get("delta", {})
                     text = delta.get("content")
                     if text:
+                        text_deltas += 1
                         yield (text, {})
                 usage = chunk.get("usage")
                 if usage:
                     yield ("", {"usage": usage})
+            if text_deltas == 0:
+                log.warning(
+                    "team_chat_agent.bridge_stream_empty",
+                    status=response.status_code,
+                    lines=lines_seen,
+                    data_lines=data_lines,
+                    parsed=parsed,
+                )
 
 
-# --- Streaming via direct Anthropic SDK fallback -----------------------------
+# --- Streaming via the provider the team selected ----------------------------
 
 
-async def _stream_via_anthropic_api(
+def _stream_via_fallback_provider(
     *,
+    provider: str,
     api_key: str,
     system_prompt: str,
     cached_memory_block: str,
     chat_history_block: str,
 ):
-    """Fallback: call the provider directly with a key.
+    """THE one place a provider is chosen, and it is chosen exactly once.
+
+    A single call site in the routing block is not a style preference — it is what
+    makes "a refused key is never retried on another key" checkable by reading the
+    function. Two provider calls in that block would be a fall-through waiting to
+    be written.
+
+    Anthropic gets its own client because its cache_control breakpoints are worth
+    real money on a repeated team-memory block and have no OpenAI equivalent.
+    OpenAI and xAI share one, differing only in base URL, because xAI speaks the
+    OpenAI wire protocol — the same trick apps/agent-runtime already uses for its
+    Grok second opinion.
+
+    Returns the async generator rather than delegating with `async for` so a
+    caller's `async for` drives the provider's stream directly, with no extra
+    frame between the chunk and the publish.
+    """
+    model = team_keys.default_model_for(provider)
+    if provider == team_keys.PROVIDER_ANTHROPIC:
+        return _stream_via_anthropic_api(
+            api_key=api_key,
+            model=model,
+            system_prompt=system_prompt,
+            cached_memory_block=cached_memory_block,
+            chat_history_block=chat_history_block,
+        )
+    return _stream_via_openai_compatible_api(
+        api_key=api_key,
+        model=model,
+        base_url=team_keys.base_url_for(provider),
+        system_prompt=system_prompt,
+        cached_memory_block=cached_memory_block,
+        chat_history_block=chat_history_block,
+    )
+
+
+async def _stream_via_anthropic_api(
+    *,
+    api_key: str,
+    model: str = "",
+    system_prompt: str,
+    cached_memory_block: str,
+    chat_history_block: str,
+):
+    """Fallback: call Anthropic directly with a key.
 
     Used when the triggering user has no live bridge. The key is passed IN
     rather than read from settings here: which key is a routing decision, made
     once by the caller, and a helper that reached for a global would silently
-    ignore it.
+    ignore it. `model` is passed in for the same reason.
 
     The key never appears in a log line, a message, or an exception raised by
     this function.
@@ -896,7 +1374,7 @@ async def _stream_via_anthropic_api(
         raise AgentRouteUnavailable()
     client = AsyncAnthropic(api_key=api_key)
     async with client.messages.stream(
-        model=MODEL_SONNET,
+        model=model or team_keys.default_model_for(team_keys.PROVIDER_ANTHROPIC),
         max_tokens=MAX_OUTPUT_TOKENS,
         system=_build_system_blocks(system_prompt, cached_memory_block),
         messages=[{"role": "user", "content": chat_history_block}],
@@ -929,6 +1407,90 @@ async def _stream_via_anthropic_api(
             )
 
 
+async def _stream_via_openai_compatible_api(
+    *,
+    api_key: str,
+    model: str,
+    base_url: str | None,
+    system_prompt: str,
+    cached_memory_block: str,
+    chat_history_block: str,
+):
+    """Fallback: call an OpenAI-compatible endpoint directly with a key.
+
+    ONE function for two providers. xAI implements the OpenAI Chat Completions
+    request and SSE shapes, so Grok is this client pointed at a different host —
+    verified against the pattern apps/agent-runtime/app/graphs/second_opinion.py
+    has been using for its Grok call. `base_url=None` leaves the SDK on its own
+    default host, which is also what lets an operator aim the OpenAI path at a
+    local vLLM/LiteLLM/Ollama with one environment variable.
+
+    Two deliberate omissions.
+
+    The system blocks are FLATTENED to one string. Anthropic's `cache_control`
+    breakpoints are Anthropic's; sending the block array here would at best be
+    ignored and at worst be rendered as "[object Object]" — the same flattening
+    the Pro/Max path already does for the same reason.
+
+    `stream_options={"include_usage": True}` is NOT sent. It is the documented way
+    to get token counts out of a streamed OpenAI response, but this client also
+    points at xAI and at whatever an operator configured, and a parameter an
+    endpoint does not implement fails the whole request. Token counts are
+    diagnostic; the answer is not. So usage is read only when a provider
+    volunteers it in a chunk, and its absence costs a metadata field rather than
+    the reply.
+
+    `max_tokens` (not `max_completion_tokens`) is what goes on the wire: it is the
+    field every OpenAI-compatible server accepts today. OpenAI's own reasoning
+    models reject it — an operator who points AGENT_MODEL_OPENAI at one gets a
+    4xx, which this module reports as needing an administrator, rather than a
+    silent truncation.
+
+    The key never appears in a log line, a message, or an exception raised by
+    this function.
+    """
+    if not api_key:
+        raise AgentRouteUnavailable()
+    client = AsyncOpenAI(api_key=api_key, base_url=base_url) if base_url else AsyncOpenAI(
+        api_key=api_key
+    )
+    system_text = "\n\n".join(
+        block["text"]
+        for block in _build_system_blocks(system_prompt, cached_memory_block)
+        if block.get("text")
+    )
+    stream = await client.chat.completions.create(
+        model=model,
+        max_tokens=MAX_OUTPUT_TOKENS,
+        stream=True,
+        messages=[
+            {"role": "system", "content": system_text},
+            {"role": "user", "content": chat_history_block},
+        ],
+    )
+    async for chunk in stream:
+        choices = getattr(chunk, "choices", None) or []
+        if choices:
+            delta = getattr(choices[0], "delta", None)
+            text = getattr(delta, "content", None) if delta is not None else None
+            if text:
+                yield (text, {})
+        usage = getattr(chunk, "usage", None)
+        if usage:
+            # Named to match the Anthropic path's keys so a consumer does not have
+            # to branch on provider to read a token count. The cache fields have
+            # no equivalent here and are simply absent rather than faked as zero.
+            yield (
+                "",
+                {
+                    "usage": {
+                        "input_tokens": getattr(usage, "prompt_tokens", None),
+                        "output_tokens": getattr(usage, "completion_tokens", None),
+                    }
+                },
+            )
+
+
 # --- Catch me up — ephemeral, opt-in summary since last visit (Phase 23) ------
 
 
@@ -956,7 +1518,8 @@ async def catch_me_up(
     """Ephemeral, opt-in "Catch me up" summary streamed to the CALLER only.
 
     Reuses the EXACT @agent streaming path (brain bundle + _stream_via_promax /
-    _stream_via_anthropic_api) but:
+    _stream_via_fallback_provider, so it honours the team's selected provider and
+    its unavailability without a second copy of the routing rules) but:
       - streams to the caller's PRIVATE `user:<caller_sub>` Centrifugo channel,
         NEVER `team:<id>` (D-23-04);
       - persists NOTHING — it deliberately never inserts an agent-message row,
@@ -1027,14 +1590,21 @@ async def catch_me_up(
         cached_memory_block = _format_memory_block(bundle["bundle"])
         chat_history_block = _format_catchup_user_turn(msgs)
 
-        # Route exactly like the @agent path.
+        # Route exactly like the @agent path — including the team's selected
+        # provider. A summary that quietly answered on a different vendor than
+        # every other agent turn would bill the team for a provider they did not
+        # choose, on the one path that persists nothing to explain it afterwards.
+        provider = _selected_provider(team)
         has_promax = await _user_has_live_bridge(caller_user_sub)
         fallback = (
             FallbackKey(key=None, tier=team_keys.TIER_NONE)
             if has_promax
-            else await team_keys.resolve_fallback_key(team_id=team.id)
+            else await team_keys.resolve_fallback_key(
+                team_id=team.id, provider=provider
+            )
         )
         routed_via = "user_promax" if has_promax else _ROUTED_VIA_BY_TIER[fallback.tier]
+        agent_name = _answering_model(provider=provider, has_promax=has_promax)
 
         started_at = time.monotonic()
         log.info(
@@ -1042,6 +1612,8 @@ async def catch_me_up(
             team_id=str(team_id),
             caller_user_sub=caller_user_sub,
             routed_via=routed_via,
+            provider=provider,
+            agent_name=agent_name,
             message_id=str(message_id),
             window=len(msgs),
         )
@@ -1052,7 +1624,8 @@ async def catch_me_up(
             data={
                 "type": "catchup_stream_start",
                 "message_id": str(message_id),
-                "agent_name": MODEL_SONNET,
+                "agent_name": agent_name,
+                "provider": provider,
                 "routed_via": routed_via,
             },
         )
@@ -1066,16 +1639,19 @@ async def catch_me_up(
                     chat_history_block=chat_history_block,
                 )
             elif fallback.key:
-                stream = _stream_via_anthropic_api(
+                stream = _stream_via_fallback_provider(
+                    provider=provider,
                     api_key=fallback.key,
                     system_prompt=system_prompt,
                     cached_memory_block=cached_memory_block,
                     chat_history_block=chat_history_block,
                 )
             else:
-                raise AgentRouteUnavailable()
+                raise _no_route_for(provider)
+            produced_any = False
             async for chunk_text, _usage in stream:
                 if chunk_text:
+                    produced_any = True
                     await centrifugo_client.publish(
                         channel=channel,
                         data={
@@ -1084,6 +1660,12 @@ async def catch_me_up(
                             "delta": chunk_text,
                         },
                     )
+            if not produced_any:
+                # Same condition, same verdict as the @agent path. This one has no
+                # persisted row to inspect afterwards, so without it a silent
+                # "Summarizing…" simply resolves to an empty panel and the person
+                # is left guessing whether there was nothing to say.
+                raise EmptyAnswer(via_subscription=has_promax)
         except Exception as e:  # noqa: BLE001
             # Rule 1: this published `str(e)[:200]` — the provider's own words,
             # straight into a frame a person reads. It is the same leak the
@@ -1106,6 +1688,11 @@ async def catch_me_up(
                     "error": failure["message"],
                     "code": failure["code"],
                     "retryable": failure["retryable"],
+                    # Same two closed-set discriminators the @agent error frame
+                    # carries, for the same reason: the client builds the
+                    # parameterised sentences from `code` plus these.
+                    "provider": provider,
+                    "routed_via": routed_via,
                 },
             )
 

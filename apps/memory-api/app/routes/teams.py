@@ -62,6 +62,15 @@ async def _require_team_admin(
     Used by invite/remove/manage member endpoints so a regular team admin
     can actually administer their team without being in ADMIN_USER_SUBS.
     Global env admins (is_admin) are also accepted as a backdoor for ops.
+
+    A BLOCKED admin is refused. `blocked_at` was already enforced on every
+    team-scoped data path (deps.get_team_scope, team_chat, transcript_import) but
+    not here, so being blocked removed a person's access to a team's CONTENT
+    while leaving them able to administer it — invite, remove, unblock
+    themselves, and now choose which provider the team's key is spent on. A block
+    that the blocked person can undo is not a block. The env-admin backdoor above
+    is deliberately checked first and is not affected: ops must be able to reach
+    a team nobody else can.
     """
     user = _require_user(principal)
     # Backdoor for ops — global env admins can manage any team.
@@ -72,6 +81,32 @@ async def _require_team_admin(
     )
     if membership is None or membership.role != "admin":
         raise HTTPException(403, "team admin required")
+    if membership.blocked_at is not None:
+        raise HTTPException(403, f"Member blocked from team {team.slug}")
+    return user
+
+
+async def _require_active_member(
+    principal: dict[str, Any],
+    team: Team,
+    session: AsyncSession,
+):
+    """Caller must be a member of this team and not blocked from it.
+
+    The read-side counterpart to _require_team_admin, and it treats `blocked_at`
+    the same way for the same reason: a block is about the team, not about one
+    endpoint. Global env admins pass, matching every other gate in this module.
+    """
+    user = _require_user(principal)
+    if is_admin(user.source_user_id):
+        return user
+    membership = await teams_repo.get_membership(
+        session, user_id=user.id, team_slug=team.slug
+    )
+    if membership is None:
+        raise HTTPException(403, "not a member of this team")
+    if membership.blocked_at is not None:
+        raise HTTPException(403, f"Member blocked from team {team.slug}")
     return user
 
 
@@ -797,6 +832,120 @@ async def set_agent_aliases_route(
     )
     await session.commit()
     return {"aliases": mention_detector.effective_aliases(csv)}
+
+
+# ── Agent fallback provider (migration 0033) ────────────────────────────────────
+
+
+class AgentProviderBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # Bounded here so a megabyte of text is refused by pydantic before it reaches
+    # the normaliser. The real gate is the closed set, applied below.
+    provider: str = Field(..., min_length=1, max_length=32)
+
+
+async def _agent_provider_view(team: Team) -> dict[str, Any]:
+    """What both endpoints answer with — one builder so they cannot drift.
+
+    `available` is the honest answer to "will the agent actually answer if I pick
+    this?", and it is why the client does not have to reason about tiers: it is
+    true when EITHER the team's own key or the deployment's key exists for that
+    provider. It never says which, and it never carries a key.
+    """
+    available = [
+        provider
+        for provider in team_keys.SUPPORTED_PROVIDERS
+        if await team_keys.has_fallback_key(team_id=team.id, provider=provider)
+    ]
+    return {
+        "provider": team.agent_provider,
+        "supported": list(team_keys.SUPPORTED_PROVIDERS),
+        "labels": dict(team_keys.PROVIDER_LABELS),
+        "available": available,
+    }
+
+
+@router.get("/teams/{team_id}/agent-provider")
+async def get_agent_provider(
+    team_id: UUID,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Which provider this team's agent FALLS BACK to, and what it could pick.
+
+    Not the subscription. A live browser bridge answers through the user's Claude
+    Pro/Max session whatever this says — free, and the reason the bridge exists.
+    This selection governs only what is SPENT when no bridge is live.
+
+    Auth: any active TEAM MEMBER may read it (403 for a non-member and for a
+    blocked member). Nothing here is a secret: the selection, the accepted set,
+    their display names, and whether each has a key behind it. No key material,
+    and no way to tell whether a present key is the team's or the operator's.
+    """
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    await _require_active_member(principal, team, session)
+    return await _agent_provider_view(team)
+
+
+@router.patch("/teams/{team_id}/agent-provider")
+async def set_agent_provider_route(
+    team_id: UUID,
+    body: AgentProviderBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Choose which provider the team's agent falls back to.
+
+    Auth: TEAM ADMIN only, and not a blocked one — this decides whose money is
+    spent. The admin check runs BEFORE validation so a non-admin never learns
+    whether their input was well-formed (mirrors set_agent_aliases_route).
+
+    Anything outside the accepted set is a 422, never a stored string: the value
+    is read on the path that picks a vendor to bill, and the column's CHECK
+    constraint would otherwise turn a typo into a database error much later.
+
+    Selecting a provider with no key is ALLOWED and is not an error here. It is a
+    real state — a team that pastes the key second should not have the order
+    dictated to them — and the agent reports it as an unavailability naming the
+    provider rather than quietly answering on a different one. `available` in the
+    response is what a client renders that warning from.
+
+    Takes effect on the next mention: the agent reads this column per turn, and
+    the cached key entries are dropped here so a switch cannot spend the old
+    provider for the rest of a TTL.
+    """
+    team = await teams_repo.get_team_by_id(session, team_id)
+    if team is None:
+        raise HTTPException(404, "team not found")
+    actor = await _require_team_admin(principal, team, session)
+
+    provider = team_keys.normalize_provider(body.provider)
+    if provider is None:
+        # The accepted set is named because it is not a secret and the alternative
+        # is an admin guessing. The REJECTED value is deliberately not echoed.
+        raise HTTPException(
+            422,
+            "unsupported provider — one of: "
+            + ", ".join(team_keys.SUPPORTED_PROVIDERS),
+        )
+
+    await teams_repo.set_agent_provider(session, team_id=team.id, provider=provider)
+    await write_audit(
+        session,
+        actor_user_id=actor.id,
+        team_scope=team.slug,
+        action="team.agent_provider.set",
+        target_id=str(team.id),
+        payload={"provider": provider},
+    )
+    await session.commit()
+    # Belt and braces. The selection itself is read fresh from the DB every turn,
+    # so a switch already bites immediately; this drops the per-provider key
+    # entries too, so the switch and a key pasted seconds earlier cannot disagree.
+    team_keys.invalidate(team.id)
+    return await _agent_provider_view(team)
 
 
 @router.post("/teams/{team_id}/members", response_model=MemberOut, status_code=201)

@@ -68,6 +68,33 @@ async def set_agent_aliases(
     return team
 
 
+async def set_agent_provider(
+    session: AsyncSession,
+    *,
+    team_id: UUID,
+    provider: str,
+) -> Team | None:
+    """Persist which provider a team's agent FALLS BACK to (migration 0033).
+
+    `provider` must already be canonical — one of team_keys.SUPPORTED_PROVIDERS.
+    The route normalises and rejects before calling; the CHECK constraint on the
+    column is the backstop, and it raises rather than storing free text on the
+    path that decides which vendor to bill.
+
+    This does NOT touch the subscription: a live browser bridge still answers
+    through the user's Claude session, free, whatever is stored here.
+
+    Returns the updated Team, or None if no team with `team_id` exists. Caller
+    commits (mirrors the other repo mutators here).
+    """
+    team = await get_team_by_id(session, team_id)
+    if team is None:
+        return None
+    team.agent_provider = provider
+    await session.flush()
+    return team
+
+
 async def add_member(
     session: AsyncSession,
     *,
