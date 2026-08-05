@@ -492,6 +492,17 @@ async def test_an_empty_subscription_turn_persists_as_a_failure_not_a_message(
         assert errors[0]["code"] == FAILURE_CODE_EMPTY_ANSWER
         assert errors[0]["error"] == AGENT_FAILURE_EMPTY_SUBSCRIPTION
         assert errors[0]["retryable"] is True
+        # The client renders from `code` and ignores the text, so a parameterised
+        # code needs its parameters on the frame. Both are closed sets.
+        assert errors[0]["routed_via"] == "user_promax", (
+            "without this the client cannot tell which of the two empty-stream "
+            "sentences to show"
+        )
+        assert errors[0]["provider"] in ("anthropic", "openai", "xai")
+        # And the start frame agreed with the row about who was answering.
+        starts = [f for f in published if f.get("type") == "agent_stream_start"]
+        assert len(starts) == 1
+        assert starts[0]["agent_name"] == team_chat_agent.MODEL_SONNET
 
         # ── the RELOADED view ────────────────────────────────────────────────
         async with db_session.async_session_factory() as check:
@@ -529,3 +540,11 @@ async def test_an_empty_subscription_turn_persists_as_a_failure_not_a_message(
                 sa.text("DELETE FROM users WHERE id = :u"), {"u": str(user_id)}
             )
             await cleanup.commit()
+        # Dispose the pool, for the same reason conftest's `session` fixture
+        # does it at teardown (see its note): pytest-asyncio gives each test its
+        # own event loop, and a pooled asyncpg connection checked back in here
+        # stays bound to THIS one. The next test's fresh loop then trips
+        # "Event loop is closed" trying to reuse it — which it did, erroring the
+        # two tests that happened to collect after this file. This test uses the
+        # engine WITHOUT the `session` fixture, so it owes the same cleanup.
+        await db_session.engine.dispose()

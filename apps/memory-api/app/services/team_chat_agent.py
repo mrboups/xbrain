@@ -771,6 +771,17 @@ async def _do_handle(
                 "error": failure["message"],
                 "code": failure["code"],
                 "retryable": failure["retryable"],
+                # The client renders from `code` alone and deliberately ignores
+                # the text above — that is what makes a leak structurally
+                # impossible rather than filtered. Two of the codes are now
+                # PARAMETERISED (which provider was selected; which path came
+                # back empty), so the client needs those parameters to build the
+                # same sentence. Both are closed sets — one of three providers,
+                # one of four routes — so nothing free-text crosses here, and the
+                # client does not have to have seen the stream_start frame to
+                # know them.
+                "provider": provider,
+                "routed_via": routed_via,
             },
         )
 
@@ -1677,6 +1688,11 @@ async def catch_me_up(
                     "error": failure["message"],
                     "code": failure["code"],
                     "retryable": failure["retryable"],
+                    # Same two closed-set discriminators the @agent error frame
+                    # carries, for the same reason: the client builds the
+                    # parameterised sentences from `code` plus these.
+                    "provider": provider,
+                    "routed_via": routed_via,
                 },
             )
 
