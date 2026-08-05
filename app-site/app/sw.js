@@ -35,8 +35,13 @@
  *      ONE bump for the whole change even though the two files land in separate
  *      commits — v8 has not been deployed in between, so a second name would
  *      only mean a second cache to evict for no shipped difference.
+ * v10 — the agent's answers render as markdown: a new chat_core/markdown.js,
+ *      a rewritten render.js and publication.js, and the `.xb-md` rules in
+ *      app.css. Without the bump a returning reader gets the new render.js
+ *      importing a module the cache has never heard of — which looks exactly
+ *      like the fix being broken.
  */
-const CACHE = "xb-app-shell-v9";
+const CACHE = "xb-app-shell-v10";
 
 /**
  * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07
@@ -72,6 +77,7 @@ const SHELL = [
   "/app/chat_core/platform.js",
   "/app/chat_core/nudge_open.js",
   "/app/chat_core/theme.js",
+  "/app/chat_core/markdown.js",
   "/app/chat_core/render.js",
   "/app/chat_core/publication.js",
   "/app/chat_core/realtime.js",

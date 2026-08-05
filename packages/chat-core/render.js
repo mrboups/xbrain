@@ -17,6 +17,11 @@
  * This file assigns no markup string anywhere — a grep asserts it, and a test
  * asserts that a payload like `<img src=x onerror=...>` lands as text. Do not
  * "simplify" a node build into a template string.
+ *
+ * That rule survives markdown: an agent's answer is parsed by markdown.js into
+ * nodes THIS process constructs, so `<img src=x onerror=...>` in a message is
+ * still characters, not an element. The parser never sees HTML and never emits
+ * a string for anything else to parse.
  */
 
 import {
@@ -32,6 +37,33 @@ import {
   sameDay,
   dayLabel,
 } from "./chat_stream.js";
+import { renderMarkdownInto } from "./markdown.js";
+
+/**
+ * Does a message body get parsed as markdown, or shown exactly as typed?
+ *
+ * AGENT ANSWERS YES, PEOPLE NO — and the asymmetry is the decision, not an
+ * oversight. The agent emits markdown deliberately, on every turn, so leaving
+ * it unparsed is a guaranteed defect: `**Excalibur**` reached the screen with
+ * the asterisks in it. A teammate types into a plain box with no preview and no
+ * escape hatch, so parsing THEIR text is an occasional silent corruption they
+ * cannot see coming and cannot undo — `2 * 3 * 4` losing its middle to italics,
+ * a `#hashtag` turning into a heading, `__init__` losing its underscores.
+ *
+ * Fidelity is the tie-breaker. This chat is team-shared: every member reads
+ * every message, and a message that renders differently from how it was typed
+ * is a small, repeated lie about what somebody said. The agent has no such
+ * claim on its own characters.
+ *
+ * The cost is real and accepted: a teammate who pastes a bulleted list sees the
+ * dashes. That is what they typed.
+ *
+ * @param {{kind?: string}} msg
+ * @returns {boolean}
+ */
+export function rendersMarkdown(msg) {
+  return Boolean(msg) && msg.kind === "agent";
+}
 
 /**
  * How far from the end of a thread still counts as reading the newest message.
@@ -144,7 +176,8 @@ export function createViewportAnchor(refs = {}) {
  *                      that does nothing.
  * @returns {{clear: Function, renderMessage: Function, renderAgentBubble: Function,
  *            buildBubbleNode: Function, syncDaySeparators: Function,
- *            streamTextTarget: Function, scrollToBottom: Function}}
+ *            streamTextTarget: Function, writeStreamText: Function,
+ *            scrollToBottom: Function}}
  */
 export function createRenderer(opts) {
   const cfg = opts || {};
@@ -425,7 +458,11 @@ export function createRenderer(opts) {
       // agent's answers go, in the agent's voice — the exact lie this feature
       // exists to stop. The failure line below says it instead, as a failure.
       // A turn that produced PARTIAL text keeps it: that part is real output.
-      text.textContent = failedNoOutput ? "" : msg.content || "";
+      const value = failedNoOutput ? "" : msg.content || "";
+      // Agent answers arrive in markdown and are parsed into NODES; a person's
+      // message is shown exactly as they typed it. See `rendersMarkdown`.
+      if (rendersMarkdown(msg)) renderMarkdownInto(text, value);
+      else text.textContent = value;
       body.appendChild(text);
     }
 
@@ -818,6 +855,34 @@ export function createRenderer(opts) {
   }
 
   /**
+   * Write the answer accumulated so far into a streaming agent bubble.
+   *
+   * THE WHOLE BUFFER, every time, not the delta — because markdown is not a
+   * stream of independent pieces. `**Excalibur**` arrives as `**Exc`, `alibur`,
+   * `**`, and only the third chunk turns the first two into a word in bold. So
+   * the parse runs against the full text on each frame and replaces the body.
+   *
+   * That re-parse is cheap and, more importantly, atomic: `renderMarkdownInto`
+   * builds every node before it removes the first one, inside a single
+   * synchronous run, so no frame is ever painted showing a half-built answer.
+   *
+   * A `**` that has not been closed yet renders as two literal asterisks and
+   * the rest of the answer keeps arriving beneath it — the emphasis grammar is
+   * newline-free and requires its closer, so an open marker cannot swallow what
+   * comes after it.
+   *
+   * @param {string} messageId
+   * @param {string} text the full answer so far
+   * @returns {HTMLElement|null} the body element, or null if the row is gone
+   */
+  function writeStreamText(messageId, text) {
+    const el = streamTextTarget(messageId);
+    if (!el) return null;
+    renderMarkdownInto(el, text);
+    return el;
+  }
+
+  /**
    * Drop the streaming class on a finished/failed agent bubble.
    * @param {string} messageId
    */
@@ -855,6 +920,7 @@ export function createRenderer(opts) {
     syncDaySeparators,
     syncRunGrouping,
     streamTextTarget,
+    writeStreamText,
     clearStreaming,
     scrollToBottom,
   };

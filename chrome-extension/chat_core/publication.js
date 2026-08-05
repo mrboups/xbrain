@@ -25,7 +25,7 @@
  * @param {{
  *   renderer: {renderMessage: Function, renderAgentBubble: Function,
  *              renderAgentFailure: Function, syncDaySeparators: Function,
- *              streamTextTarget: Function, clearStreaming: Function,
+ *              writeStreamText: Function, clearStreaming: Function,
  *              scrollToBottom: Function},
  *   streamBuffer: {start: Function, append: Function, get: Function, finalize: Function},
  *   onNonEmpty?: () => void
@@ -69,9 +69,11 @@ export function createPublicationRouter(opts) {
     }
     if (data.type === "agent_stream_chunk") {
       streamBuffer.append(data.message_id, data.delta);
-      const textEl = renderer.streamTextTarget(data.message_id);
-      if (textEl) {
-        textEl.textContent = streamBuffer.get(data.message_id);
+      // The FULL buffer, not the delta: the agent answers in markdown, and
+      // `**Excalibur**` arrives as three chunks of which only the last one
+      // makes a word bold. The renderer re-parses the whole answer and swaps
+      // the body in one synchronous pass, so nothing is ever painted half-built.
+      if (renderer.writeStreamText(data.message_id, streamBuffer.get(data.message_id))) {
         renderer.scrollToBottom();
       }
       return;

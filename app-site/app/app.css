@@ -1704,6 +1704,111 @@ body {
    agent label / sources block that share the bubble. */
 .xb-msg-text { display: inline; }
 
+/* ------------------------------------------------------------------------
+   Markdown inside a bubble — agent answers only.
+
+   The agent replies in markdown; chat_core/markdown.js parses it into DOM
+   nodes (never a markup string) and tags the body element `.xb-md`. A
+   teammate's message is NOT parsed, so none of this reaches it.
+
+   Everything here is deliberately tight. A chat bubble is not a document: a
+   heading is a change of weight rather than of display size, and the gap
+   between blocks is one small step rather than a blank line.
+   --------------------------------------------------------------------- */
+.xb-msg-text.xb-md {
+  display: block;
+  /* The bubble is pre-wrap, which is right for a person's message — their
+     newlines are their newlines. Markdown carries its own structure, so
+     inheriting pre-wrap here would print every source newline a SECOND time,
+     as blank space between the blocks that were built from it. */
+  white-space: normal;
+}
+
+/* A one-paragraph answer — most of them — goes back to being a run of inline
+   text, so `.xb-msg-timespace` sits at the end of the last line and the bubble
+   lays out exactly as the plain-text version did. An answer that really has
+   blocks in it keeps the block container above, and the timestamp then takes
+   its own line: the same thing already happens under an image or under the
+   agent's sources row. A browser without :has() gets that second behaviour for
+   every answer, which is a line of spacing, not a broken bubble. */
+.xb-msg-text.xb-md:has(> .xb-md-p:only-child) { display: inline; }
+
+.xb-md > * { margin: 0; }
+/* The gap sits on the block ABOVE, never below: the last block is inline (next
+   rule) and margin-top does not apply to an inline box. */
+.xb-md > :not(:last-child) { margin-bottom: 6px; }
+
+/* The final paragraph is inline so the streaming caret — an ::after on the
+   container — lands after the last CHARACTER of the answer rather than on a
+   line of its own beneath it. */
+.xb-md > .xb-md-p:last-child { display: inline; }
+
+/* A heading needs air above it; the first block in a bubble never does. */
+.xb-md > .xb-md-h:not(:first-child) { margin-top: 10px; }
+
+.xb-md-h { font-weight: 600; line-height: 1.35; }
+.xb-md-h[data-level="1"] { font-size: 1.15em; }
+.xb-md-h[data-level="2"] { font-size: 1.08em; }
+.xb-md-h[data-level="3"] { font-size: 1.03em; }
+/* Levels 4-6 keep the body size — a bubble has no room for six steps. */
+
+.xb-md-ul, .xb-md-ol { padding-left: 17px; }
+.xb-md-ul { list-style: disc outside; }
+.xb-md-ol { list-style: decimal outside; }
+.xb-md-li + .xb-md-li { margin-top: 2px; }
+
+.xb-md-strong { font-weight: 600; }
+.xb-md-em { font-style: italic; }
+
+.xb-md-code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  padding: 0 3px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  /* an identifier longer than the bubble breaks instead of widening it */
+  overflow-wrap: anywhere;
+}
+
+/* A fenced block scrolls INSIDE its own box.
+   Without this one 200-character line widens the bubble, the bubble widens the
+   row, and a phone then scrolls sideways for the whole conversation. The
+   overflow lives here, so the sideways scroll stops at the edge of the code. */
+.xb-md-pre {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 7px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  white-space: pre;
+  /* Must NOT inherit the bubble's break-anywhere: a wrapped line of code is a
+     different line of code. */
+  overflow-wrap: normal;
+  word-wrap: normal;
+  -webkit-overflow-scrolling: touch;
+}
+.xb-md-pre > .xb-md-codeblock {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.92em;
+  white-space: pre;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.xb-md-a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  /* a long URL breaks rather than pushing the bubble past its max-width */
+  overflow-wrap: anywhere;
+}
+.xb-md-a:hover { opacity: 0.72; }
+.xb-md-a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
 .xb-msg-agent-label {
   display: flex;
   align-items: center;
