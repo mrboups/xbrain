@@ -35,13 +35,23 @@
  *      ONE bump for the whole change even though the two files land in separate
  *      commits — v8 has not been deployed in between, so a second name would
  *      only mean a second cache to evict for no shipped difference.
- * v10 — the agent's answers render as markdown: a new chat_core/markdown.js,
- *      a rewritten render.js and publication.js, and the `.xb-md` rules in
- *      app.css. Without the bump a returning reader gets the new render.js
- *      importing a module the cache has never heard of — which looks exactly
- *      like the fix being broken.
+ * v11 — TWO changes landed together, each of which had independently claimed v10
+ *      while the other was still in a worktree. Neither v10 was ever deployed, so
+ *      one name covers both — but the near miss is the point: a hand-bumped
+ *      constant cannot be reserved, and two agents reaching for the same number
+ *      is exactly how a shell ships stale. See BACKLOG.md.
+ *
+ *      (a) the agent's answers render as markdown — a new chat_core/markdown.js,
+ *          a rewritten render.js and publication.js, and the `.xb-md` rules;
+ *      (b) removing a message — chat_core/message_menu.js joins the shell, and
+ *          chat.js, app.css and chat_core/{api,publication,realtime}.js changed.
+ *
+ *      Every one of those is precached. Without a new name a returning reader gets
+ *      the new render.js importing a module the cache has never heard of, and the
+ *      old chat talking to the new API — both of which look exactly like a broken
+ *      fix rather than a caching problem.
  */
-const CACHE = "xb-app-shell-v10";
+const CACHE = "xb-app-shell-v11";
 
 /**
  * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07
@@ -79,6 +89,7 @@ const SHELL = [
   "/app/chat_core/theme.js",
   "/app/chat_core/markdown.js",
   "/app/chat_core/render.js",
+  "/app/chat_core/message_menu.js",
   "/app/chat_core/publication.js",
   "/app/chat_core/realtime.js",
   "/app/chat_core/people.js",

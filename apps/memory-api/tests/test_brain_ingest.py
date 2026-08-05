@@ -153,16 +153,28 @@ async def test_ingest_team_message_cache_invalidated():
 
 def test_ingest_team_message_signature_unchanged():
     """Test 5: ingest_team_message signature must be
-    (team_scope, team_id, content, author_sub, aliases) — all keyword-only.
+    (team_scope, team_id, content, author_sub, aliases, message_id) — all
+    keyword-only.
     `aliases` was added in Phase 21 (WR-01): the team's effective mention-alias
     list, keyword-only + optional (defaults None) so it is backward-compatible.
+    `message_id` was added with message deletion: the back-link from a brain item
+    to the chat message that seeded it, so "remove this from the brain too"
+    resolves exactly rather than by matching text. Keyword-only + optional for the
+    same backward-compatibility reason.
     """
     from app.services.brain_ingest import ingest_team_message
 
     sig = inspect.signature(ingest_team_message)
     params = dict(sig.parameters)
 
-    expected_params = {"team_scope", "team_id", "content", "author_sub", "aliases"}
+    expected_params = {
+        "team_scope",
+        "team_id",
+        "content",
+        "author_sub",
+        "aliases",
+        "message_id",
+    }
     assert set(params.keys()) == expected_params, (
         f"Expected parameters {expected_params}, got {set(params.keys())}"
     )
@@ -174,6 +186,48 @@ def test_ingest_team_message_signature_unchanged():
         )
     # aliases must be optional (backward-compatible)
     assert params["aliases"].default is None
+    assert params["message_id"].default is None
+
+
+@pytest.mark.asyncio
+async def test_ingest_team_message_writes_the_message_id_backlink():
+    """The upserted item carries `metadata.message_id` — the only exact way back.
+
+    Without this, deleting a message from the brain has to match its text, and a
+    message edited or duplicated makes that a guess. The key is written ONLY when
+    a message id was supplied: an empty string would collide across every item
+    that has none.
+    """
+    from app.services import brain_ingest
+
+    provider = MagicMock()
+    provider.upsert = AsyncMock()
+
+    with patch("app.services.brain_ingest.get_memory_provider", return_value=provider):
+        with patch(
+            "app.services.relevance_filter.classify", new=AsyncMock(return_value=True)
+        ):
+            await brain_ingest.ingest_team_message(
+                team_scope="team-a",
+                team_id=uuid.uuid4(),
+                content="The Q3 budget was signed off on Tuesday.",
+                author_sub="alice-sub",
+                message_id="11111111-2222-3333-4444-555555555555",
+            )
+            with_link = provider.upsert.call_args[0][0]
+
+            provider.upsert.reset_mock()
+            await brain_ingest.ingest_team_message(
+                team_scope="team-a",
+                team_id=uuid.uuid4(),
+                content="The Q3 budget was signed off on Tuesday.",
+                author_sub="alice-sub",
+            )
+            without_link = provider.upsert.call_args[0][0]
+
+    assert with_link.metadata["message_id"] == "11111111-2222-3333-4444-555555555555"
+    assert with_link.metadata["origin"] == "team-chat"
+    assert "message_id" not in without_link.metadata
 
 
 def test_is_brain_relevant_word_boundary_not_prefix(caplog):

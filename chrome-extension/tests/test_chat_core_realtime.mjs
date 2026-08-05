@@ -611,6 +611,35 @@ await test("another team's frames never reach the open thread", async () => {
   assert.equal(c.team.length, 0, "only the active team channel may be rendered");
 });
 
+await test("a DELETION from another team never reaches the open thread either", async () => {
+  // Stated for this frame type rather than inherited from the one above. A
+  // deletion is the frame with the worst failure mode if the channel guard is
+  // ever special-cased away: it takes something OFF the screen, and the frame
+  // that did it came from a team the person is not currently looking at.
+  const c = await connected({ teamId: "team-1" });
+  c.fireSub("team:team-1", "error", { error: { code: ALREADY_SUBSCRIBED_CODE } });
+  c.fire("publication", {
+    channel: "team:other-team",
+    data: { type: "message_deleted", message_id: "m1", scope: "message" },
+  });
+  assert.equal(c.team.length, 0, "only the active team channel may remove a row");
+  c.fire("publication", {
+    channel: "team:team-1",
+    data: { type: "message_deleted", message_id: "m1", scope: "message" },
+  });
+  assert.equal(c.team.length, 1, "the open team's deletion must still arrive");
+  assert.equal(c.team[0].message_id, "m1");
+});
+
+await test("a re-delivered deletion is dropped, not applied twice", async () => {
+  const c = await connected({ teamId: "team-1" });
+  c.fireSub("team:team-1", "error", { error: { code: ALREADY_SUBSCRIBED_CODE } });
+  const frame = { type: "message_deleted", message_id: "m7", scope: "message" };
+  c.fire("publication", { channel: "team:team-1", data: frame });
+  c.fire("publication", { channel: "team:team-1", data: frame });
+  assert.equal(c.team.length, 1, "the id-keyed deduper covers this frame too");
+});
+
 await test("a team switch stops the previous team being routed", async () => {
   const c = await connected({ teamId: "team-1" });
   c.handle.subscribeTeam("team-2");

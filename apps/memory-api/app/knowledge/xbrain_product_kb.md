@@ -218,6 +218,28 @@ that the linked page has not been read — never a claim of having fetched it.
 | **Team chat — web app** | the installable web app at `/app/` | the same chat, same brain, on a phone or any browser |
 | **ChatGPT / Claude.ai / MCP clients** | your deployment's remote MCP server URL | remote MCP server, auth via personal `xbt_` token |
 
+## Removing a message from the chat
+
+Right-click a message (long-press on a phone, or focus the thread and press
+Enter) to open its actions. **Delete message** then offers two outcomes, and they
+are genuinely different:
+
+- **Remove from the chat** — the bubble leaves the thread for everyone. What was
+  said **stays in the team's memory**, so the agent can still answer from it.
+- **Remove from the chat and the memory** — the bubble leaves AND the memory items
+  the message seeded go with it: its indexed text, any file it carried, and that
+  file's linked children (a document's body chunks, an image's vision
+  description). Nothing it put in the brain stays findable.
+
+Both are soft deletes on the same 30-day window as everything else — hidden from
+every recall path immediately, purged after 30 days. "Removed", not erased.
+
+**Who may:** the author of the message, and any admin of that team. Nobody else,
+and a blocked member cannot. An agent's answer has no author, so only a team admin
+can remove one. The server enforces this; every deletion is recorded in the audit
+log under `team_message.delete` or `team_message.delete_with_brain`, naming who
+did it and — for the wider scope — exactly what went with the message.
+
 ## Brain Monitor
 
 At `/account/teams/brain/` on your xbrain web app you can **view** all brain

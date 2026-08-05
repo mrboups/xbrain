@@ -51,6 +51,7 @@ const REQUIRED_MODULES = [
   "dom.js",
   "invite.js",
   "markdown.js",
+  "message_menu.js",
   "nudge_open.js",
   "people.js",
   "platform.js",

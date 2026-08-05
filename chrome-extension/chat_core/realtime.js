@@ -81,6 +81,9 @@ export function publicationKey(channel, data) {
     const id = data.message && data.message.id;
     return id ? `${channel}|message|${id}` : null;
   }
+  if (type === "message_deleted") {
+    return data.message_id ? `${channel}|message_deleted|${data.message_id}` : null;
+  }
   if (
     type === "agent_stream_start" ||
     type === "agent_stream_end" ||

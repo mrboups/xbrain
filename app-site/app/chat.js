@@ -30,6 +30,7 @@ import {
   isNearBottom,
 } from "./chat_core/render.js";
 import { createPublicationRouter } from "./chat_core/publication.js";
+import { createMessageMenu, removeMessageRow } from "./chat_core/message_menu.js";
 import { connectRealtime, createConnectionStatus } from "./chat_core/realtime.js";
 import { createTeamRail } from "./chat_core/team_rail.js";
 import {
@@ -81,6 +82,12 @@ const state = {
   // Agent toggle: armed before sending, cleared by a successful send. Never
   // persisted — a shared team chat must not open with the agent silently armed.
   agentArmed: false,
+  // Whether the SERVER says this person may remove other people's messages in
+  // the team that is open. It comes back on the history response (one reader,
+  // never broadcast) and is re-read on every team switch, because the answer is
+  // per-team. False until told otherwise: a control that appears and then gets a
+  // 403 is worse than one that appears a second late.
+  viewerCanModerate: false,
 };
 
 /** The refs bootChat was last called with — see reloadTeams for why. */
@@ -157,6 +164,46 @@ const handleTeamPublication = createPublicationRouter({
     const empty = el("chat-empty");
     if (empty) empty.hidden = true;
   },
+  onMessageDeleted: (messageId) => dropMessageRow(messageId),
+});
+
+/**
+ * Take a removed message off this screen and put the thread back together.
+ *
+ * Both paths land here — the frame that says somebody else removed it, and the
+ * local call after this person's own DELETE returned 200. Removal is keyed on
+ * the id, so running twice is a no-op, which is what lets both exist without
+ * either having to know about the other.
+ *
+ * The separator reconcile is not optional: the removed row may have been the only
+ * message under a date heading, and a heading left standing over nothing is the
+ * visible half of a deletion that only half happened.
+ */
+function dropMessageRow(messageId) {
+  if (!removeMessageRow(el("message-list"), messageId)) return;
+  renderer.syncDaySeparators();
+  const list = el("message-list");
+  if (list && (list.children || []).length === 0) showEmptyThreadCopy();
+}
+
+/**
+ * Right-click, long-press, or the keyboard: the per-message actions overlay.
+ *
+ * Built here rather than inside the renderer — it reads the rows the renderer
+ * produced and never draws one. The server is the authority on who may delete;
+ * `getViewerCanModerate` is the answer it gave on the history response, so the
+ * control is drawn exactly where the server would allow it.
+ */
+const messageMenu = createMessageMenu({
+  doc: document,
+  listEl: el("message-list"),
+  scrollEl: el("chat-scroll"),
+  getActiveTeamId: () => state.activeTeamId,
+  getSelfUserId: () => state.me && state.me.id,
+  getViewerCanModerate: () => state.viewerCanModerate,
+  deleteMessage: (teamId, messageId, scope) =>
+    api.deleteMessageRaw(teamId, messageId, scope),
+  onDeleted: (messageId) => dropMessageRow(messageId),
 });
 
 // ---------- Small surface helpers ----------
@@ -525,6 +572,11 @@ async function switchTeam(teamId) {
   state.streamBuffer = new StreamBuffer();
   state.oldestLoadedTs = null;
   state.initialLoaded = false;
+  // Moderation is per-team and the answer arrives with this team's history. Held
+  // false across the switch so a moment of the previous team's permission can
+  // never draw a control in the new one.
+  state.viewerCanModerate = false;
+  messageMenu.close();
   renderer.clear();
   clearComposerError();
   const empty = el("chat-empty");
@@ -619,6 +671,12 @@ async function loadInitialHistory() {
     }
     return;
   }
+  // What the SERVER says this person may do to other people's messages here.
+  // Read before the messages are drawn, so the first right-click after a switch
+  // already has the right answer.
+  state.viewerCanModerate = Boolean(
+    data && data.viewer && data.viewer.can_moderate,
+  );
   // The endpoint answers newest-first; the thread reads oldest-first.
   const messages = ((data && data.messages) || []).slice().reverse();
   if (messages.length === 0) {
@@ -1090,6 +1148,10 @@ export async function bootChat(refs = {}) {
   await teamRail.render();
   // There is a team now, so the controls that act on one may appear.
   panels.reveal();
+  // The per-message overlay listens on the list, not on the rows, so it can be
+  // attached once here and never touched again — a message that arrives over the
+  // websocket is reachable on exactly the same terms as one from the history.
+  messageMenu.attach();
 
   // 5. Connect. The socket target is whatever POST /v1/me/centrifugo-token
   //    returned — this file names no host and no scheme (D-27-03).
