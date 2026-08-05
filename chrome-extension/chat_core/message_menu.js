@@ -363,7 +363,7 @@ export function createMessageMenu(opts) {
       else line.classList.remove("is-error");
     }
 
-    async function runDelete(scope, pressed) {
+    async function runDelete(scope) {
       const teamId = getActiveTeamId();
       if (!teamId) {
         setStatus("No team is open.", true);
@@ -393,7 +393,6 @@ export function createMessageMenu(opts) {
       // are idempotent because removal is keyed on the id.
       close();
       onDeleted(messageId);
-      if (pressed) { /* nothing else — the row is gone */ }
     }
 
     function showConfirm() {
@@ -405,15 +404,13 @@ export function createMessageMenu(opts) {
 
       // The two outcomes, in the order that makes the safer one the near one.
       const justMessage = button("xb-msg-menu-item", CONFIRM_MESSAGE_LABEL);
-      justMessage.addEventListener("click", () =>
-        runDelete(DELETE_SCOPE_MESSAGE, justMessage),
-      );
+      justMessage.addEventListener("click", () => runDelete(DELETE_SCOPE_MESSAGE));
       menu.appendChild(justMessage);
       menu.appendChild(note(CONFIRM_MESSAGE_NOTE));
 
       const withBrain = button("xb-msg-menu-item is-danger", CONFIRM_BRAIN_LABEL);
       withBrain.addEventListener("click", () =>
-        runDelete(DELETE_SCOPE_MESSAGE_AND_BRAIN, withBrain),
+        runDelete(DELETE_SCOPE_MESSAGE_AND_BRAIN),
       );
       menu.appendChild(withBrain);
       menu.appendChild(note(CONFIRM_BRAIN_NOTE));
