@@ -642,6 +642,32 @@
      * retries briefly rather than assuming `google` exists; if it never arrives
      * (blocked script, offline), the email/password form below is still usable and
      * the hint says Google is unavailable instead of leaving a blank gap.
+     *
+     * THIS PAGE KEEPS THE POPUP, DELIBERATELY, AND /app/ DOES NOT.
+     *
+     * The bug that took /app/ off the popup is specific to a home-screen web app:
+     * `window.open` there is a DETACHED in-app browser sheet with its own storage,
+     * so Google never finds a session and demands a device verification that then
+     * fails. Two things make that a different page's problem, not this one's.
+     *
+     * First, this page cannot BE that surface. The web app manifest scopes the
+     * installed app to /app/, so /join/ is never a top-level document inside it —
+     * it is always an ordinary browser tab, where the popup shares the browser's
+     * cookie jar and works. `display-mode: standalone` cannot match here.
+     *
+     * Second, and this is the part that would turn a fix into a regression: the
+     * invite code arrives in the FRAGMENT and readAndStripCode() above moves it into
+     * a variable and wipes the URL. A redirect flow leaves the page entirely and
+     * comes back to a fresh document — the variable is gone and the fragment is
+     * already stripped, so the invitee would return signed in to no team, having
+     * lost the code that brought them. Carrying it through Google instead would put
+     * the invite secret in a query parameter on a third party's server, which is
+     * exactly what the fragment exists to avoid.
+     *
+     * The residual case is somebody opening the link inside another app's in-app
+     * browser, where popups can also be blocked. That is a different failure with a
+     * different remedy (the email/password form below, and "open in browser"), and
+     * it is NOT the one that was reported.
      */
     let googleMounted = false;
     function mountGoogleButton(attempt) {
