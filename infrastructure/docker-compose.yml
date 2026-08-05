@@ -183,6 +183,15 @@ services:
       OAUTH_CREDENTIALS_ENCRYPTION_KEY: ${OAUTH_CREDENTIALS_ENCRYPTION_KEY:-}
       MEMORY_API_EXTERNAL_URL: ${MEMORY_API_EXTERNAL_URL:-http://localhost:8000}
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:8000}
+      # Popup-free Google sign-in for the installed PWA (app/routes/auth_google_web.py).
+      # EMPTY = OFF, and off is the correct default: the flow needs
+      # ${MEMORY_API_EXTERNAL_URL}/v1/auth/google/callback registered by hand as an
+      # Authorized redirect URI on the Google OAuth client first. Set this to the PWA's
+      # start URL (it must be inside the manifest scope, e.g. https://your.domain/app/)
+      # only once that registration exists — the client asks
+      # GET /v1/auth/google/web-config before it uses the flow, and keeps the popup
+      # while this is empty.
+      GOOGLE_WEB_SIGNIN_RETURN_URL: ${GOOGLE_WEB_SIGNIN_RETURN_URL:-}
       CORS_ALLOWED_ORIGIN_REGEX: "${CORS_ALLOWED_ORIGIN_REGEX:-(chrome-extension://.*|http://localhost(:\\d+)?)}"
       # Phase 14 (14-01/14-07): memory-api is the ONLY consumer of this — mention_detector.py
       # builds its regex from it. It is ALSO passed to librechat (below), which only DISPLAYS the
