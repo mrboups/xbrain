@@ -50,8 +50,10 @@
  *      the new render.js importing a module the cache has never heard of, and the
  *      old chat talking to the new API — both of which look exactly like a broken
  *      fix rather than a caching problem.
+ * v12 — bare URLs in an agent's answer are clickable: chat_core/markdown.js,
+ *      render.js and publication.js all changed.
  */
-const CACHE = "xb-app-shell-v11";
+const CACHE = "xb-app-shell-v12";
 
 /**
  * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07

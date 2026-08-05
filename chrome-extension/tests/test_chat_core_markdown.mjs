@@ -443,6 +443,451 @@ test("the real-world answer from the bug report renders with no asterisks left",
   assert.equal(el.querySelectorAll(".xb-md-li").length, 1);
 });
 
+// ---------------------------------------------------------------------------
+// Renderer harness — a real createRenderer over the stub document. Declared
+// HERE rather than beside the tests that use it: sections (a2) and (f) both
+// drive it, and `const NOW` is not hoisted, so a definition further down would
+// be a temporal-dead-zone error at the moment the first test body runs.
+// ---------------------------------------------------------------------------
+
+function makeHarness() {
+  const doc = makeDoc();
+  const listEl = new El(doc, "div");
+  const scrollEl = new El(doc, "div");
+  scrollEl.scrollTop = 0;
+  scrollEl.scrollHeight = 1000;
+  scrollEl.clientHeight = 400;
+  const renderer = createRenderer({
+    doc,
+    listEl,
+    scrollEl,
+    apiBase: "https://api.example.test",
+    getSelfUserId: () => "u-self",
+    getNameCache: () => ({ "u-mate": "Mate" }),
+    onAuthorClick: null,
+    fetchIndexedText: null,
+  });
+  return { doc, listEl, renderer };
+}
+
+const NOW = "2026-08-05T10:00:00Z";
+
+// ===========================================================================
+// (a2) BARE URLs — the autolinker
+//
+// Same boundary as (c) below, arriving without the `[text](target)` wrapper. A
+// bare URL is the form the agent actually emits ("🔗 Pitch deck: https://…"),
+// and it used to render as readable, unclickable text.
+//
+// Every assertion here was checked by breaking the implementation:
+//   - drop the tail trimmer          -> the punctuation tests go red
+//   - drop the `inAnchor` guard      -> the nested-anchor test goes red
+//   - widen the scheme pattern       -> the "looks like a link" tests go red
+//   - drop the href===text rule      -> the control-character test goes red
+//   - drop `partial`                 -> the streaming test goes red
+// ===========================================================================
+
+/** The one anchor an autolink is allowed to produce, unpacked for assertions. */
+function onlyAnchor(el) {
+  const anchors = el.querySelectorAll(".xb-md-a");
+  assert.equal(anchors.length, 1, `expected exactly one anchor, got ${anchors.length}`);
+  return anchors[0];
+}
+
+test("the bug report's own answer: two bare URLs, both clickable", () => {
+  const el = md(
+    "🔗 Pitch deck: https://pitch.com/v/excalibur-proposal-pybqby\n" +
+      "🌐 Website: https://launch.excalibur.game",
+  );
+  const anchors = el.querySelectorAll(".xb-md-a");
+  assert.equal(anchors.length, 2, "both bare URLs must become links");
+  assert.deepEqual(
+    anchors.map((a) => a.getAttribute("href")),
+    ["https://pitch.com/v/excalibur-proposal-pybqby", "https://launch.excalibur.game"],
+  );
+  // A bare URL links to exactly the characters it shows.
+  assert.deepEqual(
+    anchors.map((a) => a.textContent),
+    ["https://pitch.com/v/excalibur-proposal-pybqby", "https://launch.excalibur.game"],
+  );
+  for (const a of anchors) {
+    assert.equal(a.getAttribute("target"), "_blank");
+    const rel = a.getAttribute("rel") || "";
+    assert.ok(rel.includes("noopener"), "an autolink carries noopener");
+    assert.ok(rel.includes("noreferrer"), "an autolink carries noreferrer");
+  }
+  // Nothing was consumed: the labels either side are still readable.
+  assert.equal(
+    visibleText(el),
+    "🔗 Pitch deck: https://pitch.com/v/excalibur-proposal-pybqby\n" +
+      "🌐 Website: https://launch.excalibur.game",
+  );
+});
+
+test("http, https and mailto autolink; the surrounding words are untouched", () => {
+  for (const [src, href] of [
+    ["go to https://x.test/a now", "https://x.test/a"],
+    ["go to http://x.test/a now", "http://x.test/a"],
+    ["write to mailto:team@x.test now", "mailto:team@x.test"],
+    // The scheme is case-folded by the browser, so it is matched that way too.
+    ["go to HTTPS://X.TEST/A now", "HTTPS://X.TEST/A"],
+    ["go to Https://X.test/a now", "Https://X.test/a"],
+  ]) {
+    const el = md(src);
+    assert.equal(onlyAnchor(el).getAttribute("href"), href, `href for ${src}`);
+    assert.equal(visibleText(el), src, `${src} must read exactly as typed`);
+  }
+});
+
+test("trailing punctuation is the sentence's, not the URL's", () => {
+  // The failure this prevents: a href with a full stop on the end 404s, and the
+  // reader is told nothing about why.
+  for (const [src, href, tail] of [
+    ["see https://x.test/a.", "https://x.test/a", "."],
+    ["see https://x.test/a,", "https://x.test/a", ","],
+    ["see https://x.test/a:", "https://x.test/a", ":"],
+    ["see https://x.test/a;", "https://x.test/a", ";"],
+    ["see https://x.test/a!", "https://x.test/a", "!"],
+    ["see https://x.test/a?", "https://x.test/a", "?"],
+    ["see https://x.test/a...", "https://x.test/a", "..."],
+    ["see https://x.test/a).", "https://x.test/a", ")."],
+  ]) {
+    const el = md(src);
+    assert.equal(onlyAnchor(el).getAttribute("href"), href, `href for ${src}`);
+    assert.equal(onlyAnchor(el).textContent, href, `the link text for ${src}`);
+    assert.ok(
+      visibleText(el).endsWith(tail),
+      `${src}: the punctuation must stay on screen, outside the link`,
+    );
+    assert.equal(visibleText(el), src, `${src} must read exactly as typed`);
+  }
+});
+
+test("a closing paren belongs to the URL only when something inside it opened", () => {
+  // The prose's paren.
+  const prose = md("(see https://en.wikipedia.test/wiki/Foo)");
+  assert.equal(onlyAnchor(prose).getAttribute("href"), "https://en.wikipedia.test/wiki/Foo");
+  assert.equal(visibleText(prose), "(see https://en.wikipedia.test/wiki/Foo)");
+
+  // The URL's own pair — the wikipedia case a flat "strip the paren" breaks.
+  const balanced = md("see https://en.wikipedia.test/wiki/Foo_(bar) now");
+  assert.equal(
+    onlyAnchor(balanced).getAttribute("href"),
+    "https://en.wikipedia.test/wiki/Foo_(bar)",
+    "a balanced pair is part of the path",
+  );
+
+  // Both at once: one pair is the URL's, the outer one is the sentence's.
+  const both = md("(see https://en.wikipedia.test/wiki/Foo_(bar))");
+  assert.equal(
+    onlyAnchor(both).getAttribute("href"),
+    "https://en.wikipedia.test/wiki/Foo_(bar)",
+  );
+  assert.equal(visibleText(both), "(see https://en.wikipedia.test/wiki/Foo_(bar))");
+});
+
+test("a query string keeps every character a trimmer might mistake for prose", () => {
+  const el = md("open https://x.test/a?b=1&c=2#frag now");
+  assert.equal(onlyAnchor(el).getAttribute("href"), "https://x.test/a?b=1&c=2#frag");
+});
+
+test("NO SCHEME, NO LINK — a thing that merely looks like a URL stays text", () => {
+  for (const src of [
+    "visit www.example.test today",
+    "visit example.test/path today",
+    "mail nico@example.test today",
+    "run ftp://files.test/a today",
+    "see file:///etc/passwd today",
+    "see javascript:alert(1) today",
+    "see data:text/html,<b>x</b> today",
+    "see vbscript:msgbox(1) today",
+    "see chrome-extension://abc/popup.html today",
+    "see //evil.test/steal today",
+    "see s3://bucket/key today",
+    // the scheme with nothing behind it is not a destination
+    "see https:// today",
+    "see mailto: today",
+    "see https: today",
+  ]) {
+    const el = md(src);
+    assert.equal(
+      el.querySelector(".xb-md-a"),
+      null,
+      `${JSON.stringify(src)} must not become an anchor`,
+    );
+    for (const node of descendants(el)) {
+      if (node.nodeType !== 1) continue;
+      assert.equal(
+        node.getAttribute && node.getAttribute("href"),
+        null,
+        `an href was set for ${JSON.stringify(src)}`,
+      );
+    }
+    assert.equal(visibleText(el), src, `${JSON.stringify(src)} must read as typed`);
+  }
+});
+
+test("a control character inside a bare URL refuses the link entirely", () => {
+  // THE ONE THAT MATTERS. A browser deletes these before it resolves a URL, so
+  // the href would not be the string on screen — and for a bare URL the string
+  // on screen IS the only thing the reader can inspect before clicking. There is
+  // nothing to choose between: the construct is refused and stays text.
+  for (const src of [
+    // What a reader sees ends at good.test; what a browser fetches is
+    // evil.test, because the NUL is deleted and the rest becomes userinfo.
+    "go to https://good.test\u0000@evil.test/ now",
+    "go to https://goo\u0001d.test/a now",
+    "go to https://good.test/\u001fa now",
+    "go to https://good.test/a\u007f now",
+  ]) {
+    const el = md(src);
+    assert.equal(
+      el.querySelector(".xb-md-a"),
+      null,
+      `${JSON.stringify(src)} must not become an anchor`,
+    );
+    assert.equal(visibleText(el), src, "and nothing is dropped");
+  }
+  // The same URL without the control character IS linked — otherwise the
+  // assertion above would be passing for the wrong reason.
+  assert.equal(
+    onlyAnchor(md("go to https://good.test/a now")).getAttribute("href"),
+    "https://good.test/a",
+  );
+});
+
+test("an autolink's href is byte-for-byte its own visible text", () => {
+  // The property the control-character rule buys, stated directly: for a bare
+  // URL there is no label to hide behind, so a destination that differs from the
+  // characters on screen is a lie the reader cannot detect.
+  for (const src of [
+    "https://x.test/a",
+    "see https://x.test/a?q=%20&r=1#z.",
+    "(https://x.test/Foo_(bar))",
+    "mailto:team@x.test,",
+  ]) {
+    const a = onlyAnchor(md(src));
+    assert.equal(
+      a.getAttribute("href"),
+      a.textContent,
+      `${JSON.stringify(src)}: the href and the text must be the same string`,
+    );
+  }
+});
+
+test("NO DOUBLE-LINKING: a URL already inside a link stays exactly one link", () => {
+  // (i) the target of a markdown link.
+  const target = md("read [the docs](https://x.test/a) now");
+  const a = onlyAnchor(target);
+  assert.equal(a.getAttribute("href"), "https://x.test/a");
+  assert.equal(a.textContent, "the docs");
+
+  // (ii) the LABEL of a markdown link. This is the one position cannot settle:
+  // the label is re-parsed, and an anchor inside an anchor is not renderable.
+  const label = md("[https://x.test/a](https://y.test/b)");
+  const outer = onlyAnchor(label);
+  assert.equal(outer.getAttribute("href"), "https://y.test/b", "the target wins");
+  assert.equal(outer.textContent, "https://x.test/a", "the label reads as the URL it is");
+  for (const node of descendants(outer)) {
+    assert.notEqual(node.tagName, "A", "an anchor must never contain another anchor");
+  }
+
+  // (iii) both halves being URLs must not produce three anchors either.
+  const emphasised = md("[**https://x.test/a**](https://y.test/b)");
+  assert.equal(emphasised.querySelectorAll(".xb-md-a").length, 1);
+});
+
+test("NO DOUBLE-LINKING: a URL in code is an example, not a destination", () => {
+  const span = md("run `curl https://x.test/a` first");
+  assert.equal(span.querySelector(".xb-md-a"), null, "a code span must not autolink");
+  assert.equal(span.querySelector(".xb-md-code").textContent, "curl https://x.test/a");
+
+  const block = md("```sh\ncurl https://x.test/a\n```");
+  assert.equal(block.querySelector(".xb-md-a"), null, "a fenced block must not autolink");
+  assert.equal(block.querySelector(".xb-md-codeblock").textContent, "curl https://x.test/a");
+
+  // A URL AFTER the code span on the same line is still linked — otherwise the
+  // two assertions above could pass by the autolinker being off entirely.
+  const mixed = md("run `curl` against https://x.test/a now");
+  assert.equal(onlyAnchor(mixed).getAttribute("href"), "https://x.test/a");
+});
+
+test("an autolink inside emphasis, a list and a heading — one link, no leakage", () => {
+  for (const src of [
+    "**https://x.test/a**",
+    "*https://x.test/a*",
+    "- https://x.test/a",
+    "1. https://x.test/a",
+    "# https://x.test/a",
+    "> https://x.test/a",
+  ]) {
+    const el = md(src);
+    assert.equal(
+      onlyAnchor(el).getAttribute("href"),
+      "https://x.test/a",
+      `href inside ${JSON.stringify(src)}`,
+    );
+  }
+  // The emphasis is still emphasis, and the anchor is inside it. Walked in two
+  // steps because the stub's querySelector takes one class, not a descendant
+  // combinator — a chained selector here would return null and read as a bug.
+  const bold = md("**https://x.test/a**").querySelector(".xb-md-strong");
+  assert.ok(bold, "the bold markers still produce a STRONG");
+  assert.ok(bold.querySelector(".xb-md-a"), "and the link nests inside it");
+});
+
+test("a bare URL cannot smuggle an element in, whatever it carries", () => {
+  for (const src of [
+    'https://x.test/<img src=x onerror=alert(1)>',
+    'https://x.test/a"onmouseover="alert(1)',
+    "https://x.test/a'onmouseover='alert(1)",
+  ]) {
+    const el = md(src);
+    for (const tag of tags(el)) {
+      assert.ok(
+        ["DIV", "SPAN", "P", "BR", "STRONG", "EM", "CODE", "PRE", "UL", "OL", "LI", "A"].includes(tag),
+        `a ${tag} was constructed from ${JSON.stringify(src)}`,
+      );
+    }
+    // Every character still reaches the screen, whether inside the link or beside it.
+    assert.equal(visibleText(el), src);
+    const a = el.querySelector(".xb-md-a");
+    if (a) {
+      const href = a.getAttribute("href");
+      assert.ok(
+        href.startsWith("https://"),
+        `an autolinked href must carry an allowed scheme, got ${JSON.stringify(href)}`,
+      );
+      assert.equal(href, a.textContent, "and it still equals what is on screen");
+    }
+  }
+});
+
+test("STREAMING: a URL still arriving is not linked, and is linked once when it is", () => {
+  // The failure: the buffer holds `https://pitch.com/v/excalibur-prop`, that is
+  // rendered as a clickable link to a page that does not exist, and the next
+  // chunk replaces it with a different link. `partial` is what says "the last
+  // character is not the last character".
+  const doc = makeDoc();
+  const el = doc.createElement("span");
+  const full = "Pitch deck: https://pitch.com/v/excalibur-proposal-pybqby";
+
+  for (let n = 13; n < full.length; n++) {
+    renderMarkdownInto(el, full.slice(0, n), { partial: true });
+    assert.equal(
+      el.querySelector(".xb-md-a"),
+      null,
+      `prefix ${n} linked a URL that is still arriving`,
+    );
+    assert.equal(visibleText(el), full.slice(0, n), `prefix ${n} must read as typed`);
+  }
+
+  // The finishing pass renders the SAME string, and now it is a link.
+  renderMarkdownInto(el, full, { partial: true });
+  assert.equal(el.querySelector(".xb-md-a"), null, "still open-ended, still text");
+  renderMarkdownInto(el, full);
+  const a = el.querySelector(".xb-md-a");
+  assert.ok(a, "the finishing pass must link it — the memo cannot swallow that render");
+  assert.equal(a.getAttribute("href"), "https://pitch.com/v/excalibur-proposal-pybqby");
+  assert.equal(visibleText(el), full);
+});
+
+test("STREAMING: only the growing edge waits — a URL with text after it links now", () => {
+  // Otherwise "do not link half-formed" would mean "do not link while streaming",
+  // and an answer's earlier links would appear only at the end.
+  const doc = makeDoc();
+  const el = doc.createElement("span");
+  renderMarkdownInto(el, "see https://x.test/a and also htt", { partial: true });
+  const a = el.querySelector(".xb-md-a");
+  assert.ok(a, "a URL followed by more text has finished arriving");
+  assert.equal(a.getAttribute("href"), "https://x.test/a");
+
+  // A newline ends a line whatever comes next, so a URL on an earlier line is done.
+  const two = doc.createElement("span");
+  renderMarkdownInto(two, "https://x.test/a\nhttps://x.test/b", { partial: true });
+  assert.equal(
+    two.querySelectorAll(".xb-md-a").length,
+    1,
+    "the finished line links, the growing one does not",
+  );
+  assert.equal(two.querySelector(".xb-md-a").getAttribute("href"), "https://x.test/a");
+});
+
+test("STREAMING: a whole answer never renders a link it then changes", () => {
+  // The property across EVERY prefix: whatever href exists at prefix n must
+  // still exist, unchanged, at prefix n+1. A URL that got linked half-formed and
+  // relinked breaks this at the boundary where it grew.
+  const answer =
+    "Two things.\n\n" +
+    "- Deck: https://pitch.com/v/excalibur-proposal-pybqby\n" +
+    "- Site: https://launch.excalibur.game\n\n" +
+    "Ask me anything.";
+  const doc = makeDoc();
+  const el = doc.createElement("span");
+  let previous = [];
+  for (let n = 0; n <= answer.length; n++) {
+    renderMarkdownInto(el, answer.slice(0, n), { partial: true });
+    const hrefs = el.querySelectorAll(".xb-md-a").map((a) => a.getAttribute("href"));
+    for (let k = 0; k < previous.length; k++) {
+      assert.equal(
+        hrefs[k],
+        previous[k],
+        `prefix ${n}: link ${k} changed from ${previous[k]} to ${hrefs[k]}`,
+      );
+    }
+    for (const a of el.querySelectorAll(".xb-md-a")) {
+      assert.equal(a.getAttribute("href"), a.textContent, `prefix ${n}: href drifted from text`);
+    }
+    previous = hrefs;
+  }
+  // And the finished answer carries both.
+  renderMarkdownInto(el, answer);
+  assert.equal(el.querySelectorAll(".xb-md-a").length, 2);
+});
+
+test("the router streams partial and finishes closed — the wiring, not just the parser", () => {
+  const { renderer, listEl } = makeHarness();
+  const route = createPublicationRouter({
+    renderer,
+    streamBuffer: new StreamBuffer(),
+    onNonEmpty: () => {},
+  });
+  route({ type: "agent_stream_start", message_id: "u1", agent_name: "agent" });
+  route({ type: "agent_stream_chunk", message_id: "u1", delta: "Deck: https://pitch.com" });
+  assert.equal(
+    renderer.streamTextTarget("u1").querySelector(".xb-md-a"),
+    null,
+    "mid-stream, the URL at the edge is not a link yet",
+  );
+  route({ type: "agent_stream_chunk", message_id: "u1", delta: "/v/excalibur" });
+  assert.equal(renderer.streamTextTarget("u1").querySelector(".xb-md-a"), null);
+
+  route({ type: "agent_stream_end", message_id: "u1" });
+  const a = listEl.querySelector(".xb-md-a");
+  assert.ok(a, "agent_stream_end must render once more, closed — or the URL stays dead text");
+  assert.equal(a.getAttribute("href"), "https://pitch.com/v/excalibur");
+  assert.equal(
+    renderer.streamTextTarget("u1").textContent,
+    "Deck: https://pitch.com/v/excalibur",
+  );
+});
+
+test("a teammate's message is still not parsed — no autolink there either", () => {
+  // The DECISION is unchanged by this feature: a person types into a plain box.
+  // Autolinking their message would be markdown parsing by another name.
+  const { renderer } = makeHarness();
+  const node = renderer.buildBubbleNode({
+    id: "u-url",
+    kind: "user",
+    author_user_id: "u-mate",
+    content: "have a look at https://x.test/a",
+    created_at: NOW,
+  });
+  const text = node.querySelector(".xb-msg-text");
+  assert.equal(text.textContent, "have a look at https://x.test/a");
+  assert.equal(text.children.length, 0, "a person's message builds no elements at all");
+});
+
 // ===========================================================================
 // (b) Unsupported syntax stays as the characters that were typed
 // ===========================================================================
@@ -487,8 +932,26 @@ test("a backslash disarms a marker instead of letting it eat the text", () => {
 
   const inside = md("**bold with \\* inside**");
   assert.equal(inside.querySelector(".xb-md-strong").textContent, "bold with * inside");
-  assert.equal(visibleText(md("\\[not a link](https://example.test/)")), "[not a link](https://example.test/)");
-  assert.equal(md("\\[not a link](https://example.test/)").querySelector(".xb-md-a"), null);
+
+  // An escaped `[` disarms the LINK, and that is what this asserts: the label
+  // never becomes an anchor's text, and every character survives. The bare URL
+  // left standing in the prose is autolinked like any other bare URL — the
+  // escape was about the bracket, and a clickable URL that reads as itself
+  // takes nothing away from the reader.
+  const escaped = md("\\[not a link](https://example.test/)");
+  assert.equal(visibleText(escaped), "[not a link](https://example.test/)");
+  const escapedAnchor = escaped.querySelector(".xb-md-a");
+  assert.notEqual(
+    escapedAnchor && escapedAnchor.textContent,
+    "not a link",
+    "the escaped bracket must not have produced a markdown link",
+  );
+  assert.equal(
+    escapedAnchor && escapedAnchor.getAttribute("href"),
+    "https://example.test/",
+    "the bare URL that remains is autolinked, and links to exactly itself",
+  );
+
   assert.equal(visibleText(md("a \\\\ backslash")), "a \\ backslash");
   // A backslash before something that is not a marker is just a backslash.
   assert.equal(visibleText(md("C:\\Users\\name")), "C:\\Users\\name");
@@ -828,28 +1291,6 @@ test("the body element is tagged `xb-md` so the stylesheet can find it", () => {
 // ===========================================================================
 // (f) THE DECISION: agent answers are parsed, a person's message is not
 // ===========================================================================
-
-function makeHarness() {
-  const doc = makeDoc();
-  const listEl = new El(doc, "div");
-  const scrollEl = new El(doc, "div");
-  scrollEl.scrollTop = 0;
-  scrollEl.scrollHeight = 1000;
-  scrollEl.clientHeight = 400;
-  const renderer = createRenderer({
-    doc,
-    listEl,
-    scrollEl,
-    apiBase: "https://api.example.test",
-    getSelfUserId: () => "u-self",
-    getNameCache: () => ({ "u-mate": "Mate" }),
-    onAuthorClick: null,
-    fetchIndexedText: null,
-  });
-  return { doc, listEl, renderer };
-}
-
-const NOW = "2026-08-05T10:00:00Z";
 
 test("rendersMarkdown: the agent yes, a teammate no, your own message no", () => {
   assert.equal(rendersMarkdown({ kind: "agent" }), true);

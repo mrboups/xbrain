@@ -29,13 +29,15 @@
  * audit than any library's allowlist.
  *
  * THE SUBSET, and nothing else: `**bold**`, `*italic*`, `` `code` ``, fenced
- * code blocks, `- ` and `1. ` lists, `#` headings, `[text](url)` links, and
- * blank-line paragraph breaks. Anything unrecognised stays as the characters
- * that produced it — an unsupported construct renders as what the person typed
- * and NEVER disappears. That rule is what makes the parser safe to be
- * conservative: refusing to parse something is always a legible outcome.
+ * code blocks, `- ` and `1. ` lists, `#` headings, `[text](url)` links, BARE
+ * URLs, and blank-line paragraph breaks. Anything unrecognised stays as the
+ * characters that produced it — an unsupported construct renders as what the
+ * person typed and NEVER disappears. That rule is what makes the parser safe to
+ * be conservative: refusing to parse something is always a legible outcome.
  *
- * LINKS ARE THE DANGEROUS PART and are handled in `safeHref` below.
+ * LINKS ARE THE DANGEROUS PART and are handled in `safeHref` below. A bare URL
+ * is the same danger arriving without the `[text](url)` wrapper, so it goes
+ * through the same function and the same anchor builder — see `AUTOLINK`.
  *
  * Used by:
  *   - packages/chat-core/render.js  (persisted agent messages)
@@ -102,6 +104,86 @@ export function safeHref(raw) {
 }
 
 /**
+ * A BARE URL, as the agent actually writes one.
+ *
+ * The defect: an answer that says
+ *   `🔗 Pitch deck: https://pitch.com/v/excalibur-proposal-pybqby`
+ * rendered as readable, unclickable text, because only `[label](target)` was a
+ * link. The agent emits the bare form constantly.
+ *
+ * THE SCHEME IS THE WHOLE GATE. This pattern matches `http://`, `https://` and
+ * `mailto:` and nothing else, spelled out character class by character class so
+ * `HTTPS://` is caught without an `i` flag that would also apply to every other
+ * branch of the alternation. A token with no scheme is not a link: `www.x.test`,
+ * `x.test` and `nico@x.test` all stay plain text, which is the difference
+ * between rendering a URL and guessing at one. `javascript:`, `data:` and
+ * `ftp://` are refused by simply not being listed — the same allowlist argument
+ * `safeHref` makes, made a second time at the point of recognition.
+ *
+ * THE BODY EXCLUDES the characters that delimit the constructs around it —
+ * whitespace, `<` `>`, both quotes, the backtick, `[` `]` and the backslash — so
+ * a URL can never eat the code span, the link or the escape that follows it.
+ * `(` and `)` are deliberately ALLOWED through, because a wikipedia-style
+ * `..._(disambiguation)` is a real URL; the tail trimmer below is what decides
+ * which closing paren was the writer's and which was the prose's.
+ */
+const AUTOLINK_SCHEME = "(?:[Hh][Tt][Tt][Pp][Ss]?://|[Mm][Aa][Ii][Ll][Tt][Oo]:)";
+const AUTOLINK_BODY = "[^\\s<>\"'`\\[\\]\\\\]";
+const AUTOLINK = AUTOLINK_SCHEME + AUTOLINK_BODY + "+";
+
+/**
+ * Punctuation that ends a SENTENCE rather than a URL.
+ *
+ * `see https://x.test/a.` must not put the full stop inside the href — the link
+ * would 404 and the reader would be told nothing about why. `>`, `]` and both
+ * quotes are absent on purpose: `AUTOLINK_BODY` already refuses them, so listing
+ * them here would be a rule that can never run.
+ */
+const URL_TAIL_PUNCTUATION = ".,:;!?*_~";
+
+/**
+ * Give back the part of a matched URL that is actually the URL.
+ *
+ * Two rules, applied until neither fires:
+ *   1. trailing sentence punctuation is prose, not path;
+ *   2. a trailing `)` belongs to the URL only if something inside it opened —
+ *      `(see https://x.test/a)` ends at `a`, while
+ *      `https://x.test/Foo_(bar)` keeps its pair. Counting is what separates
+ *      them; a flat "always strip a closing paren" would break every wikipedia
+ *      link an agent has ever pasted.
+ *
+ * Whatever is trimmed is NOT discarded — the caller emits it as the text it is,
+ * so the reader still sees the full stop they typed.
+ *
+ * @param {string} url the raw match
+ * @returns {string} the href-worthy prefix, possibly the whole thing
+ */
+export function trimAutolinkTail(url) {
+  let end = url.length;
+  while (end > 0) {
+    const ch = url[end - 1];
+    if (URL_TAIL_PUNCTUATION.includes(ch)) {
+      end -= 1;
+      continue;
+    }
+    if (ch === ")") {
+      let opens = 0;
+      let closes = 0;
+      for (let i = 0; i < end; i++) {
+        if (url[i] === "(") opens += 1;
+        else if (url[i] === ")") closes += 1;
+      }
+      if (closes > opens) {
+        end -= 1;
+        continue;
+      }
+    }
+    break;
+  }
+  return url.slice(0, end);
+}
+
+/**
  * The inline grammar, as ONE alternation so the leftmost construct wins.
  *
  * ORDER IS LOAD-BEARING. JavaScript tries alternatives left to right at each
@@ -128,7 +210,29 @@ const INLINE_PATTERN =
   "|(\\*[^\\s*](?:[^\\n*]*?[^\\s*])?\\*)" + // 3 italic
   "|(\\[[^\\]\\n]*\\]\\([^()\\s]*\\))" + // 4 link
   "|(!\\[[^\\]\\n]*\\]\\([^()\\s]*\\))" + // 5 image — matched to be REFUSED
-  "|(\\\\[\\\\`*_\\[\\]()#!~>+.-])"; // 6 escape — a marker the writer disarmed
+  "|(\\\\[\\\\`*_\\[\\]()#!~>+.-])" + // 6 escape — a marker the writer disarmed
+  "|(" + AUTOLINK + ")"; // 7 bare URL
+
+/**
+ * WHY THE BARE-URL BRANCH CANNOT DOUBLE-LINK ANYTHING.
+ *
+ * The engine finds the LEFTMOST match and only then picks a branch, so a URL is
+ * reached by branch 7 exactly when no earlier construct started before it:
+ *
+ *   [docs](https://x.test)   the `[` is at a lower index — branch 4 takes the
+ *                            whole thing and the target becomes the href once,
+ *                            through `safeHref`, never re-scanned as text;
+ *   `see https://x.test`     the backtick is lower — branch 1, and a code span's
+ *                            content is emitted verbatim by definition;
+ *   ```fenced```             never reaches this function at all, because the
+ *                            block parser owns fences and writes their text
+ *                            straight into a <code>.
+ *
+ * The one case position cannot settle is a URL used as a link's LABEL —
+ * `[https://x.test](https://y.test)` — because that text is re-entered through
+ * `appendInline`. An anchor inside an anchor is not a thing a browser can
+ * render, so the recursion carries `inAnchor` and branch 7 stands down.
+ */
 
 /**
  * A backslash escape is matched FIRST at its position, and that is the point.
@@ -166,6 +270,28 @@ const LINK_PARTS = /^\[([^\]\n]*)\]\(([^()\s]*)\)$/;
 const MAX_INLINE_DEPTH = 3;
 
 /**
+ * Build the one anchor shape this file is allowed to produce.
+ *
+ * ONE builder for both link forms, because the attributes are the safety
+ * argument and a second copy of them is a second place to forget `rel`. The
+ * caller has already run the target through `safeHref`; this only assembles.
+ *
+ * @param {Document} doc
+ * @param {string} href a value `safeHref` returned
+ * @returns {Element}
+ */
+function buildAnchor(doc, href) {
+  const a = doc.createElement("a");
+  a.className = "xb-md-a";
+  a.setAttribute("href", href);
+  a.setAttribute("target", "_blank");
+  // noopener: the opened page must not reach back through window.opener.
+  // noreferrer: a team's chat must not leak its URL to whatever it links.
+  a.setAttribute("rel", "noopener noreferrer");
+  return a;
+}
+
+/**
  * Append the inline content of one line to `parent`.
  *
  * The regex is built per call rather than shared: this function recurses into
@@ -175,10 +301,18 @@ const MAX_INLINE_DEPTH = 3;
  * @param {Document} doc
  * @param {Element} parent
  * @param {string} text
- * @param {number} [depth]
+ * @param {{depth?: number, inAnchor?: boolean, openEnded?: boolean}} [opts]
+ *   depth      — emphasis nesting bound, see MAX_INLINE_DEPTH
+ *   inAnchor   — this text is a link's label, so branch 7 must not build a
+ *                second anchor inside the first
+ *   openEnded  — this line is the growing edge of a streaming answer, so a URL
+ *                that runs to the end of it may still be half-arrived
  */
-function appendInline(doc, parent, text, depth = 0) {
+function appendInline(doc, parent, text, opts = {}) {
   if (!text) return;
+  const depth = opts.depth || 0;
+  const inAnchor = Boolean(opts.inAnchor);
+  const openEnded = Boolean(opts.openEnded);
   if (depth >= MAX_INLINE_DEPTH) {
     parent.appendChild(doc.createTextNode(text));
     return;
@@ -201,13 +335,24 @@ function appendInline(doc, parent, text, depth = 0) {
     } else if (m[2] !== undefined) {
       const strong = doc.createElement("strong");
       strong.className = "xb-md-strong";
-      appendInline(doc, strong, whole.slice(2, -2), depth + 1);
+      // openEnded stops here and at every other recursion: this content is
+      // bounded by a closing marker that has demonstrably ARRIVED, so nothing
+      // inside it is still growing.
+      appendInline(doc, strong, whole.slice(2, -2), { depth: depth + 1, inAnchor });
       parent.appendChild(strong);
     } else if (m[3] !== undefined) {
       const em = doc.createElement("em");
       em.className = "xb-md-em";
-      appendInline(doc, em, whole.slice(1, -1), depth + 1);
+      appendInline(doc, em, whole.slice(1, -1), { depth: depth + 1, inAnchor });
       parent.appendChild(em);
+    } else if (m[7] !== undefined) {
+      appendAutolink(doc, parent, whole, {
+        inAnchor,
+        // The RAW match is what must not touch the growing edge. Measuring the
+        // trimmed URL instead would link `https://x.test/a.` the moment a full
+        // stop arrived, and then relink it when the rest of the path followed.
+        atEdge: openEnded && m.index + whole.length === text.length,
+      });
     } else if (m[5] !== undefined) {
       // An image: matched so it can be handed back exactly as it was written.
       parent.appendChild(doc.createTextNode(whole));
@@ -224,14 +369,8 @@ function appendInline(doc, parent, text, depth = 0) {
         // and see where it pointed, which is more than a silent removal says.
         parent.appendChild(doc.createTextNode(whole));
       } else {
-        const a = doc.createElement("a");
-        a.className = "xb-md-a";
-        a.setAttribute("href", href);
-        a.setAttribute("target", "_blank");
-        // noopener: the opened page must not reach back through window.opener.
-        // noreferrer: a team's chat must not leak its URL to whatever it links.
-        a.setAttribute("rel", "noopener noreferrer");
-        appendInline(doc, a, parts[1], depth + 1);
+        const a = buildAnchor(doc, href);
+        appendInline(doc, a, parts[1], { depth: depth + 1, inAnchor: true });
         parent.appendChild(a);
       }
     }
@@ -239,6 +378,45 @@ function appendInline(doc, parent, text, depth = 0) {
   }
   if (cursor < text.length) {
     parent.appendChild(doc.createTextNode(text.slice(cursor)));
+  }
+}
+
+/**
+ * Turn one bare-URL match into an anchor, or into the text it already was.
+ *
+ * THE HREF MUST EQUAL WHAT THE READER SEES. `safeHref` deletes every character
+ * a URL parser would delete before resolving — that is what closes the
+ * `java\nscript:` gap for `[text](target)`, where the reader sees a label and
+ * cannot inspect the target. A bare URL is the opposite situation: the target
+ * IS the label, so a href that differs from the visible characters would mean
+ * the destination is not the thing on screen. Rather than pick which one to
+ * trust, this refuses the whole construct — an autolink happens only when
+ * stripping changes nothing, and the URL stays plain text otherwise.
+ *
+ * That single comparison also carries the scheme refusal, so there is no second
+ * branch here that could never fire.
+ *
+ * @param {Document} doc
+ * @param {Element} parent
+ * @param {string} whole the raw match, punctuation and all
+ * @param {{inAnchor: boolean, atEdge: boolean}} state
+ */
+function appendAutolink(doc, parent, whole, state) {
+  const url = trimAutolinkTail(whole);
+  const href = safeHref(url);
+  // A label inside a link, or the growing edge of a stream: text, for now.
+  if (state.inAnchor || state.atEdge || href !== url) {
+    parent.appendChild(doc.createTextNode(whole));
+    return;
+  }
+  const a = buildAnchor(doc, href);
+  // createTextNode, not a re-parse: a URL's own characters are its content, and
+  // an `*` or a `_` in a path is part of the path.
+  a.appendChild(doc.createTextNode(url));
+  parent.appendChild(a);
+  // The full stop the writer ended their sentence with, outside the link.
+  if (whole.length > url.length) {
+    parent.appendChild(doc.createTextNode(whole.slice(url.length)));
   }
 }
 
@@ -253,11 +431,18 @@ const NUMBERED = /^ {0,3}(\d{1,9})\.\s+(.*)$/;
  *
  * @param {Document} doc
  * @param {string} src
+ * @param {boolean} [partial] the answer is still arriving, so the LAST line of
+ *   `src` may be half a line. Only that line is treated as open-ended: a line
+ *   with a newline after it is finished by definition, however the message ends.
  * @returns {Element[]} the blocks, in order, attached to nothing yet
  */
-function buildBlocks(doc, src) {
+function buildBlocks(doc, src, partial = false) {
   const lines = src.split(/\r\n|\r|\n/);
+  const lastLine = lines.length - 1;
+  /** Is the line at `index` the one still being typed into? */
+  const growing = (index) => partial && index === lastLine;
   const out = [];
+  /** @type {Array<{text: string, index: number}>} */
   let paragraph = [];
   let i = 0;
 
@@ -271,7 +456,9 @@ function buildBlocks(doc, src) {
       // whitespace collapse markdown would do to it. A <br> makes that
       // structural instead of leaving it to a white-space declaration.
       if (n > 0) p.appendChild(doc.createElement("br"));
-      appendInline(doc, p, paragraph[n]);
+      appendInline(doc, p, paragraph[n].text, {
+        openEnded: growing(paragraph[n].index),
+      });
     }
     out.push(p);
     paragraph = [];
@@ -321,7 +508,7 @@ function buildBlocks(doc, src) {
       const h = doc.createElement("div");
       h.className = "xb-md-h";
       h.dataset.level = String(heading[1].length);
-      appendInline(doc, h, heading[2].trim());
+      appendInline(doc, h, heading[2].trim(), { openEnded: growing(i) });
       out.push(h);
       i++;
       continue;
@@ -347,7 +534,9 @@ function buildBlocks(doc, src) {
         if (!item) break;
         const li = doc.createElement("li");
         li.className = "xb-md-li";
-        appendInline(doc, li, ordered ? item[2] : item[1]);
+        appendInline(doc, li, ordered ? item[2] : item[1], {
+          openEnded: growing(i),
+        });
         list.appendChild(li);
         i++;
       }
@@ -355,7 +544,7 @@ function buildBlocks(doc, src) {
       continue;
     }
 
-    paragraph.push(line);
+    paragraph.push({ text: line, index: i });
     i++;
   }
   flushParagraph();
@@ -363,14 +552,25 @@ function buildBlocks(doc, src) {
 }
 
 /**
- * The source string each element was last rendered from.
+ * What each element was last rendered from — the source AND the mode.
  *
  * Streaming rewrites the same bubble on every chunk, and a chunk that adds
  * nothing (an empty delta, a repeated frame) would otherwise rebuild the whole
  * answer for no change. Keyed weakly so a rendered message stops being tracked
  * when its row is removed from the list.
+ *
+ * THE MODE IS PART OF THE KEY and it has to be. The last chunk of an answer
+ * ending in a URL renders open-ended (text), and the finishing pass renders the
+ * SAME string closed (a link). Keying on the string alone would make that second
+ * pass a no-op and the final URL would stay unclickable until a reload — the
+ * exact bug this memo is otherwise there to avoid causing.
  */
 const lastSource = new WeakMap();
+
+/** The memo key: the mode, then a NUL, then the text. */
+function renderKey(src, partial) {
+  return `${partial ? "1" : "0"}\u0000${src}`;
+}
 
 /**
  * Render `text` as markdown INTO `el`, replacing whatever it held.
@@ -385,23 +585,31 @@ const lastSource = new WeakMap();
  *
  * @param {Element|null} el the message-body element (`.xb-msg-text`)
  * @param {string} text raw markdown, exactly as it arrived
+ * @param {{partial?: boolean}} [opts]
+ *   partial — `text` is a stream so far, not a whole answer. It costs exactly
+ *   one thing: a bare URL sitting at the very end stays plain text, because
+ *   half of `https://pitch.com/v/excalibur-proposal-pybqby` is a link to
+ *   somewhere else. The caller that knows the answer is finished renders again
+ *   without it, and the URL becomes an anchor once, on that pass.
  * @returns {Element|null} `el`, for chaining
  */
-export function renderMarkdownInto(el, text) {
+export function renderMarkdownInto(el, text, opts = {}) {
   if (!el) return el;
   const doc = el.ownerDocument;
   if (!doc || typeof doc.createElement !== "function") {
     throw new TypeError("renderMarkdownInto needs an element with an ownerDocument");
   }
   const src = typeof text === "string" ? text : text == null ? "" : String(text);
+  const partial = Boolean(opts && opts.partial);
   if (el.classList && typeof el.classList.add === "function") {
     el.classList.add("xb-md");
   }
-  if (lastSource.get(el) === src) return el;
+  const key = renderKey(src, partial);
+  if (lastSource.get(el) === key) return el;
 
-  const nodes = src ? buildBlocks(doc, src) : [];
+  const nodes = src ? buildBlocks(doc, src, partial) : [];
   while (el.firstChild) el.removeChild(el.firstChild);
   for (const node of nodes) el.appendChild(node);
-  lastSource.set(el, src);
+  lastSource.set(el, key);
   return el;
 }

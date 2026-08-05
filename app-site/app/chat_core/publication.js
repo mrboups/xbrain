@@ -90,13 +90,28 @@ export function createPublicationRouter(opts) {
       // `**Excalibur**` arrives as three chunks of which only the last one
       // makes a word bold. The renderer re-parses the whole answer and swaps
       // the body in one synchronous pass, so nothing is ever painted half-built.
-      if (renderer.writeStreamText(data.message_id, streamBuffer.get(data.message_id))) {
+      //
+      // `partial` says the last character is not the last character. It buys one
+      // thing: a bare URL at the end of the buffer stays text until the answer
+      // is done, so a reader never gets a clickable
+      // `https://pitch.com/v/excalibur-prop` that resolves to nothing.
+      if (
+        renderer.writeStreamText(data.message_id, streamBuffer.get(data.message_id), {
+          partial: true,
+        })
+      ) {
         renderer.scrollToBottom();
       }
       return;
     }
     if (data.type === "agent_stream_end") {
       streamBuffer.finalize(data.message_id);
+      // THE FINISHING PASS, and it is not cosmetic. Every chunk so far was
+      // rendered as an answer that might still grow; this is the only frame that
+      // knows it will not. Without it an answer ending in a URL — which is how
+      // half the agent's answers end — keeps that URL as dead text until the
+      // page is reloaded.
+      renderer.writeStreamText(data.message_id, streamBuffer.get(data.message_id));
       renderer.clearStreaming(data.message_id);
       return;
     }
