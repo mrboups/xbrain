@@ -757,6 +757,18 @@ test_i_static_suites() {
     ko "(i) the chat-core copies have DRIFTED — run 'node scripts/sync-chat-core.mjs' and commit the result"
     tail -25 "$PROBE_LOG" | sed 's/^/      /'
   fi
+
+  # The shell-cache name is DERIVED from the precached files (scripts/shell-cache.mjs).
+  # It used to be hand-bumped and was missed three times in three days; each miss
+  # served a returning reader a mix of old and new files, which presents as a broken
+  # feature rather than as a caching problem. This is the gate that catches it BEFORE
+  # a deploy rather than after one.
+  if node scripts/shell-cache.mjs --check > "$PROBE_LOG" 2>&1; then
+    ok "(i) the PWA shell-cache name matches the content it precaches"
+  else
+    ko "(i) a precached file changed and the shell-cache name did NOT — run 'node scripts/shell-cache.mjs' and commit sw.js"
+    tail -25 "$PROBE_LOG" | sed 's/^/      /'
+  fi
 }
 
 # ============================================================================
