@@ -1,160 +1,343 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- viewport-fit=cover is what makes the env(safe-area-inset-*) padding below
+       resolve to anything; without it the footer sits under the home indicator
+       on a notched phone. Most invite links are opened on one. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0A0A0A" media="(prefers-color-scheme: dark)" />
   <title>Join a team — GrooveOS</title>
   <meta name="description" content="Accept an xbrain team invite and join the team chat." />
   <meta name="robots" content="noindex" />
   <meta name="referrer" content="no-referrer" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700&display=swap"
-    rel="stylesheet"
-  />
-  <style>
-    :root {
-      --bg:        #0D1117;
-      --bg-2:      #161B22;
-      --bg-3:      #21262D;
-      --text:      #E6EDF3;
-      --muted:     #8B949E;
-      --dim:       #6E7681;
-      --accent:    #22D3EE;
-      --accent-bg: rgba(34, 211, 238, 0.12);
-      --accent-2:  #06B6D4;
-      --green:     #3FB950;
-      --green-bg:  rgba(63, 185, 80, 0.12);
-      --red:       #F85149;
-      --red-bg:    rgba(248, 81, 73, 0.12);
-      --border:    #30363D;
-      --border-2:  #444C56;
+  <script>
+    // Stamp the stored theme before the first paint, so somebody who chose light
+    // in the app or the extension is not shown a dark flash on the way in.
+    //
+    // Same key and same resolution rule as app-site/app/chat_core/theme.js, read
+    // directly rather than imported: this page ships as ONE static file with no
+    // build step, and an import would make it two. Only the two exact values are
+    // honoured — anything else falls through to the CSS below, which already
+    // follows the OS preference.
+    try {
+      var storedTheme = window.localStorage.getItem("xbrain_theme_v1");
+      if (storedTheme === "light" || storedTheme === "dark") {
+        document.documentElement.setAttribute("data-theme", storedTheme);
+      }
+    } catch (e) {
+      // Storage blocked or partitioned — the OS preference still applies.
     }
+  </script>
+  <style>
+    /* =====================================================================
+     * Design tokens — shadcn "Neutral" (monochrome, radius 0, Geist stack).
+     *
+     * Copied value for value from app-site/app/app.css, which took them from
+     * chrome-extension/popup.css. This page is the product's front door: a new
+     * member sees it BEFORE the chat and before the extension, and it has to
+     * read as the same product rather than as a different one that happens to
+     * hand out logins.
+     *
+     * Like app.css, this file pulls in NOTHING — no external webfont, no second
+     * stylesheet. The font stacks name real faces first and fall back to system
+     * ones, so the page paints on the first byte instead of after a round trip
+     * to a font CDN on a phone connection.
+     *
+     * THIS BLOCK IS THE ONLY PLACE A COLOUR IS WRITTEN DOWN. Every rule past
+     * the marker below resolves through a var(), which is what lets a theme
+     * change reach all of it; test_join_page.mjs fails the build if a literal
+     * appears down there.
+     * =================================================================== */
+
+    :root {
+      /* light palette */
+      --bg:#FFFFFF;
+      --fg:#0A0A0A;
+      --card:#FFFFFF;
+      --card-fg:#0A0A0A;
+      --muted:#F5F5F5;
+      --muted-fg:#737373;
+      --secondary:#F5F5F5;
+      --secondary-fg:#171717;
+      --primary:#0A0A0A;
+      --primary-fg:#FAFAFA;
+      --border:#E5E5E5;
+      --input:#E5E5E5;
+      --ring:#A3A3A3;
+      --destructive:#E5322D;
+      --radius:0px;
+      --sans:'Geist','Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+      --mono:'Geist Mono',ui-monospace,'Cascadia Code',Consolas,monospace;
+    }
+
+    /* The dark palette is declared TWICE so an explicit choice wins in BOTH
+       directions: once behind the OS query (the default when nobody has chosen),
+       and once behind :root[data-theme="dark"], which out-specifies the query
+       and therefore also beats a light OS setting. Same arrangement as app.css. */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0A0A0A;
+        --fg:#FAFAFA;
+        --card:#171717;
+        --card-fg:#FAFAFA;
+        --muted:#262626;
+        --muted-fg:#A3A3A3;
+        --secondary:#262626;
+        --secondary-fg:#FAFAFA;
+        --primary:#FAFAFA;
+        --primary-fg:#171717;
+        --border:rgba(255,255,255,.10);
+        --input:rgba(255,255,255,.15);
+        --ring:#787878;
+        --destructive:#FB5A57;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg:#0A0A0A;
+      --fg:#FAFAFA;
+      --card:#171717;
+      --card-fg:#FAFAFA;
+      --muted:#262626;
+      --muted-fg:#A3A3A3;
+      --secondary:#262626;
+      --secondary-fg:#FAFAFA;
+      --primary:#FAFAFA;
+      --primary-fg:#171717;
+      --border:rgba(255,255,255,.10);
+      --input:rgba(255,255,255,.15);
+      --ring:#787878;
+      --destructive:#FB5A57;
+    }
+    /* An explicit light choice overrides a dark OS. */
+    :root[data-theme="light"] {
+      --bg:#FFFFFF;
+      --fg:#0A0A0A;
+      --card:#FFFFFF;
+      --card-fg:#0A0A0A;
+      --muted:#F5F5F5;
+      --muted-fg:#737373;
+      --secondary:#F5F5F5;
+      --secondary-fg:#171717;
+      --primary:#0A0A0A;
+      --primary-fg:#FAFAFA;
+      --border:#E5E5E5;
+      --input:#E5E5E5;
+      --ring:#A3A3A3;
+      --destructive:#E5322D;
+    }
+
+    /* ===== TOKENS END — every rule below resolves through the tokens above ===== */
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { -webkit-font-smoothing: antialiased; }
     body {
-      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-family: var(--sans);
       background: var(--bg);
-      color: var(--text);
-      font-size: 13.5px;
-      line-height: 1.6;
+      color: var(--fg);
+      font-size: 14px;
+      line-height: 1.5;
       min-height: 100vh;
+      min-height: 100dvh;
     }
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
 
-    .wrap { max-width: 480px; margin: 0 auto; padding: 40px 24px 80px; }
+    a { color: var(--fg); text-decoration: underline; text-underline-offset: 2px; }
+    a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+    .wrap {
+      max-width: 420px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+      /* Clear of the notch and of the home indicator — this page is opened on a
+         phone more often than anywhere else. */
+      padding-top: calc(32px + env(safe-area-inset-top));
+      padding-bottom: calc(48px + env(safe-area-inset-bottom));
+    }
 
     .hdr {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding-bottom: 24px;
+      padding-bottom: 16px;
       border-bottom: 1px solid var(--border);
-      margin-bottom: 32px;
+      margin-bottom: 28px;
     }
-    .hdr__brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; }
-    .hdr__brand .dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 0 3px rgba(34,211,238,0.2);
+    .hdr__brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+    /* Square, like every avatar and every team tile in the product. The round
+       dot this replaced was the last curve on the page. */
+    .hdr__mark {
+      width: 10px;
+      height: 10px;
+      border-radius: var(--radius);
+      background: var(--primary);
     }
 
-    h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
-    .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 28px; line-height: 1.55; }
+    h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 6px; }
+    .subtitle {
+      color: var(--muted-fg);
+      font-size: 13px;
+      margin-bottom: 22px;
+    }
 
     .card {
-      background: var(--bg-2);
+      background: var(--card);
+      color: var(--card-fg);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 20px 22px;
-      margin-bottom: 16px;
+      border-radius: var(--radius);
+      padding: 18px 18px;
+      margin-bottom: 14px;
     }
 
-    .field { margin-bottom: 16px; }
+    .field { margin-bottom: 12px; }
     .field label {
       display: block;
-      font-size: 11px;
-      color: var(--muted);
-      margin-bottom: 6px;
+      font-family: var(--mono);
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      color: var(--muted-fg);
+      margin-bottom: 5px;
     }
     .field input {
       width: 100%;
+      padding: 9px 10px;
+      /* 16px minimum, and not a pixel less: iOS Safari zooms the whole page in
+         on a focused field below that size and never zooms back out — which on
+         an invite link reads as the page breaking on arrival. */
+      font-size: 16px;
+      font-family: var(--sans);
+      color: var(--fg);
       background: var(--bg);
-      color: var(--text);
-      border: 1px solid var(--border-2);
-      border-radius: 6px;
-      padding: 10px 12px;
-      font-family: inherit;
-      font-size: 13.5px;
+      border: 1px solid var(--input);
+      border-radius: var(--radius);
       outline: none;
     }
-    .field input:focus { border-color: var(--accent); }
+    .field input::placeholder { color: var(--muted-fg); }
+    .field input:focus-visible { outline: 2px solid var(--ring); outline-offset: 0; }
 
     .btn {
-      font-family: inherit;
+      font-family: var(--sans);
       font-size: 13px;
       font-weight: 600;
-      padding: 10px 16px;
-      border-radius: 6px;
+      padding: 9px 12px;
+      color: var(--fg);
+      background: var(--bg);
+      border: 1px solid var(--input);
+      border-radius: var(--radius);
       cursor: pointer;
-      transition: all 0.15s ease;
-      border: 1px solid var(--border-2);
-      background: var(--bg-3);
-      color: var(--text);
-    }
-    .btn:hover { background: var(--bg-2); border-color: var(--accent); }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
-    .btn-primary:hover { background: var(--accent-2); border-color: var(--accent-2); color: var(--bg); }
-    .btn-block { width: 100%; margin-top: 4px; }
-
-    .auth-banner {
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 10px 14px;
-      margin-top: 14px;
-      font-size: 12.5px;
-      color: var(--muted);
-      background: var(--bg-3);
-    }
-    .auth-banner.is-ok { border-color: var(--green); color: var(--green); background: var(--green-bg); }
-    .auth-banner.is-error { border-color: var(--red); color: var(--red); background: var(--red-bg); }
-
-    .result-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
-    .result-card.is-ok h3 { color: var(--green); }
-    .result-card.is-error h3 { color: var(--red); }
-    .result-card p { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
-    .result-card .team-name { color: var(--text); font-weight: 600; }
-
-    .steps { color: var(--muted); font-size: 12.5px; margin: 0 0 16px 18px; }
-    .steps li { margin-bottom: 4px; }
-
-    .google-btn-slot { display: flex; justify-content: center; min-height: 44px; }
-    .google-hint { font-size: 11px; color: var(--dim); text-align: center; margin-top: 8px; }
-    .signin-divider {
-      display: flex; align-items: center; gap: 10px;
-      margin: 18px 0 16px; color: var(--dim); font-size: 11px;
-      text-transform: uppercase; letter-spacing: 0.06em;
-    }
-    .signin-divider::before, .signin-divider::after {
-      content: ""; flex: 1; height: 1px; background: var(--border);
-    }
-
-    .footnote { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 4px; }
-    .footer {
-      margin-top: 60px;
-      padding-top: 24px;
-      border-top: 1px solid var(--border);
-      font-size: 11px;
-      color: var(--dim);
+      text-decoration: none;
+      display: inline-block;
       text-align: center;
     }
+    .btn:hover:not(:disabled) { background: var(--muted); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+    .btn-primary {
+      background: var(--primary);
+      color: var(--primary-fg);
+      border-color: var(--primary);
+    }
+    .btn-primary:hover:not(:disabled) { opacity: 0.88; background: var(--primary); }
+    .btn-block { width: 100%; margin-top: 4px; }
 
+    .banner {
+      margin-top: 12px;
+      padding: 8px 10px;
+      font-size: 12.5px;
+      color: var(--secondary-fg);
+      background: var(--secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    /* The status banner is the whole content of its card, so it carries no top
+       gap of its own. */
+    #status-card .banner { margin-top: 0; }
+    /* Neutral is monochrome: an outcome that went well is stated, not coloured.
+       Only failure gets a hue, because only failure needs to interrupt. */
+    .banner.is-ok { color: var(--fg); }
+    .banner.is-error { color: var(--destructive); border-color: var(--destructive); }
+
+    .result h2 { font-size: 16px; font-weight: 600; margin-bottom: 6px; color: var(--fg); }
+    .result.is-error h2 { color: var(--destructive); }
+    .result p { color: var(--muted-fg); font-size: 13px; margin-bottom: 14px; }
+
+    .steps {
+      color: var(--muted-fg);
+      font-size: 12.5px;
+      margin: 0 0 14px 18px;
+    }
+    .steps li { margin-bottom: 3px; }
+
+    .google-slot { display: flex; justify-content: center; min-height: 44px; }
+    .google-hint {
+      font-size: 11px;
+      color: var(--muted-fg);
+      text-align: center;
+      margin-top: 8px;
+    }
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 18px 0 16px;
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted-fg);
+    }
+    .divider::before, .divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .footnote {
+      font-size: 12.5px;
+      color: var(--muted-fg);
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    /* The way out. Present in every state, including the failures — a page that
+       cannot let somebody in and also cannot let them leave is the wall this
+       page used to be. */
+    .exit {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 18px;
+      font-size: 12.5px;
+      color: var(--muted-fg);
+    }
+    .exit__link { color: var(--muted-fg); }
+    .exit__link:hover { color: var(--fg); }
+
+    .footer {
+      margin-top: 44px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      color: var(--muted-fg);
+      text-align: center;
+    }
+    .footer a { color: var(--muted-fg); }
+
+    /* CRITICAL — the HTML `hidden` attribute sets display:none via the user-agent
+       stylesheet, but any explicit display: rule above would silently override
+       it. Force-hide hidden elements so no card can be revealed by accident. */
     [hidden] { display: none !important; }
   </style>
 </head>
@@ -162,7 +345,7 @@
   <div class="wrap">
     <header class="hdr">
       <div class="hdr__brand">
-        <span class="dot" aria-hidden="true"></span>
+        <span class="hdr__mark" aria-hidden="true"></span>
         GrooveOS
       </div>
     </header>
@@ -172,7 +355,7 @@
 
     <!-- State: working / transient status -->
     <div id="status-card" class="card" hidden>
-      <div id="status-banner" class="auth-banner"><span id="status-msg">&mdash;</span></div>
+      <div id="status-banner" class="banner" role="status"><span id="status-msg">&mdash;</span></div>
     </div>
 
     <!-- State: no code in the link -->
@@ -192,9 +375,9 @@
       <!-- Google FIRST: the Chrome extension signs people in with Google, so an
            account created there has NO password and could not authenticate here at
            all if this page only offered email/password. -->
-      <div id="google-btn" class="google-btn-slot"></div>
+      <div id="google-btn" class="google-slot"></div>
       <p id="google-hint" class="google-hint">Same account you use in the extension.</p>
-      <div class="signin-divider"><span>or</span></div>
+      <div class="divider"><span>or</span></div>
       <form id="signin-form">
         <div class="field">
           <label for="email">Email</label>
@@ -206,23 +389,48 @@
         </div>
         <button type="submit" id="signin-btn" class="btn btn-primary btn-block">Sign in and join</button>
       </form>
-      <div id="signin-banner" class="auth-banner" hidden><span id="signin-msg">&mdash;</span></div>
+      <div id="signin-banner" class="banner" hidden><span id="signin-msg">&mdash;</span></div>
     </div>
 
-    <!-- State: done (joined / already a member / failed) -->
-    <div id="result-card" class="card result-card" hidden>
-      <h3 id="result-title">&mdash;</h3>
+    <!-- State: done (joined / already a member / failed)
+         =====================================================================
+         WHY THIS IS A CONTROL AND NOT A REDIRECT.
+
+         Joining is the one thing this page exists to do, and "You joined
+         <team>" is the answer to the question the link asked. An automatic jump
+         to /app/ would be one tap friendlier and would erase that answer before
+         a slow phone had finished painting it — and on a phone, in a standalone
+         PWA, there is no back button to get it again. So the confirmation stays
+         on screen and the next step is offered as the primary control right
+         under it: one tap, obvious, and taken deliberately.
+
+         The same card carries the failures, where there is no chat to open and
+         a redirect would be actively wrong. One shape, one code path, no
+         state-dependent navigation to get subtly wrong.
+         ================================================================== -->
+    <div id="result-card" class="card result" hidden aria-live="polite">
+      <h2 id="result-title">&mdash;</h2>
       <p id="result-body">&mdash;</p>
       <ol class="steps" id="result-steps" hidden>
-        <li>Open the xbrain extension in Chrome.</li>
-        <li>Pick the team from the selector at the top.</li>
+        <li>Pick the team from the rail at the top of the chat.</li>
+        <li>The xbrain extension in Chrome shows the same teams.</li>
       </ol>
-      <a href="/account/teams/" class="btn btn-primary" id="result-cta">Go to Teams</a>
+      <a href="/app/" class="btn btn-primary btn-block" id="result-cta">Open the chat</a>
     </div>
 
     <p class="footnote" id="register-footnote" hidden>
       No account yet? <a href="/account/register/">Create one</a>, then reopen this invite link.
     </p>
+
+    <!-- The exit, on every state including the ones that failed. Deliberately
+         OUTSIDE the cards and never touched by hideAll(), so no state can take
+         it away: somebody who is already signed in, or who changed their mind,
+         or whose invite turned out to be dead, still has somewhere to go. -->
+    <nav class="exit" id="page-exit" aria-label="Leave this page">
+      <a href="/app/" id="exit-app" class="exit__link">Open the chat</a>
+      <span aria-hidden="true">&middot;</span>
+      <a href="/account/teams/" id="exit-teams" class="exit__link">Your teams</a>
+    </nav>
 
     <footer class="footer">
       xbrain &middot; memory layer for hybrid teams &middot;
@@ -249,6 +457,11 @@
     // Canonical localStorage keys — SAME keys login/teams/admin use.
     const STORAGE_TOKEN = "xbt_token";
     const STORAGE_EMAIL = "user_sub";
+
+    // Every exit on this page is a plain <a href> in the markup above, not a
+    // destination this script assigns. That is deliberate: the links still work
+    // if anything below throws, which is the one case where being stuck here
+    // would be hardest to explain.
 
     const el = function (id) { return document.getElementById(id); };
 
@@ -316,6 +529,11 @@
       return code;
     }
 
+    /**
+     * Hide every state card. The exit nav is deliberately NOT in here: it is the
+     * one thing on the page that must survive every state, including the ones
+     * where joining failed.
+     */
     function hideAll() {
       statusCard.hidden = true;
       codeCard.hidden = true;
@@ -327,7 +545,7 @@
     function showStatus(msg, type) {
       hideAll();
       statusMsg.textContent = msg;
-      statusBanner.className = "auth-banner" + (type ? " is-" + type : "");
+      statusBanner.className = "banner" + (type ? " is-" + type : "");
       statusCard.hidden = false;
     }
 
@@ -335,8 +553,11 @@
       hideAll();
       resultTitle.textContent = title;
       resultBody.textContent = body;
-      resultCard.className = "card result-card" + (kind ? " is-" + kind : "");
+      resultCard.className = "card result" + (kind ? " is-" + kind : "");
       resultSteps.hidden = !(opts && opts.steps);
+      // The primary control goes with the outcome: it is offered when there IS a
+      // chat to open, and withheld when there is not. The exit nav below the card
+      // stays either way, so a failure is never a dead end.
       resultCta.hidden = !!(opts && opts.hideCta);
       resultCard.hidden = false;
     }
@@ -376,7 +597,7 @@
      * Chrome extension does (onboarding.js): POST /v1/me/api-token authenticated
      * with the Google credential, then read /v1/me for the canonical source_user_id.
      * Storing the same two keys the rest of app-site uses means a person who signs
-     * in here is also signed in on /account/teams/.
+     * in here is also signed in on /account/teams/ and in the chat at /app/.
      */
     async function signInWithGoogleCredential(credential) {
       showStatus("Signing you in…");
@@ -393,7 +614,7 @@
           askToSignIn();
           signinMsg.textContent =
             "Google sign-in was rejected by the server (HTTP " + mintRes.status + ").";
-          signinBanner.className = "auth-banner is-error";
+          signinBanner.className = "banner is-error";
           signinBanner.hidden = false;
           return;
         }
@@ -411,7 +632,7 @@
       } catch (err) {
         askToSignIn();
         signinMsg.textContent = "Could not complete Google sign-in. Try again.";
-        signinBanner.className = "auth-banner is-error";
+        signinBanner.className = "banner is-error";
         signinBanner.hidden = false;
       }
     }
@@ -444,8 +665,15 @@
           if (resp && resp.credential) signInWithGoogleCredential(resp.credential);
         },
       });
+      // filled_black on a page that is light by default would be the one black
+      // slab in it, so the button follows the resolved theme like everything else.
+      const dark =
+        document.documentElement.getAttribute("data-theme") === "dark" ||
+        (!document.documentElement.getAttribute("data-theme") &&
+          typeof window.matchMedia === "function" &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches);
       g.accounts.id.renderButton(slot, {
-        theme: "filled_black",
+        theme: dark ? "filled_black" : "outline",
         size: "large",
         text: "signin_with",
         shape: "rectangular",
@@ -496,7 +724,7 @@
         localStorage.removeItem(STORAGE_TOKEN);
         askToSignIn();
         signinMsg.textContent = "Your session expired. Sign in again to accept the invite.";
-        signinBanner.className = "auth-banner is-error";
+        signinBanner.className = "banner is-error";
         signinBanner.hidden = false;
         return;
       }
@@ -550,7 +778,7 @@
 
       signinBtn.disabled = true;
       signinMsg.textContent = "Signing in…";
-      signinBanner.className = "auth-banner";
+      signinBanner.className = "banner";
       signinBanner.hidden = false;
 
       try {
@@ -574,11 +802,11 @@
           r.status === 401 ? (detail || "Invalid email or password.")
           : r.status === 429 ? (detail || "Too many attempts — try again shortly.")
           : (detail || ("Sign-in failed (HTTP " + r.status + ")."));
-        signinBanner.className = "auth-banner is-error";
+        signinBanner.className = "banner is-error";
         signinBanner.hidden = false;
       } catch (err) {
         signinMsg.textContent = "Network error — could not reach the server.";
-        signinBanner.className = "auth-banner is-error";
+        signinBanner.className = "banner is-error";
         signinBanner.hidden = false;
       } finally {
         signinBtn.disabled = false;
