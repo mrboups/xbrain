@@ -764,5 +764,106 @@ test("the jump control agrees with the rest of the app about where the bottom is
   );
 });
 
+// ---- Swipe to switch team: the wiring, which is where this can go wrong ----
+//
+// swipe_nav.js is tested on its own. What cannot be tested there is the thing
+// that actually matters here: that the gesture borrows the RAIL's order and the
+// RAIL's switch. A swipe that changed the view without changing the websocket
+// subscription is the worst available outcome, because it looks like it worked.
+
+test("the swipe goes through the rail — its order AND its switch", () => {
+  const body = stripComments(pwaChatJs);
+  assert.match(
+    body,
+    /import \{ createSwipeNavigator \} from "\.\/chat_core\/swipe_nav\.js"/,
+    "the gesture is shared code, not a set of touch handlers written into the surface",
+  );
+  assert.match(
+    body,
+    /teamRail\.selectAdjacent\(/,
+    "the swipe must ask the rail which team is next — a second order computed here " +
+      "would be right until the first drag-to-reorder, and silently wrong after it",
+  );
+  // A swipe must not reach switchTeam, the team list or storage on its own. Each
+  // of those would be a second path into the same state, and the two would drift.
+  const handler = /onSwipe:\s*\(direction\)\s*=>\s*\{([\s\S]*?)\n  \},/.exec(pwaChatJs);
+  assert.ok(handler, "chat.js has no onSwipe handler to check");
+  for (const forbidden of ["switchTeam(", "state.teams", "state.activeTeamId", "storage."]) {
+    assert.ok(
+      !handler[1].includes(forbidden),
+      `the swipe handler touches ${forbidden} directly — everything must go through selectAdjacent`,
+    );
+  }
+});
+
+test("the swipe is bound to the thread, and refuses the places it must not claim", () => {
+  const body = stripComments(pwaChatJs);
+  const call = /createSwipeNavigator\(\{([\s\S]*?)\n\}\);/.exec(body);
+  assert.ok(call, "chat.js has no createSwipeNavigator call");
+  assert.match(call[1], /surfaceEl:\s*el\("chat-scroll"\)/, "the gesture belongs to the thread");
+  for (const selector of ["#composer", "#team-rail"]) {
+    assert.ok(
+      call[1].includes(selector),
+      `a touch starting in ${selector} must not be a team switch — it is typing, or the rail's own drag`,
+    );
+  }
+  assert.equal(
+    (body.match(/createSwipeNavigator\(/g) || []).length,
+    1,
+    "exactly one navigator; a second would switch two teams per swipe",
+  );
+});
+
+test("no mouse or wheel handler leaked into the surface either — desktop is untouched", () => {
+  const body = stripComments(pwaChatJs);
+  for (const banned of ['"wheel"', '"mousedown"', '"mousemove"', '"pointerdown"']) {
+    assert.ok(
+      !body.includes(`addEventListener(${banned}`),
+      `chat.js binds ${banned} — a trackpad flick or a text selection would change team`,
+    );
+  }
+});
+
+test("the swipe transition exists ONLY under prefers-reduced-motion: no-preference", () => {
+  // Not an animation that a later rule switches off — one that does not exist
+  // for a reader who asked for less motion. There is no second place to forget.
+  // Closed on a `}` in column ONE — the nested keyframes are indented, so this
+  // takes the media query's own brace rather than the first one it meets.
+  const block = /@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)^\}/m.exec(pwaCss);
+  assert.ok(block, "app.css declares no no-preference block");
+  assert.match(block[1], /data-swipe="next"/, "the forward slide lives inside it");
+  assert.match(block[1], /data-swipe="previous"/, "and so does the backward one");
+  assert.match(block[1], /@keyframes xb-swipe-from-right/);
+  assert.match(block[1], /@keyframes xb-swipe-from-left/);
+
+  // And nothing about the swipe animates outside that block.
+  const outside = pwaCss.replace(block[0], "");
+  assert.ok(
+    !/data-swipe/.test(outside),
+    "a data-swipe rule outside the no-preference block would move for everybody",
+  );
+  assert.ok(
+    !/xb-swipe-from-(right|left)/.test(outside),
+    "the keyframes must not be reachable from outside the guard either",
+  );
+});
+
+test("the swipe writes a state the stylesheet reads, and clears it again", () => {
+  const body = stripComments(pwaChatJs);
+  const fn = /function markSwipeDirection\([^)]*\)\s*\{[\s\S]*?\n\}/.exec(body);
+  assert.ok(fn, "chat.js has no markSwipeDirection()");
+  assert.match(fn[0], /dataset\.swipe\s*=/, "it must write the attribute the CSS keys off");
+  assert.match(
+    fn[0],
+    /delete\s+scrollEl\.dataset\.swipe/,
+    "and remove it — an attribute left behind replays the animation on the next repaint",
+  );
+});
+
+test("swipe_nav.js is precached, or the PWA loads chat.js against a module the cache never fetched", () => {
+  const sw = readFileSync(join(APP_DIR, "sw.js"), "utf8");
+  assert.ok(sw.includes('"/app/chat_core/swipe_nav.js"'), "sw.js must precache swipe_nav.js");
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

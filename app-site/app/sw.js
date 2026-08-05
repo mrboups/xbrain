@@ -52,8 +52,10 @@
  *      fix rather than a caching problem.
  * v12 — bare URLs in an agent's answer are clickable: chat_core/markdown.js,
  *      render.js and publication.js all changed.
+ * v13 — swipe left/right to switch team: chat_core/swipe_nav.js joins the shell,
+ *      and chat_core/team_rail.js, chat.js and app.css changed.
  */
-const CACHE = "xb-app-shell-v12";
+const CACHE = "xb-app-shell-v13";
 
 /**
  * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07
@@ -97,6 +99,7 @@ const SHELL = [
   "/app/chat_core/people.js",
   "/app/chat_core/invite.js",
   "/app/chat_core/team_api_keys.js",
+  "/app/chat_core/swipe_nav.js",
   "/app/chat_core/team_rail.js",
   "/app/chat_core/teams.js",
 ];
