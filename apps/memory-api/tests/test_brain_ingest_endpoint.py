@@ -25,6 +25,18 @@ import httpx
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+def _verdict(relevant: bool, *, important: bool = False, **kw):
+    """The classifier's answer. The seam is `classify_detailed`, not `classify`.
+
+    Since 2026-08-05 one call answers both AI-owned levels, so the ingest path
+    reads a ClassifyResult rather than a bool — patching the bool wrapper would
+    leave the real classifier running and these tests asserting nothing.
+    """
+    from app.services.relevance_filter import ClassifyResult
+
+    return ClassifyResult(relevant=relevant, important=important, **kw)
+
+
 # ─── Integration-test helpers (require app.main → qdrant_client) ─────
 
 
@@ -127,8 +139,8 @@ async def test_ingest_endpoint_fire_and_forget(app_client_bridge):
         return_value=MagicMock(upsert=AsyncMock(side_effect=RuntimeError("db exploded"))),
     ):
         with patch(
-            "app.services.relevance_filter.classify",
-            new=AsyncMock(return_value=True),
+            "app.services.relevance_filter.classify_detailed",
+            new=AsyncMock(return_value=_verdict(True)),
         ):
             resp = await app_client_bridge.post(
                 "/v1/brain/ingest",
@@ -156,8 +168,8 @@ async def test_ingest_external_message_builds_memory_item():
 
     with patch("app.services.brain_ingest.get_memory_provider", return_value=mock_provider):
         with patch(
-            "app.services.relevance_filter.classify",
-            new=AsyncMock(return_value=True),
+            "app.services.relevance_filter.classify_detailed",
+            new=AsyncMock(return_value=_verdict(True)),
         ):
             await brain_ingest.ingest_external_message(
                 team_scope="t1",
@@ -191,8 +203,8 @@ async def test_ingest_external_message_skips_when_classify_false():
 
     with patch("app.services.brain_ingest.get_memory_provider", return_value=mock_provider):
         with patch(
-            "app.services.relevance_filter.classify",
-            new=AsyncMock(return_value=False),
+            "app.services.relevance_filter.classify_detailed",
+            new=AsyncMock(return_value=_verdict(False)),
         ):
             await brain_ingest.ingest_external_message(
                 team_scope="t1",
@@ -222,8 +234,8 @@ async def test_ingest_external_message_deterministic_id():
 
     with patch("app.services.brain_ingest.get_memory_provider", return_value=mock_provider):
         with patch(
-            "app.services.relevance_filter.classify",
-            new=AsyncMock(return_value=True),
+            "app.services.relevance_filter.classify_detailed",
+            new=AsyncMock(return_value=_verdict(True)),
         ):
             # Call twice with the same idempotency_key
             for _ in range(2):
@@ -250,8 +262,8 @@ async def test_ingest_external_message_fail_soft():
             upsert=AsyncMock(side_effect=RuntimeError("simulated upsert failure"))
         )
         with patch(
-            "app.services.relevance_filter.classify",
-            new=AsyncMock(return_value=True),
+            "app.services.relevance_filter.classify_detailed",
+            new=AsyncMock(return_value=_verdict(True)),
         ):
             # Must not raise
             result = await brain_ingest.ingest_external_message(
