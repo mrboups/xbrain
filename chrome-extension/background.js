@@ -453,7 +453,9 @@ async function sendToBrain(token, payload) {
         project_scope: payload.project_scope || null,
         visibility: payload.visibility || "team",
         confidence: payload.confidence !== undefined ? payload.confidence : 1.0,
-        truth_level: payload.truth_level || "EPHEMERAL",
+        // Matches clipDefaultTruthLevel: a capture with no level stated is a
+        // deliberate keep, and EPHEMERAL would hide it from every recall path.
+        truth_level: payload.truth_level || "WORKING",
         source: payload.source || "chrome:unknown",
         validation_status: payload.validation_status || "pending",
         created_at: now,
@@ -1446,7 +1448,7 @@ chrome.contextMenus &&
           project_scope: settings.clipDefaultProject || null,
           visibility: "team",
           confidence: 1.0,
-          truth_level: settings.clipDefaultTruthLevel || "EPHEMERAL",
+          truth_level: settings.clipDefaultTruthLevel || "WORKING",
           source: payload.source,
           validation_status: "pending",
         });

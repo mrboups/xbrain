@@ -28,7 +28,15 @@ export const DEFAULT_SETTINGS = Object.freeze({
   // both defaults are present, the 📎 click sends immediately after a
   // 1.5s confirm grace window.
   clipDefaultProject: null,
-  clipDefaultTruthLevel: "EPHEMERAL",
+  // WORKING, not EPHEMERAL, since 2026-08-05. A clip is a deliberate act — somebody
+  // saw a page and chose to keep it — and EPHEMERAL is excluded from every recall
+  // path, so the old default meant the agent could not see anything anyone clipped
+  // until a human promoted it by hand. Nobody did, so clipping did nothing.
+  //
+  // The cost is real and accepted: recall now includes pages kept on a hunch, and
+  // EPHEMERAL no longer has a producer in this path. Anything that must not enter
+  // recall can still be sent at EPHEMERAL explicitly.
+  clipDefaultTruthLevel: "WORKING",
   clipSkipOverlay: false,
   // Phase 22 push-a-link (D-22-04). When ON (default), an incoming open_url
   // nudge from a teammate shows a consent notification; when OFF, the receive

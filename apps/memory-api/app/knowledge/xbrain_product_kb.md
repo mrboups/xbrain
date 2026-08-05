@@ -44,7 +44,7 @@ Monitor) are excluded from all recall and purged after 30 days.
 
 | Label shown to user | Internal enum | Meaning |
 |---------------------|---------------|---------|
-| **raw**             | `EPHEMERAL`   | default for new captures. "I saw this once." Low confidence. |
+| **raw**             | `EPHEMERAL`   | "I saw this once." Low confidence, and **excluded from every recall path** — so nothing at this level reaches the agent. No longer the default for a clip (see below). |
 | **work**            | `WORKING`     | confirmed by at least one person. Useful, not yet source of truth. |
 | **validated**       | `VALIDATED`   | checked against reality, suitable for decisions. |
 | **production**      | `CANONICAL`   | team-blessed authoritative truth. |
@@ -54,6 +54,13 @@ Use the **labels** (raw / work / validated / production) when talking to users;
 the enum values are what's stored and queried. Promotion is **one-way** and
 **requires a real human user** (agents cannot self-promote). EPHEMERAL ("raw")
 items are ignored by default in recall so noise doesn't drown signal.
+
+**A clip lands at `work`, not `raw`** (changed 2026-08-05). Clipping is a deliberate
+act — somebody saw a page and chose to keep it — and while `raw` was the default,
+nothing anyone clipped was ever visible to the agent until a human promoted it by hand.
+Nobody did, so clipping did nothing. The accepted cost: recall now includes pages kept
+on a hunch. Anything that must stay out of recall can still be sent at `raw` explicitly,
+and the level is configurable in the extension's settings.
 
 ## How the brain surfaces knowledge (3 recall paths)
 

@@ -65,7 +65,7 @@ await test("loadSettings returns defaults when storage empty", async () => {
     openInSidePanel: true,
     autoFillLibreChat: true,
     clipDefaultProject: null,
-    clipDefaultTruthLevel: "EPHEMERAL",
+    clipDefaultTruthLevel: "WORKING",
     clipSkipOverlay: false,
     allowOpenLinkRequests: true,
     autoOpenLinkRequests: false,
@@ -141,7 +141,10 @@ await test("mergeSettings strips unknown keys and wrong-typed values", () => {
   assert.equal(out.autoFillLibreChat, true); // ignored → default
   assert.equal(out.unknownKey, undefined);
   assert.equal(out.clipDefaultProject, null); // default
-  assert.equal(out.clipDefaultTruthLevel, "EPHEMERAL"); // default
+  // WORKING since 2026-08-05: EPHEMERAL is excluded from every recall path, so the
+  // old default meant a clipped page was invisible to the agent until a human
+  // promoted it by hand — which nobody did.
+  assert.equal(out.clipDefaultTruthLevel, "WORKING"); // default
 });
 
 await test("mergeSettings accepts string + null for nullable keys", () => {
