@@ -168,8 +168,9 @@ async def ingest_external_message(
 ) -> None:
     """Fire-and-forget brain ingest from LibreChat, Open WebUI, or future frontends.
 
-    Gates on the Haiku relevance classifier (relevance_filter.classify) — falls back
-    to the heuristic on any classifier error per Phase 13 D1.
+    Gates on the Haiku classifier (relevance_filter.classify_detailed) — falls back
+    to the heuristic on any classifier error per Phase 13 D1, which keeps the item
+    at WORKING rather than dropping it or guessing it final.
 
     Idempotency: when metadata['idempotency_key'] is present, the MemoryItem.id is
     derived deterministically via uuid5(BRAIN_INGEST_NS, idempotency_key). This makes
