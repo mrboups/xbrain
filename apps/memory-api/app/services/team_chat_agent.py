@@ -118,6 +118,62 @@ AGENT_FAILURE_TIMEOUT = (
     "The agent took too long to answer and the attempt was stopped. "
     "Worth trying again."
 )
+# ---------------------------------------------------------------------------
+# An answer that was never sent is not an answer
+# ---------------------------------------------------------------------------
+#
+# The request went out, the transport reported success, and nothing came back.
+# This used to be persisted as the agent's CONTENT, literally `(empty response)`
+# — a parenthetical apology in the thread, attributed to the agent, and
+# indistinguishable from the agent choosing to say nothing. Two of them landed in
+# production thirty minutes apart while every log line said `team_chat_agent.done`.
+#
+# It gets its own code because the condition is genuinely distinct from a refused
+# key and from an absent route, and the two transports fail this way for different
+# reasons — so the sentence names which one came back empty. The row's
+# `routed_via` says the same thing in machine-readable form, which is how a person
+# can tell which path answered.
+#
+# IT IS PER-USER, WHICH IS THE WHOLE CLUE. Observed in production: two people in
+# ONE team, both routed `user_promax`, one getting answers and one getting
+# nothing — and the FRESHER bridge was the one failing (49 seconds vs three
+# hours), which rules out liveness. session-bridge logged `chat.routed` and 200
+# OK. The socket was alive, the browser ran the fetch, and claude.ai gave that
+# browser nothing usable. docs/session-bridge-guide.md §9 names the likeliest
+# reason first: not signed in to the provider in that browser profile, or the
+# session expired.
+#
+# So the subscription sentence names a CHECK the person can perform in under a
+# minute, not a cause the server is in no position to verify. It never says "you
+# are logged out" — the server saw an empty body, nothing more — but it does say
+# where to look, because the alternative is telling somebody a product is broken
+# when they are one sign-in away from it working.
+#
+# WHY THE SUBSCRIPTION PATH DOES NOT FALL THROUGH TO A KEY.
+#
+# It is the tempting repair and it is wrong twice over.
+#
+# If the cause is a stale claude.ai session, the fall-through bills the team's API
+# key for a LOGIN problem — money spent on something that was free and that the
+# person could have fixed themselves, and they would find out from an invoice.
+#
+# If the cause is instead our own SSE parsing — the other failure §9 records, a
+# CRLF delimiter against a client splitting on "\n\n": zero blocks parsed, 200 OK,
+# empty reply — then it is not occasional but TOTAL, and the fall-through quietly
+# pays per turn, forever, to route around a bug we control.
+#
+# The same reasoning already applies twice in this file: a refused team key is not
+# retried on the operator's, and a selected provider with no key is not answered
+# by a different one. Spending money the person did not ask for is what all three
+# rules refuse.
+AGENT_FAILURE_EMPTY_SUBSCRIPTION = (
+    "The Claude subscription accepted the request and sent nothing back. Check "
+    "that you are signed in to claude.ai in the browser where the xbrain "
+    "extension is signed in, then send this again."
+)
+AGENT_FAILURE_EMPTY_PROVIDER = (
+    "The provider accepted the request and sent nothing back. Worth trying again."
+)
 
 # ---------------------------------------------------------------------------
 # Not available is not the same as broken
@@ -176,6 +232,8 @@ AGENT_UNAVAILABLE_PROVIDER_KEY_MISSING = (
 FAILURE_CODE_TIMEOUT = "timeout"
 FAILURE_CODE_UNAVAILABLE = "unavailable"
 FAILURE_CODE_CONFIGURATION = "configuration"
+# An attempt succeeded at the transport level and produced no text at all.
+FAILURE_CODE_EMPTY_ANSWER = "empty_answer"
 # The three that mean "there was nothing to try", not "the try went wrong".
 FAILURE_CODE_NO_ROUTE = "no_route"
 FAILURE_CODE_SUBSCRIPTION_LOST = "subscription_lost"
@@ -218,6 +276,23 @@ class TeamKeyRejected(Exception):
     Carries no detail on purpose. It exists to name WHOSE key failed, and the
     key itself must not be anywhere near an exception that gets logged.
     """
+
+
+class EmptyAnswer(Exception):
+    """The transport reported success and streamed no text at all.
+
+    Raised at the END of a clean stream rather than detected afterwards, so it
+    travels the same path every other outcome does — one classifier, one publish,
+    one persisted row. That is what makes the live frame and the reloaded row
+    agree: there is no second way for a turn to end.
+
+    Carries WHICH path came back empty, as a boolean, and no text. The two
+    sentences it selects between are fixed.
+    """
+
+    def __init__(self, *, via_subscription: bool) -> None:
+        super().__init__()
+        self.via_subscription = via_subscription
 
 
 class ProviderKeyMissing(Exception):
@@ -356,6 +431,21 @@ def classify_stream_failure(exc: BaseException) -> dict[str, Any]:
             "retryable": False,
         }
 
+    if isinstance(exc, EmptyAnswer):
+        # Retryable, and honestly so: an empty stream is transient far more often
+        # than not. If it is NOT transient — a changed SSE shape, say — every turn
+        # comes back here, which is a far better signal than every turn quietly
+        # spending a key.
+        return {
+            "code": FAILURE_CODE_EMPTY_ANSWER,
+            "message": (
+                AGENT_FAILURE_EMPTY_SUBSCRIPTION
+                if getattr(exc, "via_subscription", False)
+                else AGENT_FAILURE_EMPTY_PROVIDER
+            ),
+            "retryable": True,
+        }
+
     if isinstance(exc, TeamKeyRejected):
         return {
             "code": FAILURE_CODE_TEAM_KEY_REJECTED,
@@ -385,12 +475,24 @@ def classify_stream_failure(exc: BaseException) -> dict[str, Any]:
         "message": AGENT_FAILURE_RETRYABLE,
         "retryable": True,
     }
+# The preamble is byte-STABLE across turns on purpose. It sits in front of the
+# cache_control'd product KB block, and Anthropic matches cached prefixes, so a
+# preamble that varied per turn would invalidate the KB cache on every message.
+# That is why the rule about web content lives here (always true) while the
+# per-turn FACT of what was fetched lives in the uncached user turn — see
+# NO_WEB_CONTENT_MARKER.
 SYSTEM_PROMPT_PREAMBLE = (
-    "You are Claude, embedded in the xbrain team chat for team {team_slug}. "
+    "You are the xbrain agent, embedded in the team chat for team {team_slug}. "
     "Answer based on the product knowledge base below, the team's memory "
     "items, and the recent chat history. Be concise, factual, and reference "
     "specific items when relevant. If you don't know, say so — do not "
-    "hallucinate."
+    "hallucinate.\n\n"
+    "You cannot browse the web. The ONLY web page content you can see is what "
+    "appears under '## Fetched web content' in this conversation. If that "
+    "section says nothing was fetched, you have not read the linked page: say "
+    "plainly that you cannot see its contents and ask for the relevant text to "
+    "be pasted in. Never state or imply that you fetched, opened, visited, or "
+    "read a link — not even as a preamble to explaining that you could not."
 )
 
 # Path to the markdown product KB shipped in the repo. Loaded once at module
@@ -486,18 +588,23 @@ async def _do_handle(
     cached_memory_block = _format_memory_block(bundle["bundle"])
     chat_history_block = _format_chat_history(recent)
 
-    # Pre-fetch URLs mentioned in the triggering message and append to the
-    # (uncached) user turn so @claude can read linked pages. Fail-soft.
-    web_block = await _build_fetched_web_block(
-        triggering_message.content or "", team.slug
+    # Pre-fetch the links this mention is plausibly about and append them to the
+    # (uncached) user turn. The window is the recent conversation, not just the
+    # summoning message: "paste a link, then ask about it" is how people actually
+    # use a chat, and reading only the mention found nothing in exactly that case.
+    #
+    # The block is appended UNCONDITIONALLY. When there is nothing to fetch it
+    # says so, because a prompt that silently omits the section invites the model
+    # to claim a fetch that never happened — which is what it did.
+    prefetch_urls = _recent_urls(triggering_message=triggering_message, recent=recent)
+    chat_history_block = chat_history_block + await _build_fetched_web_block(
+        prefetch_urls, team.slug
     )
-    if web_block:
-        chat_history_block = chat_history_block + web_block
-        log.info(
-            "team_chat_agent.web_prefetch",
-            team_id=str(team_id),
-            urls=web_block.count("### "),
-        )
+    log.info(
+        "team_chat_agent.web_prefetch",
+        team_id=str(team_id),
+        urls=len(prefetch_urls),
+    )
 
     # Decide routing. The subscription is the preferred path; a key is the floor
     # under it; neither is an unavailability, not an error. The team's own key
@@ -627,6 +734,19 @@ async def _do_handle(
             # team key.
             raise _no_route_for(provider)
 
+        if not "".join(full_text_parts).strip():
+            # The transport said 200 and sent no text. Raised HERE, inside the
+            # same try, so it is classified, published and persisted by the same
+            # three lines every other outcome uses — which is what stops a reload
+            # from disagreeing with the live view.
+            #
+            # It deliberately does NOT retry on the fallback key when the
+            # subscription came back empty. See AGENT_FAILURE_EMPTY_SUBSCRIPTION
+            # above: the likeliest cause is our own SSE parsing, that failure is
+            # total rather than occasional, and silently paying per turn to route
+            # around it is how a team finds out from an invoice.
+            raise EmptyAnswer(via_subscription=has_promax)
+
     except Exception as e:  # noqa: BLE001
         # The team is told THAT the agent failed and whether waiting helps. The
         # provider's own words go to the log and no further — see the
@@ -661,13 +781,13 @@ async def _do_handle(
     # message the agent never wrote, attributed to it forever. Partial text is
     # still kept when some arrived: the team can see what came through, and the
     # flag below is what stops it reading as a complete answer.
+    # There is no third branch any more. A clean stream that produced nothing
+    # raised EmptyAnswer above, so `failure is None` now GUARANTEES text. The
+    # parenthetical placeholder that used to live here was a failure wearing an
+    # answer's clothes: it went into the thread as the agent's own words and read
+    # as the agent choosing to say nothing.
     partial_text = "".join(full_text_parts).strip()
-    if failure is None:
-        full_text = partial_text or "(empty response)"
-    elif partial_text:
-        full_text = partial_text
-    else:
-        full_text = failure["message"]
+    full_text = partial_text if partial_text else failure["message"]  # type: ignore[index]
 
     elapsed_ms = int((time.monotonic() - started_at) * 1000)
 
@@ -878,6 +998,27 @@ _TRAILING_PUNCT = set(".,;:!?)]}\"'>")
 _MAX_FETCHED_CHARS = 6000
 _MAX_URLS = 3
 
+# HOW FAR BACK A LINK COUNTS AS "the one being asked about".
+#
+# The pre-fetch used to read the summoning message and nothing else, which is
+# exactly as written and wrong in practice: pasting a link and THEN asking about
+# it is the normal way people use a chat. Nobody composes
+# "@agent what is https://… about" in one breath. A real transcript —
+#
+#   23:15  someone   https://pitch.example/
+#   23:18  someone   @agent When is it and where?
+#
+# — fetched nothing at all, and the agent then answered about a page it had never
+# seen.
+#
+# Both bounds exist to stop the opposite error. Re-fetching a link from last week
+# because it is still in the history buffer is a different bug, and one that
+# spends a scraper call plus 6000 characters of context on something nobody
+# asked about. Ten messages is comfortably wider than the "paste, then ask"
+# pattern; thirty minutes is a conversation, not a backlog.
+_URL_LOOKBACK_MESSAGES = 10
+_URL_LOOKBACK_S = 30 * 60
+
 
 def _extract_urls(text: str) -> list[str]:
     """Extract up to 3 unique http(s) URLs from text, stripping trailing punctuation."""
@@ -891,6 +1032,62 @@ def _extract_urls(text: str) -> list[str]:
             if len(result) >= _MAX_URLS:
                 break
     return result
+
+
+def _within_lookback(anchor: datetime | None, created: datetime | None) -> bool:
+    """Is `created` recent enough relative to the summoning message?
+
+    Unknown timestamps are treated as in-window: the message-count bound still
+    applies, and dropping a link because a row had no `created_at` would fail in
+    the direction of not answering.
+    """
+    if anchor is None or created is None:
+        return True
+    try:
+        return (anchor - created).total_seconds() <= _URL_LOOKBACK_S
+    except TypeError:
+        # Mixed naive/aware datetimes. Both come from the same TIMESTAMPTZ column
+        # so this should not happen; falling back to "in window" keeps a turn
+        # working rather than killing it over a comparison.
+        return True
+
+
+def _recent_urls(*, triggering_message: TeamMessage, recent: list[TeamMessage]) -> list[str]:
+    """The links this mention is plausibly about, newest first, capped at 3.
+
+    Scans backwards from the summoning message through the recent window the
+    agent already loaded for context, so a link pasted a moment earlier is found.
+    Newest first, because when a thread carries more links than the cap the newest
+    are the ones being asked about.
+
+    HUMAN messages only. The agent's own replies quote links it produced, and
+    fetching those would let one hallucinated URL turn into a fetch, then into
+    context, then into the next answer.
+    """
+    anchor = getattr(triggering_message, "created_at", None)
+    ordered: list[TeamMessage] = [triggering_message]
+    ordered += [
+        m for m in reversed(recent) if getattr(m, "id", None) != triggering_message.id
+    ]
+
+    picked: list[str] = []
+    seen: set[str] = set()
+    for examined, message in enumerate(ordered):
+        if examined >= _URL_LOOKBACK_MESSAGES:
+            break
+        if getattr(message, "kind", None) != "user":
+            continue
+        if not _within_lookback(anchor, getattr(message, "created_at", None)):
+            # Ordered newest-first, so everything past here is older still.
+            break
+        for url in _extract_urls(message.content or ""):
+            if url in seen:
+                continue
+            seen.add(url)
+            picked.append(url)
+            if len(picked) >= _MAX_URLS:
+                return picked
+    return picked
 
 
 async def _fetch_url_via_scraper(url: str, team_scope: str) -> str | None:
@@ -930,16 +1127,30 @@ async def _fetch_url_via_scraper(url: str, team_scope: str) -> str | None:
         return None
 
 
-async def _build_fetched_web_block(text: str, team_scope: str) -> str:
-    """Extract URLs from text, fetch each via scraper, return formatted block.
+# The exact words the model reads when nothing was fetched. It is a STATEMENT,
+# not an omission, and that is the whole point: a prompt that simply leaves the
+# section out invites the model to imagine one. The turn this replaces opened
+# with "I was able to fetch the URL from your message" and contradicted itself
+# three sentences later — someone reading only the first line believes the page
+# was read.
+NO_WEB_CONTENT_MARKER = (
+    "(no web page content was fetched for this turn — you have NOT seen any "
+    "linked page)"
+)
 
-    Returns "" if no URLs found. Each URL gets its own section under
-    "## Fetched web content". Failed fetches render as "(could not fetch this URL)".
+
+async def _build_fetched_web_block(urls: list[str], team_scope: str) -> str:
+    """Fetch each URL via the scraper and render the block the model reads.
+
+    ALWAYS returns a section, even with nothing to put in it. Each URL gets its
+    own heading; a failed fetch renders as "(could not fetch this URL)" and never
+    stops the turn, because an unreachable page is worth less than an answer
+    about everything else the person asked.
     """
-    urls = _extract_urls(text)
-    if not urls:
-        return ""
     sections: list[str] = ["\n\n## Fetched web content"]
+    if not urls:
+        sections.append(f"\n{NO_WEB_CONTENT_MARKER}\n")
+        return "".join(sections)
     for url in urls:
         content = await _fetch_url_via_scraper(url, team_scope)
         sections.append(f"\n### {url}\n{content or '(could not fetch this URL)'}\n")
@@ -1034,9 +1245,25 @@ async def _stream_via_promax(
                     f"bridge route failed: HTTP {response.status_code} "
                     f"{err_body.decode(errors='replace')[:200]}"
                 )
+            # "The socket is alive" and "the socket returned an answer" are
+            # different claims, and only the first is checked before we get here.
+            # These three counters make the difference visible in one log line
+            # WITHOUT reading a body: lines that arrived at all, lines that looked
+            # like SSE data, and payloads that parsed into JSON. The failure this
+            # is aimed at is the one docs/session-bridge-guide.md §9 records —
+            # claude.ai changed its delimiter to CRLF, a client split on "\n\n",
+            # zero blocks parsed, 200 OK, empty reply. That shows up here as
+            # `lines` high and `parsed` zero, which is a diagnosis rather than a
+            # mystery.
+            lines_seen = 0
+            data_lines = 0
+            parsed = 0
+            text_deltas = 0
             async for line in response.aiter_lines():
+                lines_seen += 1
                 if not line.startswith("data: "):
                     continue
+                data_lines += 1
                 payload = line[len("data: ") :].strip()
                 if payload == "[DONE]":
                     break
@@ -1044,15 +1271,25 @@ async def _stream_via_promax(
                     chunk = json.loads(payload)
                 except json.JSONDecodeError:
                     continue
+                parsed += 1
                 choices = chunk.get("choices") or []
                 if choices:
                     delta = choices[0].get("delta", {})
                     text = delta.get("content")
                     if text:
+                        text_deltas += 1
                         yield (text, {})
                 usage = chunk.get("usage")
                 if usage:
                     yield ("", {"usage": usage})
+            if text_deltas == 0:
+                log.warning(
+                    "team_chat_agent.bridge_stream_empty",
+                    status=response.status_code,
+                    lines=lines_seen,
+                    data_lines=data_lines,
+                    parsed=parsed,
+                )
 
 
 # --- Streaming via the provider the team selected ----------------------------
@@ -1400,8 +1637,10 @@ async def catch_me_up(
                 )
             else:
                 raise _no_route_for(provider)
+            produced_any = False
             async for chunk_text, _usage in stream:
                 if chunk_text:
+                    produced_any = True
                     await centrifugo_client.publish(
                         channel=channel,
                         data={
@@ -1410,6 +1649,12 @@ async def catch_me_up(
                             "delta": chunk_text,
                         },
                     )
+            if not produced_any:
+                # Same condition, same verdict as the @agent path. This one has no
+                # persisted row to inspect afterwards, so without it a silent
+                # "Summarizing…" simply resolves to an empty panel and the person
+                # is left guessing whether there was nothing to say.
+                raise EmptyAnswer(via_subscription=has_promax)
         except Exception as e:  # noqa: BLE001
             # Rule 1: this published `str(e)[:200]` — the provider's own words,
             # straight into a frame a person reads. It is the same leak the

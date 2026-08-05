@@ -158,10 +158,13 @@ their filename; there is no backfill.
 
 - **Team chat** — realtime via Centrifugo WebSocket; messages persist as
   `team_messages`.
-- **📎 button** — attach a photo/document (uploads to the brain), and the
-  **clipper / "add to memory"** flow sends the current page or selected text as
-  a memory item (with optional project + truth_level).
+- **`+` button in the composer** — attach a photo or document; it uploads to the
+  brain. This is the control on every surface, including the web app on a phone.
+- **Clipper / "add to memory"** — sends the current page or selected text as a
+  memory item (with optional project + truth_level). **Extension only.**
 - **Right-click menu** — select text on any page → clip directly to a team.
+  **Extension only** — it does not exist in the web app, so never suggest it to
+  someone who may be on a phone unless they have said they are in the extension.
 - **Sign in / Link GitHub** — GitHub is the primary identity; org membership can
   auto-grant team access.
 
@@ -175,17 +178,30 @@ The mention alias is configurable per deployment via `AGENT_MENTION_ALIASES`
 
 **Routing:** by default the reply is routed through the mentioning user's
 **Pro/Max claude.ai subscription** via the session-bridge (zero cost to the
-team). If no live bridge connection, it falls back to the team's Anthropic API
-key (billed to the team). Each reply shows a provenance pill: **"via Pro/Max"**
-or **"via team API"**.
+team). If no live bridge connection, it falls back to the provider the team
+selected in team settings — **Claude, OpenAI or Grok** — using that provider's
+key (the team's own if they stored one, otherwise the deployment's). The
+selection governs the fallback only; a live subscription always answers first,
+because it is free. Each reply shows a provenance pill: **"via Pro/Max"** or
+**"via team API"**.
+
+If a team selects a provider it has stored no key for, the agent says so and
+names that provider. It never answers on a different one — a team billed by a
+vendor they did not choose would find out from an invoice.
 
 ## What the agent sees when answering
 
 1. A short role system prompt.  2. **This product KB** (so it can explain
 GrooveOS without learning).  3. The team's memory snapshot (work+ items,
 newest-first, ≤5000 chars/item, ≤60k total, 5-min cache).  4. The last 20 chat
-messages.  5. URLs in the triggering message are pre-fetched (up to 3) and
-included.  6. The user's question. Output is capped at 4000 tokens.
+messages.  5. Links from the **recent conversation** — up to 3, newest first,
+looking back at most 10 messages or 30 minutes from the mention — are fetched
+and included under "## Fetched web content".  6. The user's question. Output is
+capped at 4000 tokens.
+
+**The agent cannot browse.** Web content reaches it only through step 5. When
+nothing was fetched, that section says so explicitly, and the honest answer is
+that the linked page has not been read — never a claim of having fetched it.
 
 ## Frontends — all share one brain
 
@@ -214,8 +230,14 @@ Sign in via your xbrain web app or the extension popup.
 ## What the agent should NOT do
 
 - Don't invent a team's internal details that aren't in the memory snapshot. If
-  memory is sparse, say so and suggest capturing more (📎 clip, sync a repo, or
-  promote `raw` items to `work`).
+  memory is sparse, say so and suggest capturing more — attach a file with the
+  composer's `+`, sync a repo, or promote `raw` items to `work`. Suggest the
+  clipper or the right-click menu only to someone you know is in the extension:
+  neither exists in the web app, and telling a phone user to right-click is
+  advice they cannot follow.
+- Don't claim to have fetched, opened, or read a link. The only web content you
+  can see is what appears under "## Fetched web content"; when that section says
+  nothing was fetched, say you cannot see the page and ask for the text.
 - Don't reveal another team's content — `team_scope` isolation means you only
   see the active team.
 - Don't make up endpoint URLs, env vars, or schema fields not in this KB.
