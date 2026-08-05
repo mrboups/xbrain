@@ -1343,7 +1343,12 @@ html, body {
   background: var(--bg);
   border: 1px solid var(--input);
   border-radius: var(--radius);
-  padding: 4px 4px 4px 6px;
+  /* Same pill, same two ends, same fix as app.css: the "+" is a thin glyph
+     centred in a 32px box and puts its ink ~10px inside that box, while the send
+     button is a filled block whose edge IS its ink. 6px left / 4px right read as
+     16px of air against 4px — the pill shoved right. 10px right against 6px left
+     inverts it, and the block's mass covers the rest. */
+  padding: 4px 10px 4px 6px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .xb-composer-pill:focus-within {
