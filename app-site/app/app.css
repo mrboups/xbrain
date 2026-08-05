@@ -2240,3 +2240,91 @@ body {
   .xb-msg-bubble { animation: none; }
   .xb-msg-bubble.streaming .xb-msg-text::after { animation: none; }
 }
+
+/* ==========================================================================
+   Per-message actions overlay (right-click / long-press / keyboard)
+
+   shadcn Neutral, radius 0, both themes off the tokens above. It is a MODAL
+   surface on purpose: the scrim is what catches the tap-outside, so there is no
+   document-level listener to leak and no way for a tap to miss.
+
+   NOTHING HERE MOVES. No transition, no animation, no transform - so there is
+   nothing for prefers-reduced-motion to switch off, and no empty media query
+   pretending otherwise. A menu that has to animate before it can be read is a
+   menu that is slower for everybody; this one is simply there.
+   ========================================================================== */
+.xb-msg-menu-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: transparent;
+}
+.xb-msg-menu {
+  position: fixed;
+  min-width: 200px;
+  max-width: 260px;
+  padding: 4px;
+  background: var(--card);
+  color: var(--card-fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.xb-msg-menu-title {
+  margin: 0;
+  padding: 7px 9px 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg);
+}
+.xb-msg-menu-item {
+  display: block;
+  width: 100%;
+  padding: 7px 9px;
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.3;
+  text-align: left;
+  color: var(--card-fg);
+  cursor: pointer;
+}
+.xb-msg-menu-item:hover:not(:disabled) { background: var(--muted); }
+.xb-msg-menu-item:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.xb-msg-menu-item:disabled { opacity: 0.55; cursor: default; }
+/* The wider outcome is never the quiet one: it is the only red thing on the
+   panel, and it sits behind a second press with the cancel focused first. */
+.xb-msg-menu-item.is-danger { color: var(--destructive); }
+.xb-msg-menu-item.is-danger:hover:not(:disabled) {
+  background: var(--destructive);
+  color: var(--bg);
+}
+.xb-msg-menu-item.is-quiet { color: var(--muted-fg); }
+.xb-msg-menu-note {
+  margin: 0 0 2px;
+  padding: 0 9px 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted-fg);
+}
+.xb-msg-menu-status {
+  margin: 0;
+  padding: 5px 9px 3px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted-fg);
+  border-top: 1px solid var(--border);
+}
+.xb-msg-menu-status.is-error { color: var(--destructive); }
+/* A row reached by the keyboard has to say so — it is the only cue that the
+   thread is navigable without a pointer. */
+.xb-msg:focus-visible,
+#message-list:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}

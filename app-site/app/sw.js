@@ -35,8 +35,13 @@
  *      ONE bump for the whole change even though the two files land in separate
  *      commits — v8 has not been deployed in between, so a second name would
  *      only mean a second cache to evict for no shipped difference.
+ * v10 — removing a message: chat_core/message_menu.js joins the shell, and
+ *      chat.js, app.css and chat_core/{api,publication,realtime}.js all changed.
+ *      Every one of those is precached, so without a new name a returning phone
+ *      would keep serving the old chat against the new API and the fix would
+ *      look exactly like a broken fix.
  */
-const CACHE = "xb-app-shell-v9";
+const CACHE = "xb-app-shell-v10";
 
 /**
  * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07
@@ -73,6 +78,7 @@ const SHELL = [
   "/app/chat_core/nudge_open.js",
   "/app/chat_core/theme.js",
   "/app/chat_core/render.js",
+  "/app/chat_core/message_menu.js",
   "/app/chat_core/publication.js",
   "/app/chat_core/realtime.js",
   "/app/chat_core/people.js",

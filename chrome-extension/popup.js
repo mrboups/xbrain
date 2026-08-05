@@ -32,6 +32,7 @@ import {
 import { createApi, MAX_MEDIA_BYTES } from "./chat_core/api.js";
 import { createRenderer } from "./chat_core/render.js";
 import { createPublicationRouter } from "./chat_core/publication.js";
+import { createMessageMenu, removeMessageRow } from "./chat_core/message_menu.js";
 import { connectRealtime } from "./chat_core/realtime.js";
 import { createTeamRail } from "./chat_core/team_rail.js";
 import { createPeoplePanel } from "./chat_core/people.js";
@@ -78,6 +79,11 @@ const state = {
   // Agent toggle: armed before sending, cleared by a successful send. Never
   // persisted — a shared team chat must not open with the agent silently armed.
   agentArmed: false,
+  // Whether the SERVER says this person may remove OTHER people's messages in
+  // the team that is open. It rides on the history response (one reader; a
+  // per-message field would be broadcast to the whole team) and is re-read on
+  // every switch, because the answer is per-team. False until told otherwise.
+  viewerCanModerate: false,
   // Catch-me-up (Phase 23, CATCHUP-01). The banner count is captured against
   // the STALE, pre-visit read cursor on team open (see switchTeam ordering).
   //   markReadInFlight — dedupe guard so scroll/focus don't spam POST /mark-read
@@ -114,6 +120,7 @@ const $ = (id) => document.getElementById(id);
 // #chat-scroll; every caller runs after boot(), so a module-level `let` is safe.
 let renderer = null;
 let routeTeamFrame = () => {};
+let messageMenu = null;
 
 // The two overlays, also from packages/chat-core. They used to be ~450 lines of
 // popup-only code that the PWA had to either copy or go without; both surfaces
@@ -162,7 +169,47 @@ function buildChatCore() {
     onNonEmpty: () => {
       $("chat-empty").hidden = true;
     },
+    onMessageDeleted: (messageId) => dropMessageRow(messageId),
   });
+
+  // Right-click, long-press, or the keyboard: the per-message actions overlay.
+  // It listens on the LIST, so it is attached once and covers every row that
+  // will ever arrive — including the ones the websocket brings in later.
+  messageMenu = createMessageMenu({
+    doc: document,
+    listEl: $("message-list"),
+    scrollEl: $("chat-scroll"),
+    getActiveTeamId: () => state.activeTeamId,
+    getSelfUserId: () => state.me?.id,
+    // The server's own answer, from the history response. Drawing the control
+    // anywhere else would mean guessing at a rule the server enforces.
+    getViewerCanModerate: () => state.viewerCanModerate,
+    deleteMessage: (teamId, messageId, scope) =>
+      api.deleteMessageRaw(teamId, messageId, scope),
+    onDeleted: (messageId) => dropMessageRow(messageId),
+  });
+  messageMenu.attach();
+}
+
+/**
+ * Take a removed message off this screen and put the thread back together.
+ *
+ * Both paths land here — the frame that says somebody else removed it, and the
+ * local call after this person's own DELETE returned 200. Removal is keyed on
+ * the id, so running twice is a no-op; that is what lets both exist without
+ * either knowing about the other, and it is what keeps the feature working when
+ * the socket is down.
+ *
+ * The separator reconcile is not cosmetic: the removed row may have been the only
+ * message under a date heading, and a heading left standing over nothing is the
+ * visible half of a deletion that only half happened.
+ */
+function dropMessageRow(messageId) {
+  if (!removeMessageRow($("message-list"), messageId)) return;
+  renderer.syncDaySeparators();
+  if (($("message-list").children || []).length === 0) {
+    $("chat-empty").hidden = false;
+  }
 }
 
 /** The live team subscription — owned by the realtime handle, read for presence. */
@@ -824,6 +871,11 @@ async function switchTeam(teamId) {
   state.catchup.since = null;
   state.catchup.dismissedSince = undefined;
   state.catchup.readyForAutoMarkRead = false;  // BL-01: armed only after the banner is captured
+  // Moderation is per-team and the answer arrives with this team's history. Held
+  // false across the switch so a moment of the previous team's permission can
+  // never draw a control in the new one.
+  state.viewerCanModerate = false;
+  if (messageMenu) messageMenu.close();
   const switchGen = ++state.switchGen;  // WR-03: re-entrancy token for this switch
   const prevBanner = $("catchup-banner");
   if (prevBanner) prevBanner.hidden = true;
@@ -1062,6 +1114,10 @@ async function loadInitialHistory() {
   if (state.initialLoaded) return;
   state.initialLoaded = true;
   const data = await api.listMessages(state.activeTeamId);
+  // What the SERVER says this person may do to other people's messages here.
+  // Read before anything is drawn, so the first right-click after a switch
+  // already has the right answer.
+  state.viewerCanModerate = Boolean(data?.viewer?.can_moderate);
   // Response is newest-first; render oldest-first.
   const msgs = (data.messages || []).slice().reverse();
   if (msgs.length === 0) {
