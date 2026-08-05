@@ -456,6 +456,9 @@ def _fake_message(team_id, author_id, content):
         metadata_=None,
         parent_message_id=None,
         edited_at=None,
+        # NOT NULL on the model, and read by _serialize_message since starring
+        # shipped — a stand-in without it is an incomplete stand-in.
+        truth_level="WORKING",
     )
 
 
