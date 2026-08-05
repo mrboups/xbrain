@@ -108,6 +108,32 @@ export function createApi({ baseUrl, getToken } = {}) {
       ),
     postMessage: (teamId, body) =>
       request(`/v1/teams/${teamId}/messages`, { method: "POST", body }),
+
+    /**
+     * Remove one message, and optionally what it put in the team's memory.
+     *
+     * RAW, because the codes are the message and each one means something
+     * different to the person who just pressed a button: 403 is "the server does
+     * not agree that this is yours to remove", 404 is "somebody already removed
+     * it", 401 is "you are signed out". Collapsing those into one thrown sentence
+     * leaves all three reading "could not remove it".
+     *
+     * `scope` travels in the query string, not the body: a DELETE with a body is
+     * the shape proxies and fetch implementations disagree about, and this is the
+     * one request in the product where a silently dropped parameter would mean
+     * removing less than the person asked for.
+     *
+     * @param {string} teamId
+     * @param {string} messageId
+     * @param {"message"|"message_and_brain"} scope
+     * @returns {Promise<Response>}
+     */
+    deleteMessageRaw: (teamId, messageId, scope) =>
+      rawFetch(
+        `/v1/teams/${teamId}/messages/${encodeURIComponent(messageId)}` +
+          `?scope=${encodeURIComponent(scope)}`,
+        { method: "DELETE" },
+      ),
     agentAliases: (teamId) => request(`/v1/teams/${teamId}/agent-aliases`),
     // Which model would answer right now, and who pays. The SERVER's answer:
     // the same resolution the agent itself runs, so a status and the behaviour

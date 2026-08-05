@@ -7,6 +7,7 @@
  *
  * Frames handled (memory-api team_chat publisher):
  *   message              — a persisted chat message, rendered as a bubble
+ *   message_deleted      — somebody removed a message; the row leaves this screen
  *   agent_stream_start   — an agent answer begins; a streaming bubble is created
  *   agent_stream_chunk   — a delta appended to the buffer and written to the DOM
  *   agent_stream_end     — the answer is complete; the streaming class is dropped
@@ -28,11 +29,16 @@
  *              streamTextTarget: Function, clearStreaming: Function,
  *              scrollToBottom: Function},
  *   streamBuffer: {start: Function, append: Function, get: Function, finalize: Function},
- *   onNonEmpty?: () => void
+ *   onNonEmpty?: () => void,
+ *   onMessageDeleted?: (messageId: string) => void
  * }} opts
  *   onNonEmpty — called when a frame proves the thread is not empty. The surface
  *   owns its "no messages yet" panel (different id, different markup), so the
  *   router only reports the fact.
+ *   onMessageDeleted — called with the id of a message somebody removed. The
+ *   surface takes the row out and reconciles its own layout; the router does not
+ *   reach into the renderer for this, which is what keeps the removal path
+ *   independent of how a bubble is drawn.
  * @returns {(data: any) => void}
  */
 export function createPublicationRouter(opts) {
@@ -45,6 +51,8 @@ export function createPublicationRouter(opts) {
   }
   const onNonEmpty =
     typeof cfg.onNonEmpty === "function" ? cfg.onNonEmpty : () => {};
+  const onMessageDeleted =
+    typeof cfg.onMessageDeleted === "function" ? cfg.onMessageDeleted : null;
 
   return function handlePublication(data) {
     if (!data || !data.type) return;
@@ -53,6 +61,15 @@ export function createPublicationRouter(opts) {
       renderer.syncDaySeparators();
       renderer.scrollToBottom();
       onNonEmpty();
+      return;
+    }
+    if (data.type === "message_deleted") {
+      // A message that vanishes for the person who removed it and stays for
+      // everyone else is worse than no feature — this is the half that makes the
+      // deletion real on the other screens. A surface that ships no handler is
+      // left alone rather than being reached into: an older client simply keeps
+      // showing the row until it reloads, which is the honest degradation.
+      if (onMessageDeleted && data.message_id) onMessageDeleted(data.message_id);
       return;
     }
     if (data.type === "agent_stream_start") {

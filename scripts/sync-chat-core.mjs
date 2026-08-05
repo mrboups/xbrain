@@ -50,6 +50,7 @@ const REQUIRED_MODULES = [
   "chat_stream.js",
   "dom.js",
   "invite.js",
+  "message_menu.js",
   "nudge_open.js",
   "people.js",
   "platform.js",
