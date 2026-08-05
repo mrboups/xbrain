@@ -36,7 +36,7 @@
  *      commits — v8 has not been deployed in between, so a second name would
  *      only mean a second cache to evict for no shipped difference.
  */
-const CACHE = "xb-app-shell-v8";
+const CACHE = "xb-app-shell-v9";
 
 /**
  * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07
