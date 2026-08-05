@@ -403,10 +403,46 @@ human-only and one-way, or nothing is left that carries a person's judgement.
 not enough, and this is a graph question (Graphiti/Neo4j are already deployed). Scope that
 separately: the flag is cheap, deciding it has been superseded is the feature.
 
-### Open
+### `PUBLIC` is NOT dropped — answered 2026-08-05
 
-Dropping `PUBLIC` removes the only level meaning "shareable beyond the team". Nothing
-uses it today, but confirm the capability is not wanted before letting it die.
+The owner wants it kept and turned into a real feature with an approval flow. See
+"Sharing beyond the team" below. So the enum keeps five values; what changes is that
+four of them get a producer and a name a person can act on.
+
+## Sharing beyond the team — a public tag, admin-gated and revocable — 2026-08-05
+
+**Owner's design**, and the reason `PUBLIC` survives the truth-level simplification above.
+
+- An item can be tagged **share/public**.
+- **Only an admin can grant it.** A member can *request* it, which notifies an admin to
+  approve or refuse.
+- The **admin dashboard lists everything currently public** for the team.
+- Any of it is **revocable**.
+
+### The three things to get right
+
+1. **Revocation is not un-sharing.** Removing the tag stops future access; it cannot
+   recall what someone already read, copied or screenshotted. The UI must not imply
+   otherwise — an admin revoking something believing it is now secret is worse off than
+   one who understands what revoking actually buys. Say it in one line at the moment of
+   revoking, not in a help page.
+2. **A request is a record, not a message.** It needs a row with who asked, what for,
+   when, and the outcome — otherwise "who approved this?" has no answer six months later,
+   which is the question that actually gets asked about anything public. The audit table
+   used by the other admin mutations is the precedent.
+3. **The notification path already exists.** Web push ships (Phase 27), and an admin is a
+   member with a device — so an approval request is a push plus a dashboard entry, not a
+   new channel. Reuse it rather than inventing a second notification mechanism.
+
+### Fits what is already built
+
+`visibility` in the tagging contract already carries `private` / `team` / `org` /
+`public`, and `/account/admin/` already exists as the cross-team dashboard. This is
+mostly a flow — request, approve, list, revoke — over fields and surfaces that exist,
+plus the audit trail that makes it defensible.
+
+**Later**, per the owner: after the four-level simplification lands, since the two touch
+the same classification surface.
 
 ## Telegram bridge — chat in your team chat from Telegram
 
