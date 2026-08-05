@@ -364,6 +364,10 @@ async def test_serializer_is_pure_and_needs_no_session(session, seeded_two_teams
         metadata_={},
         parent_message_id=None,
         edited_at=None,
+        # NOT NULL on the model, and read by the serializer since starring
+        # shipped — a stand-in without it is an incomplete stand-in.
+        truth_level="WORKING",
     )
     out = _serialize_message(row, "team-a", {str(row.author_user_id): "Nico"})
     assert out["author_label"] == "Nico"
+    assert out["starred"] is False, "an ordinary message is not starred"

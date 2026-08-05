@@ -23,6 +23,18 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+def _verdict(relevant: bool, *, important: bool = False, **kw):
+    """The classifier's answer. The seam is `classify_detailed`, not `classify`.
+
+    Since 2026-08-05 one call answers both AI-owned levels, so the ingest path
+    reads a ClassifyResult rather than a bool — patching the bool wrapper would
+    leave the real classifier running and these tests asserting nothing.
+    """
+    from app.services.relevance_filter import ClassifyResult
+
+    return ClassifyResult(relevant=relevant, important=important, **kw)
+
+
 @pytest.mark.asyncio
 async def test_ingest_team_message_haiku_relevant_upsert_called():
     """Test 1: When classify returns True, provider.upsert is called with the correct MemoryItem."""
@@ -36,8 +48,8 @@ async def test_ingest_team_message_haiku_relevant_upsert_called():
 
     with patch("app.services.brain_ingest.get_memory_provider", return_value=mock_provider):
         with patch(
-            "app.services.relevance_filter.classify",
-            new=AsyncMock(return_value=True),
+            "app.services.relevance_filter.classify_detailed",
+            new=AsyncMock(return_value=_verdict(True)),
         ):
             await brain_ingest.ingest_team_message(
                 team_scope="t1",
@@ -60,6 +72,97 @@ async def test_ingest_team_message_haiku_relevant_upsert_called():
 
 
 @pytest.mark.asyncio
+async def test_important_verdict_raises_the_item_after_the_upsert():
+    """The AI's "final" flag is applied by ONE writer, after the item exists.
+
+    The item is upserted at WORKING and raised afterwards through
+    `importance.flag_ingested_item` — never written straight to VALIDATED — so
+    that a single function owns the AI's level, can enforce "only ever from
+    WORKING" in its own WHERE clause, and can put the audit row in the same
+    transaction as the change.
+    """
+    from app.services import brain_ingest
+    from xbrain_memory.types import TruthLevel
+
+    captured = []
+    mock_provider = MagicMock()
+    mock_provider.upsert = AsyncMock(side_effect=lambda item: captured.append(item))
+    flagger = AsyncMock(return_value=True)
+    team_id = uuid.uuid4()
+    message_id = uuid.uuid4()
+
+    with patch("app.services.brain_ingest.get_memory_provider", return_value=mock_provider):
+        with patch(
+            "app.services.relevance_filter.classify_detailed",
+            new=AsyncMock(
+                return_value=_verdict(
+                    True,
+                    important=True,
+                    score=0.94,
+                    decided_by="model",
+                    model="claude-haiku-4-5-20251001",
+                )
+            ),
+        ):
+            with patch("app.services.importance.flag_ingested_item", new=flagger):
+                await brain_ingest.ingest_team_message(
+                    team_scope="t1",
+                    team_id=team_id,
+                    content="Q3 budget signed off by finance: 240k, final figure",
+                    author_sub="user@example.com",
+                    message_id=message_id,
+                )
+
+    assert captured[0].truth_level == TruthLevel.WORKING, (
+        "the upsert must land at WORKING; VALIDATED is applied by the one writer"
+    )
+    flagger.assert_awaited_once()
+    kwargs = flagger.await_args.kwargs
+    assert kwargs["item_id"] == captured[0].id, "the flag must name the item just written"
+    assert kwargs["team_scope"] == "t1"
+    assert kwargs["model"] == "claude-haiku-4-5-20251001"
+    assert kwargs["score"] == 0.94
+    assert str(kwargs["message_id"]) == str(message_id), (
+        "the audit row needs the back-link that joins it to the chat trail"
+    )
+
+
+@pytest.mark.asyncio
+async def test_budget_exhausted_ingest_leaves_the_item_at_working():
+    """A spent classification budget keeps the knowledge and skips the judgement.
+
+    End-to-end version of the classifier's own fail-soft test: the item is still
+    stored, and NOTHING raises its level. Never dropped, never guessed high.
+    """
+    from app.services import brain_ingest
+    from xbrain_memory.types import TruthLevel
+
+    captured = []
+    mock_provider = MagicMock()
+    mock_provider.upsert = AsyncMock(side_effect=lambda item: captured.append(item))
+    flagger = AsyncMock(return_value=True)
+
+    with patch("app.services.brain_ingest.get_memory_provider", return_value=mock_provider):
+        with patch(
+            "app.services.relevance_filter.classify_detailed",
+            new=AsyncMock(
+                return_value=_verdict(True, important=False, reason="budget_exhausted")
+            ),
+        ):
+            with patch("app.services.importance.flag_ingested_item", new=flagger):
+                await brain_ingest.ingest_team_message(
+                    team_scope="t1",
+                    team_id=uuid.uuid4(),
+                    content="Q3 budget signed off by finance: 240k, final figure",
+                    author_sub="user@example.com",
+                )
+
+    assert len(captured) == 1, "budget exhaustion must not drop the message"
+    assert captured[0].truth_level == TruthLevel.WORKING
+    flagger.assert_not_awaited(), "nothing may raise the level when nothing judged it"
+
+
+@pytest.mark.asyncio
 async def test_ingest_team_message_haiku_not_relevant_skips_upsert(caplog):
     """Test 2: When classify returns False, provider.upsert is NOT called.
 
@@ -75,8 +178,8 @@ async def test_ingest_team_message_haiku_not_relevant_skips_upsert(caplog):
 
     with patch("app.services.brain_ingest.get_memory_provider", return_value=mock_provider):
         with patch(
-            "app.services.relevance_filter.classify",
-            new=AsyncMock(return_value=False),
+            "app.services.relevance_filter.classify_detailed",
+            new=AsyncMock(return_value=_verdict(False)),
         ):
             with caplog.at_level(logging.INFO, logger="app.services.brain_ingest"):
                 await brain_ingest.ingest_team_message(
@@ -107,7 +210,7 @@ async def test_ingest_team_message_classify_raises_fail_soft():
 
     with patch("app.services.brain_ingest.get_memory_provider", return_value=mock_provider):
         with patch(
-            "app.services.relevance_filter.classify",
+            "app.services.relevance_filter.classify_detailed",
             new=AsyncMock(side_effect=RuntimeError("haiku exploded")),
         ):
             # Must not raise
@@ -135,8 +238,8 @@ async def test_ingest_team_message_cache_invalidated():
 
     with patch("app.services.brain_ingest.get_memory_provider", return_value=mock_provider):
         with patch(
-            "app.services.relevance_filter.classify",
-            new=AsyncMock(return_value=True),
+            "app.services.relevance_filter.classify_detailed",
+            new=AsyncMock(return_value=_verdict(True)),
         ):
             with patch(
                 "app.services.team_context_cache.invalidate",
@@ -205,7 +308,7 @@ async def test_ingest_team_message_writes_the_message_id_backlink():
 
     with patch("app.services.brain_ingest.get_memory_provider", return_value=provider):
         with patch(
-            "app.services.relevance_filter.classify", new=AsyncMock(return_value=True)
+            "app.services.relevance_filter.classify_detailed", new=AsyncMock(return_value=_verdict(True))
         ):
             await brain_ingest.ingest_team_message(
                 team_scope="team-a",

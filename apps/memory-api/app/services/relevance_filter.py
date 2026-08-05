@@ -7,11 +7,27 @@ Fail-soft: heuristic fallback on any error, timeout, missing key, or budget exha
 Prompt caching: SYSTEM_PROMPT is padded to ≥4096 tokens (≥16,384 bytes UTF-8) so
 Anthropic's ephemeral prompt caching activates on the first call to reduce per-call
 input cost from ~$0.001 to ~$0.0001 on cache hits.
+
+TWO ANSWERS, ONE CALL (2026-08-05). The classifier decides both of the levels
+the AI owns, in the SAME request:
+
+  * ``relevant``  — store it at all? false is the owner's "not interesting", and
+    nothing is written.
+  * ``important`` — is this the final / decisive version of something? true is
+    the owner's "important / final", stored as ``VALIDATED``.
+
+They are asked together deliberately. A second model call per message would
+double the cost and the latency of the ingest path for a judgement the model is
+already making while it reads the text. ``important`` is a MODEL OPINION, never
+a human warrant — the one level a person sets (``CANONICAL``, "starred") is
+unreachable from here, by construction: this module never emits it and
+``services/importance.py`` only ever moves an item between WORKING and VALIDATED.
 """
 from __future__ import annotations
 
 import json
 import time
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
@@ -31,13 +47,17 @@ log = structlog.get_logger(__name__)
 # message categories. Verified by: len(SYSTEM_PROMPT.encode("utf-8")) >= 16_384
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """Classify whether a chat message contains information worth storing in a team knowledge base.
+SYSTEM_PROMPT = """Classify whether a chat message contains information worth storing in a team knowledge base, and whether what it says is FINAL.
 
 Return ONLY valid JSON, no prose, no fences:
-{"relevant": true_or_false, "score": 0.0_to_1.0}
+{"relevant": true_or_false, "score": 0.0_to_1.0, "important": true_or_false}
 
 A score of 1.0 means definitely worth storing; 0.0 means definitely not.
 Use 0.5 as the decision boundary: relevant=true when score >= 0.5.
+
+"important" is a SEPARATE question, answered in the same object — see the
+IMPORTANT / FINAL section near the end. Most of the examples below omit it;
+an omitted "important" means false.
 
 RELEVANT (true) — store in brain:
 - Facts, decisions, agreements: "We decided to use PostgreSQL", "The API endpoint is /v1/events"
@@ -444,6 +464,61 @@ DECISION RULE:
 - Short messages (< 15 chars) → always relevant: false, score: 0.01
 - @claude/@c/@cl prefix → always relevant: false, score: 0.01
 
+---
+
+IMPORTANT / FINAL — the "important" field:
+
+"relevant" decides whether the message is stored at all. "important" is a
+second, independent question, and it is only ever read when relevant is true:
+
+    Does this SETTLE something, or is it work on the way there?
+
+TRUE — a decision that closes a question, a final agreed value, a signed-off
+number, a shipped result, a rule the team must now follow, a published
+deliverable, a policy, a completed handover.
+
+FALSE — everything else that is still worth storing: progress notes, options
+under discussion, partial findings, intentions, drafts, estimates, and anything
+phrased as "probably", "leaning towards", "let's try", "for now", "TBC".
+
+Answer false when unsure. A flag that lands on everything says nothing, and
+this one can always be set later — but a wrong "final" is read by the team as
+settled when it is not. Length and technical density are NOT evidence of
+finality: a long design discussion is false, a one-line "approved, ship it"
+about a named thing is true.
+
+Examples with the field shown:
+
+INPUT: "We're leaning towards Postgres but Mongo is still on the table for the event store"
+OUTPUT: {"relevant": true, "score": 0.79, "important": false}
+
+INPUT: "Decision: Postgres 17 for the event store. Mongo is out. Final for v2."
+OUTPUT: {"relevant": true, "score": 0.94, "important": true}
+
+INPUT: "I'm still benchmarking the embedder, early numbers look like ~40ms per item"
+OUTPUT: {"relevant": true, "score": 0.71, "important": false}
+
+INPUT: "Benchmark closed: local embedder is 38ms P95. That is the number we quote from now on."
+OUTPUT: {"relevant": true, "score": 0.9, "important": true}
+
+INPUT: "Maybe we should rotate keys every 30 days instead of 90? Thoughts?"
+OUTPUT: {"relevant": true, "score": 0.62, "important": false}
+
+INPUT: "Policy as of today: API keys rotate every 90 days. No exceptions, applies to every service."
+OUTPUT: {"relevant": true, "score": 0.93, "important": true}
+
+INPUT: "Working on the migration script, about half done, should be ready tomorrow"
+OUTPUT: {"relevant": true, "score": 0.68, "important": false}
+
+INPUT: "Migration 0034 is merged and applied in production. Schema is now at head."
+OUTPUT: {"relevant": true, "score": 0.91, "important": true}
+
+INPUT: "The Q3 budget draft is 240k but finance still has to look at it"
+OUTPUT: {"relevant": true, "score": 0.8, "important": false}
+
+INPUT: "Q3 budget signed off by finance: 240k. That is the figure to plan against."
+OUTPUT: {"relevant": true, "score": 0.95, "important": true}
+
 OUTPUT ONLY THE JSON OBJECT. No markdown. No explanation. No prose before or after."""
 
 # Verify the prompt meets the caching threshold at module load time.
@@ -528,13 +603,56 @@ def _record_tokens(team_scope: str, tokens: int) -> None:
     record_token_usage(team_scope, tokens)
 
 
+@dataclass(frozen=True)
+class ClassifyResult:
+    """What the classifier decided, and on what authority.
+
+    `decided_by` is the field that keeps the audit trail honest. `important` is
+    only ever acted on when the MODEL answered — every fallback path returns
+    `important=False` with `decided_by="heuristic"`, so a timeout, a missing key
+    or an exhausted budget can never be mistaken for the model having said
+    "this one is final".
+    """
+
+    #: Store it at all. False → the owner's "not interesting", nothing is written.
+    relevant: bool
+    #: The owner's "important / final" → stored as VALIDATED. Model opinion only.
+    important: bool = False
+    #: The model's relevance score, 0.0–1.0. Zero on every non-model path.
+    score: float = 0.0
+    #: "model" when Haiku answered, "heuristic" when it did not, "fast_path" when
+    #: the pre-filter rejected the content before any call was considered.
+    decided_by: str = "heuristic"
+    #: Why the model was not consulted — "budget_exhausted", "classifier_error",
+    #: "classifier_disabled", "heuristic_reject". None when it was.
+    reason: str | None = None
+    #: The model that answered, for the audit payload. None on fallback paths.
+    model: str | None = None
+
+
 async def classify(
     content: str, *, team_scope: str, aliases: list[str] | None = None
 ) -> bool:
     """Returns True iff content should be ingested into the team brain.
 
-    Fail-soft: falls back to the heuristic on any error, timeout,
-    missing API key, or budget exhaustion. Never raises.
+    The bool half of `classify_detailed`, kept because most callers only ever
+    asked "store this?" and reading `.relevant` at every one of them would say
+    nothing extra.
+    """
+    result = await classify_detailed(content, team_scope=team_scope, aliases=aliases)
+    return result.relevant
+
+
+async def classify_detailed(
+    content: str, *, team_scope: str, aliases: list[str] | None = None
+) -> ClassifyResult:
+    """Both AI-owned levels from ONE model call. Never raises.
+
+    Fail-soft, and specifically fail-LOW: any error, timeout, missing API key or
+    exhausted budget returns `relevant=True, important=False`. The item lands at
+    WORKING — it is never dropped (the team loses knowledge for an outage that
+    has nothing to do with it) and never guessed high (an unread flag on an
+    unclassified item is worse than no flag, because the team acts on it).
 
     `aliases` (WR-01) scopes the fast-path agent-command skip to the team's
     EFFECTIVE alias list (env defaults ∪ that team's custom names); None → env
@@ -544,24 +662,36 @@ async def classify(
     # (word-boundary, per the team's aliases), empty content. Runs BEFORE any
     # Haiku call to avoid paying for obvious rejects.
     if not is_brain_relevant(content, aliases):
-        return False
+        return ClassifyResult(
+            relevant=False, decided_by="fast_path", reason="heuristic_reject"
+        )
 
     client = _get_client()
     if client is None:
         # Heuristic-only mode (Haiku disabled, SDK not installed, or no API key).
-        # is_brain_relevant already passed at this point, so return True.
-        return True
+        # is_brain_relevant already passed at this point, so it is relevant —
+        # but nothing has judged it FINAL, so it stays at WORKING.
+        return ClassifyResult(relevant=True, reason="classifier_disabled")
 
     # Budget check — ~350 tokens estimated per call (uncached).
     if not _check_budget(team_scope, 350):
         log.info("relevance_filter.budget_exceeded", team_scope=team_scope)
-        return True  # heuristic already passed
+        # Heuristic already passed → keep it, at WORKING. A team that has spent
+        # its day's classification budget must not start collecting items the
+        # AI silently marked final without reading them.
+        return ClassifyResult(relevant=True, reason="budget_exhausted")
 
     start = time.monotonic()
     try:
         msg = await client.messages.create(
             model=settings.RELEVANCE_HAIKU_MODEL,
-            max_tokens=20,
+            # 20 was enough for two fields and is NOT enough for three:
+            # `{"relevant": true, "score": 0.92, "important": true}` sits right on
+            # that ceiling, and a response cut mid-object fails json.loads and
+            # takes the fail-soft path — the classifier would silently stop
+            # classifying while still costing a call. Headroom is cheaper than
+            # that, and output tokens are only spent on what is actually emitted.
+            max_tokens=64,
             system=[
                 {
                     "type": "text",
@@ -581,6 +711,10 @@ async def classify(
         parsed = json.loads(text)
         relevant = bool(parsed.get("relevant", False))
         score = float(parsed.get("score", 0.0))
+        # Absent means false. The 90 few-shot examples above omit the field on
+        # every non-final case, so an omission is the model agreeing with them —
+        # not a missing answer to be guessed at.
+        important = bool(parsed.get("important", False))
 
         # Phase 13.1 default-allow override: the SYSTEM_PROMPT's few-shot
         # examples are dominated by engineering team facts (deploys, configs,
@@ -599,6 +733,12 @@ async def classify(
         else:
             override_reason = None
 
+        # The override rescues an item into the brain; it does NOT speak for its
+        # finality. An item the model wanted to DISCARD cannot come out of the
+        # same call marked final — that would be the override inventing a
+        # judgement nobody made.
+        important = important and relevant and override_reason is None
+
         usage = getattr(msg, "usage", None)
         tokens_in = getattr(usage, "input_tokens", 350) if usage else 350
         cache_creation = getattr(usage, "cache_creation_input_tokens", 0) if usage else 0
@@ -610,6 +750,7 @@ async def classify(
             "relevance_filter.classified",
             team_scope=team_scope,
             relevant=relevant,
+            important=important,
             haiku_score=score,
             override=override_reason,
             tokens_in=tokens_in,
@@ -617,7 +758,14 @@ async def classify(
             cache_read_input_tokens=cache_read,
             latency_ms=latency_ms,
         )
-        return relevant
+        return ClassifyResult(
+            relevant=relevant,
+            important=important,
+            score=score,
+            decided_by="model",
+            reason=override_reason,
+            model=settings.RELEVANCE_HAIKU_MODEL,
+        )
 
     except Exception as exc:  # noqa: BLE001 — fail-soft, never break ingest path
         log.warning(
@@ -625,4 +773,5 @@ async def classify(
             error=str(exc),
             team_scope=team_scope,
         )
-        return True  # heuristic already passed at function entry
+        # Heuristic already passed at function entry → keep it, at WORKING.
+        return ClassifyResult(relevant=True, reason="classifier_error")

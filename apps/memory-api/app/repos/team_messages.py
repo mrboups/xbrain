@@ -171,6 +171,57 @@ async def soft_delete_message(
     return now if result.first() is not None else None
 
 
+#: What a starred message row carries. `team_messages.truth_level` already exists
+#: (migration 0017) with the canonical five-value CHECK, so a star needs no new
+#: column and no migration — the level IS the star.
+STAR_LEVEL = "CANONICAL"
+#: Where an un-starred message goes back to. Nothing else writes this column, so
+#: WORKING is where every message starts and where every un-star returns it.
+UNSTAR_LEVEL = "WORKING"
+
+
+async def set_message_star(
+    session: AsyncSession,
+    *,
+    team_id: UUID,
+    message_id: UUID,
+    starred: bool,
+) -> bool:
+    """Star or un-star one live message. True when the row actually moved.
+
+    Gated on the CURRENT level, so a repeated star changes nothing and says so.
+    The caller turns that False into "no audit row, no broadcast": a second tap
+    on an already-starred message is not an event, and a trail that records it as
+    one cannot be read.
+
+    `team_id` in the WHERE clause is the isolation boundary, for the same reason
+    `get_live_message` carries it — a message id is a bare UUID in a URL.
+
+    Caller commits.
+    """
+    # Star anything not already starred; un-star ONLY something that is. Stated
+    # as one predicate so the two directions cannot drift apart.
+    current_guard = (
+        TeamMessage.truth_level != STAR_LEVEL
+        if starred
+        else TeamMessage.truth_level == STAR_LEVEL
+    )
+    stmt = (
+        update(TeamMessage)
+        .where(
+            and_(
+                TeamMessage.id == message_id,
+                TeamMessage.team_id == team_id,
+                TeamMessage.deleted_at.is_(None),
+                current_guard,
+            )
+        )
+        .values(truth_level=STAR_LEVEL if starred else UNSTAR_LEVEL)
+        .returning(TeamMessage.id)
+    )
+    return (await session.execute(stmt)).first() is not None
+
+
 async def count_unread_since(
     session: AsyncSession,
     *,

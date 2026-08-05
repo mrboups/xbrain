@@ -5,7 +5,10 @@ messages were stored in ``team_messages`` but never indexed into
 ``memory_items`` + Qdrant, so the brain stayed empty and no frontend could
 retrieve chat knowledge.
 
-This hook upserts each substantive human message as a ``WORKING`` memory item.
+This hook upserts each substantive human message as a ``WORKING`` memory item,
+then raises it to ``VALIDATED`` when the same classifier call judged it final —
+see ``services/importance.py`` for why that is a second step and why the AI can
+never reach ``CANONICAL`` (starred) from here.
 Both retrieval paths already read from there with zero extra wiring:
   - ``team_context_cache.get_team_memory_bundle`` (the agent system block)
     selects ``memory_items WHERE truth_level IN (WORKING, VALIDATED, CANONICAL)``
@@ -21,7 +24,7 @@ from typing import Any
 import structlog
 
 from app.deps import get_memory_provider
-from app.services import team_context_cache
+from app.services import importance, team_context_cache
 from app.services.mention_detector import starts_with_mention
 from xbrain_memory.types import (
     MemoryItem,
@@ -87,10 +90,14 @@ async def ingest_team_message(
     """
     try:
         # Phase 13 D1/D4 — Haiku 4.5 classifier replaces standalone heuristic.
-        # classify() runs is_brain_relevant() first as a fast-path filter,
-        # then Haiku for semantic relevance, with heuristic fallback on error.
-        from app.services.relevance_filter import classify  # local import — avoids cycle at module load
-        if not await classify(content, team_scope=team_scope, aliases=aliases):
+        # classify_detailed() runs is_brain_relevant() first as a fast-path
+        # filter, then ONE Haiku call that answers both AI-owned levels:
+        # `relevant` (store it at all) and `important` (is it final).
+        from app.services.relevance_filter import classify_detailed  # local import — avoids cycle at module load
+        verdict = await classify_detailed(
+            content, team_scope=team_scope, aliases=aliases
+        )
+        if not verdict.relevant:
             log.info("brain_ingest.team_message.skipped_by_filter", team_scope=team_scope)
             return
         provider = get_memory_provider()
@@ -105,8 +112,9 @@ async def ingest_team_message(
         # collide across every message that also has none.
         if message_id is not None:
             metadata["message_id"] = str(message_id)
+        item_id = str(uuid.uuid4())
         item = MemoryItem(
-            id=str(uuid.uuid4()),
+            id=item_id,
             team_scope=team_scope,
             content=content.strip(),
             metadata=metadata,
@@ -119,6 +127,21 @@ async def ingest_team_message(
             updated_at=now,
         )
         await provider.upsert(item)
+        # The item lands at WORKING and is raised to VALIDATED afterwards rather
+        # than written there directly. That is deliberate: `set_ai_importance` is
+        # then the SINGLE place the AI's level is written, it can enforce
+        # "only ever from WORKING" in its own WHERE clause, and the audit row
+        # goes in the same transaction as the change it describes. The window in
+        # between costs nothing — an item at WORKING is already retrievable.
+        if verdict.important:
+            await importance.flag_ingested_item(
+                team_scope=team_scope,
+                item_id=item_id,
+                model=verdict.model,
+                score=verdict.score,
+                message_id=message_id,
+                source=item.source,
+            )
         # Bundle has a 5-min TTL; drop it so the agent sees the new fact now.
         try:
             team_context_cache.invalidate(team_id)
@@ -128,6 +151,7 @@ async def ingest_team_message(
             "brain_ingest.team_message.ok",
             team_scope=team_scope,
             chars=len(content.strip()),
+            important=verdict.important,
         )
     except Exception as exc:  # noqa: BLE001 — never break chat send
         log.warning("brain_ingest.team_message.failed", error=str(exc))
@@ -144,8 +168,9 @@ async def ingest_external_message(
 ) -> None:
     """Fire-and-forget brain ingest from LibreChat, Open WebUI, or future frontends.
 
-    Gates on the Haiku relevance classifier (relevance_filter.classify) — falls back
-    to the heuristic on any classifier error per Phase 13 D1.
+    Gates on the Haiku classifier (relevance_filter.classify_detailed) — falls back
+    to the heuristic on any classifier error per Phase 13 D1, which keeps the item
+    at WORKING rather than dropping it or guessing it final.
 
     Idempotency: when metadata['idempotency_key'] is present, the MemoryItem.id is
     derived deterministically via uuid5(BRAIN_INGEST_NS, idempotency_key). This makes
@@ -156,10 +181,11 @@ async def ingest_external_message(
     try:
         # Local import to avoid circular dependency:
         # relevance_filter imports is_brain_relevant from brain_ingest;
-        # brain_ingest imports classify from relevance_filter lazily here.
-        from app.services.relevance_filter import classify  # noqa: PLC0415
+        # brain_ingest imports the classifier from relevance_filter lazily here.
+        from app.services.relevance_filter import classify_detailed  # noqa: PLC0415
 
-        if not await classify(content, team_scope=team_scope):
+        verdict = await classify_detailed(content, team_scope=team_scope)
+        if not verdict.relevant:
             log.info(
                 "brain_ingest.external.skipped_by_filter",
                 team_scope=team_scope,
@@ -193,12 +219,23 @@ async def ingest_external_message(
             updated_at=now,
         )
         await provider.upsert(item)
+        # Same two-step as the team-chat path above, and for the same reason:
+        # one writer for the AI's level, with its audit row alongside it.
+        if verdict.important:
+            await importance.flag_ingested_item(
+                team_scope=team_scope,
+                item_id=item_id,
+                model=verdict.model,
+                score=verdict.score,
+                source=source[:128],
+            )
         log.info(
             "brain_ingest.external.ok",
             team_scope=team_scope,
             source=source,
             chars=len(content.strip()),
             idem_key=idem_key,
+            important=verdict.important,
         )
     except Exception as exc:  # noqa: BLE001 — fail-soft, never break caller
         log.warning(

@@ -364,3 +364,246 @@ async def test_json_in_fences(monkeypatch):
 
     result = await rf.classify("We agreed the API uses JWT tokens", team_scope="t1_fences")
     assert result is True
+
+
+# ─── The second answer: "important / final" (2026-08-05) ─────────────
+#
+# The AI now decides TWO of the four levels in ONE call: `relevant` (store it at
+# all) and `important` (is this the final version of something → VALIDATED).
+# What these lock:
+#
+#   * the model's `important` is carried through, and its ABSENCE means false
+#   * every fail-soft path leaves the item at WORKING — never dropped, never
+#     guessed high. Budget exhaustion and a timeout are the two named cases.
+#   * the substantive-content override can rescue an item into the brain but
+#     cannot speak for its finality
+#   * the prompt actually ASKS for the field, and the reply has room to hold it
+
+
+def _mock_haiku(text: str, *, input_tokens: int = 350):
+    """A client whose single response carries `text`. Returns (client, create)."""
+    block = MagicMock()
+    block.text = text
+    usage = MagicMock()
+    usage.input_tokens = input_tokens
+    usage.cache_creation_input_tokens = 0
+    usage.cache_read_input_tokens = 400
+    response = MagicMock()
+    response.content = [block]
+    response.usage = usage
+    create = AsyncMock(return_value=response)
+    client = MagicMock()
+    client.messages.create = create
+    return client, create
+
+
+def test_prompt_asks_for_the_important_field():
+    """The OUTPUT CONTRACT names `important` — not just some prose mentioning it.
+
+    Asserted against the exact JSON line the model is told to return, because a
+    prompt that discusses importance in prose while contracting for two fields
+    gets two fields back. The few-shot count is checked for the same reason: the
+    guidance is only load-bearing if examples demonstrate the true case.
+    """
+    from app.services.relevance_filter import SYSTEM_PROMPT
+
+    contract = '{"relevant": true_or_false, "score": 0.0_to_1.0, "important": true_or_false}'
+    assert contract in SYSTEM_PROMPT, (
+        "the model returns the shape it is contracted for; `important` must be "
+        "in the JSON contract line itself"
+    )
+    assert SYSTEM_PROMPT.count('"important": true') >= 3, (
+        "the true case needs demonstrating, not just describing"
+    )
+    assert SYSTEM_PROMPT.count('"important": false') >= 3, (
+        "and so does the false case, or every stored item comes back final"
+    )
+
+
+@pytest.mark.asyncio
+async def test_reply_has_room_for_three_fields(monkeypatch):
+    """max_tokens must fit the LONGEST legal answer, or the field silently dies.
+
+    A reply cut mid-object fails json.loads and takes the fail-soft path, so the
+    classifier would keep costing a call while never flagging anything again.
+    Two fields fitted in 20 tokens; three do not.
+    """
+    import app.services.relevance_filter as rf
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "RELEVANCE_HAIKU_ENABLED", True)
+    monkeypatch.setattr(rf, "_anthropic_client", None)
+    client, create = _mock_haiku('{"relevant": true, "score": 0.9, "important": true}')
+    monkeypatch.setattr(rf, "_get_client", lambda: client)
+
+    await rf.classify_detailed(
+        "Decision: Postgres 17 for the event store, final for v2", team_scope="t_roomy"
+    )
+
+    longest_legal = '{"relevant": true, "score": 0.999, "important": false}'
+    # JSON punctuation tokenizes at roughly two characters per token — a floor,
+    # not an estimate, so this stays true if the wording of the answer shifts.
+    floor = len(longest_legal) // 2
+    assert create.call_args.kwargs["max_tokens"] >= floor, (
+        f"max_tokens must hold {longest_legal!r} (≥{floor} tokens)"
+    )
+
+
+@pytest.mark.asyncio
+async def test_model_important_is_carried_through(monkeypatch):
+    import app.services.relevance_filter as rf
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "RELEVANCE_HAIKU_ENABLED", True)
+    monkeypatch.setattr(rf, "_anthropic_client", None)
+    client, _ = _mock_haiku('{"relevant": true, "score": 0.94, "important": true}')
+    monkeypatch.setattr(rf, "_get_client", lambda: client)
+
+    r = await rf.classify_detailed(
+        "Q3 budget signed off by finance: 240k. That is the figure to plan against.",
+        team_scope="t_imp",
+    )
+    assert r.relevant is True
+    assert r.important is True
+    assert r.decided_by == "model", "only the model may author this flag"
+    assert r.model == settings.RELEVANCE_HAIKU_MODEL
+    assert r.score == 0.94
+
+
+@pytest.mark.asyncio
+async def test_absent_important_means_false(monkeypatch):
+    """The 90 few-shot examples omit the field; an omission is not a maybe."""
+    import app.services.relevance_filter as rf
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "RELEVANCE_HAIKU_ENABLED", True)
+    monkeypatch.setattr(rf, "_anthropic_client", None)
+    client, _ = _mock_haiku('{"relevant": true, "score": 0.88}')
+    monkeypatch.setattr(rf, "_get_client", lambda: client)
+
+    r = await rf.classify_detailed(
+        "Working on the migration script, about half done", team_scope="t_absent"
+    )
+    assert r.relevant is True
+    assert r.important is False
+
+
+@pytest.mark.asyncio
+async def test_budget_exhausted_leaves_the_item_at_working(monkeypatch):
+    """The named fail-soft case: keep it, do NOT drop it, do NOT guess high.
+
+    A team that has spent the day's classification budget must not start
+    collecting items the AI marked final without ever reading them.
+    """
+    import app.services.relevance_filter as rf
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "RELEVANCE_HAIKU_ENABLED", True)
+    monkeypatch.setattr(rf, "_anthropic_client", None)
+    rf._daily_budget["t_spent"] = {"date": str(date.today()), "tokens_used": 50_000}
+
+    client, create = _mock_haiku('{"relevant": true, "score": 0.99, "important": true}')
+    monkeypatch.setattr(rf, "_get_client", lambda: client)
+
+    r = await rf.classify_detailed(
+        "Q3 budget signed off by finance: 240k, final figure to plan against",
+        team_scope="t_spent",
+    )
+    assert r.relevant is True, "an exhausted budget must not lose the knowledge"
+    assert r.important is False, "and must not invent a judgement nobody made"
+    assert r.decided_by == "heuristic"
+    assert r.reason == "budget_exhausted"
+    create.assert_not_called(), "the whole point of the cap is that no call is made"
+
+
+@pytest.mark.asyncio
+async def test_timeout_leaves_the_item_at_working(monkeypatch):
+    """Same contract for the other fail-soft path."""
+    import app.services.relevance_filter as rf
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "RELEVANCE_HAIKU_ENABLED", True)
+    monkeypatch.setattr(rf, "_anthropic_client", None)
+    client = MagicMock()
+    client.messages.create = AsyncMock(side_effect=TimeoutError("timeout"))
+    monkeypatch.setattr(rf, "_get_client", lambda: client)
+
+    r = await rf.classify_detailed(
+        "Q3 budget signed off by finance: 240k, final figure to plan against",
+        team_scope="t_timeout",
+    )
+    assert r.relevant is True
+    assert r.important is False
+    assert r.decided_by == "heuristic"
+    assert r.reason == "classifier_error"
+
+
+@pytest.mark.asyncio
+async def test_disabled_classifier_never_flags_important(monkeypatch):
+    import app.services.relevance_filter as rf
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "RELEVANCE_HAIKU_ENABLED", False)
+    monkeypatch.setattr(rf, "_anthropic_client", None)
+    monkeypatch.setattr(rf, "_get_client", lambda: None)
+
+    r = await rf.classify_detailed(
+        "Policy as of today: API keys rotate every 90 days, no exceptions",
+        team_scope="t_off",
+    )
+    assert r.relevant is True
+    assert r.important is False
+    assert r.reason == "classifier_disabled"
+
+
+@pytest.mark.asyncio
+async def test_substantive_override_cannot_carry_important(monkeypatch):
+    """The override rescues an item into the brain; it does not speak for finality.
+
+    An item the model wanted to DISCARD must not come back out of the same call
+    marked final — that is the override inventing a judgement nobody made.
+    """
+    import app.services.relevance_filter as rf
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "RELEVANCE_HAIKU_ENABLED", True)
+    monkeypatch.setattr(rf, "_anthropic_client", None)
+    client, _ = _mock_haiku('{"relevant": false, "score": 0.08, "important": true}')
+    monkeypatch.setattr(rf, "_get_client", lambda: client)
+
+    content = "The autumn showcase in Ghent is confirmed for the 14th at the old dockyard"
+    assert len(content) >= 50  # the override's own precondition
+    r = await rf.classify_detailed(content, team_scope="t_override")
+    assert r.relevant is True, "substantive content is still rescued into the brain"
+    assert r.important is False, "but the rescue is not a promotion"
+    assert r.reason == "substantive_default_allow"
+
+
+@pytest.mark.asyncio
+async def test_fast_path_reject_reports_itself(monkeypatch):
+    """A short message never reaches the model, and says so rather than guessing."""
+    import app.services.relevance_filter as rf
+
+    r = await rf.classify_detailed("ok", team_scope="t_short")
+    assert r.relevant is False
+    assert r.important is False
+    assert r.decided_by == "fast_path"
+
+
+@pytest.mark.asyncio
+async def test_classify_bool_wrapper_tracks_detailed(monkeypatch):
+    """The old bool API is the `.relevant` half of the new one — both cases."""
+    import app.services.relevance_filter as rf
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "RELEVANCE_HAIKU_ENABLED", True)
+    monkeypatch.setattr(rf, "_anthropic_client", None)
+
+    client, _ = _mock_haiku('{"relevant": true, "score": 0.9, "important": true}')
+    monkeypatch.setattr(rf, "_get_client", lambda: client)
+    assert await rf.classify("Decision: we ship on the 14th", team_scope="t_w1") is True
+
+    client, _ = _mock_haiku('{"relevant": false, "score": 0.02, "important": true}')
+    monkeypatch.setattr(rf, "_get_client", lambda: client)
+    # Under the substantive floor, so the override does not rescue it.
+    assert await rf.classify("brb, coffee run", team_scope="t_w2") is False

@@ -7,7 +7,9 @@ on follow-up questions.
 
 Strategy:
   - Query top N items WHERE team_scope=<slug> AND truth_level IN
-    ('WORKING','VALIDATED','CANONICAL'), ordered by created_at DESC.
+    ('WORKING','VALIDATED','CANONICAL'), ordered by WEIGHT and then by
+    created_at DESC — starred (a person's pick) first, then the assistant's
+    important/final flag, then ordinary working notes. See _LEVEL_RANK_SQL.
   - Format as a deterministic markdown block (no timestamps in the BODY
     so re-runs within the cache window produce IDENTICAL bytes → cache hit).
   - Cache per team_id with TTL = settings.TEAM_CONTEXT_CACHE_TTL_S (300s).
@@ -67,6 +69,53 @@ _PER_ITEM_CHARS = 5000
 _MAX_BUNDLE_CHARS = 60000
 
 
+# How the levels sort when the bundle is built. Lower wins.
+#
+# THIS IS THE WEIGHTING (2026-08-05). A starred item is one a PERSON on the team
+# picked out by hand; an important/final item is the AI's own opinion; everything
+# else is working knowledge. Ordering by that before recency does two things,
+# and the second matters more than the first:
+#
+#   * the model reads the team's own picks at the top of the block, where
+#     attention is cheapest, instead of wherever they happen to fall by date;
+#   * when a talkative team overflows `_MAX_BUNDLE_CHARS`, what gets dropped is
+#     the ORDINARY tail. Before this, a starred item from last week was evicted
+#     by a hundred lines of today's chatter — the one case where losing it is
+#     least forgivable, because somebody deliberately marked it.
+#
+# Recency still decides within a level, so the block stays "newest first" for
+# everything a person or the AI has not singled out.
+_LEVEL_RANK_SQL = """
+        CASE truth_level
+            WHEN 'CANONICAL' THEN 0
+            WHEN 'VALIDATED' THEN 1
+            ELSE 2
+        END
+"""
+
+#: What each level is called in the block. The stored names are the enum's; these
+#: are what the four-level design calls them, and the difference is load-bearing
+#: — "CANONICAL" reads to a model as "canonical truth" when what it actually
+#: means is "a teammate starred this", and "VALIDATED" claims a verification that
+#: never happened. The AI's own flag must not come back to it dressed as a
+#: warrant somebody granted.
+_LEVEL_LABELS = {
+    "CANONICAL": "starred by a teammate",
+    "VALIDATED": "flagged important by the assistant",
+    "WORKING": "working",
+}
+
+#: One line above the items saying what the labels mean, so the ordering is not
+#: the only thing carrying the ranking. Included only when there is something to
+#: label; deterministic, so it cannot bust the prompt cache.
+_LEGEND = (
+    "(Ordered by weight: items a teammate STARRED come first — a person chose "
+    "those by hand and they outrank everything below. Then items the assistant "
+    "flagged important, which are its own opinion, not a human's. Then ordinary "
+    "working notes, newest first.)"
+)
+
+
 def _format_item(content: str, truth_level: str, source: str) -> str:
     """Format one memory item line. Deterministic — no timestamps in body.
 
@@ -77,7 +126,8 @@ def _format_item(content: str, truth_level: str, source: str) -> str:
     snippet = content.strip()
     if len(snippet) > _PER_ITEM_CHARS:
         snippet = snippet[:_PER_ITEM_CHARS].rstrip() + "…"
-    return f"- [{truth_level}] ({source}) {snippet}"
+    label = _LEVEL_LABELS.get(truth_level, truth_level)
+    return f"- [{label}] ({source}) {snippet}"
 
 
 async def get_team_memory_bundle(
@@ -110,15 +160,15 @@ async def get_team_memory_bundle(
     rows = (
         await session.execute(
             sa.text(
-                """
+                f"""
                 SELECT content, truth_level, source
                 FROM memory_items
                 WHERE team_scope = :team_scope
                   AND truth_level IN ('WORKING', 'VALIDATED', 'CANONICAL')
                   AND deleted_at IS NULL
-                ORDER BY created_at DESC
+                ORDER BY {_LEVEL_RANK_SQL}, created_at DESC
                 LIMIT :limit
-                """
+                """  # noqa: S608 — _LEVEL_RANK_SQL is a module constant, not input
             ),
             {"team_scope": team_scope, "limit": settings.TEAM_CONTEXT_MAX_ITEMS},
         )
@@ -127,12 +177,14 @@ async def get_team_memory_bundle(
     if not rows:
         bundle = "(no team memory items yet)"
     else:
-        lines: list[str] = []
-        total = 0
+        lines: list[str] = [_LEGEND]
+        total = len(_LEGEND) + 1
         for r in rows:
             line = _format_item(r["content"], r["truth_level"], r["source"] or "unknown")
-            if lines and total + len(line) > _MAX_BUNDLE_CHARS:
-                break  # total budget reached — keep the newest items only
+            # Budget reached — stop. Because the rows arrive starred-first, what
+            # this drops is the ordinary tail, never somebody's starred item.
+            if len(lines) > 1 and total + len(line) > _MAX_BUNDLE_CHARS:
+                break
             lines.append(line)
             total += len(line) + 1
         bundle = "\n".join(lines)
