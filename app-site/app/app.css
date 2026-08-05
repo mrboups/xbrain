@@ -1419,7 +1419,19 @@ body {
   background: var(--bg);
   border: 1px solid var(--input);
   border-radius: var(--radius);
-  padding: 4px 4px 4px 6px;
+  /* The two ends have to READ equally inset, which is not the same as carrying
+     equal numbers. What the eye measures is the distance from the pill's border
+     to the first MARK, and the two ends put a mark in a different place: the "+"
+     is a thin glyph centred in a 32px box, so about 10px of its own box stands
+     between the border and its ink, while the send button is a filled block
+     whose edge IS its ink. The old 6px left / 4px right therefore read as 16px
+     of air on the left against 4px on the right — the pill shoved against its
+     right edge, which is what was reported.
+     10px right against 6px left inverts that: block edge at 10px, plus-ink at
+     16px, and the block's mass covers the remaining difference — a high-contrast
+     solid fills more space than it occupies, so an identical number would leave
+     it looking the tighter of the two. Cost is 6px of textarea width. */
+  padding: 4px 10px 4px 6px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .xb-composer-pill:focus-within {

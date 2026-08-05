@@ -427,6 +427,67 @@ test("the textarea grows to 8 rows and only then shows a scrollbar", () => {
   );
 });
 
+test("the pill's two ends read as equally inset — and both products agree", () => {
+  // "Collé à droite", as reported on an iPhone. The two ends of the pill put
+  // their first mark in different places: the send button is a filled block
+  // whose EDGE is its ink, so its inset is its padding outright, while the "+"
+  // is a thin glyph centred in a 32px box and carries ~10px of that box before
+  // any ink. Equal numbers therefore do not read as equal — and these were not
+  // even equal: 6px on the left against 4px on the right put the heavier, higher
+  // contrast end nearest the border. Whatever the numbers become, the end
+  // carrying the filled block is the one that needs the room.
+  const seen = {};
+  for (const [name, src] of [
+    ["app.css", CSS],
+    ["popup.css", POPUP_CSS],
+  ]) {
+    const pill = props(selectorBlock(src, ".xb-composer-pill"));
+    const parts = (pill.padding || "").split(/\s+/).filter(Boolean);
+    assert.ok(parts.length >= 2, `${name}: .xb-composer-pill declares no usable padding`);
+    // CSS shorthand: 2 values are vertical/horizontal, 3 add a bottom, 4 are
+    // clockwise from the top.
+    const right = parts.length === 1 ? parts[0] : parts[1];
+    const left = parts.length === 4 ? parts[3] : right;
+    const px = (v) => Number.parseInt(v, 10);
+    assert.ok(
+      Number.isFinite(px(right)) && Number.isFinite(px(left)),
+      `${name}: padding is "${pill.padding}" — this reads pixels`,
+    );
+    assert.ok(
+      px(right) >= px(left),
+      `${name}: padding is "${pill.padding}", ${px(left)}px left against ${px(right)}px right — the ghost glyph already carries its own air and the filled block carries none, so the smaller number on the send side is exactly what makes the pill look shoved against its right edge`,
+    );
+    assert.ok(
+      px(right) >= 8,
+      `${name}: ${px(right)}px between the send button and the pill border reads as touching it`,
+    );
+    seen[name] = pill.padding;
+  }
+  assert.equal(
+    seen["app.css"],
+    seen["popup.css"],
+    "one pill, two products: a padding that drifts between them is the same bug fixed once",
+  );
+});
+
+test("balancing the pill did not shrink a touch target", () => {
+  // The buttons are the things a thumb has to hit; the pill's padding must not
+  // be bought out of their size. 32px is what they have always been — smaller
+  // is a regression, and the pill still stands a row taller than they are.
+  for (const [name, src] of [
+    ["app.css", CSS],
+    ["popup.css", POPUP_CSS],
+  ]) {
+    for (const sel of [".xb-clip-btn", ".xb-send-btn", ".xb-agent-btn"]) {
+      const btn = props(selectorBlock(src, sel));
+      assert.ok(
+        Number.parseInt(btn.width, 10) >= 32 && Number.parseInt(btn.height, 10) >= 32,
+        `${name} ${sel}: ${btn.width} x ${btn.height}`,
+      );
+    }
+  }
+});
+
 test("Enter sends and Shift+Enter inserts a newline", () => {
   assert.ok(
     /event\.shiftKey\)\s*return/.test(chatJs),

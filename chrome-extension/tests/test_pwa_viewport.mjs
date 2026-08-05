@@ -251,12 +251,19 @@ function makeRoot() {
  * geometry and never that iOS reports that geometry. The assumptions are named
  * where they are used.
  *
+ * ITS FRAME CLOCK IS MANUAL. `flushFrames()` runs what the module has queued,
+ * which is what lets a test drive an animation — and, more to the point, the
+ * silence AFTER one — without a timer. A test that never flushes gets the old
+ * behaviour exactly: callbacks sit in the queue and nothing runs.
+ *
  * @param {{height: number, innerHeight?: number, scale?: number, scrollY?: number,
  *   offsetTop?: number}} opts
  */
 function makeView(opts = {}) {
   const listeners = {};
   const scrolls = [];
+  const frames = new Map();
+  let nextFrameId = 1;
   const view = {
     innerHeight: opts.innerHeight ?? 800,
     scrollY: opts.scrollY ?? 0,
@@ -264,6 +271,12 @@ function makeView(opts = {}) {
       scrolls.push([x, y]);
       view.scrollY = y;
     },
+    requestAnimationFrame: (fn) => {
+      const id = nextFrameId++;
+      frames.set(id, fn);
+      return id;
+    },
+    cancelAnimationFrame: (id) => frames.delete(id),
     visualViewport: {
       height: opts.height ?? 800,
       offsetTop: opts.offsetTop ?? 0,
@@ -284,6 +297,18 @@ function makeView(opts = {}) {
     for (const fn of listeners[type] || []) fn();
   };
   view.count = (type) => (listeners[type] || []).length;
+  view.pendingFrames = () => frames.size;
+  /** Run queued frames, including any they queue in turn. Returns how many ran. */
+  view.flushFrames = (max = 500) => {
+    let ran = 0;
+    while (frames.size && ran < max) {
+      const [id, fn] = frames.entries().next().value;
+      frames.delete(id);
+      ran++;
+      fn();
+    }
+    return ran;
+  };
   return view;
 }
 
@@ -450,6 +475,246 @@ test("detaching removes BOTH listeners and returns the shell to the fallback", (
   // And it is genuinely detached: a later event writes nothing.
   view.visualViewport.height = 200;
   view.fire("resize");
+  assert.equal(root.styles["--xb-viewport-height"], undefined);
+});
+
+// ---- 4a. The settle: the events stop before the keyboard does -----------
+//
+// THE REPORTED BUG, and the one thing a stub CAN carry evidence for. With the
+// keyboard open there was a band of page background between the composer and the
+// keys, and a scroll made it correct itself — so the geometry the module lands
+// on after a stray event is right and the one it took when the keyboard opened
+// was not. iOS reports the viewport while the keys slide in and stops reporting
+// before the slide ends; the last event carries a frame from the middle of it.
+//
+// What the stub can hold still is exactly that shape: events that report
+// changing geometry, then a final geometry that NO event announces. A module
+// that trusts its last event fails these; one that keeps reading does not.
+
+test("a keyboard animation settles on the LAST geometry, not the last event's", () => {
+  const view = makeView({ height: 844, innerHeight: 844 });
+  const root = makeRoot();
+  viewport.bindViewport({ view, root });
+  view.flushFrames(); // the boot settle, so it cannot be what passes below
+
+  // The keys sliding in. Each event carries a frame of the animation, and the
+  // shell follows it — a composer that waits out the whole slide is behind the
+  // keyboard for the duration.
+  view.visualViewport.height = 700;
+  view.visualViewport.offsetTop = 20;
+  view.fire("scroll");
+  view.visualViewport.height = 600;
+  view.visualViewport.offsetTop = 34;
+  view.fire("scroll");
+  assert.equal(root.styles["--xb-viewport-height"], "600px", "mid-slide, and it tracks");
+
+  // And then the animation ENDS, with nothing to announce it. Everything below
+  // this line happens with no event at all.
+  view.visualViewport.height = 508;
+  view.visualViewport.offsetTop = 44;
+  view.flushFrames();
+
+  assert.equal(
+    root.styles["--xb-viewport-height"],
+    "508px",
+    "the shell is still 92px taller than the visible window — that overhang, painted below what can be seen, is the band the owner photographed",
+  );
+  assert.equal(
+    root.styles["--xb-viewport-offset-top"],
+    "44px",
+    "and the window moved 10px further down after the last event said 34: a shell that stops at the reported offset ends short of the keys by the difference",
+  );
+  assert.equal(view.pendingFrames(), 0, "a settled viewport ends the loop");
+});
+
+test("the settle outlives the frame after the event: it ends when the motion does", () => {
+  // One trailing re-measure is a guess about how much animation is left. These
+  // readings keep moving for several frames and then rest; the value the shell
+  // has to end on is the resting one, not whatever the next frame happened to
+  // catch. A phone at 120Hz has twice as many frames of the same slide, which is
+  // exactly why the loop ends on the MOTION stopping rather than on a count.
+  const view = makeView({ height: 844, innerHeight: 844 });
+  const root = makeRoot();
+  const slide = [760, 690, 620, 560, 520, 508];
+  let i = 0;
+  Object.defineProperty(view.visualViewport, "height", {
+    configurable: true,
+    get: () => slide[Math.min(i++, slide.length - 1)],
+  });
+
+  viewport.bindViewport({ view, root });
+  assert.equal(root.styles["--xb-viewport-height"], "760px", "the first reading, mid-slide");
+  view.flushFrames();
+  assert.equal(
+    root.styles["--xb-viewport-height"],
+    "508px",
+    "the slide ran on for five more frames — a settle that stops at the next one leaves the shell 252px too tall, which is the band",
+  );
+  assert.equal(view.pendingFrames(), 0);
+});
+
+test("the settled geometry is what the subscribers are told about", () => {
+  // The thread re-anchors from this. Told only the mid-animation height, it
+  // measures its scroller against a layout that is about to change again.
+  const view = makeView({ height: 844, innerHeight: 844 });
+  const root = makeRoot();
+  const seen = [];
+  withSubscriber(
+    (change) => seen.push(change),
+    () => {
+      viewport.bindViewport({ view, root });
+      view.flushFrames();
+      view.visualViewport.height = 620;
+      view.fire("resize");
+      view.visualViewport.height = 508; // the slide ran on; no event follows
+      view.flushFrames();
+
+      const last = seen[seen.length - 1];
+      assert.equal(last.height, 508, "the announcement must carry the settled height");
+      assert.equal(
+        last.previousHeight,
+        620,
+        "and the height it replaced, or the reader's position cannot be recovered from it",
+      );
+      assert.equal(last.keyboard, true, "336px of viewport is still a keyboard");
+    },
+  );
+});
+
+test("a settle that has finished is re-armed by the next event", () => {
+  const view = makeView({ height: 844, innerHeight: 844 });
+  const root = makeRoot();
+  viewport.bindViewport({ view, root });
+  view.flushFrames();
+  assert.equal(view.pendingFrames(), 0, "the boot settle is over");
+
+  view.visualViewport.height = 700;
+  view.fire("scroll");
+  view.visualViewport.height = 508;
+  view.flushFrames();
+  assert.equal(root.styles["--xb-viewport-height"], "508px");
+
+  // Closing is the same problem in reverse, and it is the one that leaves a
+  // keyboard flag on a screen with no keyboard.
+  view.visualViewport.height = 620;
+  view.fire("scroll");
+  assert.equal(root.attrs["data-keyboard"], "open", "mid-slide, 224px is still covered");
+  view.visualViewport.height = 844;
+  view.flushFrames();
+  assert.equal(
+    root.styles["--xb-viewport-height"],
+    "844px",
+    "a settle that only ever ran once leaves the shell short by whatever was left of the slide",
+  );
+  assert.equal(
+    root.attrs["data-keyboard"],
+    undefined,
+    "and the flag must come off at the settled height: kept, the composer holds the collapsed inset and sits over the home indicator",
+  );
+});
+
+test("an event that arrives BEFORE the viewport moves still gets a full settle", () => {
+  // iOS announces the keyboard at the start of the slide, when the viewport is
+  // still exactly where the previous settle left it. Counting that reading as
+  // half of an agreement ends the new settle on the first frame — on the height
+  // from before the keyboard, with the whole slide still to come.
+  const view = makeView({ height: 844, innerHeight: 844 });
+  const root = makeRoot();
+  viewport.bindViewport({ view, root });
+  view.flushFrames(); // the boot settle agreed on 844
+
+  view.fire("resize"); // the keys are coming; nothing has moved yet
+
+  const slide = [844, 700, 600, 508];
+  let i = 0;
+  Object.defineProperty(view.visualViewport, "height", {
+    configurable: true,
+    get: () => slide[Math.min(i++, slide.length - 1)],
+  });
+  view.flushFrames();
+
+  assert.equal(
+    root.styles["--xb-viewport-height"],
+    "508px",
+    "the shell never followed the keyboard down: it is a full 336px taller than the visible window, and the composer is behind the keys",
+  );
+});
+
+test("a viewport that never stops moving does not get an endless loop", () => {
+  const view = makeView({ height: 800, innerHeight: 800 });
+  const root = makeRoot();
+  let h = 800;
+  // A page in constant motion: every reading differs from the one before it, so
+  // the agreement that ends the settle never arrives.
+  Object.defineProperty(view.visualViewport, "height", {
+    configurable: true,
+    get: () => (h -= 1),
+  });
+  viewport.bindViewport({ view, root });
+
+  const ran = view.flushFrames(500);
+  assert.ok(
+    ran < 500,
+    `the settle ran ${ran} frames — with no budget it reads the viewport for the rest of the session`,
+  );
+  assert.equal(view.pendingFrames(), 0, "and it queued nothing on its way out");
+});
+
+test("a pinch that begins mid-settle stands the loop down", () => {
+  const view = makeView({ height: 844, innerHeight: 844 });
+  const root = makeRoot();
+  viewport.bindViewport({ view, root });
+  view.flushFrames();
+
+  view.visualViewport.height = 600;
+  view.fire("resize");
+  assert.equal(root.styles["--xb-viewport-height"], "600px");
+
+  view.visualViewport.scale = 2.4;
+  view.visualViewport.height = 300;
+  view.flushFrames();
+  assert.equal(
+    root.styles["--xb-viewport-height"],
+    "600px",
+    "the settle owes the pinch guard the same deference an event does — re-measuring a gesture shrinks the app under the reader's fingers a frame at a time",
+  );
+  assert.equal(view.pendingFrames(), 0, "and it must stop asking, not poll the gesture");
+});
+
+test("detaching cancels a settle already in flight", () => {
+  const view = makeView({ height: 844, innerHeight: 844 });
+  const root = makeRoot();
+  const detach = viewport.bindViewport({ view, root });
+  view.flushFrames();
+
+  view.visualViewport.height = 508;
+  view.fire("resize");
+  assert.ok(view.pendingFrames() > 0, "the settle must be armed here or the rest proves nothing");
+
+  detach();
+  assert.equal(view.pendingFrames(), 0, "a queued frame outlives the binding that queued it");
+
+  view.visualViewport.height = 300;
+  view.flushFrames();
+  assert.equal(
+    root.styles["--xb-viewport-height"],
+    undefined,
+    "a settle that survives teardown writes a height back onto a shell that was just handed to the stylesheet's fallback",
+  );
+});
+
+test("no frame clock: the module still measures, it just cannot settle", () => {
+  // An embedded webview with a visual viewport and no rAF. The settle is an
+  // addition; losing it must cost the settle and nothing else.
+  const view = makeView({ height: 844, innerHeight: 844 });
+  delete view.requestAnimationFrame;
+  delete view.cancelAnimationFrame;
+  const root = makeRoot();
+  const detach = viewport.bindViewport({ view, root });
+  view.visualViewport.height = 508;
+  view.fire("resize");
+  assert.equal(root.styles["--xb-viewport-height"], "508px");
+  detach();
   assert.equal(root.styles["--xb-viewport-height"], undefined);
 });
 

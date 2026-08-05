@@ -28,6 +28,15 @@
  * event that arrives is `scroll` — a listener on `resize` alone sees nothing at
  * all on the platform that needs this most.
  *
+ * WHY IT KEEPS ASKING AFTER THE LAST EVENT. The events stop before the keyboard
+ * does. iOS reports the viewport several times while the keys slide in and the
+ * final one of those readings is from the middle of the animation — no event
+ * announces the end. A handler that trusts the last event it received lays the
+ * shell out against a viewport that has since moved, and the difference shows as
+ * a strip of page background between the composer and the keys. See
+ * SETTLE_MAX_FRAMES: the fix is to keep reading until the geometry stops
+ * changing, never to add a constant that cancels the error on one device.
+ *
  * WHY IT HANDS BACK A DETACH. The binding is per session, not per team, and a
  * leaked pair of listeners is invisible until it is not: both run on every
  * viewport change, of which a keyboard animation produces dozens.
@@ -74,6 +83,35 @@ const KEYBOARD_MIN_PX = 120;
 
 /** A pinch of zoom either side of 1 is measurement noise, not a gesture. */
 const SCALE_EPSILON = 0.01;
+
+/**
+ * How long the settle may keep re-reading the viewport after an event.
+ *
+ * THE BUG THESE EXIST FOR. With the keyboard open there was a band of page
+ * background between the bottom of the composer and the keyboard's accessory
+ * bar — and scrolling made it correct itself. That self-correction is the
+ * diagnosis: the geometry this module settles on after a stray event is right,
+ * so the one it took when the keyboard opened was not. iOS animates the keys in
+ * over roughly a quarter of a second, reports the viewport as it goes, and stops
+ * reporting before the animation ends. The last event of the sequence carries a
+ * frame from the middle of the slide, and nothing arrives to correct it.
+ *
+ * `visualViewport.height` is a live reading, not a snapshot handed to the event,
+ * so a frame loop can see the final geometry whether or not anything announces
+ * it. It ends when two consecutive frames agree — a viewport that has not moved
+ * for a frame has finished moving — which is a measurement of the animation
+ * rather than an assumption about how long it lasts.
+ *
+ * These two numbers bound the WORK, not the measurement: a viewport that never
+ * settles (a page in constant motion, a device mid-rotation) must not leave a
+ * loop running for the session. Neither may ever become a pixel constant added
+ * to a height — an offset that happens to cancel the error on one phone is how
+ * this reappears on the next. 40 frames is ~660ms at 60Hz and ~330ms at 120Hz,
+ * both past the end of an iOS keyboard animation; the deadline is what holds
+ * when the frames are slow rather than merely many.
+ */
+const SETTLE_MAX_FRAMES = 40;
+const SETTLE_MAX_MS = 700;
 
 /**
  * Everyone who wants to be told the visible window changed.
@@ -150,23 +188,49 @@ export function bindViewport(refs = {}) {
   // content. Writing nothing is the correct outcome, not a degraded one.
   if (!viewport) return () => {};
 
+  // The frame clock, taken from the injected window so the settle can be driven
+  // by a test rather than described by one. Absent — an environment with a
+  // visual viewport but no rAF — costs the settle and nothing else: the module
+  // goes on measuring exactly as it did before, which is the behaviour that had
+  // the band in it, not a new failure.
+  const requestFrame =
+    typeof view.requestAnimationFrame === "function"
+      ? (fn) => view.requestAnimationFrame(fn)
+      : null;
+  const cancelFrame =
+    typeof view.cancelAnimationFrame === "function"
+      ? (id) => view.cancelAnimationFrame(id)
+      : null;
+
   // What was last WRITTEN, so a change can be told from the dozens of events
   // that repeat it: iOS fires scroll continuously, and re-announcing the same
   // height would have every subscriber re-doing its work on every frame.
   let lastHeight = null;
   let lastOffsetTop = null;
 
-  const measure = () => {
-    // A pinch-zoomed visual viewport is a window onto the page, not a keyboard
-    // measurement. Resizing the shell to it would shrink the app under the
-    // reader's fingers and fight the gesture; the last honest height stays.
+  // The settle's own state. `settleLast` is the reading the previous frame took
+  // — the other half of the agreement that ends the loop — and is deliberately
+  // NOT `lastHeight`: one answers "has the animation stopped", the other "is
+  // this news to a subscriber".
+  let frame = null;
+  let framesLeft = 0;
+  let deadline = 0;
+  let settleLast = null;
+  let released = false;
+
+  /**
+   * The geometry as the browser reports it right now, or null when this module
+   * must keep its hands off the layout.
+   *
+   * A pinch-zoomed visual viewport is a window onto the page, not a keyboard
+   * measurement. Resizing the shell to it would shrink the app under the
+   * reader's fingers and fight the gesture; the last honest height stays.
+   */
+  const read = () => {
     const scale = typeof viewport.scale === "number" ? viewport.scale : 1;
-    if (Math.abs(scale - 1) > SCALE_EPSILON) return;
-
+    if (Math.abs(scale - 1) > SCALE_EPSILON) return null;
     const height = Math.round(viewport.height || 0);
-    if (height <= 0) return;
-    root.style.setProperty(HEIGHT_VAR, `${height}px`);
-
+    if (height <= 0) return null;
     // WHERE the visible window is, which is a different question from how tall
     // it is — and the one that was never asked. The visual viewport is not
     // always flush with the top of the layout viewport: when the keyboard opens
@@ -178,6 +242,12 @@ export function bindViewport(refs = {}) {
     // what is left in their place, between the composer and the keys, is a band
     // of bare canvas.
     const offsetTop = Math.max(0, Math.round(viewport.offsetTop || 0));
+    return { height, offsetTop };
+  };
+
+  /** Lay the shell out against a reading, and tell whoever is listening. */
+  const apply = ({ height, offsetTop }) => {
+    root.style.setProperty(HEIGHT_VAR, `${height}px`);
     root.style.setProperty(OFFSET_TOP_VAR, `${offsetTop}px`);
 
     const covered = Math.round((view.innerHeight || height) - height);
@@ -194,6 +264,9 @@ export function bindViewport(refs = {}) {
     // offsetTop is the visible window's position inside that same layout
     // viewport. A page pinned at scrollY 0 can still be looked at through a
     // window that has moved.
+    //
+    // Checked on every settle frame too, not only on an event: the scroll iOS
+    // performs to reveal the focused field is not always announced by one.
     if (view.scrollY > 0 && typeof view.scrollTo === "function") {
       view.scrollTo(0, 0);
     }
@@ -216,11 +289,66 @@ export function bindViewport(refs = {}) {
     });
   };
 
+  /** One frame of the settle: ask again, and stop once the answer holds. */
+  const step = () => {
+    frame = null;
+    if (released) return;
+    const reading = read();
+    // A gesture started mid-settle. Stand down exactly as an event would, and
+    // do not keep a loop running that would fight it sixty times a second.
+    if (!reading) {
+      settleLast = null;
+      return;
+    }
+    const settled =
+      settleLast !== null &&
+      settleLast.height === reading.height &&
+      settleLast.offsetTop === reading.offsetTop;
+    settleLast = reading;
+    apply(reading);
+    if (settled) return;
+    if (--framesLeft <= 0) return;
+    if (Date.now() >= deadline) return;
+    frame = requestFrame(step);
+  };
+
+  /** Start the settle, or push its budget back out for a fresh event. */
+  const armSettle = () => {
+    if (!requestFrame || released) return;
+    framesLeft = SETTLE_MAX_FRAMES;
+    deadline = Date.now() + SETTLE_MAX_MS;
+    // A new event invalidates the pair being compared: the reading it carried
+    // may be from the middle of an animation, and letting it stand as half of an
+    // agreement would end the settle on precisely the value that is wrong.
+    settleLast = null;
+    // Re-arming an in-flight loop rather than queueing a second one — two loops
+    // would read the same viewport twice a frame for the rest of the animation.
+    if (frame === null) frame = requestFrame(step);
+  };
+
+  const measure = () => {
+    const reading = read();
+    if (!reading) return;
+    // Applied now rather than at the end of the settle: the shell has to follow
+    // the keyboard while it moves, or the composer spends the whole animation
+    // behind it. The settle exists to correct the LAST of these readings — the
+    // one no event ever arrives to correct.
+    apply(reading);
+    armSettle();
+  };
+
   measure();
   viewport.addEventListener("resize", measure);
   viewport.addEventListener("scroll", measure);
 
   return () => {
+    // Before the listeners come off: a frame already queued would otherwise run
+    // after teardown and write a height back onto a shell that was just handed
+    // to the stylesheet's fallback.
+    released = true;
+    if (frame !== null && cancelFrame) cancelFrame(frame);
+    frame = null;
+    settleLast = null;
     viewport.removeEventListener("resize", measure);
     viewport.removeEventListener("scroll", measure);
     // Back to the stylesheet's fallback rather than to a stale pixel count: a
