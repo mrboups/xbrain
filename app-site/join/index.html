@@ -308,6 +308,21 @@
       margin-top: 4px;
     }
 
+    /* The way out. Present in every state, including the failures — a page that
+       cannot let somebody in and also cannot let them leave is the wall this
+       page used to be. */
+    .exit {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 18px;
+      font-size: 12.5px;
+      color: var(--muted-fg);
+    }
+    .exit__link { color: var(--muted-fg); }
+    .exit__link:hover { color: var(--fg); }
+
     .footer {
       margin-top: 44px;
       padding-top: 18px;
@@ -377,20 +392,45 @@
       <div id="signin-banner" class="banner" hidden><span id="signin-msg">&mdash;</span></div>
     </div>
 
-    <!-- State: done (joined / already a member / failed) -->
+    <!-- State: done (joined / already a member / failed)
+         =====================================================================
+         WHY THIS IS A CONTROL AND NOT A REDIRECT.
+
+         Joining is the one thing this page exists to do, and "You joined
+         <team>" is the answer to the question the link asked. An automatic jump
+         to /app/ would be one tap friendlier and would erase that answer before
+         a slow phone had finished painting it — and on a phone, in a standalone
+         PWA, there is no back button to get it again. So the confirmation stays
+         on screen and the next step is offered as the primary control right
+         under it: one tap, obvious, and taken deliberately.
+
+         The same card carries the failures, where there is no chat to open and
+         a redirect would be actively wrong. One shape, one code path, no
+         state-dependent navigation to get subtly wrong.
+         ================================================================== -->
     <div id="result-card" class="card result" hidden aria-live="polite">
       <h2 id="result-title">&mdash;</h2>
       <p id="result-body">&mdash;</p>
       <ol class="steps" id="result-steps" hidden>
-        <li>Open the xbrain extension in Chrome.</li>
-        <li>Pick the team from the selector at the top.</li>
+        <li>Pick the team from the rail at the top of the chat.</li>
+        <li>The xbrain extension in Chrome shows the same teams.</li>
       </ol>
-      <a href="/account/teams/" class="btn btn-primary" id="result-cta">Go to Teams</a>
+      <a href="/app/" class="btn btn-primary btn-block" id="result-cta">Open the chat</a>
     </div>
 
     <p class="footnote" id="register-footnote" hidden>
       No account yet? <a href="/account/register/">Create one</a>, then reopen this invite link.
     </p>
+
+    <!-- The exit, on every state including the ones that failed. Deliberately
+         OUTSIDE the cards and never touched by hideAll(), so no state can take
+         it away: somebody who is already signed in, or who changed their mind,
+         or whose invite turned out to be dead, still has somewhere to go. -->
+    <nav class="exit" id="page-exit" aria-label="Leave this page">
+      <a href="/app/" id="exit-app" class="exit__link">Open the chat</a>
+      <span aria-hidden="true">&middot;</span>
+      <a href="/account/teams/" id="exit-teams" class="exit__link">Your teams</a>
+    </nav>
 
     <footer class="footer">
       xbrain &middot; memory layer for hybrid teams &middot;
@@ -417,6 +457,11 @@
     // Canonical localStorage keys — SAME keys login/teams/admin use.
     const STORAGE_TOKEN = "xbt_token";
     const STORAGE_EMAIL = "user_sub";
+
+    // Every exit on this page is a plain <a href> in the markup above, not a
+    // destination this script assigns. That is deliberate: the links still work
+    // if anything below throws, which is the one case where being stuck here
+    // would be hardest to explain.
 
     const el = function (id) { return document.getElementById(id); };
 
@@ -484,6 +529,11 @@
       return code;
     }
 
+    /**
+     * Hide every state card. The exit nav is deliberately NOT in here: it is the
+     * one thing on the page that must survive every state, including the ones
+     * where joining failed.
+     */
     function hideAll() {
       statusCard.hidden = true;
       codeCard.hidden = true;
@@ -505,6 +555,9 @@
       resultBody.textContent = body;
       resultCard.className = "card result" + (kind ? " is-" + kind : "");
       resultSteps.hidden = !(opts && opts.steps);
+      // The primary control goes with the outcome: it is offered when there IS a
+      // chat to open, and withheld when there is not. The exit nav below the card
+      // stays either way, so a failure is never a dead end.
       resultCta.hidden = !!(opts && opts.hideCta);
       resultCard.hidden = false;
     }
@@ -544,7 +597,7 @@
      * Chrome extension does (onboarding.js): POST /v1/me/api-token authenticated
      * with the Google credential, then read /v1/me for the canonical source_user_id.
      * Storing the same two keys the rest of app-site uses means a person who signs
-     * in here is also signed in on /account/teams/.
+     * in here is also signed in on /account/teams/ and in the chat at /app/.
      */
     async function signInWithGoogleCredential(credential) {
       showStatus("Signing you in…");
