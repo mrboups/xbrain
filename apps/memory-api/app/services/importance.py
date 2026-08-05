@@ -243,6 +243,76 @@ async def flag_ingested_item(
         return False
 
 
+async def apply_star_to_items(
+    session: AsyncSession,
+    *,
+    team_scope: str,
+    item_ids: list[str],
+    starred: bool,
+) -> list[str]:
+    """Move a person's star onto the memory items a message seeded, or off them.
+
+    Returns the ids that actually moved. NO audit row is written here on purpose:
+    starring is ONE act by ONE person on ONE message, and it is recorded as one
+    `team_message.star` row whose payload lists these ids — the same shape
+    `team_message.delete_with_brain` already uses for what it removed. Writing a
+    second, item-scoped row per item would split one action across two trails,
+    which is the failure the shared prefix exists to prevent.
+
+    UN-STARRING RESTORES, IT DOES NOT FLATTEN. An item the AI had judged final
+    before a person starred it goes back to VALIDATED, not to WORKING — the star
+    covered the AI's opinion, it did not erase it. `metadata.ai_important` is
+    what remembers, which is why the flag is written onto the item and not only
+    into the audit trail.
+
+    PUBLIC is out of reach in both directions: it belongs to the sharing flow
+    (BACKLOG.md, "Sharing beyond the team"), and a star must not be able to
+    quietly un-share something.
+
+    Caller commits.
+    """
+    if not item_ids:
+        return []
+
+    if starred:
+        sql = """
+            UPDATE memory_items
+            SET truth_level = 'CANONICAL',
+                validation_status = 'validated',
+                updated_at = NOW()
+            WHERE team_scope = :ts
+              AND deleted_at IS NULL
+              AND truth_level IN ('EPHEMERAL', 'WORKING', 'VALIDATED')
+              AND id = ANY(CAST(:ids AS uuid[]))
+            RETURNING id
+        """
+    else:
+        sql = f"""
+            UPDATE memory_items
+            SET truth_level = CASE
+                    WHEN metadata->>'{META_AI_IMPORTANT}' = 'true' THEN 'VALIDATED'
+                    ELSE 'WORKING'
+                END,
+                validation_status = CASE
+                    WHEN metadata->>'{META_AI_IMPORTANT}' = 'true' THEN 'validated'
+                    ELSE 'pending'
+                END,
+                updated_at = NOW()
+            WHERE team_scope = :ts
+              AND deleted_at IS NULL
+              AND truth_level = 'CANONICAL'
+              AND id = ANY(CAST(:ids AS uuid[]))
+            RETURNING id
+        """
+
+    rows = (
+        await session.execute(
+            sa.text(sql), {"ts": team_scope, "ids": list(item_ids)}
+        )
+    ).fetchall()
+    return [str(r[0]) for r in rows]
+
+
 async def item_ai_important(session: AsyncSession, item_id: str) -> bool:
     """Did the AI judge this item final? Read from the item, not the audit trail.
 
@@ -270,6 +340,7 @@ __all__ = [
     "META_AI_IMPORTANT",
     "META_AI_MODEL",
     "META_AI_SCORE",
+    "apply_star_to_items",
     "flag_ingested_item",
     "item_ai_important",
     "set_ai_importance",

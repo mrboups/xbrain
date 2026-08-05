@@ -8,6 +8,10 @@ Quick task 260512-tcr Wave 2.3:
   DELETE /v1/teams/{team_id}/messages/{message_id}?scope=message|message_and_brain
       → soft-delete the message (author or team admin) and, on the wider scope,
         the memory items it seeded — including their linked children
+  PUT  /v1/teams/{team_id}/messages/{message_id}/star  {"starred": bool}
+      → set or clear the ONE truth level a person sets (CANONICAL), on the
+        message and on the memory items it seeded. Any non-blocked member; no
+        machine principal, ever
   POST /v1/me/centrifugo-token
       → issue HS256-signed client JWT scoped to the caller's team channels
   GET  /v1/teams/{team_id}/agent-context-bundle
@@ -46,6 +50,7 @@ from app.routes.media_helpers import mint_media_token
 from app.services import (
     brain_ingest,
     centrifugo_client,
+    importance,
     mention_detector,
     message_brain_links,
     rate_limit,
@@ -181,6 +186,12 @@ def _serialize_message(
         "metadata": raw_metadata,
         "parent_message_id": str(m.parent_message_id) if m.parent_message_id else None,
         "edited_at": m.edited_at.isoformat() if m.edited_at else None,
+        # The one level a person sets, as a boolean rather than the raw enum.
+        # A client renders a star or it does not; what CANONICAL means to the
+        # retrieval ranking is the server's business, and leaking the enum would
+        # invite a client to write it. Present on history AND on the live frame,
+        # so a reload and a realtime arrival agree.
+        "starred": m.truth_level == tm_repo.STAR_LEVEL,
     }
 
 
@@ -692,6 +703,196 @@ async def delete_team_message(
         "scope": scope.value,
         "deleted_at": deleted_at.isoformat(),
         "brain_items_removed": len(removed_ids),
+        "broadcast": broadcast,
+    }
+
+
+# ── /v1/teams/{team_id}/messages/{message_id}/star — the human level ─────────
+
+
+class StarBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    starred: bool
+
+
+#: Starring and un-starring, under the same prefix as the two delete actions, so
+#: `team_message.` greps as one story: what happened to this message, and who
+#: did it. Sharing will join the same prefix.
+AUDIT_ACTION_STAR = "team_message.star"
+AUDIT_ACTION_UNSTAR = "team_message.unstar"
+
+
+@router.put("/teams/{team_id}/messages/{message_id}/star")
+async def set_team_message_star(
+    team_id: UUID,
+    message_id: UUID,
+    body: StarBody,
+    principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Star a message, or take the star off. The ONE level a person sets.
+
+    Of the four truth levels, three are the AI's: it discards what is not
+    interesting, stores the rest at WORKING, and flags what it judges final as
+    VALIDATED — an opinion it may also withdraw. **Starred (CANONICAL) is the
+    only level a person sets**, and that is exactly what gives it weight. No
+    automation can reach it: `services/importance.py` names WORKING and
+    VALIDATED in its WHERE clauses and therefore cannot write or clear a star.
+
+    UN-STARRING IS ALLOWED. A person may undo their own judgement — that is
+    still a person judging, which is the whole test. Nothing else may.
+
+    WHO. Any non-blocked member of the team, and only a member. Deliberately
+    wider than deletion, which is author-or-admin: deletion takes something away
+    from everybody, while a star only says "this one matters" about a message the
+    whole team already shares. Narrower in one direction though — a bridge or
+    service principal is refused outright, because a token starring things would
+    make the level a machine can set, which is precisely what it must not be.
+
+    ORDERING, as in the delete path: every rejection returns BEFORE the first
+    write, so a refused star provably changes nothing and writes NO audit row.
+
+      1. caller must be a user principal                → 403
+      2. caller must be a non-blocked member of team_id → 403 / 404 (no team)
+      3. the message must exist, live, IN THIS TEAM     → 404 (no existence oracle)
+      4. THEN: flip the message, move the memory items it seeded, write the
+         audit row — one transaction, one commit
+      5. AFTER the commit: the context cache and the realtime fan-out
+
+    A repeat of the state it is already in is not an event: nothing is written,
+    no row is audited, no frame is published, and the reply says `changed: false`.
+    """
+    user = _require_user_principal(principal)
+
+    # 1-2. Membership + block check (also resolves the Team → 404 if absent).
+    team = await _resolve_team_and_check_membership(session, user.id, team_id)
+
+    # 3. Exists, live, and belongs to THIS team. One 404 covers all three.
+    message = await tm_repo.get_live_message(
+        session, team_id=team_id, message_id=message_id
+    )
+    if message is None:
+        raise HTTPException(404, "message not found")
+
+    # 4. One transaction.
+    moved = await tm_repo.set_message_star(
+        session, team_id=team_id, message_id=message_id, starred=body.starred
+    )
+    if not moved:
+        # Already in the requested state. Report the state truthfully and leave
+        # the trail alone — a second tap is not a second decision.
+        #
+        # Returning without committing is the whole cleanup: the UPDATE matched
+        # no rows and nothing else here writes, so the session closes on an empty
+        # transaction. An explicit rollback would be the same outcome for this
+        # request and a worse one for any caller that handed us its own session.
+        return {
+            "status": "unchanged",
+            "message_id": str(message_id),
+            "starred": body.starred,
+            "changed": False,
+            "brain_items": 0,
+            "broadcast": False,
+        }
+
+    # The memory items this message seeded — resolved through the SAME collector
+    # the delete path uses, so "what this message owns" has one definition. A
+    # document's body chunks and an image's description travel with it.
+    author_sub = None
+    if message.author_user_id is not None:
+        author = await users_repo.get_user_by_id(session, message.author_user_id)
+        author_sub = getattr(author, "source_user_id", None) if author else None
+    linked = await message_brain_links.collect_linked_items(
+        session,
+        team_scope=team.slug,
+        message_id=message.id,
+        content=message.content,
+        author_sub=author_sub,
+        message_metadata=message.metadata_,
+    )
+    moved_items = await importance.apply_star_to_items(
+        session,
+        team_scope=team.slug,
+        item_ids=linked.all_ids,
+        starred=body.starred,
+    )
+
+    await write_audit(
+        session,
+        # Never NULL on this action, by construction: `_require_user_principal`
+        # refuses everything that is not a person, and a star with no human
+        # behind it would not be a star.
+        actor_user_id=user.id,
+        team_scope=team.slug,
+        action=AUDIT_ACTION_STAR if body.starred else AUDIT_ACTION_UNSTAR,
+        target_id=str(message_id),
+        payload={
+            "actor_kind": principal.get("kind"),
+            "actor_sub": getattr(user, "source_user_id", None),
+            "team_id": str(team_id),
+            "team_scope": team.slug,
+            "message_id": str(message_id),
+            "message_kind": message.kind,
+            "starred": body.starred,
+            "truth_level": tm_repo.STAR_LEVEL if body.starred else tm_repo.UNSTAR_LEVEL,
+            # What moved with it, in the shape `team_message.delete_with_brain`
+            # already uses. Counts are exact; the id list is capped and says so.
+            "brain": {
+                "items_moved": len(moved_items),
+                "item_ids": moved_items[:_AUDIT_ID_SAMPLE],
+                "item_ids_truncated": len(moved_items) > _AUDIT_ID_SAMPLE,
+                "link_scan_truncated": linked.truncated,
+            },
+        },
+    )
+    await session.commit()
+
+    # 5. After the commit. The agent's memory block is cached for 5 minutes, and
+    # the whole point of a star is that the agent reads it first — without this
+    # it would keep ranking the item as ordinary for up to that long.
+    try:
+        team_context_cache.invalidate(team_id)
+    except Exception:  # noqa: BLE001 — a cache miss is not a failed star
+        pass
+
+    # Tell the other screens, on the ACTIVE team's channel and no other. Awaited
+    # like the delete frame rather than detached like a send: a star that shows
+    # for one person and not the rest is worse than none.
+    broadcast = False
+    try:
+        broadcast = bool(
+            await centrifugo_client.publish(
+                channel=f"team:{team_id}",
+                data={
+                    "type": "message_starred",
+                    "message_id": str(message_id),
+                    "team_id": str(team_id),
+                    "starred": body.starred,
+                },
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 — publish() swallows its own
+        log.warning(
+            "team_chat.message_starred.publish_failed",
+            team_id=str(team_id),
+            message_id=str(message_id),
+            err=str(exc),
+        )
+
+    log.info(
+        "team_chat.message.starred",
+        team_id=str(team_id),
+        message_id=str(message_id),
+        actor_user_id=str(user.id),
+        starred=body.starred,
+        brain_items_moved=len(moved_items),
+    )
+    return {
+        "status": "starred" if body.starred else "unstarred",
+        "message_id": str(message_id),
+        "starred": body.starred,
+        "changed": True,
+        "brain_items": len(moved_items),
         "broadcast": broadcast,
     }
 
