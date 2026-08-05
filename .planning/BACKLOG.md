@@ -397,6 +397,40 @@ human warrant** — which is why the owner's name for it is better than ours: "i
 does not claim "validated". Keep that distinction sharp in the UI, and keep **starred**
 human-only and one-way, or nothing is left that carries a person's judgement.
 
+### Every status change is recorded, with its actor — 2026-08-05
+
+**Owner's requirement.** One trail answering "who changed this, and to what" across:
+agent-set *important/final*, human-set *starred*, *shared/public*, and both delete
+scopes (message only / message + brain).
+
+**The mechanism already exists — do not build a second one.** `app/audit.py`:
+
+```python
+await write_audit(session, actor_user_id, team_scope, action, target_id=..., payload=...)
+```
+
+It writes `audit_log` and has **48 call sites**; every other admin mutation in the
+codebase already goes through it. `actor_user_id`, `team_scope`, `action`, `target_id`
+and a JSON `payload` cover what is being asked for.
+
+Two things to get right:
+
+- **Name the actor; do not infer it from absence.** `actor_user_id` is nullable, so an
+  AI-set level writes NULL — but NULL is ambiguous between "the agent", "the system" and
+  "nobody recorded it". Once the AI is a first-class actor, the row must say so, in the
+  action or the payload.
+- **Distinguishable actions, consistent prefix.** "Removed a message" and "removed a
+  message and its memory" are different events with different consequences, and the
+  question later is which one happened. The action is what gets grepped; the payload is
+  for detail. A shared prefix across levels, stars, shares and deletes makes the trail
+  readable as one story rather than four.
+
+Note the **existing `promotions` table is not this**. It models a human two-approver
+workflow (`proposed_by`, `approved_by_1`, `approved_by_2`, `status`, `rationale`) that
+the new model does not use — the AI sets *important/final* alone and a human sets
+*starred* alone. Decide whether it is retired, repurposed, or left to the approval flow
+that `share/public` will need; do not leave two half-used trails.
+
 ### The actual work is supersession, not the level
 
 "De-flagged when another takes over" needs a notion of what supersedes what — recency is
