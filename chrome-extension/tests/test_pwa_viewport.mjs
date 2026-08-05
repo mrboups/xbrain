@@ -172,6 +172,42 @@ test("the composer keeps its safe-area inset, and drops it only while the keys a
   );
 });
 
+test("with the keys up the composer keeps at most HALF the padding it keeps without them", () => {
+  // The gap that was reported as too big. Everything else in that strip is
+  // Apple's — the accessory bar above the keys is already outside
+  // `visualViewport.height`, so the shell never gets to lay anything out there.
+  // This padding is the ONLY part of it this stylesheet owns, which is what
+  // makes it the only part that may be trimmed.
+  //
+  // Asserted as a RATIO against the closed-keyboard value rather than as the
+  // literal 7px: pinning the number would fail the day the resting padding
+  // changes for an unrelated reason, and would say nothing about the property
+  // that was actually asked for.
+  const closed = props(selectorBlock(css, ".xb-composer"))["padding-bottom"] || "";
+  const open =
+    props(selectorBlock(css, ':root[data-keyboard="open"] .xb-composer'))["padding-bottom"] || "";
+
+  const closedPx = Number((closed.match(/(\d+(?:\.\d+)?)px/) || [])[1]);
+  const openPx = Number((open.match(/^\s*(\d+(?:\.\d+)?)px\s*$/) || [])[1]);
+
+  assert.ok(
+    Number.isFinite(closedPx) && closedPx > 0,
+    `could not read a pixel base out of the resting padding-bottom (${closed})`,
+  );
+  assert.ok(
+    Number.isFinite(openPx),
+    `the keyboard-open padding-bottom must be a bare pixel value, got ${open}`,
+  );
+  assert.ok(
+    openPx * 2 <= closedPx,
+    `keyboard-open padding is ${openPx}px against ${closedPx}px at rest — it must be at most half, or the gap over the keys is back`,
+  );
+  assert.ok(
+    openPx > 0,
+    "flush against the keys clips the pill's focus ring, which is drawn outside its border",
+  );
+});
+
 test("double-tap zooms nothing, and pinch still zooms everything", () => {
   const body = props(selectorBlock(css, "body"));
   assert.equal(

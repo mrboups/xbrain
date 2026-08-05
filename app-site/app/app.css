@@ -1404,9 +1404,25 @@ body {
 /* Keyboard up: the keys already cover the home indicator, so the inset that
    clears it becomes a strip of dead space between the pill and the keyboard.
    The env() above stays the default — this only overrides it for as long as
-   viewport.js says a keyboard is on screen. */
+   viewport.js says a keyboard is on screen.
+
+   WHAT THE REMAINING GAP IS MADE OF, measured rather than guessed. The shell is
+   exactly `--xb-viewport-height` tall and the composer is its last visible box,
+   so the composer's bottom edge IS the bottom of the visible window. Below that
+   line is the keyboard, and the top of the keyboard on iOS is its accessory /
+   predictive bar — that strip is Apple's, it is already excluded from
+   `visualViewport.height`, and no number here can reclaim it. Above the line
+   there is exactly ONE thing left that belongs to us: this padding. The safe-area
+   inset is gone (the rule above is replaced outright, not added to), the pill's
+   own 4px is inside its border and reads as the pill rather than as a gap, and
+   nothing else sits between the two.
+
+   So halving the gap means halving this: 14px -> 7px. It stays a real number
+   rather than 0 because the pill's focus ring is drawn 3px OUTSIDE its border,
+   and a composer flush with the keys would have that ring clipped by the edge of
+   the window the moment somebody typed. */
 :root[data-keyboard="open"] .xb-composer {
-  padding-bottom: 14px;
+  padding-bottom: 7px;
 }
 
 .xb-composer-pill {

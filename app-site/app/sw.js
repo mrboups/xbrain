@@ -39,7 +39,7 @@
  * Makefile and in verify-phase27.sh, and goes red when a precached file changed
  * and this line did not.
  */
-const CACHE = "xb-app-shell-541c85777f89";
+const CACHE = "xb-app-shell-dbda74998ca6";
 
 /**
  * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07
