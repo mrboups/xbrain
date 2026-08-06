@@ -29,6 +29,7 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.services.user_label import label_from_parts
 
 
 class _CacheEntry:
@@ -112,11 +113,34 @@ _LEGEND = (
     "(Ordered by weight: items a teammate STARRED come first — a person chose "
     "those by hand and they outrank everything below. Then items the assistant "
     "flagged important, which are its own opinion, not a human's. Then ordinary "
-    "working notes, newest first.)"
+    "working notes, newest first. The parenthetical on each line says WHERE THE "
+    "FACT CAME FROM: \"added by <name>\" is the person who put it in the brain, "
+    "\"from <connector>\" is an integration with no human author. When you use "
+    "one of these facts in an answer, say who or what it came from — and never "
+    "name a person for a \"from <connector>\" line.)"
 )
 
 
-def _format_item(content: str, truth_level: str, source: str) -> str:
+def _attribution(row) -> str:
+    """Who — or what — put this in the brain.
+
+    A person when one is known, otherwise the connector that carried it. The
+    distinction is not cosmetic: a Drive file has no author in this table, and a
+    line that reads "from Alice" when Alice merely owns the folder invents a
+    claim the model will repeat as fact.
+    """
+    name = label_from_parts(
+        preferred_name=row.get("preferred_name"),
+        display_name=row.get("display_name"),
+        email=row.get("email"),
+        source_user_id=row.get("author_source_user_id"),
+    )
+    if row.get("author_source_user_id"):
+        return f"added by {name}"
+    return f"from {row.get('source') or 'unknown'}"
+
+
+def _format_item(content: str, truth_level: str, attribution: str) -> str:
     """Format one memory item line. Deterministic — no timestamps in body.
 
     The relative timestamp would change every second and bust the cache.
@@ -127,7 +151,7 @@ def _format_item(content: str, truth_level: str, source: str) -> str:
     if len(snippet) > _PER_ITEM_CHARS:
         snippet = snippet[:_PER_ITEM_CHARS].rstrip() + "…"
     label = _LEVEL_LABELS.get(truth_level, truth_level)
-    return f"- [{label}] ({source}) {snippet}"
+    return f"- [{label}] ({attribution}) {snippet}"
 
 
 async def get_team_memory_bundle(
@@ -161,12 +185,23 @@ async def get_team_memory_bundle(
         await session.execute(
             sa.text(
                 f"""
-                SELECT content, truth_level, source
-                FROM memory_items
-                WHERE team_scope = :team_scope
-                  AND truth_level IN ('WORKING', 'VALIDATED', 'CANONICAL')
-                  AND deleted_at IS NULL
-                ORDER BY {_LEVEL_RANK_SQL}, created_at DESC
+                SELECT mi.content,
+                       mi.truth_level,
+                       mi.source,
+                       u.preferred_name        AS preferred_name,
+                       u.display_name          AS display_name,
+                       u.email                 AS email,
+                       u.source_user_id        AS author_source_user_id
+                FROM memory_items mi
+                -- LEFT so an item whose author has no user row (or no author at
+                -- all, like a Drive file) still appears — attributed to its
+                -- connector rather than dropped.
+                LEFT JOIN users u
+                       ON u.source_user_id = mi.metadata->>'author_sub'
+                WHERE mi.team_scope = :team_scope
+                  AND mi.truth_level IN ('WORKING', 'VALIDATED', 'CANONICAL')
+                  AND mi.deleted_at IS NULL
+                ORDER BY {_LEVEL_RANK_SQL}, mi.created_at DESC
                 LIMIT :limit
                 """  # noqa: S608 — _LEVEL_RANK_SQL is a module constant, not input
             ),
@@ -180,7 +215,7 @@ async def get_team_memory_bundle(
         lines: list[str] = [_LEGEND]
         total = len(_LEGEND) + 1
         for r in rows:
-            line = _format_item(r["content"], r["truth_level"], r["source"] or "unknown")
+            line = _format_item(r["content"], r["truth_level"], _attribution(r))
             # Budget reached — stop. Because the rows arrive starred-first, what
             # this drops is the ordinary tail, never somebody's starred item.
             if len(lines) > 1 and total + len(line) > _MAX_BUNDLE_CHARS:
