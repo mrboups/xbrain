@@ -3,7 +3,11 @@ name = "mcp-scraper"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=1.27.0",
+    # Upper bound is load-bearing: mcp 2.0.0 removed `mcp.server.fastmcp`, so an
+    # unpinned rebuild crash-loops the sidecar on ModuleNotFoundError. The image
+    # had run for 12 days on a 1.x resolved at its last build; the next rebuild
+    # for an unrelated reason silently pulled 2.0.0 (2026-08-06).
+    "mcp>=1.27.0,<2.0.0",
     "httpx>=0.28.0",
     "structlog>=25.0.0",
 ]
