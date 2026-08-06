@@ -244,7 +244,11 @@ async def list_team_messages(
     user = _require_user_principal(principal)
     team = await _resolve_team_and_check_membership(session, user.id, team_id)
     messages = await tm_repo.list_messages(
-        session, team_id=team_id, before_created_at=before, limit=limit
+        session,
+        team_id=team_id,
+        viewer_user_id=user.id,
+        before_created_at=before,
+        limit=limit,
     )
     labels = await _author_labels_for(session, messages)
     membership = await teams_repo.get_membership(
@@ -548,10 +552,11 @@ async def delete_team_message(
     # 1-2. Membership + block check (also resolves the Team → 404 if absent).
     team = await _resolve_team_and_check_membership(session, user.id, team_id)
 
-    # 3. The message must exist, be live, and belong to THIS team. One 404 covers
-    #    all three so a member cannot probe another team's message ids.
+    # 3. The message must exist, be live, belong to THIS team, and be visible to
+    #    the caller. One 404 covers all four so a member cannot probe another
+    #    team's message ids — nor another member's brain-tag row.
     message = await tm_repo.get_live_message(
-        session, team_id=team_id, message_id=message_id
+        session, team_id=team_id, message_id=message_id, viewer_user_id=user.id
     )
     if message is None:
         raise HTTPException(404, "message not found")
@@ -767,9 +772,10 @@ async def set_team_message_star(
     # 1-2. Membership + block check (also resolves the Team → 404 if absent).
     team = await _resolve_team_and_check_membership(session, user.id, team_id)
 
-    # 3. Exists, live, and belongs to THIS team. One 404 covers all three.
+    # 3. Exists, live, belongs to THIS team, and is visible to the caller. One
+    #    404 covers all four.
     message = await tm_repo.get_live_message(
-        session, team_id=team_id, message_id=message_id
+        session, team_id=team_id, message_id=message_id, viewer_user_id=user.id
     )
     if message is None:
         raise HTTPException(404, "message not found")
@@ -1177,8 +1183,13 @@ async def get_agent_context_bundle(
     bundle = await team_context_cache.get_team_memory_bundle(
         session, team_scope=team.slug, team_id=team.id
     )
+    # viewer_user_id=None until this endpoint carries an acting user. It has no
+    # notion of WHO the bundle is for, so it cannot filter for anyone — None is
+    # the closed answer (team-visible rows only) rather than the open one.
+    # Giving it an acting user is its own task; leaving it unfiltered was not
+    # an option.
     recent = await tm_repo.get_recent_messages_chronological(
-        session, team_id=team.id, limit=20
+        session, team_id=team.id, viewer_user_id=None, limit=20
     )
     labels = await _author_labels_for(session, recent)
     return {

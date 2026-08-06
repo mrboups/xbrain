@@ -553,7 +553,9 @@ async def test_team_messages_list_excludes_soft_deleted(
     )
     await _soft_delete(session, table="team_messages", row_id=drop_id)
 
-    rows = await tm_repo.list_messages(session, team_id=team_a.id, limit=50)
+    rows = await tm_repo.list_messages(
+        session, team_id=team_a.id, viewer_user_id=None, limit=50
+    )
     ids = {str(r.id) for r in rows}
     assert keep_id in ids
     assert drop_id not in ids, (

@@ -3,6 +3,13 @@
 Quick task 260512-tcr. Read-side queries always filter by team_id +
 deleted_at IS NULL so soft-deleted messages stay hidden until Phase 2
 exposes them via a `?include_deleted=true` admin flag.
+
+Migration 0034 adds a SECOND mandatory read predicate: the brain tag's
+`private_to_user_id`. Every read below takes `viewer_user_id` as a REQUIRED
+keyword argument with no default — deliberately, because the failure mode of a
+forgotten filter here is one member's hidden notes rendered into another
+member's chat. A required argument turns that into a TypeError at import time
+instead of a leak at runtime.
 """
 from __future__ import annotations
 
@@ -10,10 +17,30 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, desc, func, select, update
+from sqlalchemy import and_, desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.team_message import TeamMessage
+
+
+def visible_to(viewer_user_id: UUID | None):
+    """The brain-tag read predicate (migration 0034).
+
+    NULL `private_to_user_id` means the team sees the row — every row written
+    before the tag existed, and every ordinary message after it.
+
+    `viewer_user_id=None` means "no identified viewer", and it resolves to the
+    CONSERVATIVE answer: team-visible rows only. Callers that genuinely have no
+    acting user (the agent context bundle, today) therefore fail closed rather
+    than open. It is not a licence to pass None — it is the safe result when
+    there is nothing better to pass.
+    """
+    if viewer_user_id is None:
+        return TeamMessage.private_to_user_id.is_(None)
+    return or_(
+        TeamMessage.private_to_user_id.is_(None),
+        TeamMessage.private_to_user_id == viewer_user_id,
+    )
 
 
 async def insert_user_message(
@@ -75,6 +102,7 @@ async def list_messages(
     session: AsyncSession,
     *,
     team_id: UUID,
+    viewer_user_id: UUID | None,
     before_created_at: datetime | None = None,
     after_created_at: datetime | None = None,
     limit: int = 50,
@@ -95,6 +123,7 @@ async def list_messages(
         and_(
             TeamMessage.team_id == team_id,
             TeamMessage.deleted_at.is_(None),
+            visible_to(viewer_user_id),
         )
     )
     if before_created_at is not None:
@@ -111,6 +140,7 @@ async def get_live_message(
     *,
     team_id: UUID,
     message_id: UUID,
+    viewer_user_id: UUID | None,
 ) -> TeamMessage | None:
     """Fetch ONE not-yet-deleted message, scoped to `team_id`.
 
@@ -118,13 +148,16 @@ async def get_live_message(
     message id is a bare UUID in the URL, and without `team_id` in the WHERE
     clause a member of team A holding an id from team B would reach that row.
     Returning None for "wrong team", "no such id" and "already deleted" alike
-    keeps the route's 404 free of an existence oracle.
+    keeps the route's 404 free of an existence oracle. `viewer_user_id` extends
+    that same silence to another member's brain-tag row: a teammate holding the
+    id gets the identical 404, and learns nothing from it.
     """
     stmt = select(TeamMessage).where(
         and_(
             TeamMessage.id == message_id,
             TeamMessage.team_id == team_id,
             TeamMessage.deleted_at.is_(None),
+            visible_to(viewer_user_id),
         )
     )
     return (await session.execute(stmt)).scalar_one_or_none()
@@ -250,6 +283,10 @@ async def count_unread_since(
             TeamMessage.deleted_at.is_(None),
             TeamMessage.kind == "user",
             TeamMessage.author_user_id != exclude_user_id,
+            # The caller is the viewer here: `exclude_user_id` IS the member the
+            # count is for. Without this a hidden note would raise someone
+            # else's unread badge — a count is a disclosure too.
+            visible_to(exclude_user_id),
         )
     )
     if after_created_at is not None:
@@ -262,12 +299,18 @@ async def get_recent_messages_chronological(
     session: AsyncSession,
     *,
     team_id: UUID,
+    viewer_user_id: UUID | None,
     limit: int = 20,
 ) -> list[TeamMessage]:
     """Return the latest `limit` messages oldest-first.
 
     Used by the agent context bundle so Claude sees the chat in natural
     reading order (oldest at top, the user's question at the bottom).
+
+    `viewer_user_id` is the member the answer is FOR. It matters more here than
+    anywhere else: this window becomes the model's prompt, and a hidden note
+    that reaches it can be quoted back into the public thread by the agent
+    itself — a leak nobody typed.
     """
     stmt = (
         select(TeamMessage)
@@ -275,6 +318,7 @@ async def get_recent_messages_chronological(
             and_(
                 TeamMessage.team_id == team_id,
                 TeamMessage.deleted_at.is_(None),
+                visible_to(viewer_user_id),
             )
         )
         .order_by(desc(TeamMessage.created_at))

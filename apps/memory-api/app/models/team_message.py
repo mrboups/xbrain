@@ -94,3 +94,17 @@ class TeamMessage(Base):
         nullable=True,
         default=None,
     )
+
+    # The brain tag (migration 0034). NULL = the team sees this row, which is
+    # every row written before the tag existed. Non-NULL names the one person
+    # who sees it in a chat surface.
+    #
+    # This is a CHAT-SURFACE flag, not privacy: the note still lands in the
+    # team's brain and every member can recall it (owner's decision,
+    # 2026-08-05). Never label it "private" in anything a user reads.
+    private_to_user_id: Mapped[UUID | None] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        default=None,
+    )

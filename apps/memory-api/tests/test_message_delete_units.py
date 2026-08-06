@@ -82,10 +82,10 @@ async def test_get_live_message_is_bounded_to_its_team(session, seeded_two_teams
     await session.commit()
 
     assert await tm_repo.get_live_message(
-        session, team_id=team_a.id, message_id=msg.id
+        session, team_id=team_a.id, message_id=msg.id, viewer_user_id=None
     ) is not None
     assert await tm_repo.get_live_message(
-        session, team_id=team_b.id, message_id=msg.id
+        session, team_id=team_b.id, message_id=msg.id, viewer_user_id=None
     ) is None, "a message must not be reachable through another team's id"
 
 
@@ -113,7 +113,7 @@ async def test_soft_delete_message_refuses_another_team_and_repeats(
         session, team_id=team_b.id, message_id=msg.id, deleted_by=bob.id
     ) is None
     still = await tm_repo.get_live_message(
-        session, team_id=team_a.id, message_id=msg.id
+        session, team_id=team_a.id, message_id=msg.id, viewer_user_id=None
     )
     assert still is not None, "the wrong team's DELETE must not have flipped the row"
 

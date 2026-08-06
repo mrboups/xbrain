@@ -580,8 +580,15 @@ async def _do_handle(
     bundle = await team_context_cache.get_team_memory_bundle(
         session, team_scope=team.slug, team_id=team.id
     )
+    # The window is built FOR the person who summoned the agent, so it is their
+    # id that decides which rows are in scope. On a public question this keeps
+    # everyone else's brain-tag notes out of the prompt — otherwise the model
+    # could quote one back into the thread, a leak nobody typed.
     recent = await tm_repo.get_recent_messages_chronological(
-        session, team_id=team.id, limit=20
+        session,
+        team_id=team.id,
+        viewer_user_id=triggering_message.author_user_id,
+        limit=20,
     )
 
     system_prompt = _build_system_prompt(team_slug=team.slug)
@@ -1547,23 +1554,27 @@ async def catch_me_up(
             # Gather the since-window (newest-first, capped) then reverse to
             # chronological (mirror get_recent_messages_chronological). A None
             # `since` (first visit) returns the latest CATCHUP_MAX_MESSAGES.
+            # The caller is resolved BEFORE the read, not after: their id is now
+            # a read predicate (whose brain-tag rows are in scope), not only a
+            # post-filter. An unresolved caller yields None, which is the closed
+            # answer — team-visible rows only.
+            caller = (
+                await session.execute(
+                    select(User).where(User.source_user_id == caller_user_sub)
+                )
+            ).scalar_one_or_none()
             msgs = await tm_repo.list_messages(
                 session,
                 team_id=team.id,
+                viewer_user_id=caller.id if caller is not None else None,
                 after_created_at=since,
                 limit=settings.CATCHUP_MAX_MESSAGES,
             )
             msgs.reverse()
 
             # Filter out the caller's OWN messages so the summary window agrees
-            # with count_unread_since's exclude_user_id. Resolve the caller's
-            # user.id from their sub (agent frames have a NULL author_user_id and
-            # so are never dropped here).
-            caller = (
-                await session.execute(
-                    select(User).where(User.source_user_id == caller_user_sub)
-                )
-            ).scalar_one_or_none()
+            # with count_unread_since's exclude_user_id (agent frames have a NULL
+            # author_user_id and so are never dropped here).
             if caller is not None:
                 msgs = [m for m in msgs if m.author_user_id != caller.id]
 
