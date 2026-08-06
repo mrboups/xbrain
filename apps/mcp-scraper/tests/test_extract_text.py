@@ -14,7 +14,13 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.main import BROWSER_HEADERS, MAX_BYTES, extract_text  # noqa: E402
+from app.main import (  # noqa: E402
+    BROWSER_HEADERS,
+    MAX_BYTES,
+    MAX_RAW_BYTES,
+    MIN_MAIN_CHARS,
+    extract_text,
+)
 
 
 def test_script_and_style_bodies_never_reach_the_output():
@@ -143,3 +149,82 @@ def test_other_non_content_elements_are_dropped(tag):
     out = extract_text(html, "text/html")
     assert "NOISE" not in out
     assert "Signal" in out
+
+
+# --- content selection -------------------------------------------------------
+#
+# Truncating from the front hands the caller whatever the site put first. On a
+# large site that is navigation: Wikipedia's prose begins ~50,000 characters
+# into its own text. These pin the two rules that move content forward.
+
+
+def test_navigation_is_dropped_so_content_comes_first():
+    html = """
+    <html><body>
+      <nav><a>Home</a><a>Products</a><a>Careers</a><a>268 languages</a></nav>
+      <aside><a>Related links</a></aside>
+      <p>The venue is in Seoul.</p>
+    </body></html>
+    """
+    out = extract_text(html, "text/html")
+    assert "Careers" not in out
+    assert "Related links" not in out
+    assert out.strip().startswith("The venue is in Seoul.")
+
+
+def test_footer_is_kept_because_it_carries_facts():
+    """Event pages routinely put the dates and the address in the footer."""
+    html = (
+        "<html><body><p>Pitch</p>"
+        "<footer>September 29 to October 02 - Seoul</footer></body></html>"
+    )
+    out = extract_text(html, "text/html")
+    assert "September 29 to October 02" in out
+
+
+def test_main_subtree_wins_over_surrounding_chrome():
+    chrome = "<div>" + ("Sponsor listing. " * 40) + "</div>"
+    html = (
+        f"<html><body>{chrome}"
+        f"<main><p>{'The article body. ' * 20}</p></main>"
+        f"{chrome}</body></html>"
+    )
+    out = extract_text(html, "text/html")
+    assert "The article body." in out
+    assert "Sponsor listing." not in out
+
+
+def test_article_subtree_is_selected_too():
+    html = (
+        "<html><body><div>Chrome</div>"
+        f"<article><p>{'Real content. ' * 30}</p></article></body></html>"
+    )
+    out = extract_text(html, "text/html")
+    assert "Chrome" not in out
+    assert "Real content." in out
+
+
+def test_a_decorative_main_does_not_hide_the_page():
+    """A tiny <main> is a layout wrapper, not the content — keep everything."""
+    body_text = "The whole page body that actually carries the information. " * 5
+    html = f"<html><body><p>{body_text}</p><main>Skip</main></body></html>"
+    out = extract_text(html, "text/html")
+    assert "actually carries the information" in out
+    assert len(out) > MIN_MAIN_CHARS
+
+
+def test_nested_main_does_not_lose_the_tail():
+    html = (
+        "<html><body><main><div>"
+        f"<article><p>{'Inner. ' * 40}</p></article>"
+        f"</div><p>{'Tail of main. ' * 10}</p></main></body></html>"
+    )
+    out = extract_text(html, "text/html")
+    assert "Inner." in out
+    assert "Tail of main." in out
+
+
+def test_the_two_caps_are_distinct():
+    """Capping the input at the output size truncates big pages before content."""
+    assert MAX_RAW_BYTES > MAX_BYTES
+    assert MAX_BYTES == 50_000

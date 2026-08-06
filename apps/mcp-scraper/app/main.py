@@ -35,7 +35,20 @@ from mcp.server.fastmcp import FastMCP
 
 log = structlog.get_logger(__name__)
 
-MAX_BYTES = 50_000  # Match agent-runtime document_loader (~50KB bounds LLM input cost)
+# Bound on the RAW body we are willing to parse. It is deliberately far larger
+# than the returned text: on a big page the content sits deep behind navigation
+# markup — Wikipedia's article body only appears after ~1MB of HTML — so capping
+# the input at the output size guarantees the caller receives menus and never
+# the article.
+MAX_RAW_BYTES = 1_000_000
+
+# Bound on what we RETURN. Unchanged from the original contract (~50KB bounds
+# LLM input cost, matching agent-runtime document_loader).
+MAX_BYTES = 50_000
+
+# Below this, a <main>/<article> subtree is treated as decorative rather than
+# the page's content, and the whole document is used instead.
+MIN_MAIN_CHARS = 200
 
 # Sent because httpx otherwise announces `python-httpx/x.y`, which Wikipedia and
 # anything behind a bot filter answer with 403 (reproduced 2026-08-06).
@@ -51,8 +64,16 @@ BROWSER_HEADERS = {
 # Elements whose contents are never page text. `head` covers <title> too, which
 # is why the title is re-attached separately below — it is often the single most
 # useful line on the page.
+#
+# `nav` and `aside` are here because they are navigation by definition and they
+# sit in front of the content, so a caller keeping the first N characters reads
+# menus. `footer` is deliberately NOT dropped: on an event or product page it
+# routinely carries the address, the contact and the dates.
 _DROP_ELEMENTS = frozenset(
-    {"script", "style", "noscript", "svg", "head", "template", "iframe", "canvas"}
+    {
+        "script", "style", "noscript", "svg", "head", "template", "iframe",
+        "canvas", "nav", "aside",
+    }
 )
 
 # Tags that end a line. Without them "Register here" and the next label glue
@@ -65,6 +86,11 @@ _BLOCK_ELEMENTS = frozenset(
         "figcaption", "dt", "dd", "dl", "option", "label",
     }
 )
+
+# When one of these wraps the page's real content, only its text is returned.
+# `article` and `main` are also block elements above — membership here is about
+# *selection*, not line breaks.
+_MAIN_ELEMENTS = frozenset({"main", "article"})
 
 mcp = FastMCP("xbrain-scraper", host="0.0.0.0", port=8100)
 
@@ -83,19 +109,32 @@ class _TextExtractor(HTMLParser):
         self._parts: list[str] = []
         self._title_parts: list[str] = []
         self._in_title = False
+        # Second buffer, filled only while inside <main>/<article>. Wikipedia
+        # puts ~50,000 characters of navigation before the prose; a caller that
+        # keeps the first few thousand characters would otherwise receive the
+        # sidebar every time.
+        self._main_parts: list[str] = []
+        self._main_depth = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag == "title" and self._skip_depth <= 1:
             self._in_title = True
         if tag in _DROP_ELEMENTS:
             self._skip_depth += 1
-        elif tag in _BLOCK_ELEMENTS:
+            return
+        if tag in _MAIN_ELEMENTS:
+            self._main_depth += 1
+        if tag in _BLOCK_ELEMENTS:
             self._parts.append("\n")
+            if self._main_depth:
+                self._main_parts.append("\n")
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         # <br/> and <hr/> never reach handle_endtag — handle the self-closing form.
         if tag in _BLOCK_ELEMENTS:
             self._parts.append("\n")
+            if self._main_depth:
+                self._main_parts.append("\n")
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "title":
@@ -105,17 +144,35 @@ class _TextExtractor(HTMLParser):
             # would then swallow the rest of the document.
             if self._skip_depth > 0:
                 self._skip_depth -= 1
-        elif tag in _BLOCK_ELEMENTS:
+            return
+        if tag in _BLOCK_ELEMENTS:
             self._parts.append("\n")
+            if self._main_depth:
+                self._main_parts.append("\n")
+        # Decrement AFTER the newline so the closing tag still terminates the
+        # last line of the subtree.
+        if tag in _MAIN_ELEMENTS and self._main_depth > 0:
+            self._main_depth -= 1
 
     def handle_data(self, data: str) -> None:
         if self._in_title:
             self._title_parts.append(data)
         if self._skip_depth == 0:
             self._parts.append(data)
+            if self._main_depth:
+                self._main_parts.append(data)
 
     def text(self) -> str:
+        """Prefer the <main>/<article> subtree, fall back to the whole document.
+
+        Truncating a page from the front hands the caller whatever the site put
+        first, which on a large site is navigation. Selecting the content
+        element is what makes the first characters worth reading.
+        """
         body = _collapse("".join(self._parts))
+        main = _collapse("".join(self._main_parts))
+        if len(main) >= MIN_MAIN_CHARS:
+            body = main
         title = _collapse("".join(self._title_parts))
         if title and not body.startswith(title):
             return f"{title}\n\n{body}" if body else title
@@ -163,18 +220,21 @@ def extract_text(body: str, content_type: str = "") -> str:
 
 
 async def _load_url(url: str) -> str:
-    """Fetch a URL and return its readable text, capped at MAX_BYTES.
+    """Fetch a URL and return its readable text.
 
-    The cap is applied to the RAW body before parsing, so the memory bound holds
-    regardless of how the document expands or collapses.
+    Two separate bounds, and the distinction matters: the RAW body is capped at
+    MAX_RAW_BYTES so parsing stays memory-safe, and the RETURNED text is capped
+    at MAX_BYTES so the caller's contract is unchanged. Capping the input at the
+    output size — what this used to do — truncates big pages before their content
+    begins.
     """
     async with httpx.AsyncClient(
         timeout=30.0, follow_redirects=True, headers=BROWSER_HEADERS
     ) as c:
         r = await c.get(url)
         r.raise_for_status()
-        raw = r.text[:MAX_BYTES]
-        return extract_text(raw, r.headers.get("content-type", ""))
+        raw = r.text[:MAX_RAW_BYTES]
+        return extract_text(raw, r.headers.get("content-type", ""))[:MAX_BYTES]
 
 
 @mcp.tool()
