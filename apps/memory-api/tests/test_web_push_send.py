@@ -459,6 +459,9 @@ def _fake_message(team_id, author_id, content):
         # NOT NULL on the model, and read by _serialize_message since starring
         # shipped — a stand-in without it is an incomplete stand-in.
         truth_level="WORKING",
+        # Same reason, for the brain tag (migration 0034). None is what every
+        # ordinary message carries: the team sees it.
+        private_to_user_id=None,
     )
 
 
