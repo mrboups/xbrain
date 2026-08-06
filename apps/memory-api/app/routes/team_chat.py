@@ -192,6 +192,13 @@ def _serialize_message(
         # invite a client to write it. Present on history AND on the live frame,
         # so a reload and a realtime arrival agree.
         "starred": m.truth_level == tm_repo.STAR_LEVEL,
+        # The brain tag, as a boolean rather than the owner's id. The client
+        # needs to know "mark this bubble", never WHOSE it is — and a row only
+        # reaches a serializer after the read filter has already decided the
+        # viewer may see it, so the id would be redundant and the leak would be
+        # free. Present on history AND on the live frame so a reload and a
+        # realtime arrival agree.
+        "private": m.private_to_user_id is not None,
     }
 
 
@@ -280,6 +287,12 @@ class PostMessageBody(BaseModel):
     content: str = Field(..., min_length=1, max_length=16000)
     parent_message_id: UUID | None = None  # Phase 2 threads — accepted now, ignored by readers
     media: dict[str, Any] | None = None  # BL-003: when set, carries {item_id, mime, size, filename} for an uploaded media item
+    # The brain tag. True keeps the message out of the team chat — out of the
+    # CHAT, not out of the team's brain: the note is ingested exactly as any
+    # other and every member can still recall it. Optional with a default, so an
+    # extension built before this field still sends (the model forbids extras,
+    # so the compatibility that matters is server-deploys-first, not this).
+    private: bool = False
 
 
 @router.post("/teams/{team_id}/messages", status_code=201)
@@ -310,6 +323,7 @@ async def post_team_message(
         team_id=team_id,
         author_user_id=user.id,
         content=body.content,
+        private_to_user_id=user.id if body.private else None,
         parent_message_id=body.parent_message_id,
         metadata={"media": body.media} if body.media else None,
     )
@@ -345,10 +359,25 @@ async def post_team_message(
     )
 
     # Realtime fan-out — never block the response.
+    #
+    # THE CHANNEL IS THE ACCESS CONTROL. There is no display-side filtering that
+    # can save a wrong choice here: the Centrifugo `team` namespace keeps 100
+    # frames for 7 days with force_recovery, so a private note published on
+    # `team:` is not a momentary slip — it is replayed to every member on their
+    # next reconnect, for a week, and no hotfix takes it back.
     asyncio.create_task(
         centrifugo_client.publish(
-            channel=f"team:{team_id}",
-            data={"type": "message", "message": payload},
+            channel=(
+                f"user:{user.source_user_id}" if body.private else f"team:{team_id}"
+            ),
+            # team_id rides along because the per-user channel is CROSS-TEAM: one
+            # socket carries every team the person belongs to, so without it the
+            # client cannot tell which thread a private frame belongs in.
+            data={
+                "type": "message",
+                "team_id": str(team_id),
+                "message": payload,
+            },
         )
     )
 
@@ -386,7 +415,11 @@ async def post_team_message(
     # or failing push service can neither delay nor fail the send. The "@" pre-check
     # keeps the member query off the hot path for the ~all messages that mention nobody
     # — the detector cannot match without one.
-    if "@" in body.content and web_push.push_is_configured():
+    # `not body.private` is not an optimisation. A push is a read of the content
+    # delivered to someone else's lock screen — the one disclosure path no repo
+    # filter can reach, because it happens on the WRITE side. A private note that
+    # says "@bob" must not light up Bob's phone with its first line.
+    if not body.private and "@" in body.content and web_push.push_is_configured():
         try:
             rows = await teams_repo.list_members_with_user_info(session, team_id=team_id)
             members = [
@@ -676,7 +709,16 @@ async def delete_team_message(
     try:
         broadcast = bool(
             await centrifugo_client.publish(
-                channel=f"team:{team_id}",
+                # A brain-tag row is reachable here only by its owner (the read
+                # filter 404s everyone else), so the frame announcing what
+                # happened to it goes to that one person. On `team:` it would
+                # broadcast the id of a message nobody else can see — an
+                # existence signal, and a bubble no other client can resolve.
+                channel=(
+                    f"user:{user.source_user_id}"
+                    if message.private_to_user_id is not None
+                    else f"team:{team_id}"
+                ),
                 data={
                     "type": "message_deleted",
                     "message_id": str(message_id),
@@ -868,7 +910,16 @@ async def set_team_message_star(
     try:
         broadcast = bool(
             await centrifugo_client.publish(
-                channel=f"team:{team_id}",
+                # A brain-tag row is reachable here only by its owner (the read
+                # filter 404s everyone else), so the frame announcing what
+                # happened to it goes to that one person. On `team:` it would
+                # broadcast the id of a message nobody else can see — an
+                # existence signal, and a bubble no other client can resolve.
+                channel=(
+                    f"user:{user.source_user_id}"
+                    if message.private_to_user_id is not None
+                    else f"team:{team_id}"
+                ),
                 data={
                     "type": "message_starred",
                     "message_id": str(message_id),

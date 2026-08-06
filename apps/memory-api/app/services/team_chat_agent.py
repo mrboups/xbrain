@@ -580,6 +580,16 @@ async def _do_handle(
     bundle = await team_context_cache.get_team_memory_bundle(
         session, team_scope=team.slug, team_id=team.id
     )
+    # THE ANSWER INHERITS THE QUESTION. If the question was sent through the
+    # brain tag, the reply goes to the same one person on the same channel and
+    # is stored with the same owner. Without this the question is invisible and
+    # the reply is public, which reveals the question in outline — often more
+    # precisely than the question itself would have.
+    _private_to = triggering_message.private_to_user_id
+    _channel = (
+        f"user:{triggering_user_sub}" if _private_to is not None else f"team:{team_id}"
+    )
+
     # The window is built FOR the person who summoned the agent, so it is their
     # id that decides which rows are in scope. On a public question this keeps
     # everyone else's brain-tag notes out of the prompt — otherwise the model
@@ -653,9 +663,10 @@ async def _do_handle(
 
     # Announce stream start so clients can render an empty bubble immediately.
     await centrifugo_client.publish(
-        channel=f"team:{team_id}",
+        channel=_channel,
         data={
             "type": "agent_stream_start",
+            "team_id": str(team_id),
             "message_id": str(message_id),
             "agent_name": agent_name,
             "provider": provider,
@@ -681,9 +692,10 @@ async def _do_handle(
                 if chunk_text:
                     full_text_parts.append(chunk_text)
                     await centrifugo_client.publish(
-                        channel=f"team:{team_id}",
+                        channel=_channel,
                         data={
                             "type": "agent_stream_chunk",
+                            "team_id": str(team_id),
                             "message_id": str(message_id),
                             "delta": chunk_text,
                         },
@@ -702,9 +714,10 @@ async def _do_handle(
                     if chunk_text:
                         full_text_parts.append(chunk_text)
                         await centrifugo_client.publish(
-                            channel=f"team:{team_id}",
+                            channel=_channel,
                             data={
                                 "type": "agent_stream_chunk",
+                                "team_id": str(team_id),
                                 "message_id": str(message_id),
                                 "delta": chunk_text,
                             },
@@ -769,9 +782,10 @@ async def _do_handle(
             partial_len=sum(len(p) for p in full_text_parts),
         )
         await centrifugo_client.publish(
-            channel=f"team:{team_id}",
+            channel=_channel,
             data={
                 "type": "agent_stream_error",
+                "team_id": str(team_id),
                 "message_id": str(message_id),
                 # Named `error` for the frames already in flight from older
                 # servers, but it now carries OUR sentence, never the provider's.
@@ -843,6 +857,10 @@ async def _do_handle(
             agent_name=agent_name,
             content=full_text,
             routed_via=routed_via,
+            # Same owner as the question. The row must be filtered by the same
+            # predicate the question is, or history replays publicly what the
+            # live stream kept to one person.
+            private_to_user_id=_private_to,
             parent_message_id=triggering_message_id,
             metadata=metadata,
         )
@@ -856,9 +874,10 @@ async def _do_handle(
 
     # Final stream_end frame — clients seal the bubble.
     await centrifugo_client.publish(
-        channel=f"team:{team_id}",
+        channel=_channel,
         data={
             "type": "agent_stream_end",
+            "team_id": str(team_id),
             "message_id": str(message_id),
             "elapsed_ms": elapsed_ms,
             "token_usage": token_usage,

@@ -49,15 +49,22 @@ async def insert_user_message(
     team_id: UUID,
     author_user_id: UUID,
     content: str,
+    private_to_user_id: UUID | None = None,
     parent_message_id: UUID | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> TeamMessage:
-    """Insert a user-authored message. Caller is responsible for committing."""
+    """Insert a user-authored message. Caller is responsible for committing.
+
+    `private_to_user_id` is the brain tag: NULL keeps the row in the team chat,
+    non-NULL keeps it out of every chat surface except its author's. It never
+    keeps the note out of the team's BRAIN — that is the locked decision.
+    """
     msg = TeamMessage(
         team_id=team_id,
         author_user_id=author_user_id,
         kind="user",
         content=content,
+        private_to_user_id=private_to_user_id,
         parent_message_id=parent_message_id,
         metadata_=metadata or {},
     )
@@ -74,6 +81,7 @@ async def insert_agent_message(
     agent_name: str,
     content: str,
     routed_via: str,
+    private_to_user_id: UUID | None = None,
     parent_message_id: UUID | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> TeamMessage:
@@ -89,6 +97,7 @@ async def insert_agent_message(
         kind="agent",
         content=content,
         routed_via=routed_via,
+        private_to_user_id=private_to_user_id,
         parent_message_id=parent_message_id,
         metadata_=metadata or {},
     )
