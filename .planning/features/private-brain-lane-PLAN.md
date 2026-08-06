@@ -247,6 +247,60 @@ BUBBLE MARKER (render.js, beside .xb-msg-provenance): "not in the chat"
 
 WHY THIS WORDING. Three deliberate choices. First, the word "private" never appears — the note is team-retrievable and a label that says private is the product causing the mistake the backlog predicts (a password, a salary, an HR note behind that tag). Second, the second sentence is specific about HOW a teammate reaches it — searching, and the agent quoting it — because "the brain still learns it" is abstract enough that people nod at it without picturing a colleague reading the text back. Third, the last line names what the feature IS before what it is not, so the person still knows why they would use it. Existing copy already blurs this: popup.html:185 says "ask the team brain", render.js:436 labels agent replies "agent · from your brain", and index.html:193 offers "Talk to the team, or @agent" — "your brain" and "the team brain" are used interchangeably today, which is exactly the confusion this sheet has to end.
 
+## Owner's decisions — 2026-08-06, locked
+
+These answer the open questions below. Where they contradict the plan text
+further down, these win.
+
+**1. A superadmin CAN read brain-tag rows.** The plan proposed hiding them; the
+owner ruled the other way. This is the better fit for the code that already
+exists: `/v1/admin/brain/events` writes a synchronous audit row BEFORE the read
+(`admin_brain.py:107-150`), precisely so superadmin content access is
+accountable rather than invisible. So task 8 filters for ordinary members and
+for team admins, and does NOT filter for a superadmin.
+
+**2. Attachments are allowed with the tag.** The plan proposed "no for v1"
+because `/v1/media/{item_id}/raw` authorises on Bearer + X-Team-Scope alone
+(`media.py:298-310`) and the image token is minted from (item_id, team_scope)
+with no message binding (`media_helpers.py:56`) — so hiding the message hides
+the bubble and not the blob.
+
+Under the locked decision that is not a hole, it is consistency. The tag never
+promised secrecy: the note itself stays team-retrievable by design. A file that
+is likewise reachable by the team makes the same promise as the text it came
+with. Nothing extra to build — but it raises the stakes on the wording, which
+must not imply the attachment is hidden from anyone either.
+
+**3. The tag sits immediately to the RIGHT of the agent button**, not at the far
+right of the composer. No text — a **closed-eye icon**. This supersedes the
+backlog's "agent far-left / brain far-right" layout and dissolves the open
+question about where `#btn-clip` goes: nothing else moves.
+
+The icon carries the whole message on its own, so the tooltip and the first-use
+sheet do more work than they would beside a word. A closed eye reads as "hidden"
+— and hidden from the CHAT is true, while hidden from the TEAM is not. The
+wording has to close that gap rather than lean on the icon.
+
+**4. Every recalled fact must say who introduced it.** New requirement, wider
+than this feature — it applies to recall generally, not only to brain-tag rows.
+
+State of play, verified 2026-08-06:
+- The data already exists. `brain_ingest` writes `metadata.author_sub` and
+  `source = "team-chat:<author_sub>"` (`brain_ingest.py:105-127`).
+- It already reaches the model. `_format_item` renders
+  `- [LEVEL] (source) content` (`team_context_cache.py:119-130`), and the query
+  already selects `source` (`:164`).
+- What is missing is presentation, not plumbing: the source is a raw sub
+  (`team-chat:github:mrboups`), not a readable name; nothing tells the model
+  that the parenthetical means "who introduced this"; and for non-chat items
+  (Drive, Granola, GitHub) `source` is the CONNECTOR, not a person — so the
+  honest rendering is "who or what introduced it", and it must not invent a
+  person where there is only an integration.
+
+Sizing: small, but it touches the cached bundle, so any name resolution has to
+stay deterministic or it busts the prompt cache on every rebuild. Its own task.
+
+
 ## Open questions for the owner
 
 1. Where does the '+' attach button (#btn-clip) go once #btn-agent takes the far-left slot? It holds that position in both composers (popup.html:192-194, index.html:186-188) and the product KB calls it 'the control on every surface' (xbrain_product_kb.md:168-169). The backlog assigns agent-left and brain-right and says nothing about the third control.
