@@ -1,4 +1,4 @@
-"""MCP Scraper sidecar — URL -> text, max 50KB.
+"""MCP Scraper sidecar — URL -> readable text, max 50KB.
 
 Standalone FastMCP server (streamable-http transport, port 8100).
 Reuses the document_loader.load_url() pattern from agent-runtime.
@@ -6,8 +6,28 @@ Reuses the document_loader.load_url() pattern from agent-runtime.
 IMPORTANT: Do NOT mount this inside a parent FastAPI app (issue #1367 — RuntimeError:
 Task group is not initialized). Run as standalone uvicorn process only.
 Single worker mandatory — multi-worker splits in-memory session state (issue #658).
+
+WHY THIS RETURNS TEXT AND NOT `r.text` (260806-5zq)
+---------------------------------------------------
+It used to return the raw body. The caller — `team_chat_agent._fetch_url_via_scraper`
+— then keeps the FIRST 6000 characters. On a real page those 6000 characters are
+`<head>`, inline CSS and `<script>`: measured on `pitch.digitalaf.xyz`, 6000
+characters delivered carried **306 characters of readable text**, and the page's
+own dates sat at raw offset ~18,300 — three times past the cut. The model was
+handed markup and no content.
+
+The turn that exposed it still answered correctly, which is the trap: on Pro/Max
+the request goes to claude.ai's own completion endpoint, which fetched the page
+itself. That fallback does not exist on the team-API-key path or in the OSS
+edition, where the same question gets the 306 characters.
+
+Extracting first puts the whole page (8,208 characters for that URL) inside the
+same budget, and the dates land at offset 1,966.
 """
 from __future__ import annotations
+
+import re
+from html.parser import HTMLParser
 
 import httpx
 import structlog
@@ -17,30 +37,159 @@ log = structlog.get_logger(__name__)
 
 MAX_BYTES = 50_000  # Match agent-runtime document_loader (~50KB bounds LLM input cost)
 
+# Sent because httpx otherwise announces `python-httpx/x.y`, which Wikipedia and
+# anything behind a bot filter answer with 403 (reproduced 2026-08-06).
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+# Elements whose contents are never page text. `head` covers <title> too, which
+# is why the title is re-attached separately below — it is often the single most
+# useful line on the page.
+_DROP_ELEMENTS = frozenset(
+    {"script", "style", "noscript", "svg", "head", "template", "iframe", "canvas"}
+)
+
+# Tags that end a line. Without them "Register here" and the next label glue
+# into one token and the text reads as garbage.
+_BLOCK_ELEMENTS = frozenset(
+    {
+        "p", "div", "br", "hr", "li", "ul", "ol", "tr", "td", "th", "table",
+        "h1", "h2", "h3", "h4", "h5", "h6", "section", "article", "header",
+        "footer", "nav", "aside", "main", "form", "blockquote", "pre", "figure",
+        "figcaption", "dt", "dd", "dl", "option", "label",
+    }
+)
+
 mcp = FastMCP("xbrain-scraper", host="0.0.0.0", port=8100)
 
 
-async def _load_url(url: str) -> str:
-    """Fetch URL body, capped at MAX_BYTES.
+class _TextExtractor(HTMLParser):
+    """HTML -> text, stdlib only.
 
-    Mirror of apps/agent-runtime/app/tools/document_loader.load_url().
-    Kept local to avoid cross-service import coupling between sidecars.
+    No new dependency on purpose: the sidecar runs under `mem_limit: 128m`, and
+    the image is built on the VM (dev is ARM64, prod amd64), so a wheel with a
+    native extension is a deploy risk this does not need to take.
     """
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as c:
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._skip_depth = 0
+        self._parts: list[str] = []
+        self._title_parts: list[str] = []
+        self._in_title = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "title" and self._skip_depth <= 1:
+            self._in_title = True
+        if tag in _DROP_ELEMENTS:
+            self._skip_depth += 1
+        elif tag in _BLOCK_ELEMENTS:
+            self._parts.append("\n")
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        # <br/> and <hr/> never reach handle_endtag — handle the self-closing form.
+        if tag in _BLOCK_ELEMENTS:
+            self._parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "title":
+            self._in_title = False
+        if tag in _DROP_ELEMENTS:
+            # Guard against a stray close tag driving the counter negative, which
+            # would then swallow the rest of the document.
+            if self._skip_depth > 0:
+                self._skip_depth -= 1
+        elif tag in _BLOCK_ELEMENTS:
+            self._parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if self._in_title:
+            self._title_parts.append(data)
+        if self._skip_depth == 0:
+            self._parts.append(data)
+
+    def text(self) -> str:
+        body = _collapse("".join(self._parts))
+        title = _collapse("".join(self._title_parts))
+        if title and not body.startswith(title):
+            return f"{title}\n\n{body}" if body else title
+        return body
+
+
+def _collapse(raw: str) -> str:
+    """Squeeze whitespace without destroying paragraph structure."""
+    raw = raw.replace(" ", " ")
+    raw = re.sub(r"[ \t\r\f\v]+", " ", raw)
+    raw = re.sub(r" *\n *", "\n", raw)
+    raw = re.sub(r"\n{3,}", "\n\n", raw)
+    return raw.strip()
+
+
+def _looks_like_html(body: str) -> bool:
+    head = body[:1000].lstrip().lower()
+    return head.startswith(("<!doctype html", "<html", "<?xml")) or "<body" in head
+
+
+def extract_text(body: str, content_type: str = "") -> str:
+    """Return readable text for HTML; return non-HTML bodies untouched.
+
+    A JSON API response or a plain-text file must survive verbatim — running
+    them through an HTML parser would mangle them for no gain.
+
+    Fail-soft: a parser error returns the original body. Losing formatting is
+    recoverable, losing the fetch is not.
+    """
+    ctype = (content_type or "").lower()
+    is_html = "html" in ctype or (not ctype and _looks_like_html(body))
+    if not is_html:
+        return body
+    try:
+        parser = _TextExtractor()
+        parser.feed(body)
+        parser.close()
+        text = parser.text()
+    except Exception as exc:  # noqa: BLE001 — never lose a successful fetch
+        log.warning("scraper.extract_failed", error=str(exc))
+        return body
+    # An empty result means the page is client-rendered (or we mis-parsed it).
+    # The raw body is worth more to the model than nothing at all.
+    return text or body
+
+
+async def _load_url(url: str) -> str:
+    """Fetch a URL and return its readable text, capped at MAX_BYTES.
+
+    The cap is applied to the RAW body before parsing, so the memory bound holds
+    regardless of how the document expands or collapses.
+    """
+    async with httpx.AsyncClient(
+        timeout=30.0, follow_redirects=True, headers=BROWSER_HEADERS
+    ) as c:
         r = await c.get(url)
         r.raise_for_status()
-        return r.text[:MAX_BYTES]
+        raw = r.text[:MAX_BYTES]
+        return extract_text(raw, r.headers.get("content-type", ""))
 
 
 @mcp.tool()
 async def scrape(url: str) -> str:
-    """Fetch a URL and return its text content (max 50KB).
+    """Fetch a URL and return its readable text content.
+
+    HTML is reduced to text (scripts, styles and tags removed) so the caller's
+    character budget is spent on content. Non-HTML bodies are returned as-is.
 
     Args:
         url: The URL to scrape. Must be http:// or https://.
 
     Returns:
-        Text content of the page, truncated at 50KB.
+        Readable text of the page. The raw body is capped at 50KB before
+        extraction, so the returned text is normally far shorter.
         Raises on HTTP errors (4xx, 5xx) or network failures.
     """
     log.info("scraper.fetch", url=url[:100])
