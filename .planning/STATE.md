@@ -5,7 +5,7 @@ milestone_name: Open-Core Edition
 status: executing
 stopped_at: "Phase 27 plans 01-08 shipped and merged; 27-09 deployed both halves and the gate PASSES 50/50 with SKIP 0 (see 27-VERIFICATION.md). BLOCKED on 27-09 task 3 — a human must confirm on a real phone that no permission prompt fires on load and that a push becomes a visible notification. PWA-01 and PUSH-01 stay unchecked until then. The nine-step script is in 27-09-PLAN.md."
 last_updated: "2026-08-01T11:45:00.000Z"
-last_activity: 2026-08-01 -- Phase 27 deployed and gated; awaiting device verification
+last_activity: 2026-08-06 -- Quick task 260806-5zq: scraper returns readable text (deployed, verified live)
 progress:
   total_phases: 7
   completed_phases: 6
@@ -31,7 +31,7 @@ Status: https://grooveos.app/app/ is live and memory-api runs at head 0029 with 
         `make verify-phase27` passes 50/50 against the deployed origin with zero skips.
         What remains needs a phone, not a script: no prompt on load, and a push that
         becomes a notification a person actually sees.
-Last activity: 2026-08-01 -- Phase 27 deployed and gated; awaiting device verification
+Last activity: 2026-08-06 -- Quick task 260806-5zq: scraper returns readable text (deployed, verified live)
 
 ## Performance Metrics
 
@@ -174,6 +174,7 @@ Resume file: None
 
 | Slug | Date | Commit | Status | Description |
 |------|------|--------|--------|-------------|
+| 260806-5zq-fix-mcp-scraper | 2026-08-06 | 41e3adf | Verified live | Scraper returned raw markup — 6000 chars delivered carried 306 readable; now extracts text, sends a browser UA, prefers <main>/<article>. Exposed and fixed an unbounded `mcp` dep that pulled 2.0.0 and crash-looped the sidecar (5 services pinned <2.0.0). |
 | global-audit | 2026-05-09 | — | — | Global features audit + STATE.md/ROADMAP.md docs update |
 | 260509-a1b-mcp-brain-remote-server | 2026-05-09 | 9f21d52 | Verified | mcp-brain remote MCP server for Claude.ai + ChatGPT web access to team brain |
 | 260511-0jb-lot-2-quick-wins-llm-stack | 2026-05-11 | d8fcb69 | Verified | LibreChat grok-3 + Claude Reasoning endpoint + second-opinion 3-way (Sonnet+Opus 4.7+Grok-3) + Anthropic prompt caching on 6 extraction sites |
