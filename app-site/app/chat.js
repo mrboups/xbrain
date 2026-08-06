@@ -1115,6 +1115,23 @@ function showNudgeBanner(sender, url) {
  * click, which is the whole of D-22-02.
  */
 async function handleUserPublication(data) {
+  // Brain-tag frames (migration 0034) arrive HERE, on the personal channel,
+  // because that is the only place they are published. The channel is
+  // CROSS-TEAM — one socket carries every team this person belongs to — so the
+  // team_id on the frame is what stops a note written in team A from painting
+  // into team B's open thread. A frame without one is not a chat frame.
+  if (data && data.team_id && data.team_id === state.activeTeamId) {
+    const t = String(data.type || "");
+    if (
+      t === "message" ||
+      t === "message_deleted" ||
+      t === "message_starred" ||
+      t.startsWith("agent_stream_")
+    ) {
+      handleTeamPublication(data);
+      return;
+    }
+  }
   if (!data || data.type !== "open_url") return;
   try {
     const notified = await handleOpenUrl(data, {

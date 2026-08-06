@@ -783,6 +783,24 @@ function setConnectStatus(text, type) {
 async function handleUserPublication(data) {
   if (!data || !data.type) return;
 
+  // Brain-tag frames (migration 0034) arrive HERE, on the personal channel,
+  // because that is the only place they are published. The channel is
+  // CROSS-TEAM — one socket carries every team this person belongs to — so the
+  // team_id on the frame is what stops a note written in team A from painting
+  // into team B's open thread. A frame without one is not a chat frame.
+  if (data.team_id && data.team_id === state.activeTeamId) {
+    const t = String(data.type);
+    if (
+      t === "message" ||
+      t === "message_deleted" ||
+      t === "message_starred" ||
+      t.startsWith("agent_stream_")
+    ) {
+      routeTeamFrame(data);
+      return;
+    }
+  }
+
   // Ephemeral "Catch me up" summary frames (Phase 23, D-23-04). They arrive on
   // the caller's OWN user channel, render into #catchup-summary-text via
   // textContent (XSS-safe, T-23-08), and are NEVER inserted into #message-list

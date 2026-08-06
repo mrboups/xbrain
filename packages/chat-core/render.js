@@ -409,6 +409,25 @@ export function createRenderer(opts) {
       provSpan.textContent = prov.text;
       meta.appendChild(provSpan);
     }
+
+    // The brain tag (migration 0034). A row only reaches a renderer after the
+    // server decided this viewer may see it, so this marker never grants or
+    // withholds anything — it explains why a message the author can see is
+    // absent from everyone else's thread.
+    //
+    // The words are deliberately about the CHAT and not about secrecy: the note
+    // is in the team's brain and any teammate can still find it by searching or
+    // by asking the agent. A marker reading "private" would be the product
+    // telling the lie the feature must not tell.
+    if (msg.private) {
+      const hidden = doc.createElement("span");
+      hidden.className = "xb-msg-provenance xb-msg-hidden";
+      hidden.textContent = "not in the chat";
+      hidden.title =
+        "Only you see this here. The team's brain still learns it — teammates " +
+        "can find it by searching, and the agent can quote it.";
+      meta.appendChild(hidden);
+    }
     // Body — the bubble (own = --primary, others = --muted, agent = --card).
     const body = doc.createElement("div");
     body.className = "xb-msg-bubble";
