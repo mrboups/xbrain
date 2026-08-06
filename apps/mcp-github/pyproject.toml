@@ -3,9 +3,13 @@ name = "mcp-github"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=1.27.0",
+    # Ceiling load-bearing: mcp 2.0.0 removed mcp.server.fastmcp and crash-loops
+    # the sidecar. This is the one service the 2026-08-06 pin (6ea4709/653401a)
+    # missed. authlib capped for the same reason — 2.0 drops authlib.jose, which
+    # the bridge-JWT verify imports.
+    "mcp>=1.27.0,<2.0.0",
     "httpx>=0.28.0",
     "structlog>=25.0.0",
     "pydantic-settings>=2.0.0",
-    "authlib>=1.3.0",
+    "authlib>=1.3.0,<2.0.0",
 ]
