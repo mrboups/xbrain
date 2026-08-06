@@ -180,6 +180,10 @@ def _enrich_event(ev: BrainEventOut) -> BrainEventOut:
 async def list_brain_events(
     session: AsyncSession = Depends(get_session),
     team_scope: str = Depends(get_team_scope),
+    # Needed since migration 0034: this feed can search every team message, so
+    # it has to know WHO is searching before it can leave anyone's brain-tag
+    # rows out of the results.
+    principal: dict[str, Any] = Depends(get_current_principal),
     entity_type: list[str] | None = Query(
         None,
         description="Repeatable. Filter to one or more of: memory_item, "
@@ -235,6 +239,7 @@ async def list_brain_events(
     items, next_cursor = await _build_list_query(
         session,
         team_scope=team_scope,
+        viewer_user_id=_user_id_from_principal(principal),
         entity_type=entity_type,
         truth_level=truth_level,
         source=source,
@@ -265,6 +270,8 @@ async def _build_list_query(
     session: AsyncSession,
     *,
     team_scope: str,
+    viewer_user_id: UUID | None,
+    bypass_private: bool = False,
     entity_type: list[str] | None = None,
     truth_level: list[str] | None = None,
     source: list[str] | None = None,
@@ -289,6 +296,30 @@ async def _build_list_query(
     """
     sql_parts: list[str] = ["SELECT * FROM v_brain_events WHERE team_scope = :ts"]
     params: dict[str, Any] = {"ts": team_scope}
+
+    # Brain-tag rows (migration 0034). This feed is the SECOND way to read every
+    # team message and the only one with a text search, so leaving it unfiltered
+    # would let any member grep their colleagues' hidden notes — a worse leak
+    # than the chat itself, because it is searchable.
+    #
+    # A NULL viewer excludes EVERY private row rather than none: `x <> NULL` is
+    # NULL, so the guard is written as `:pv IS NULL OR ...` deliberately.
+    #
+    # `bypass_private` is the superadmin path (owner's decision 2026-08-06):
+    # they see these rows, and admin_brain writes its audit entry before the
+    # read, so the access is on the record.
+    if not bypass_private:
+        sql_parts.append(
+            """AND NOT (
+                entity_type = 'team_message'
+                AND entity_id IN (
+                    SELECT id FROM team_messages
+                    WHERE private_to_user_id IS NOT NULL
+                      AND (:pv IS NULL OR private_to_user_id <> :pv)
+                )
+            )"""
+        )
+        params["pv"] = str(viewer_user_id) if viewer_user_id else None
 
     if not include_deleted:
         sql_parts.append("AND deleted_at IS NULL")
@@ -424,7 +455,13 @@ async def patch_truth_level(
 ) -> BrainEventOut:
     _reject_unknown_entity_type(entity_type)
 
-    row = await fetch_event_row(session, entity_type, entity_id, team_scope)
+    row = await fetch_event_row(
+        session,
+        entity_type,
+        entity_id,
+        team_scope,
+        viewer_user_id=_user_id_from_principal(principal),
+    )
     if row is None:
         raise HTTPException(404, "brain event not found in this team")
     if row["deleted_at"] is not None:
@@ -463,7 +500,13 @@ async def patch_truth_level(
     )
     await session.commit()
 
-    new_row = await fetch_event_row(session, entity_type, entity_id, team_scope)
+    new_row = await fetch_event_row(
+        session,
+        entity_type,
+        entity_id,
+        team_scope,
+        viewer_user_id=_user_id_from_principal(principal),
+    )
     if new_row is None:
         # Should not happen — same vanishing race as above; covered defensively.
         raise HTTPException(404, "brain event vanished after update")
@@ -490,7 +533,13 @@ async def soft_delete_event(
 ) -> None:
     _reject_unknown_entity_type(entity_type)
 
-    row = await fetch_event_row(session, entity_type, entity_id, team_scope)
+    row = await fetch_event_row(
+        session,
+        entity_type,
+        entity_id,
+        team_scope,
+        viewer_user_id=_user_id_from_principal(principal),
+    )
     if row is None:
         raise HTTPException(404, "brain event not found in this team")
     if row["deleted_at"] is not None:
@@ -555,7 +604,13 @@ async def restore_event(
 
     # The view shows soft-deleted rows — restore needs to see them to do
     # the team-scope + author check before resurrecting the row.
-    row = await fetch_event_row(session, entity_type, entity_id, team_scope)
+    row = await fetch_event_row(
+        session,
+        entity_type,
+        entity_id,
+        team_scope,
+        viewer_user_id=_user_id_from_principal(principal),
+    )
     if row is None:
         raise HTTPException(404, "brain event not found in this team")
     if row["deleted_at"] is None:
@@ -593,7 +648,13 @@ async def restore_event(
     if entity_type in _QDRANT_BACKED_ENTITY_TYPES:
         await _qdrant_mark_restored_safe(provider, entity_id)
 
-    new_row = await fetch_event_row(session, entity_type, entity_id, team_scope)
+    new_row = await fetch_event_row(
+        session,
+        entity_type,
+        entity_id,
+        team_scope,
+        viewer_user_id=_user_id_from_principal(principal),
+    )
     if new_row is None:
         raise HTTPException(404, "brain event vanished after restore")
     return BrainEventOut(**dict(new_row))

@@ -167,6 +167,12 @@ async def events_drilldown(
     items, next_cursor = await _build_list_query(
         session,
         team_scope=team_slug,
+        # Owner's decision, 2026-08-06: a superadmin DOES see brain-tag rows.
+        # This endpoint writes its audit entry BEFORE the read (see above), so
+        # the access is accountable — which is the argument for allowing it at
+        # all, and the reason the member-facing feed does not get this flag.
+        viewer_user_id=None,
+        bypass_private=True,
         entity_type=entity_type,
         truth_level=truth_level,
         source=source,

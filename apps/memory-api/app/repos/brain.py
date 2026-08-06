@@ -77,6 +77,9 @@ async def fetch_event_row(
     entity_type: str,
     entity_id: UUID,
     team_slug: str,
+    *,
+    viewer_user_id: UUID | None,
+    bypass_private: bool = False,
 ) -> Mapping | None:
     """Fetch a single brain-event row scoped to (entity_type, entity_id, team_slug).
 
@@ -95,13 +98,33 @@ async def fetch_event_row(
     a non-deleted row; restore requires a soft-deleted one. Keeping the
     filter in the route handler avoids two near-duplicate fetch helpers.
     """
-    sql = """
+    # Brain-tag rows (migration 0034). This is the drill-down that returns
+    # `preview` — the first 200 characters of the content — so a team admin
+    # reaching another member's hidden note here would read it without ever
+    # opening the chat. `bypass_private` is the superadmin path: they DO see
+    # these (owner's decision 2026-08-06), and the route writes its audit row
+    # before the read, so that access is accountable rather than absent.
+    #
+    # A NULL viewer excludes EVERY private row rather than none: `x <> NULL` is
+    # NULL, so the guard is written as `:pv IS NULL OR ...` deliberately.
+    private_clause = "" if bypass_private else """
+          AND NOT (
+              entity_type = 'team_message'
+              AND entity_id IN (
+                  SELECT id FROM team_messages
+                  WHERE private_to_user_id IS NOT NULL
+                    AND (:pv IS NULL OR private_to_user_id <> :pv)
+              )
+          )"""
+    sql = f"""
         SELECT * FROM v_brain_events
         WHERE entity_type = :et AND entity_id = :id AND team_scope = :ts
+        {private_clause}
     """
-    return (await session.execute(
-        sa.text(sql), {"et": entity_type, "id": str(entity_id), "ts": team_slug}
-    )).mappings().fetchone()
+    params = {"et": entity_type, "id": str(entity_id), "ts": team_slug}
+    if not bypass_private:
+        params["pv"] = str(viewer_user_id) if viewer_user_id else None
+    return (await session.execute(sa.text(sql), params)).mappings().fetchone()
 
 
 async def update_truth_level(
