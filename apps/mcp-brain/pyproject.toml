@@ -3,7 +3,10 @@ name = "mcp-brain"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=1.27.0",
+    # Upper bound is load-bearing: mcp 2.0.0 removed `mcp.server.fastmcp`,
+    # which crash-loops this service on ModuleNotFoundError at its next
+    # rebuild. Caught on mcp-scraper 2026-08-06 (260806-5zq).
+    "mcp>=1.27.0,<2.0.0",
     "httpx>=0.28.0",
     "structlog>=25.0.0",
     "pydantic-settings>=2.0.0",
