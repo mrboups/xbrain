@@ -15,7 +15,16 @@ class Settings(BaseSettings):
     MEMORY_API_URL: str = "http://memory-api:8000"
 
     # HMAC secret used to sign the bridge JWT carried in calls to memory-api
-    # POST /v1/me/external-sessions. Empty in dev/test; required in prod.
+    # POST /v1/me/external-sessions, and to VERIFY the bridge JWTs backend
+    # services present on the chat and status routes (app/auth.py).
+    #
+    # The `= ""` default is KEPT here, alone among the six sidecars, and it is
+    # not an oversight: app/auth.py:75 refuses every bridge JWT outright when the
+    # secret is empty (`return None` before any decode), so an unconfigured
+    # session-bridge verifies nothing rather than verifying against "". Making
+    # the field required would additionally break tests/ at import time — its
+    # conftest constructs Settings() with no env and monkeypatches afterwards.
+    # Change both together or neither.
     BRIDGE_SHARED_SECRET: str = ""
 
     # Algorithm for the bridge JWT. Must match memory-api's accepted alg list.

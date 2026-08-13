@@ -5,7 +5,7 @@ from enum import StrEnum
 
 import httpx
 import structlog
-from authlib.jose import JsonWebKey, jwt
+from authlib.jose import JsonWebKey, JsonWebToken, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -112,9 +112,23 @@ def _reset_google_userinfo_cache_for_tests() -> None:
     _google_userinfo_cache.clear()
 
 
+#: Bridge tokens are HS256 and nothing else. `jwt.decode` without this lets the
+#: TOKEN'S OWN HEADER choose the algorithm — the classic confusion primitive,
+#: where an attacker names an algorithm the verifier treats differently from
+#: what the signer intended. Hardcoded rather than read from settings, because
+#: an allow-list an env var can widen is not an allow-list. Mirrors the same
+#: fix in mcp-gateway/app/auth.py.
+_BRIDGE_JWT = JsonWebToken(["HS256"])
+
+
 def verify_bridge_jwt(token: str, secret: str) -> dict:
     """Verify a service JWT signed with the shared bridge secret (HS256)."""
-    claims = jwt.decode(token, secret)
+    # Belt and braces behind config.py's required BRIDGE_SHARED_SECRET: this
+    # function also takes a caller-supplied secret, and verifying against ""
+    # accepts anything an attacker signs with "".
+    if not secret:
+        raise ValueError("bridge secret is empty — refusing to verify")
+    claims = _BRIDGE_JWT.decode(token, secret)
     claims.validate()
     out = dict(claims)
     if out.get("scope") != "bridge":

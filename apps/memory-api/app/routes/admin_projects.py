@@ -16,7 +16,7 @@ Stockage :
 
 Sécurité :
   POST est admin-only (Bridge JWT kind=service/bridge ou sub dans ADMIN_USER_SUBS).
-  GET accepte Google ID token OU Bridge JWT (lecture non-sensible).
+  GET exige d'être membre (non bloqué) de la team demandée — ou admin/bridge.
   T-05-03-01 mitigé : guard _is_admin copié depuis admin_drive.py.
 """
 from __future__ import annotations
@@ -30,6 +30,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.deps import get_current_principal, get_session
+from app.repos.teams import get_membership
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
@@ -202,11 +203,31 @@ async def list_projects(
 ):
     """Liste les projets déployés pour une team.
 
-    Auth : Google ID token OU Bridge JWT (lecture — accessible à tout utilisateur authentifié).
+    Auth : membre (non bloqué) de `team_scope`, ou admin/bridge.
     Retourne une liste de projets avec leurs URL, deploy_target et type.
     """
-    # Auth : tout utilisateur authentifié peut lire la liste des projets de sa team
-    # (pas de restriction admin — les projets sont des informations non-sensibles)
+    # The `team_scope` query param used to go straight into the WHERE clause
+    # below, with a comment calling a team's deploy registry "non-sensitive".
+    # It is the list of every internal URL a team ships, and the param is
+    # client-supplied: any authenticated account could read any team's by
+    # guessing a slug. Membership is not an admin restriction, it is the
+    # difference between "your team's projects" and "everyone's".
+    #
+    # POST on this same router (:84) was already admin-gated — the read was the
+    # half nobody closed.
+    if not _is_admin(principal):
+        user = principal.get("user")
+        if user is None:
+            raise HTTPException(403, "not a member of this team")
+        pinned = principal.get("api_token_team_scope")
+        if pinned and pinned != team_scope:
+            raise HTTPException(403, "API token team_scope mismatch")
+        membership = await get_membership(
+            session, user_id=user.id, team_slug=team_scope
+        )
+        if membership is None or membership.blocked_at is not None:
+            raise HTTPException(403, "not a member of this team")
+
     # Phase 11 (BMO-07) — exclude soft-deleted admin:project rows from the
     # listing. If an admin removes a project via the brain monitor (sets
     # deleted_at via PATCH/DELETE on the memory_item), it should disappear

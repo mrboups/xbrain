@@ -9,9 +9,17 @@ class Settings(BaseSettings):
     FASTMCP_PORT: int = 8104
     LOG_LEVEL: str = "INFO"
     # Tokenless email path — gated by shared secret (internal LibreChat calls only).
-    # Empty string = disabled (fail-closed). Set to same value as BRIDGE_SHARED_SECRET
-    # in docker-compose so LibreChat can use email path without an xbt_ token.
-    BRIDGE_SHARED_SECRET: str = ""
+    # Same value as BRIDGE_SHARED_SECRET everywhere else, so LibreChat can use the
+    # email path without an xbt_ token.
+    #
+    # NO DEFAULT — mirrors memory-api's app/config.py:16. The old `= ""` made an
+    # unconfigured deploy look healthy while `_resolve`'s `bool(secret)` guard
+    # silently refused every internal call; and the same value is handed to
+    # oauth_verify as X-Internal-Secret. A secret that is allowed to be absent is
+    # a secret nobody notices is absent — refuse to boot instead. docker-compose
+    # passes it. INTERNAL_EMAIL_PATH_ENABLED below is the kill-switch for turning
+    # the path off deliberately.
+    BRIDGE_SHARED_SECRET: str
     # Kill-switch: set to false to disable the email path entirely without clearing the secret.
     INTERNAL_EMAIL_PATH_ENABLED: bool = True
 

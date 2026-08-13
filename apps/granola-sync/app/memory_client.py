@@ -12,11 +12,22 @@ from app.config import settings
 log = structlog.get_logger(__name__)
 
 
-def _make_bridge_jwt() -> str:
-    """Generate a short-lived bridge JWT for service-to-service auth."""
+def _make_bridge_jwt(team_scope: str) -> str:
+    """Generate a short-lived bridge JWT for service-to-service auth.
+
+    The `team_scope` claim is what the caller PROVES; the same value in the
+    request body is only what it asks for. memory-api compares the two and
+    refuses a mismatch — and, since 2026-08-13, refuses a missing claim too.
+
+    Before that, this token carried no claim at all, so the cross-team guard on
+    the receiving end (`granola_integration.py`) short-circuited and had never
+    once fired: any body value was accepted. Minting the claim here is the half
+    that makes that guard real.
+    """
     payload = {
         "sub": "granola-sync",
         "scope": "bridge",
+        "team_scope": team_scope,
         "iat": int(time.time()),
         "exp": int(time.time()) + 3600,
     }
@@ -29,7 +40,7 @@ def _make_bridge_jwt() -> str:
 
 async def post_ingest(team_scope: str, payload: dict[str, Any]) -> dict[str, Any] | None:
     """POST a structured Granola payload to memory-api. Fail-soft (returns None on error)."""
-    token = _make_bridge_jwt()
+    token = _make_bridge_jwt(team_scope)
     url = f"{settings.MEMORY_API_URL}/v1/integrations/granola/ingest"
     body = {
         "team_scope": team_scope,
@@ -70,10 +81,11 @@ async def post_agent_invoke(
     """POST /v1/agents/{agent_id}/invoke with bridge JWT. Fail-soft (returns None on error).
 
     Used by granola-sync to auto-trigger the meeting-recap agent after ingesting
-    a meeting (D5 RESEARCH.md). Pitfall 1: bridge JWT carries no team_scope,
-    we send team_scope in the body and the agents.py invoke handler reads it from there.
+    a meeting (D5 RESEARCH.md). The bridge JWT now carries the team_scope
+    claim as well as the body field: the claim is what this service proves,
+    the body is what it asks for, and agents.py refuses a mismatch.
     """
-    token = _make_bridge_jwt()
+    token = _make_bridge_jwt(team_scope)
     url = f"{settings.MEMORY_API_URL}/v1/agents/{agent_id}/invoke"
     body = {
         "team_scope": team_scope,

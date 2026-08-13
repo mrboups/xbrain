@@ -18,6 +18,7 @@ from app.deps import get_current_principal, get_session
 from app.models.user import User
 from app.repos.teams import get_first_team_for_user
 from app.repos.users import follow_merge_pointer, get_user_by_email
+from app.routes.boards import _require_bridge_principal
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
@@ -47,9 +48,23 @@ async def resolve_team_scope(
     If none has a team, the first resolved user is returned (so callers still
     get a user_id), team_scope=null.
 
-    Auth: any authenticated principal (including kind='bridge').
+    Auth: bridge JWTs ONLY (kind='bridge').
+
+    This endpoint answers "which team does THIS OTHER PERSON belong to" for an
+    arbitrary `sub`, and hands back the internal user UUID with it. `principal`
+    used to be declared and then never read, which made it a directory: any
+    signed-in account could walk subs and map the whole install's team layout.
+    Every real caller is a service holding BRIDGE_SHARED_SECRET —
+    librechat-bridge, the LibreChat route patch, mcp-brain, mcp-github — and
+    each already mints a bridge JWT for it, so the gate costs them nothing.
+
+    No team_scope comparison is possible here (the team is the ANSWER, not an
+    input — that is the whole reason the endpoint exists), so bridge-kind is the
+    entire gate.
+
     Never returns 500 for unknown users — nulls are returned instead.
     """
+    _require_bridge_principal(principal)
     try:
         candidates: list[User] = []
 

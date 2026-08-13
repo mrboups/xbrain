@@ -20,13 +20,13 @@ Quick task 260512-tcr Wave 2.3:
 Auth model:
   - user-facing endpoints accept kind=user OR kind=user_api_token, with team
     membership checked (T-09-04-02 isolation pattern reused).
-  - agent-context-bundle accepts kind=bridge ONLY — gates the team memory
-    context behind the BRIDGE_SHARED_SECRET so untrusted code can't dump
-    a team's memory.
+  - agent-context-bundle accepts kind=bridge ONLY, and additionally requires
+    the JWT's team_scope claim to equal the path team's slug. The shared secret
+    gates untrusted code out; the claim comparison is what keeps one trusted
+    service from reading every OTHER team's memory through the same door.
 """
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -48,6 +48,7 @@ from app.repos import teams as teams_repo
 from app.repos import users as users_repo
 from app.routes.media_helpers import mint_media_token
 from app.services import (
+    background,
     brain_ingest,
     centrifugo_client,
     importance,
@@ -345,7 +346,7 @@ async def post_team_message(
     # message lands in the searchable brain. Fire-and-forget — upserts a
     # WORKING memory_item + Qdrant vector that the agent context bundle and MCP
     # memory_search already read from. Never blocks or breaks the send.
-    asyncio.create_task(
+    background.spawn(
         brain_ingest.ingest_team_message(
             team_scope=team.slug,
             team_id=team_id,
@@ -355,7 +356,8 @@ async def post_team_message(
             # The back-link that makes "remove this from the brain too" exact
             # rather than a content match — see services/message_brain_links.py.
             message_id=msg.id,
-        )
+        ),
+        name="brain_ingest.team_message",
     )
 
     # Realtime fan-out — never block the response.
@@ -365,7 +367,7 @@ async def post_team_message(
     # frames for 7 days with force_recovery, so a private note published on
     # `team:` is not a momentary slip — it is replayed to every member on their
     # next reconnect, for a week, and no hotfix takes it back.
-    asyncio.create_task(
+    background.spawn(
         centrifugo_client.publish(
             channel=(
                 f"user:{user.source_user_id}" if body.private else f"team:{team_id}"
@@ -378,7 +380,8 @@ async def post_team_message(
                 "team_id": str(team_id),
                 "message": payload,
             },
-        )
+        ),
+        name="centrifugo.publish_message",
     )
 
     # Agent mention → run the agent handler in the background. Detection is
@@ -391,12 +394,13 @@ async def post_team_message(
     # `agent_stream_error` frames on the Centrifugo channel.
     mention = mention_detector.detect(body.content, aliases)
     if mention is not None:
-        asyncio.create_task(
+        background.spawn(
             team_chat_agent.handle_claude_mention(
                 team_id=team_id,
                 triggering_message_id=msg.id,
                 triggering_user_sub=user.source_user_id,
-            )
+            ),
+            name="team_chat_agent.handle_claude_mention",
         )
         log.info(
             "team_chat.mention.enqueued",
@@ -435,7 +439,7 @@ async def post_team_message(
             for mentioned_id in mention_detector.detect_user_mentions(body.content, members):
                 if mentioned_id == str(user.id):
                     continue  # never push someone their own message
-                asyncio.create_task(
+                background.spawn(
                     web_push.send_to_user_bg(
                         user_id=UUID(mentioned_id),
                         payload=web_push.build_mention_payload(
@@ -446,7 +450,8 @@ async def post_team_message(
                             content=body.content,
                             url=f"{settings.APP_PUBLIC_URL.rstrip('/')}/app/",
                         ),
-                    )
+                    ),
+                    name="web_push.mention",
                 )
         except Exception as exc:  # noqa: BLE001
             # The message is committed and published by now. A notification problem must
@@ -1063,12 +1068,13 @@ async def catch_me_up(
 
     # 4. Fire-and-forget the ephemeral summarizer — streams to the caller's OWN
     #    `user:<sub>` channel and persists nothing.
-    asyncio.create_task(
+    background.spawn(
         team_chat_agent.catch_me_up(
             team_id=team_id,
             caller_user_sub=user.source_user_id,
             since=cursor,
-        )
+        ),
+        name="team_chat_agent.catch_me_up",
     )
     log.info(
         "team_chat.catch_me_up.scheduled",
@@ -1157,7 +1163,7 @@ async def nudge_open(
 
     # 5. Fire-and-forget publish to the target's OWN user channel — never block the
     #    response. The url is the literal, un-expanded string the sender supplied.
-    asyncio.create_task(
+    background.spawn(
         centrifugo_client.publish(
             channel=f"user:{target.source_user_id}",
             data={
@@ -1170,7 +1176,8 @@ async def nudge_open(
                 "team_id": str(team_id),
                 "team_slug": team.slug,
             },
-        )
+        ),
+        name="centrifugo.publish_nudge",
     )
 
     # Phase 27 (D-27-06) — the second and LAST event that sends a push: the recipient may
@@ -1182,7 +1189,7 @@ async def nudge_open(
     # browser without their click on a surface that showed them the destination. The link
     # travels as the notification BODY (so they see it), and the tap lands them in the app
     # on the existing consent prompt.
-    asyncio.create_task(
+    background.spawn(
         web_push.send_to_user_bg(
             user_id=target.id,
             payload=web_push.build_nudge_payload(
@@ -1190,7 +1197,8 @@ async def nudge_open(
                 target_url=body.url,
                 app_url=f"{settings.APP_PUBLIC_URL.rstrip('/')}/app/",
             ),
-        )
+        ),
+        name="web_push.nudge",
     )
     log.info(
         "team_chat.nudge_open.scheduled",
@@ -1212,9 +1220,9 @@ async def get_agent_context_bundle(
 ) -> dict[str, Any]:
     """Return the cached team memory bundle + last 20 chat messages.
 
-    Hit by agent-runtime just before calling Anthropic. Auth: bridge JWT
-    only (kind=bridge) — gates the team memory dump behind
-    BRIDGE_SHARED_SECRET.
+    Hit by agent-runtime just before calling Anthropic. Auth: bridge JWT only
+    (kind=bridge) AND that JWT's own team_scope claim must name the team in the
+    path — BRIDGE_SHARED_SECRET proves "a service", never "which team".
 
     Response shape:
       {
@@ -1230,6 +1238,16 @@ async def get_agent_context_bundle(
     team = (await session.execute(select(Team).where(Team.id == team_id))).scalar_one_or_none()
     if team is None:
         raise HTTPException(404, "team not found")
+
+    # Bridge-kind alone was the ENTIRE gate here, which made the path team_id a
+    # free parameter: one bridge JWT — any of them, they are all signed with the
+    # same shared secret — dumped the memory bundle and the last twenty messages
+    # of every team on the box, one id at a time. The claim the caller was issued
+    # must equal the team it is asking for, and a JWT carrying no team_scope at
+    # all is a mismatch rather than a wildcard: an unnamed team cannot be the
+    # team you were authorised for.
+    if principal.get("team_scope") != team.slug:
+        raise HTTPException(403, "bridge JWT team_scope does not match this team")
 
     bundle = await team_context_cache.get_team_memory_bundle(
         session, team_scope=team.slug, team_id=team.id

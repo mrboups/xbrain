@@ -14,7 +14,6 @@ Notes:
   - L'invocation accepte user OU bridge — granola-sync (bridge) auto-déclenche meeting-recap (D5).
 """
 
-import asyncio
 import json
 import types
 from datetime import datetime
@@ -31,6 +30,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.audit import write_audit
 from app.config import settings
 from app.deps import _is_admin, get_current_principal, get_session
+from app.repos.teams import get_membership
+from app.services import background
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
@@ -284,15 +285,44 @@ async def invoke_agent(
     Auth: user OR bridge (granola-sync uses bridge JWT to auto-trigger meeting-recap).
     Pitfall 1 RESEARCH.md: team_scope is read from body, NOT enforced by header.
     Pitfall 6 RESEARCH.md: tools_json is stored but NEVER passed to Anthropic in Phase 8.
+
+    Whichever principal calls, the destination team is authorised before the
+    agent runs — the handler ends in an INSERT into `memory_items` under
+    `body.team_scope`, and that write is the whole reason to check.
     """
-    # Bridge cross-team check (Pitfall 1) — if bridge JWT carries team_scope, must match body
+    # Bridge cross-team check — the claim must be PRESENT and must match.
+    #
+    # A missing claim is a mismatch, not a pass. The `and` this replaces meant a
+    # claimless token skipped the comparison entirely, and granola-sync — the
+    # one live caller of this route — minted exactly such a token, so the check
+    # had never fired. granola-sync now sets the claim (memory_client.py), which
+    # is what lets this be strict without breaking it.
     if principal.get("kind") == "bridge":
         bridge_team = principal.get("team_scope")
-        if bridge_team and bridge_team != body.team_scope:
+        if not bridge_team or bridge_team != body.team_scope:
             raise HTTPException(
                 403,
                 f"Bridge JWT team_scope '{bridge_team}' does not match body team_scope '{body.team_scope}'",
             )
+    else:
+        # Everything that is not a bridge is a person, and a person needs a
+        # team_members row. Until now the guard above was the ONLY one, so a
+        # normal signed-in user simply named someone else's team in the body and
+        # the agent's output landed in their brain as a WORKING memory_item —
+        # visible to that team's recall, attributed to nobody they know.
+        user = principal.get("user")
+        if user is None:
+            raise HTTPException(403, "not a member of this team")
+        pinned = principal.get("api_token_team_scope")
+        if pinned and pinned != body.team_scope:
+            raise HTTPException(
+                403, "API token team_scope mismatch with body team_scope"
+            )
+        membership = await get_membership(
+            session, user_id=user.id, team_slug=body.team_scope
+        )
+        if membership is None or membership.blocked_at is not None:
+            raise HTTPException(403, "not a member of this team")
 
     # Fetch agent definition
     agent_row = (await session.execute(sa.text("""
@@ -385,9 +415,18 @@ async def invoke_agent(
             source="agent",
             id=memory_item_id,
         )
-        asyncio.create_task(_extract_crm_contacts(recap_text, body.team_scope, "agent"))
-        asyncio.create_task(_maybe_create_task_from_action(_item, body.team_scope))
-        asyncio.create_task(_enrich_with_graphiti(recap_text, body.team_scope))
+        background.spawn(
+            _extract_crm_contacts(recap_text, body.team_scope, "agent"),
+            name="agents.extract_crm_contacts",
+        )
+        background.spawn(
+            _maybe_create_task_from_action(_item, body.team_scope),
+            name="agents.task_from_action",
+        )
+        background.spawn(
+            _enrich_with_graphiti(recap_text, body.team_scope),
+            name="agents.enrich_graphiti",
+        )
 
     log.info(
         "agent.invoked",

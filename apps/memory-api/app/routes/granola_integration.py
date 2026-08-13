@@ -1,6 +1,5 @@
 """/v1/admin/granola-integration + /v1/integrations/granola/ingest — D3 Granola integration."""
 
-import asyncio
 import json
 from datetime import datetime
 from typing import Any
@@ -16,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.audit import write_audit
 from app.config import settings
 from app.deps import _is_admin, get_current_principal, get_session
+from app.services import background
 
 log = structlog.get_logger(__name__)
 router = APIRouter()
@@ -225,13 +225,25 @@ async def ingest_granola_note(
       - Cross-team forgery blocked: bridge JWT team_scope must match body (T-07-04-04)
       - Dedup: duplicate note_id skipped idempotently (T-07-04-12 mitigated)
       - Audit: granola.ingest action logged with counts (T-07-04-11 mitigated)
+
+    CALLER CONTRACT: the bridge JWT MUST carry a `team_scope` claim equal to
+    `body.team_scope`. granola-sync mints one JWT per poll cycle and already
+    knows the team it is ingesting for — see apps/granola-sync/app/memory_client.py.
     """
     if not _is_bridge(principal):
         raise HTTPException(403, "Bridge JWT required (granola-sync only)")
 
-    # Bridge JWT cross-team check (T-07-04-04)
+    # Bridge JWT cross-team check (T-07-04-04).
+    #
+    # This guard used to read `if bridge_team and bridge_team != body.team_scope`,
+    # and every JWT that reaches it carries no team_scope at all — so the `and`
+    # short-circuited and the T-07-04-04 mitigation had never once fired. A
+    # missing claim is the exact case the check exists for: it means the caller
+    # never proved which team it was authorised to write into, and it must fail
+    # closed rather than take the body's word for it. Body content lands as
+    # memory_items, contacts and tasks in whatever team is named here.
     bridge_team = principal.get("team_scope")
-    if bridge_team and bridge_team != body.team_scope:
+    if not bridge_team or bridge_team != body.team_scope:
         raise HTTPException(
             403,
             f"Bridge JWT team_scope '{bridge_team}' does not match payload team_scope '{body.team_scope}'",
@@ -377,7 +389,10 @@ async def ingest_granola_note(
     await session.commit()
 
     from app.routes.memory import _enrich_with_graphiti  # noqa: PLC0415
-    asyncio.create_task(_enrich_with_graphiti(summary_content, body.team_scope))
+    background.spawn(
+        _enrich_with_graphiti(summary_content, body.team_scope),
+        name="granola.enrich_graphiti",
+    )
 
     return GranolaIngestOut(
         memory_item_id=memory_item_id,

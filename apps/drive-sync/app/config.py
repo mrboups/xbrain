@@ -5,7 +5,11 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
     MEMORY_API_URL: str = "http://memory-api:8000"
     AGENT_RUNTIME_URL: str = "http://agent-runtime:9100"
-    BRIDGE_SHARED_SECRET: str = ""
+    # NO DEFAULT — mirrors memory-api's app/config.py:16. An empty shared secret
+    # is never a working degraded mode: it signs bridge JWTs any third party can
+    # forge, and any service verifying with "" accepts them. Missing var =>
+    # refuse to boot, where an operator sees it. docker-compose passes it.
+    BRIDGE_SHARED_SECRET: str
     JWT_ALGORITHM: str = "HS256"
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import write_audit
 from app.deps import get_current_principal, get_session
+from app.repos.teams import get_membership
 from app.routes.granola_integration import _require_granola_fernet
 
 log = structlog.get_logger(__name__)
@@ -83,6 +84,25 @@ def _require_user(principal: dict[str, Any]) -> Any:
     return user
 
 
+async def _assert_member(session: AsyncSession, user_id, team_scope: str) -> None:
+    """Membership must EXIST and not be blocked. One message for both cases.
+
+    Every route in this module that accepts a `team_scope` from the request body
+    goes through here. Authentication is not the barrier on this deployment —
+    registration is open — so a body field naming a team is a claim, never a
+    grant, and the two writes below (a durable API token, a Granola key that a
+    poller later ingests under) are exactly the writes where an unchecked claim
+    becomes persistent cross-team access.
+
+    Same shape (and same deliberately undifferentiated message) as
+    transcript_import.py's `_assert_member`: absent and blocked answer
+    identically so the response is not an oracle for who is in which team.
+    """
+    membership = await get_membership(session, user_id=user_id, team_slug=team_scope)
+    if membership is None or membership.blocked_at is not None:
+        raise HTTPException(403, "not a member of this team")
+
+
 @router.post("/me/granola-key", response_model=GranolaKeyStatus, status_code=201)
 async def set_my_granola_key(
     body: GranolaKeyBody,
@@ -95,9 +115,14 @@ async def set_my_granola_key(
     encrypted ciphertext is replaced atomically. Re-enables the connection if it
     was previously soft-disabled via DELETE.
 
-    Auth: user JWT only — bridge service principals are rejected.
+    Auth: user JWT only — bridge service principals are rejected, and the
+    caller must be an unblocked member of `body.team_scope`. The scope is not
+    cosmetic: granola-sync polls this row and ingests every note it finds into
+    that team's brain, so an unchecked scope here is a write primitive into
+    another team that keeps firing on a timer.
     """
     user = _require_user(principal)
+    await _assert_member(session, user.id, body.team_scope)
     fernet = _require_granola_fernet()
     encrypted = fernet.encrypt(body.api_key.encode()).decode()
 
@@ -246,8 +271,17 @@ async def create_api_token(
 
     The plaintext token is returned ONCE. Store it immediately — it cannot be retrieved again.
     Auth: user JWT only (Google OIDC or GitHub OAuth).
+
+    A PINNED token (non-empty team_scope) requires membership of that team. The
+    pin outlives the request that created it — `deps.get_team_scope` reads it on
+    every later call — so this is the moment the grant is actually made, and it
+    was made on nothing but a string in the body. The empty-string multi-team
+    sentinel needs no check here precisely because it grants nothing: it defers
+    to the team_members lookup on each request instead.
     """
     user = _require_user(principal)
+    if body.team_scope:
+        await _assert_member(session, user.id, body.team_scope)
     raw_token = "xbt_" + secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
 

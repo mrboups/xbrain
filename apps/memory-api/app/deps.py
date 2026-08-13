@@ -1,6 +1,5 @@
 """FastAPI dependencies: DB session, current user, team scope guard, memory provider."""
 
-import asyncio
 import hashlib
 import types
 from collections.abc import AsyncGenerator
@@ -24,7 +23,7 @@ from app.config import settings
 from app.db.session import async_session_factory
 from app.repos.teams import get_membership
 from app.repos.users import get_or_create_user
-from app.services import token_capabilities
+from app.services import background, token_capabilities
 
 
 async def _touch_token(token_id: str) -> None:
@@ -301,7 +300,7 @@ async def get_current_principal(
             if row is None:
                 raise HTTPException(401, "Token survivor row missing")
         # Update last_used_at async (fire-and-forget — non-blocking)
-        asyncio.create_task(_touch_token(str(row["id"])))
+        background.spawn(_touch_token(str(row["id"])), name="deps.touch_token")
         user = types.SimpleNamespace(
             id=row["user_id"],
             source_user_id=row["source_user_id"],
@@ -411,22 +410,29 @@ async def get_team_scope(
         if scope and scope != x_team_scope:
             raise HTTPException(403, "API token team_scope mismatch with X-Team-Scope header")
         if scope:
-            # Single-team scoped token — scope match confirmed. Phase 10 B-3:
-            # we MUST still consult team_members.blocked_at here. Without this
-            # check, a user blocked after the token was minted bypasses the
-            # block entirely (the bypass is total and silent).
+            # Single-team scoped token — the header matches the slug the token
+            # was pinned to. That match is NOT authorisation, and the code here
+            # used to treat it as one: the comment claimed the scope had been
+            # "validated by an admin path at mint time". No such path existed.
+            # POST /v1/me/api-token wrote body.team_scope into the row unchecked,
+            # so anyone with an account could mint themselves a durable, silent
+            # credential into any team on the box. That route now verifies
+            # membership before writing the pin — but every token minted before
+            # this fix is still out there, and re-validating here is what makes
+            # those inert. A pin is only ever worth the membership backing it
+            # RIGHT NOW, so both the existence and the block check run per
+            # request (Phase 10 B-3 added the block half for the same reason:
+            # a user blocked after minting must lose access immediately).
             user = principal["user"]
             member = await get_membership(
                 session, user_id=user.id, team_slug=x_team_scope
             )
-            if member is not None and member.blocked_at is not None:
+            if member is None:
+                raise HTTPException(403, f"Not a member of team {x_team_scope}")
+            if member.blocked_at is not None:
                 raise HTTPException(
                     403, f"Member blocked from team {x_team_scope}"
                 )
-            # We do NOT require membership existence in the scoped xbt_ branch
-            # (the token was minted with this scope by an admin path that
-            # already validated it). The block check is the only added
-            # enforcement here.
             return x_team_scope
         # Multi-team token (empty-string sentinel): fall through to membership
         # check below — that path also enforces blocked_at.

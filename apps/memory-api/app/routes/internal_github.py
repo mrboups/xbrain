@@ -20,13 +20,17 @@ Exposes:
     # idx_memory_source_team_unique dropped (migration 0020) so many catalog
     # items with the same source per team are allowed.
 
-Auth: Depends(get_current_principal) — accepts kind='bridge' (same as internal.py).
-NOT team-scoped for list/read/sync: access is org-sanctioned via the GitHub App
-installation, not per-team.  /catalog IS team-scoped (requires X-Team-Scope or
-query param team_scope).
+Auth: Depends(get_current_principal) — any authenticated principal.
+
+list/read are team-neutral: they return GitHub content the App installation is
+already sanctioned to read, and they write nothing.
+
+sync and catalog are NOT team-neutral and are gated by `_authorize_team_scope`:
+sync WRITES a whole repository into a team's brain, catalog READS that team's
+indexed repo list. Both take the team from the caller (body field / header /
+query param), which is a claim and not a grant — see the helper's docstring.
 """
 
-import asyncio
 import json
 from typing import Any
 
@@ -37,6 +41,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import async_session_factory
 from app.deps import get_current_principal, get_memory_provider, get_session
+from app.repos.teams import get_membership
+from app.services import background
 from app.services.github_contents import (
     GithubAppNotInstalled,
     GithubPermissionDenied,
@@ -63,6 +69,64 @@ class GithubSyncRequest(BaseModel):
         description="Project slug (defaults to repo name when absent)",
     )
     ref: str = Field(default="HEAD", description="Git ref (branch, tag, SHA)")
+
+
+# ---------------------------------------------------------------------------
+# Team-scope authorisation for the two non-team-neutral endpoints
+# ---------------------------------------------------------------------------
+
+
+async def _authorize_team_scope(
+    session: AsyncSession,
+    principal: dict[str, Any],
+    team_scope: str,
+) -> None:
+    """Prove the caller may act inside *team_scope*, however that slug arrived.
+
+    Both callers put the slug somewhere the client controls — a JSON field on
+    sync, the X-Team-Scope header (or a query param) on catalog. Neither of
+    those is evidence. Before this gate, `POST /internal/github/sync` would
+    index an entire repository into any team named in the body, and `catalog`
+    would read back any team's repo list, for any account that could sign in.
+
+    The two principal shapes are checked the two different ways they can be
+    checked, and there is no third branch that falls through:
+
+    * ``kind='bridge'`` — the JWT's OWN ``team_scope`` claim must equal the
+      requested slug. mcp-github's LibreChat/email path mints exactly such a
+      JWT after resolving the caller's team server-side, so the claim is the
+      resolved answer and the comparison is free. A bridge JWT with no claim
+      at all fails: an unnamed team is a mismatch, never a wildcard.
+    * a user (``kind='user'`` / ``'user_api_token'``) — team_members must hold
+      an unblocked row. A token pinned to another team is rejected before the
+      lookup, which is what stops mcp-github's xbt_ token path from being a
+      way around the pin.
+    """
+    if principal.get("kind") == "bridge":
+        claim = principal.get("team_scope")
+        if not claim or claim != team_scope:
+            raise HTTPException(
+                status_code=403,
+                detail="bridge JWT team_scope does not match the requested team",
+            )
+        return
+
+    user = principal.get("user")
+    if user is None:
+        # Any future principal kind that carries no user identity lands here
+        # rather than sliding past the gate.
+        raise HTTPException(status_code=403, detail="not a member of this team")
+
+    pinned = principal.get("api_token_team_scope")
+    if pinned and pinned != team_scope:
+        raise HTTPException(
+            status_code=403,
+            detail="API token team_scope mismatch with the requested team",
+        )
+
+    membership = await get_membership(session, user_id=user.id, team_slug=team_scope)
+    if membership is None or membership.blocked_at is not None:
+        raise HTTPException(status_code=403, detail="not a member of this team")
 
 
 @router.get("/internal/github/list")
@@ -146,8 +210,14 @@ async def github_sync(
     Returns 202 {"status": "started", "repo": "...", "ref": "..."}
     immediately after launching the background task.
 
-    Auth: any authenticated principal (including kind='bridge').
+    Auth: a bridge JWT whose team_scope claim equals body.team_scope, or a user
+    who is an unblocked member of it. See `_authorize_team_scope`.
     """
+    # Authorise the destination team BEFORE the GitHub round-trip below: the
+    # reachability probe is the one part of this handler an unauthorised caller
+    # could otherwise use as an oracle for which repos the App can read.
+    await _authorize_team_scope(session, principal, body.team_scope)
+
     # --- Synchronous validation: repo format + GitHub App reachability ---
     # list_repo_files raises ValueError (bad format), GithubAppNotInstalled (404),
     # GithubPermissionDenied (403) — map these before kicking off the background task.
@@ -187,7 +257,7 @@ async def github_sync(
                 error=str(exc),
             )
 
-    asyncio.create_task(_run_sync())
+    background.spawn(_run_sync(), name="github_sync.repo")
 
     return {"status": "started", "repo": repo, "ref": ref}
 
@@ -197,6 +267,7 @@ async def github_catalog(
     request: Request,
     team_scope: str | None = Query(default=None, description="Team slug"),
     principal: dict[str, Any] = Depends(get_current_principal),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Return the exact catalog of GitHub repos indexed for a team.
 
@@ -209,12 +280,16 @@ async def github_catalog(
       2. Query param ``team_scope``.
     Returns 400 if neither is provided.
 
-    Auth: any authenticated principal including kind='bridge'.
+    Auth: a bridge JWT whose team_scope claim equals the resolved team, or a
+    user who is an unblocked member of it. See `_authorize_team_scope` — the
+    header being "what mcp-github sends" says nothing about who sent it.
     """
     # Resolve team scope from header (preferred) or query param.
     resolved_team = request.headers.get("X-Team-Scope") or team_scope
     if not resolved_team:
         raise HTTPException(status_code=400, detail="team_scope is required (header X-Team-Scope or query param)")
+
+    await _authorize_team_scope(session, principal, resolved_team)
 
     provider = get_memory_provider()
     pool = await provider._ensure_pool()

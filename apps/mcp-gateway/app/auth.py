@@ -10,10 +10,18 @@ See also: apps/memory-api/app/auth.py (same pattern, same reasoning).
 import time
 
 import httpx
-from authlib.jose import JsonWebKey, jwt
+from authlib.jose import JsonWebKey, JsonWebToken, jwt
 
 GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
 GOOGLE_ISSUERS = ("https://accounts.google.com", "accounts.google.com")
+
+# The bridge secret is a symmetric key, so exactly ONE algorithm can ever
+# legitimately verify against it. Decoding with authlib's default algorithm set
+# lets the TOKEN pick the algorithm — the classic confusion primitive, where a
+# header the attacker writes decides how the key they don't have is used.
+# Hardcoded rather than read from settings.JWT_ALGORITHM: an allow-list that an
+# env var can widen is not an allow-list.
+_BRIDGE_JWT = JsonWebToken(["HS256"])
 
 _jwks_cache: dict = {"keys": None, "ts": 0.0}
 
@@ -46,7 +54,12 @@ async def verify_google_id_token(token: str, client_id: str) -> dict:
 
 
 def verify_bridge_jwt(token: str, secret: str) -> dict:
-    claims = jwt.decode(token, secret)
+    # Belt and braces behind config.py's now-required BRIDGE_SHARED_SECRET: this
+    # function is also called with a secret passed in by a caller, and verifying
+    # against "" accepts anything an attacker signs with "".
+    if not secret:
+        raise ValueError("BRIDGE_SHARED_SECRET is not configured")
+    claims = _BRIDGE_JWT.decode(token, secret)
     claims.validate()
     out = dict(claims)
     if out.get("scope") != "bridge":

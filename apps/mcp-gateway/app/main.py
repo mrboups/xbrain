@@ -18,6 +18,7 @@ import multiprocessing
 from contextlib import asynccontextmanager
 from typing import Any
 
+import httpx
 import structlog
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -73,12 +74,54 @@ app = FastAPI(title="xbrain MCP Gateway", version="0.1.0", lifespan=lifespan)
 # ─── Auth ────────────────────────────────────────────────────────────────────
 
 
+async def _assert_user_is_member(token: str, team_scope: str) -> None:
+    """403 unless the bearer of *token* belongs to *team_scope*.
+
+    memory-api owns team membership — it is the only component with the
+    team_members table, and the same reasoning boards.py states for the board
+    server applies here: a component that cannot see membership is not allowed
+    to decide it. So the gateway asks, forwarding the caller's OWN token, and
+    lets memory-api's authenticated /v1/teams/my-teams answer.
+
+    Fail-closed on every failure mode — a network error, a 5xx, an unparseable
+    body. "We could not check" and "you are not a member" get the same 403,
+    because a gateway that forwards an unverified scope to the sidecars during
+    a memory-api blip is exactly the outage-shaped hole worth avoiding.
+    """
+    url = f"{settings.MEMORY_API_URL.rstrip('/')}/v1/teams/my-teams"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+        r.raise_for_status()
+        slugs = {t.get("slug") for t in r.json()}
+    except Exception as exc:  # noqa: BLE001 — every failure is a refusal
+        log.warning("gateway.membership_check_failed", team=team_scope, error=str(exc))
+        raise HTTPException(
+            status_code=403, detail="Could not verify team membership"
+        ) from exc
+    if team_scope not in slugs:
+        raise HTTPException(
+            status_code=403, detail=f"Not a member of team '{team_scope}'"
+        )
+
+
 async def _get_principal(request: Request) -> dict[str, Any]:
     """Verify Google OIDC or bridge JWT. Return {sub, team_scope}.
 
-    team_scope is extracted from the JWT payload first (bridge JWTs may carry it),
-    then falls back to the X-Team-Scope request header, then 'default'.
-    The client CANNOT override the team_scope that is embedded in a valid JWT.
+    team_scope comes from the JWT payload when the JWT carries one, otherwise
+    from the X-Team-Scope header — and the two cases are NOT equally trusted:
+
+    * bridge JWT — the claim wins, and the header fallback stands only because
+      several trusted services (memory-api's URL prefetch, agent-runtime) mint
+      claimless service tokens and pass the scope alongside. Holding
+      BRIDGE_SHARED_SECRET is already the ability to mint any claim, so the
+      fallback concedes nothing that the secret did not already concede.
+    * Google OIDC — the header is a bare request header written by whoever is
+      calling, and this function used to hand it straight to the sidecars at
+      :213 while the docstring claimed "the client CANNOT override team_scope".
+      That sentence was only ever true of the bridge branch. A user token now
+      has its header verified against real membership before it goes anywhere.
+
     (T-03-06-01: prevents X-Team-Scope header spoofing)
     """
     auth = request.headers.get("Authorization", "")
@@ -98,11 +141,18 @@ async def _get_principal(request: Request) -> dict[str, Any]:
     # Fall back to Google OIDC
     try:
         claims = await verify_google_id_token(token, settings.GOOGLE_CLIENT_ID)
-        # Google OIDC tokens do not carry team_scope — use the request header
-        team_scope = request.headers.get("X-Team-Scope", "default")
-        return {"sub": claims["sub"], "team_scope": team_scope}
     except Exception as exc:
         raise HTTPException(status_code=401, detail=f"Invalid token: {exc}") from exc
+
+    # Google OIDC tokens carry no team_scope, so the header is the only source —
+    # which makes naming the team mandatory rather than defaultable. The old
+    # 'default' fallback silently sent a real user into whatever team happens to
+    # be called "default"; asking is better than guessing wrong quietly.
+    team_scope = request.headers.get("X-Team-Scope")
+    if not team_scope:
+        raise HTTPException(status_code=400, detail="X-Team-Scope header is required")
+    await _assert_user_is_member(token, team_scope)
+    return {"sub": claims["sub"], "team_scope": team_scope}
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
