@@ -11,7 +11,14 @@ VM_HOST ?= __VM_HOST__
 VM_USER ?= user
 SSH_KEY ?= $$HOME/.ssh/xbrain_key
 SSH := ssh -i $(SSH_KEY) -o BatchMode=yes $(VM_USER)@$(VM_HOST)
-RSYNC := rsync -avz --delete --exclude='.git' --exclude='node_modules' --exclude='__pycache__' --exclude='.venv' --exclude='backups'
+# --exclude='.env' IS LOAD-BEARING. The VM's .env is the one that boots the containers and it
+# is NOT a copy of any local file: it carries ~100 vars this machine has never had. With
+# --delete and no exclusion, one `make sync` overwrites it with whatever the developer happens
+# to have locally — which is the mechanism behind the "7 vars silently vanished" incident
+# (project memory, 2026-08-01): nothing failed at sync time, the loss only surfaced on the next
+# rebuild, because a running container captured its env at creation. Excluded paths are also
+# protected from --delete, so the VM's .env survives both halves of this command.
+RSYNC := rsync -avz --delete --exclude='.git' --exclude='node_modules' --exclude='__pycache__' --exclude='.venv' --exclude='backups' --exclude='.env'
 
 # === Help ===
 .PHONY: help
@@ -88,6 +95,14 @@ fmt:  ## Format Python (ruff format)
 .PHONY: sync
 sync:  ## Rsync code vers la VM (sans deploy)
 	$(RSYNC) ./ $(VM_USER)@$(VM_HOST):/home/$(VM_USER)/xbrain/
+	@# The guard `deploy` has and this target had none of: run the SAME preflight against the
+	@# VM's OWN .env, which the rsync above has just refreshed. WARN, never abort — `sync`
+	@# pushes code without deploying, so it must not fail on env state it did not touch. But
+	@# code that needs a new var is exactly what arrives here first, and finding out at the
+	@# next rebuild (a crashlooping memory-api, a silently-404ing session-bridge) is how this
+	@# has already been paid for once.
+	@$(SSH) 'cd /home/$(VM_USER)/xbrain && bash infrastructure/scripts/preflight-env.sh .env' \
+	  || echo "WARNING: the VM .env failed preflight. The code is synced but NOT deployed — fix the VM .env before 'make deploy', or the stack will crashloop on the next rebuild."
 
 .PHONY: deploy
 deploy: env-check preflight sync  ## Sync + (re)build + up sur la VM

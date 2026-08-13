@@ -117,7 +117,14 @@ EOF
 # (bolt://neo4j:7687) and docker-compose.yml passes it as a bare literal to memory-api
 # regardless. That is exactly the state check (g) needs: Neo4j "configured" (URI set,
 # password set) but NO Neo4j container anywhere. Do not sanitise it away.
-DC=(docker compose -p xbrain-p15 -f infrastructure/docker-compose.yml --env-file "$ENVF")
+# THE VOLUME OVERRIDE IS NOT OPTIONAL. Every volume in the base file has an explicit `name:`,
+# which -p does NOT prefix — so without this second `-f` the gate boots on production's own
+# storage and its `down -v` (from a trap that fires on the FIRST failing line) deletes it.
+# VERIFY_VOLUME_PREFIX is exported, not passed inline, because compose resolves it while
+# reading the file. cleanup() re-checks the flag before it ever passes `-v`.
+export VERIFY_VOLUME_PREFIX=xbrain-p15
+DC=(docker compose -p xbrain-p15 -f infrastructure/docker-compose.yml \
+    -f infrastructure/docker-compose.verify-volumes.yml --env-file "$ENVF")
 
 # A small python helper for the JSON-based assertions in check (e). File paths are always
 # passed as separate argv entries (never embedded inside -c code) — on this Git-Bash/Windows
@@ -256,7 +263,14 @@ except urllib.error.HTTPError as e:
 GPYEOF
 
 cleanup() {
-  "${DC[@]}" down -v --remove-orphans >/dev/null 2>&1
+  # `-v` is safe purely because DC layers the verify-volumes override, which renames every
+  # volume behind VERIFY_VOLUME_PREFIX. Asserted rather than assumed: if a future edit drops
+  # that `-f`, this run leaks a stopped stack — it does not wipe the operator's data.
+  if printf '%s\n' "${DC[@]}" | grep -q 'docker-compose.verify-volumes.yml'; then
+    "${DC[@]}" down -v --remove-orphans >/dev/null 2>&1
+  else
+    "${DC[@]}" down --remove-orphans >/dev/null 2>&1
+  fi
   docker rm -f xbrain-p15-memapi >/dev/null 2>&1
   docker volume rm xbrain-p15-pipcache >/dev/null 2>&1
   rm -f "$ENVF" "$PYCHECK" "$G_PYTEST" "$J_OSS" "$J_SAAS" "$J_BARE" "$J_INT" "$J_SAASPROF" "$J_OPS" "$J_ALL" "$MEMAPI_ENV"

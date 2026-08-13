@@ -6,7 +6,12 @@ server {
   listen 80;
   server_name api.${XBRAIN_BASE_DOMAIN};
 
-  client_max_body_size 10m;
+  # MUST stay above the app's own upload ceiling. memory-api accepts 25 MB
+  # (media_helpers._MAX_UPLOAD_BYTES, TRANSCRIPT_IMPORT_MAX_BYTES) and the PWA/extension
+  # enforce the same 25 MB client-side (chat-core MAX_MEDIA_BYTES) — so at 10m everything
+  # between the two limits died here as a bare nginx 413, before the app could answer with
+  # the error that names the limit. 32m = 25 MB payload + multipart framing headroom.
+  client_max_body_size 32m;
 
   # Google Drive push webhook — routed to drive-sync webhook server (port 8200)
   # Google calls this URL when a watched folder changes.

@@ -1,0 +1,48 @@
+# client-checks.yml — the client-side gate, on pull requests.
+#
+# WHY THIS IS A SECOND WORKFLOW
+#   ci-lockstep.yml runs the very same `make check-client`, but it triggers on push to main
+#   only: it carries GHCR push rights and the VM SSH key, so a fork PR must never be able to
+#   start it (asserted by apps/memory-api/tests/test_ci_lockstep_graph.py). A branch
+#   protection rule can only require a check that RUNS on the pull request — so until this
+#   file existed, no client-side check COULD be required, and every extension/PWA change
+#   merged on review-by-eye alone.
+#
+#   Everything here reads source and runs node. No secrets, `contents: read`, no Docker, no
+#   network: safe on a fork PR, which is exactly what makes it usable as a required check.
+#
+# WHAT `make check-client` PROVES (three gates that already existed and ran nowhere)
+#   - chrome-extension/tests/run_tests.mjs — the extension + chat-core suite;
+#   - scripts/sync-chat-core.mjs --check    — packages/chat-core is the ONLY editable copy;
+#     both surfaces carry generated ones and a drifted copy means the two clients silently
+#     behave differently;
+#   - scripts/shell-cache.mjs --check       — the PWA service worker's cache name is a HASH of
+#     the files it precaches. A precached file that changes without it means every installed
+#     phone keeps serving the OLD app shell.
+#
+# NO `paths:` FILTER, deliberately. A path-filtered required check never reports on a PR that
+# touches nothing it watches, and GitHub then blocks the merge waiting for a run that will
+# never come. Running a 20-second node suite on every PR is the cheaper end of that trade.
+
+name: Client checks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: client-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-client:
+    name: "test: client surfaces (extension + chat-core + PWA shell)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - name: Extension tests, chat-core drift, PWA shell cache
+        run: make check-client

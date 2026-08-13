@@ -788,12 +788,18 @@ async function handleUserPublication(data) {
   // CROSS-TEAM — one socket carries every team this person belongs to — so the
   // team_id on the frame is what stops a note written in team A from painting
   // into team B's open thread. A frame without one is not a chat frame.
+  // `message_starred` is NOT in this list, deliberately. The server publishes it, but
+  // nothing on this surface renders a star: chat_core/publication.js has no branch for the
+  // frame, the renderer has no star to draw, the message menu has no way to set one, and the
+  // `starred` field the history endpoint already returns is ignored on load. Forwarding the
+  // frame only made the code look like the feature existed. Put the type back the day a
+  // renderer method and a control exist — not before, or the star appears once and
+  // disappears on the next reload.
   if (data.team_id && data.team_id === state.activeTeamId) {
     const t = String(data.type);
     if (
       t === "message" ||
       t === "message_deleted" ||
-      t === "message_starred" ||
       t.startsWith("agent_stream_")
     ) {
       routeTeamFrame(data);

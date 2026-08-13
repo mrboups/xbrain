@@ -14,7 +14,12 @@
  *   agent_stream_error   — the answer failed; the bubble becomes a failure state
  *
  * Anything else is ignored, exactly as the popup did — an unknown frame from a
- * newer server must never throw in an older client.
+ * newer server must never throw in an older client. `message_starred` is one of
+ * those today: memory-api publishes it, and no surface has a star to draw, a
+ * control to set one, or any use for the `starred` field the history endpoint
+ * already returns. It needs a renderer method before a branch here would mean
+ * anything, so both surfaces stop forwarding it rather than route it into a
+ * silent no-op that reads like a working feature.
  *
  * Used by:
  *   - chrome-extension/popup.js (via chrome-extension/chat_core/)

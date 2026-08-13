@@ -284,8 +284,30 @@ export async function connectRealtime(opts) {
     return null;
   }
 
+  // ---- The connection has to outlive its own token ----
+  //
+  // The client JWT carries an `exp` — one hour today, and that number is the
+  // server's to change. Centrifuge asks for a replacement shortly before it,
+  // but ONLY if a `getToken` was configured. Without one it emits "token
+  // expired but no getToken function set" and fails the connection
+  // unauthorized with reconnect=false: every open surface went dark at the
+  // one-hour mark and stayed dark until a reload. The "Live updates are off"
+  // banner was reporting that — on a network that had never failed.
+  //
+  // The refresher re-mints from the SAME endpoint the first token came from,
+  // so there is one code path for both and no second definition of what a
+  // valid client token is.
+  //
+  // A failed refresh deliberately REJECTS rather than resolving with an empty
+  // token: centrifuge reads a falsy token as "this person is not authorized"
+  // and drops the connection for good, which would turn one flaky request into
+  // the very outage this fixes. A rejection instead keeps the live socket and
+  // retries with backoff; the attempt is reported through the `error` handler
+  // below, and if the session is genuinely gone the server closes the
+  // connection and the surface says so through `disconnected`.
   const centrifuge = new Centrifuge(tokenInfo.ws_url, {
     token: tokenInfo.token,
+    getToken: () => api.centrifugoToken().then((fresh) => fresh.token),
   });
   // The three that describe the connection's STATE. `connecting` and
   // `disconnected` were never wired, which is why the only things a surface

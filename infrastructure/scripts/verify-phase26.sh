@@ -91,16 +91,37 @@ CLIENT_LOG="$(mktemp)"       # the live driver's full output
 
 # The live boot invocation. `--profile board` is a top-level flag so it applies to up / ps
 # / exec / restart / down alike; --env-file/-f are HOST paths (do NOT MSYS-suppress them).
-DC=(docker compose -p "$PROJECT" -f infrastructure/docker-compose.yml --env-file "$OSS_ENV" --profile board)
+#
+# THE VOLUME OVERRIDE IS NOT OPTIONAL. Every volume in the base file has an explicit `name:`,
+# which -p does NOT prefix — so without this second `-f` the gate boots on production's own
+# storage and its `down -v` (from a trap that fires on the FIRST failing line) deletes it.
+# VERIFY_VOLUME_PREFIX is exported, not passed inline, because compose resolves it while
+# reading the file. cleanup() re-checks the flag before it ever passes `-v`.
+export VERIFY_VOLUME_PREFIX="$PROJECT"
+DC=(docker compose -p "$PROJECT" -f infrastructure/docker-compose.yml \
+    -f infrastructure/docker-compose.verify-volumes.yml \
+    --env-file "$OSS_ENV" --profile board)
 
 BOOTED=0
 API_HOST=""
+
+# Teardown that can only ever delete THIS gate's storage. `-v` is safe purely because DC layers
+# the verify-volumes override; that is asserted rather than assumed, so an edit which drops the
+# `-f` leaks a stopped stack instead of wiping the operator's data. Both teardown sites (here
+# and check (g)) go through this one function so they cannot diverge.
+compose_down() {
+  if printf '%s\n' "${DC[@]}" | grep -q 'docker-compose.verify-volumes.yml'; then
+    "${DC[@]}" down -v --remove-orphans >/dev/null 2>&1
+  else
+    "${DC[@]}" down --remove-orphans >/dev/null 2>&1
+  fi
+}
 
 cleanup() {
   # NO MSYS_NO_PATHCONV here: `-f`/`--env-file` are HOST paths MSYS must rewrite; suppressing
   # it makes docker resolve /tmp/x as D:\tmp\x and silently no-op the teardown (leaking the
   # whole stack). MSYS_NO_PATHCONV=1 is only ever correct for IN-CONTAINER paths.
-  "${DC[@]}" down -v --remove-orphans >/dev/null 2>&1
+  compose_down
   rm -f "$OSS_ENV" "$BOOT_LOG" "$JSON_HELPER" "$PORTS_HELPER" "$MINT_PY" "$TOK_FILE" "$CLIENT_LOG"
 }
 trap cleanup EXIT
@@ -543,7 +564,7 @@ test_g_phase16_green() {
 
   # verify-phase16.sh refuses to boot over a live stack (container_name: is global), so THIS
   # stack must be fully down first. NO MSYS_NO_PATHCONV — host paths.
-  "${DC[@]}" down -v --remove-orphans >/dev/null 2>&1
+  compose_down
   BOOTED=0
 
   local p16_log; p16_log="$(mktemp)"

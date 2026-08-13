@@ -11,7 +11,12 @@ test -f .env || { echo "ERROR: .env missing. Run 'cp .env.example .env' and fill
 make env-check
 
 echo "==> [2/5] Rsync code vers ${VM_USER}@${VM_HOST}:${REMOTE_DIR}"
+# --exclude='.env' IS LOAD-BEARING (same rule as the Makefile's RSYNC). The VM's .env holds
+# ~100 vars no local file has; with --delete and no exclusion this command replaces it with
+# whatever this machine happens to carry, and nothing fails until the next rebuild. Excluded
+# paths are also protected from --delete.
 rsync -avz --delete \
+  --exclude='.env' \
   --exclude='.git' \
   --exclude='node_modules' \
   --exclude='__pycache__' \

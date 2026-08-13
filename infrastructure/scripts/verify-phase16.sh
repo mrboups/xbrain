@@ -134,7 +134,15 @@ ENV_INSTALLED=0
 #
 # Declared here (before the EXIT trap is installed) so cleanup() can always tear down with the
 # same file set it booted with, even on an early exit.
-DC_LIVE=(docker compose -p "$PROJECT" -f infrastructure/docker-compose.yml)
+#
+# THE VOLUME OVERRIDE IS NOT OPTIONAL. Every volume in the base file has an explicit `name:`,
+# which -p does NOT prefix — so without this second `-f` the gate boots on production's own
+# storage and its `down -v` (from a trap that fires on the FIRST failing line) deletes it.
+# VERIFY_VOLUME_PREFIX is exported, not passed inline, because compose resolves it while
+# reading the file. cleanup() re-checks the flag before it ever passes `-v`.
+VERIFY_VOLUMES_FILE=infrastructure/docker-compose.verify-volumes.yml
+export VERIFY_VOLUME_PREFIX="$PROJECT"
+DC_LIVE=(docker compose -p "$PROJECT" -f infrastructure/docker-compose.yml -f "$VERIFY_VOLUMES_FILE")
 if [[ -n "${VERIFY16_EXTRA_COMPOSE:-}" ]]; then
   # Appended as two separate array elements (never an unquoted ${VAR:+...} expansion) so a path
   # containing spaces survives — the same host-path care the rest of this script takes.
@@ -165,7 +173,15 @@ cleanup() {
   # with "couldn't find env file" — a teardown that silently no-ops and LEAKS the whole stack,
   # because the failure is swallowed by the >/dev/null redirect. MSYS_NO_PATHCONV=1 is only ever
   # correct for IN-CONTAINER paths (see the docker exec in check (h)).
-  "${DC_LIVE[@]}" down -v --remove-orphans >/dev/null 2>&1
+  #
+  # `-v` is only ever safe because DC_LIVE layers the verify-volumes override, which renames
+  # every volume behind VERIFY_VOLUME_PREFIX. Asserted rather than assumed: if a future edit
+  # drops that `-f`, this run leaks a stopped stack — it does not wipe the operator's data.
+  if printf '%s\n' "${DC_LIVE[@]}" | grep -q 'docker-compose.verify-volumes.yml'; then
+    "${DC_LIVE[@]}" down -v --remove-orphans >/dev/null 2>&1
+  else
+    "${DC_LIVE[@]}" down --remove-orphans >/dev/null 2>&1
+  fi
   restore_env
   rm -f "$HERMETIC_ENV" "$OSS_ENV" "$ENV_BACKUP" "$BOOT_LOG" \
         "$JSON_HELPER" "$STATE_HELPER" "$SEARCH_HELPER" "$DOCFILE"

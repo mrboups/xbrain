@@ -228,6 +228,33 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------------------
+  # CLIENT GATE — the surfaces people actually touch, which this pipeline never checked.
+  # ---------------------------------------------------------------------------------------
+  # `make check-client` is three gates in one: the extension + chat-core test suite, the
+  # chat-core drift check (packages/chat-core is the only editable copy; both surfaces carry
+  # generated ones), and the PWA shell-cache check (a precached file that changes without its
+  # cache name means every phone keeps serving the OLD app shell). All three existed and none
+  # of them ran anywhere automatic — the extension and the PWA shipped on a developer
+  # remembering to run make.
+  #
+  # No `needs:` — it reads source, not images, so it starts immediately and its verdict is in
+  # long before the boot gates finish. It gates BOTH ship jobs, same as the three test jobs:
+  # the release attaches the extension, and the deploy serves the PWA.
+  #
+  # Pure node + make on the runner: no Docker, no network, no install step, so a SKIP here
+  # could only ever mean the gate was dodged.
+  check-client:
+    name: "test: client surfaces (extension + chat-core + PWA shell)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - name: Extension tests, chat-core drift, PWA shell cache
+        run: make check-client
+
+  # ---------------------------------------------------------------------------------------
   # TEST 3/3 — migrations apply forward-only and identically under both editions (REL-03).
   # ---------------------------------------------------------------------------------------
   # No `needs:`: this proves the migration chain, not the images, so it needs nothing from
@@ -275,7 +302,7 @@ jobs:
   # redundant with `needs:` and only creates a way to get it wrong.
   publish-oss-release:
     name: "ship: publish OSS release"
-    needs: [test-oss-subset, test-full-profile, test-migrations]
+    needs: [test-oss-subset, test-full-profile, test-migrations, check-client]
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the Release and upload its assets
@@ -315,9 +342,37 @@ jobs:
             docker buildx imagetools create --tag "${img%:*}:latest" "${img}"
           done < ci-images.txt
 
+      # THE EXTENSION IS PACKAGED HERE, not taken from the repo. The tracked
+      # chrome-extension.zip was last rebuilt 2026-07-11 and every release since attached it
+      # verbatim — by August it predated the whole chat_core/ split, so the shipped archive
+      # was an extension whose popup imported files it did not contain. A checked-in build
+      # artifact is stale the moment its sources move; building it in the ship job makes the
+      # asset the same commit as the images beside it, with no one to remember anything.
+      #
+      # tests/ and dotfiles are left out: they are the node suite and repo plumbing, and
+      # Chrome rejects an unpacked load of a directory containing an unrecognised `_`-prefixed
+      # or dot-prefixed entry in some paths. The assertion below is the point of the step —
+      # it fails the release if the archive is missing a file the extension cannot start
+      # without, which is exactly the defect the stale zip shipped silently.
+      - name: Package the Chrome extension from this commit
+        run: |
+          set -euo pipefail
+          rm -f chrome-extension.zip
+          ( cd chrome-extension && zip -qr ../chrome-extension.zip . -x 'tests/*' '.*' '*/.*' )
+          # `./` is stripped so the assertion below holds whichever way zip names the entries.
+          listing="$(unzip -Z1 chrome-extension.zip | sed 's|^\./||')"
+          for required in manifest.json popup.js popup.html background.js \
+                          chat_core/realtime.js chat_core/api.js vendor/centrifuge.js; do
+            if ! printf '%s\n' "$listing" | grep -qx "$required"; then
+              echo "FAIL: chrome-extension.zip is missing ${required} - the extension would not load."
+              exit 1
+            fi
+          done
+          echo "chrome-extension.zip: $(printf '%s\n' "$listing" | wc -l) entries, $(du -h chrome-extension.zip | cut -f1)"
+
       # The self-host bundle: install docs, the light compose (profiles unset = the 10-service
       # core), the override so operators PULL the published images instead of building, the
-      # extension, and the repo's license file shipped verbatim.
+      # extension packaged in the step above, and the repo's license file shipped verbatim.
       #
       # On the license file: it is attached exactly as it exists on disk and this workflow
       # never asserts which license that is. Reconciling the intended terms is a user
@@ -365,7 +420,7 @@ jobs:
   # test-conclusion check — `needs:` already guarantees the tests passed.
   deploy-saas:
     name: "ship: deploy SaaS (gated)"
-    needs: [test-oss-subset, test-full-profile, test-migrations]
+    needs: [test-oss-subset, test-full-profile, test-migrations, check-client]
     if: vars.SAAS_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     permissions:

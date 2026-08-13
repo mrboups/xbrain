@@ -143,8 +143,70 @@ await test("connectRealtime passes tokenInfo.ws_url as the first Centrifuge argu
     WS_URL,
     "the socket URL must be exactly the ws_url the API returned — never a client constant",
   );
-  assert.deepEqual(record.constructed[0][1], { token: "signed.client.jwt" });
+  assert.equal(record.constructed[0][1].token, "signed.client.jwt");
   assert.ok(record.instances[0].connected, "connect() must be called");
+});
+
+// ---- the connection outlives its own token ----
+//
+// THE one-hour outage. The client JWT expires (exp +3600s server-side); with no
+// `getToken` in the options centrifuge emits "token expired but no getToken
+// function set" and fails the connection unauthorized with reconnect=false. Every
+// surface went dark after an hour and only a reload brought it back — which is
+// exactly what the "Live updates are off. Reload the page" banner was reporting.
+
+await test("the client is given a getToken, or it dies when the JWT expires", async () => {
+  const record = makeRecord();
+  const refreshing = {
+    calls: 0,
+    async centrifugoToken() {
+      refreshing.calls++;
+      return { token: `signed.client.jwt.${refreshing.calls}`, ws_url: WS_URL };
+    },
+  };
+  await connectRealtime({
+    Centrifuge: makeCentrifuge(record),
+    api: refreshing,
+    getUserSub: () => "gh|42",
+    onTeamPublication: () => {},
+    onUserPublication: () => {},
+  });
+  const options = record.constructed[0][1];
+  assert.equal(
+    typeof options.getToken,
+    "function",
+    "without getToken centrifuge cannot refresh and disconnects for good at exp",
+  );
+  assert.equal(refreshing.calls, 1, "connecting mints exactly one token");
+  // What centrifuge does at expiry: it calls getToken and expects the new token.
+  const refreshed = await options.getToken({});
+  assert.equal(refreshed, "signed.client.jwt.2", "the refresh must return the NEW token");
+  assert.equal(refreshing.calls, 2, "the replacement comes from the same endpoint as the first");
+});
+
+await test("a failed refresh rejects — it never resolves to an empty token", async () => {
+  // Centrifuge reads a falsy token as "not authorized" and drops the connection
+  // permanently. Swallowing a transient failure into "" would therefore recreate
+  // the outage from one bad request; rejecting keeps the live socket and retries.
+  const record = makeRecord();
+  const failing = {
+    async centrifugoToken() {
+      if (record.constructed.length === 0) return { token: "first", ws_url: WS_URL };
+      throw new Error("network down");
+    },
+  };
+  await connectRealtime({
+    Centrifuge: makeCentrifuge(record),
+    api: failing,
+    getUserSub: () => "gh|42",
+    onTeamPublication: () => {},
+    onUserPublication: () => {},
+  });
+  await assert.rejects(
+    () => record.constructed[0][1].getToken({}),
+    /network down/,
+    "a refresh failure must propagate, not become an unauthorized disconnect",
+  );
 });
 
 // ---- (b) the module holds no URL to hardcode ----

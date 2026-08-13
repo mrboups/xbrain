@@ -1,0 +1,41 @@
+# docker-compose.verify-volumes.yml — throwaway data for the verify gates.
+#
+# WHY THIS FILE EXISTS
+#   Every volume in docker-compose.yml carries an explicit `name:` (xbrain_pg,
+#   xbrain_qdrant, …). An explicit name is NOT project-prefixed, so `-p xbrain-p16`
+#   does not give a verification run its own storage: it boots against the very
+#   same volumes production uses, runs `alembic upgrade head` inside them, and then
+#   the EXIT trap — which fires on the FIRST failing line, not only at the end —
+#   calls `down -v` on them. On the VM that is a verification script standing one
+#   failed assertion away from the team's brain.
+#
+#   Layering this file onto the LIVE boot renames all twelve, so the gate can only
+#   ever create, fill and destroy storage that belongs to it. The isolation is
+#   structural: there is no production volume in the resolved config to delete.
+#
+# USAGE (see infrastructure/scripts/verify-phase15/16/26.sh)
+#   VERIFY_VOLUME_PREFIX=xbrain-p16 \
+#     docker compose -p xbrain-p16 \
+#       -f infrastructure/docker-compose.yml \
+#       -f infrastructure/docker-compose.verify-volumes.yml ...
+#
+#   The default below matters as much as the variable: with VERIFY_VOLUME_PREFIX
+#   unset this still resolves to `verify_*`, never to a production name. A caller
+#   that forgets the variable gets a shared scratch volume — never the real one.
+#
+# NOT for the config-layer checks. Those assert what the BASE file declares and
+# must keep their own invocation, exactly as they do for the image override.
+
+volumes:
+  xbrain_pg: { name: "${VERIFY_VOLUME_PREFIX:-verify}_xbrain_pg" }
+  xbrain_qdrant: { name: "${VERIFY_VOLUME_PREFIX:-verify}_xbrain_qdrant" }
+  librechat_mongo: { name: "${VERIFY_VOLUME_PREFIX:-verify}_librechat_mongo" }
+  librechat_meili: { name: "${VERIFY_VOLUME_PREFIX:-verify}_librechat_meili" }
+  librechat_uploads: { name: "${VERIFY_VOLUME_PREFIX:-verify}_librechat_uploads" }
+  openwebui_data: { name: "${VERIFY_VOLUME_PREFIX:-verify}_openwebui_data" }
+  openwebui_pipelines: { name: "${VERIFY_VOLUME_PREFIX:-verify}_openwebui_pipelines" }
+  xbrain_backups: { name: "${VERIFY_VOLUME_PREFIX:-verify}_xbrain_backups" }
+  langfuse_clickhouse_data: { name: "${VERIFY_VOLUME_PREFIX:-verify}_langfuse_clickhouse_data" }
+  langfuse_redis_data: { name: "${VERIFY_VOLUME_PREFIX:-verify}_langfuse_redis_data" }
+  langfuse_minio_data: { name: "${VERIFY_VOLUME_PREFIX:-verify}_langfuse_minio_data" }
+  neo4j_data: { name: "${VERIFY_VOLUME_PREFIX:-verify}_neo4j_data" }

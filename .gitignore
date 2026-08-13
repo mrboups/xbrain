@@ -103,3 +103,12 @@ marketing-site/*.mp4
 
 # Local working files (demo props, scratch) — never committed
 .local/
+
+# Marketing working directory. `marketing/blurb.md` IS product copy and stays TRACKED — only
+# the agent's own scratch state under it is ignored, the same rule the root `.remember/`
+# follows. Ignoring the whole directory would silently drop real content.
+marketing/.remember/
+
+# Raw video sources, kept local. 26 MB of mp4 that a `git add -A` would otherwise sweep into
+# the history for good; the published copies live on Firebase Hosting / GCS, not in git.
+/VIDEOS/

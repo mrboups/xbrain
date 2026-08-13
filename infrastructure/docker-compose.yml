@@ -887,7 +887,13 @@ services:
     networks: [xbrain_net]
     mem_limit: 128m
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8100/healthz 2>/dev/null || exit 0"]
+      # A healthcheck that cannot fail is not a healthcheck. The old probe was
+      # `wget … || exit 0`: these images are python:*-slim (no wget, no curl) and FastMCP
+      # serves no /healthz, so it exited 0 on "command not found" — this container reported
+      # healthy while dead. python3 is the one binary guaranteed to be here, so the probe
+      # asserts what it can genuinely prove: the FastMCP process is accepting connections on
+      # its own port. Adding a real /healthz route belongs in the service, not here.
+      test: ["CMD", "python3", "-c", "import socket,sys; s=socket.socket(); s.settimeout(3); sys.exit(s.connect_ex(('127.0.0.1', 8100)))"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -914,7 +920,9 @@ services:
     networks: [xbrain_net]
     mem_limit: 128m
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8101/healthz 2>/dev/null || exit 0"]
+      # Same as mcp-scraper above: `|| exit 0` on an image with no wget could only ever
+      # report healthy. A TCP accept on the FastMCP port is what this image can prove.
+      test: ["CMD", "python3", "-c", "import socket,sys; s=socket.socket(); s.settimeout(3); sys.exit(s.connect_ex(('127.0.0.1', 8101)))"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -941,7 +949,9 @@ services:
     networks: [xbrain_net]
     mem_limit: 128m
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8102/healthz 2>/dev/null || exit 0"]
+      # Same as mcp-scraper above: `|| exit 0` on an image with no wget could only ever
+      # report healthy. A TCP accept on the FastMCP port is what this image can prove.
+      test: ["CMD", "python3", "-c", "import socket,sys; s=socket.socket(); s.settimeout(3); sys.exit(s.connect_ex(('127.0.0.1', 8102)))"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -977,7 +987,9 @@ services:
       memory-api: { condition: service_healthy }
       minio: { condition: service_healthy }
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8103/healthz 2>/dev/null || exit 0"]
+      # Same as mcp-scraper above: `|| exit 0` on an image with no wget could only ever
+      # report healthy. A TCP accept on the FastMCP port is what this image can prove.
+      test: ["CMD", "python3", "-c", "import socket,sys; s=socket.socket(); s.settimeout(3); sys.exit(s.connect_ex(('127.0.0.1', 8103)))"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -1083,6 +1095,11 @@ services:
       memory-api:
         condition: service_healthy
     networks: [xbrain_net]
+    # The ONLY service that was uncapped, and the one holding a per-user WebSocket pool in
+    # process memory — so its footprint grows with connected extensions and had no ceiling
+    # on a VM whose declared limits already over-commit the host. An OOM-killed container
+    # restarts; a host that runs out of RAM takes the whole stack with it.
+    mem_limit: 256m
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8105/healthz || exit 1"]
       interval: 30s
@@ -1215,7 +1232,13 @@ services:
       SEMAPHORE_LIMIT: ${GRAPHITI_SEMAPHORE_LIMIT:-3}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
-      - "8300:8300"
+      # LOOPBACK ONLY, like every other published port in this file. Bare "8300:8300" binds
+      # 0.0.0.0 — and docker writes its own iptables DNAT rules ahead of ufw, so a host
+      # firewall does NOT cover it. This container holds both LLM API keys (above) and takes
+      # ingest requests, so a world-open port here is somebody else's bill. Nothing needs the
+      # host binding except verify-phase5.sh, which probes localhost; real callers reach it
+      # over xbrain_net by service name.
+      - "127.0.0.1:8300:8300"
     networks: [xbrain_net]
     mem_limit: 512m
     depends_on:
