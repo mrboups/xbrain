@@ -49,7 +49,7 @@ from app.audit import write_audit
 from app.config import settings
 from app.deps import get_current_principal, get_session
 from app.repos.teams import get_membership
-from app.services import token_capabilities, url_safety
+from app.services import background, token_capabilities, url_safety
 from app.services.transcript_import import (
     SOURCE_TAGS,
     SUPPORTED_FORMATS,
@@ -294,7 +294,7 @@ async def import_transcript(
         # Fire-and-forget, exactly like POST /v1/brain/ingest: the caller is a
         # phone on a share sheet and must not hold a connection open while a
         # few hundred turns are classified and embedded.
-        asyncio.create_task(
+        background.spawn(
             import_ingest.fan_out(
                 team_scope=team_scope,
                 source_format=source_format,
@@ -302,7 +302,8 @@ async def import_transcript(
                 author_sub=user.source_user_id,
                 project_scope=payload["project_scope"],
                 concurrency=settings.TRANSCRIPT_IMPORT_CONCURRENCY,
-            )
+            ),
+            name="transcript_import.fan_out",
         )
 
     totals = plan.totals

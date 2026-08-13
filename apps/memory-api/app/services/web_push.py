@@ -225,7 +225,7 @@ async def send_to_user(session: AsyncSession, *, user_id: UUID, payload: dict) -
 
 
 async def send_to_user_bg(*, user_id: UUID, payload: dict) -> None:
-    """`asyncio.create_task` entrypoint — opens its own session and NEVER raises.
+    """`background.spawn` entrypoint — opens its own session and NEVER raises.
 
     Two reasons this shape is not optional:
 

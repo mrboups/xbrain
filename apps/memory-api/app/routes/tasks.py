@@ -1,6 +1,5 @@
 """/v1/tasks — task tracking CRUD (D4, D6). Core in every edition."""
 
-import asyncio
 from datetime import date, datetime
 from typing import Any
 from uuid import UUID
@@ -12,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import write_audit
 from app.deps import _user_id_from_principal, get_current_principal, get_session, get_team_scope
+from app.services import background
 from app.services.notifications import send_task_notification_email
 
 router = APIRouter()
@@ -194,7 +194,7 @@ async def create_task(
     )
     await session.commit()
 
-    # Phase 7 — notify assignee (D6, fail-soft via asyncio.create_task)
+    # Phase 7 — notify assignee (D6, fail-soft via background.spawn)
     if body.assigned_to:
         # Phase 11 (BMO-07) — never email a soft-deleted contact (the row
         # is a tombstone; the human may have asked for opt-out). If the
@@ -210,14 +210,15 @@ async def create_task(
             )
         ).fetchone()
         if contact and contact.email:
-            asyncio.create_task(
+            background.spawn(
                 send_task_notification_email(
                     recipient_email=contact.email,
                     task_title=body.title,
                     task_id=str(result["id"]),
                     team_scope=team_scope,
                     dashboard_url=None,
-                )
+                ),
+                name="notifications.task_email",
             )
 
     return TaskOut(**dict(result))
@@ -293,14 +294,15 @@ async def update_task(
             )
         ).fetchone()
         if contact and contact.email:
-            asyncio.create_task(
+            background.spawn(
                 send_task_notification_email(
                     recipient_email=contact.email,
                     task_title=result["title"],
                     task_id=str(task_id),
                     team_scope=team_scope,
                     dashboard_url=None,
-                )
+                ),
+                name="notifications.task_email",
             )
 
     return TaskOut(**dict(result))

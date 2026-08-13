@@ -396,7 +396,14 @@ async def test_drilldown_audit_failure_returns_500_no_data(
     partial audit row AND not serve any data."""
     alice = seeded_two_teams["alice"]
     team_a = seeded_two_teams["team_a"]
-    await _seed_task(session, team_slug=team_a.slug, owner_id=alice.id)
+    # Read the slug ONCE, before the request. The route and this test share one
+    # AsyncSession, and the forced audit failure makes admin_brain.py roll it
+    # back — which expires every ORM instance in the identity map. Touching
+    # team_a.slug afterwards would lazy-load it from a sync attribute access
+    # outside greenlet context and raise MissingGreenlet, masking the assertion
+    # this test actually exists for.
+    team_slug = team_a.slug
+    await _seed_task(session, team_slug=team_slug, owner_id=alice.id)
 
     # Monkey-patch the write_audit imported by the admin_brain route to raise.
     async def _explode(*args, **kwargs):
@@ -410,12 +417,12 @@ async def test_drilldown_audit_failure_returns_500_no_data(
             "SELECT COUNT(*) FROM audit_log "
             "WHERE action = 'superadmin_brain_access' AND team_scope = :ts"
         ),
-        {"ts": team_a.slug},
+        {"ts": team_slug},
     )).scalar()
 
     _install_principal_override(alice, kind="user", sub_override="admin-sub-1")
     try:
-        r = await client.get(f"/v1/admin/brain/events?team_slug={team_a.slug}")
+        r = await client.get(f"/v1/admin/brain/events?team_slug={team_slug}")
         assert r.status_code == 500, r.text
     finally:
         _clear_principal_override()
@@ -425,7 +432,7 @@ async def test_drilldown_audit_failure_returns_500_no_data(
             "SELECT COUNT(*) FROM audit_log "
             "WHERE action = 'superadmin_brain_access' AND team_scope = :ts"
         ),
-        {"ts": team_a.slug},
+        {"ts": team_slug},
     )).scalar()
     assert post == pre, f"audit row count must not change on failure: {pre} -> {post}"
 

@@ -29,7 +29,6 @@ Security:
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
@@ -49,6 +48,7 @@ from app.repos.installations import (
     update_installation_permissions,
     upsert_installation,
 )
+from app.services import background
 
 router = APIRouter()
 log = structlog.get_logger(__name__)
@@ -167,7 +167,7 @@ async def _handle_repository_event(payload: dict[str, Any]) -> None:
         membership matches, we log and return — sign-in (trigger 2) remains the
         primary backfill path for personal repos.
 
-    All catalog work runs in asyncio.create_task with a FRESH async_session_factory()
+    All catalog work runs in a background.spawn task with a FRESH async_session_factory()
     session — NEVER the request session (it closes when the route returns).
     """
     action = payload.get("action")
@@ -296,7 +296,7 @@ async def _handle_repository_event(payload: dict[str, Any]) -> None:
                 error=str(exc),
             )
 
-    asyncio.create_task(_run_catalog_update())
+    background.spawn(_run_catalog_update(), name="github_catalog.webhook_update")
 
 
 @router.post("/installation", status_code=200)

@@ -202,7 +202,7 @@ async def flag_ingested_item(
 ) -> bool:
     """Flag ONE freshly-ingested item, on this coroutine's own session.
 
-    The ingest paths run detached from any request (`asyncio.create_task`), so
+    The ingest paths run detached from any request (`background.spawn`), so
     there is no request session to borrow — this opens one, commits the level
     change together with its audit row, and closes it.
 

@@ -42,18 +42,28 @@ Monitor) are excluded from all recall and purged after 30 days.
 
 ## Truth levels (the most important concept)
 
-| Label shown to user | Internal enum | Meaning |
-|---------------------|---------------|---------|
-| **raw**             | `EPHEMERAL`   | "I saw this once." Low confidence, and **excluded from every recall path** — so nothing at this level reaches the agent. No longer the default for a clip (see below). |
-| **work**            | `WORKING`     | confirmed by at least one person. Useful, not yet source of truth. |
-| **validated**       | `VALIDATED`   | checked against reality, suitable for decisions. |
-| **production**      | `CANONICAL`   | team-blessed authoritative truth. |
-| (shareable)         | `PUBLIC`      | shareable beyond the team. |
+| Label shown to user | Internal enum | Who sets it |
+|---------------------|---------------|-------------|
+| *(not stored)*      | —             | The relevance classifier drops what isn't worth keeping. Nothing is written. |
+| **work**            | `WORKING`     | The ingest default. Everything that is stored starts here. |
+| **validated**       | `VALIDATED`   | **The AI**, when it judges something important or final. It is a model's opinion, not a human warrant, and the AI can withdraw it. |
+| **production**      | `CANONICAL`   | **A person's star** — the only level a human sets, which is exactly what gives it weight. |
+| (shareable)         | `PUBLIC`      | Reserved for a sharing-beyond-the-team flow that is **not built yet**. Nothing produces it today. |
+| **raw**             | `EPHEMERAL`   | Legacy. Nothing produces it any more; older items may still sit here, and they are **excluded from every recall path**. |
 
-Use the **labels** (raw / work / validated / production) when talking to users;
-the enum values are what's stored and queried. Promotion is **one-way** and
-**requires a real human user** (agents cannot self-promote). EPHEMERAL ("raw")
-items are ignored by default in recall so noise doesn't drown signal.
+Use the **labels** (work / validated / production) when talking to users; the
+enum values are what's stored and queried.
+
+**What changed, and why it matters when you answer:** the model used to be five
+levels a human walked up one step at a time. It is now four, of which the AI sets
+the first three and a person sets one. So "promotion requires a human and is
+one-way" is **no longer true in general**: the AI both sets and clears
+*validated*, and a star can be taken off again by a person. Only the star carries
+a person's judgement — say so plainly rather than implying the AI's *validated*
+was reviewed by someone.
+
+A team member or team admin can also set any level by hand from the Brain Monitor
+(see below). That is a second, deliberate path — not a contradiction.
 
 **A clip lands at `work`, not `raw`** (changed 2026-08-05). Clipping is a deliberate
 act — somebody saw a page and chose to keep it — and while `raw` was the default,
@@ -61,6 +71,19 @@ nothing anyone clipped was ever visible to the agent until a human promoted it b
 Nobody did, so clipping did nothing. The accepted cost: recall now includes pages kept
 on a hunch. Anything that must stay out of recall can still be sent at `raw` explicitly,
 and the level is configurable in the extension's settings.
+
+## Starring a message
+
+`PUT /v1/teams/{team_id}/messages/{message_id}/star` moves a message — and the
+memory items it seeded — to `CANONICAL` ("production"), and un-starring moves it
+back. Any non-blocked member of the team may star; a token or service principal
+may not, because a level a machine can set is not a person's judgement. Every
+star and un-star is written to the audit log.
+
+**There is no star button in the chat yet.** The endpoint is live and the API
+works; the in-chat control has not shipped. Do not tell someone to long-press and
+star a message — they will not find it. Point them at the Brain Monitor, where
+levels are editable today.
 
 ## How the brain surfaces knowledge (3 recall paths)
 
@@ -161,19 +184,70 @@ self-hoster may set deliberately to refuse sending images to a third-party API.
 Images uploaded **before** this shipped were never described and still read as
 their filename; there is no backfill.
 
-## The Chrome extension
+## The composer — three controls, both surfaces
+
+The message box is identical in the extension and the web app:
+
+- **`+`** — attach a photo or document; it uploads to the brain (≤25 MB).
+- **The agent toggle** — arms the next message for the agent. It writes the same
+  `@agent` mention a person would type, so there is one summon mechanism and not
+  two, and it disarms itself once the message goes.
+- **Send** — Enter sends, Shift+Enter adds a newline.
+
+## Around the chat
+
+Extension **and** web app:
 
 - **Team chat** — realtime via Centrifugo WebSocket; messages persist as
   `team_messages`.
-- **`+` button in the composer** — attach a photo or document; it uploads to the
-  brain. This is the control on every surface, including the web app on a phone.
+- **People** — see the team, and send a member a link or a file.
+- **Invite** — mint a shareable invite link, or paste a code to join a team.
+- **Settings** — theme, team preferences, and (for an admin) the agent's name
+  and the team's model keys.
+
+**Extension only** — never suggest these to someone who may be on a phone unless
+they have said they are in the extension:
+
 - **Clipper / "add to memory"** — sends the current page or selected text as a
-  memory item (with optional project + truth_level). **Extension only.**
+  memory item (with optional project + truth_level).
 - **Right-click menu** — select text on any page → clip directly to a team.
-  **Extension only** — it does not exist in the web app, so never suggest it to
-  someone who may be on a phone unless they have said they are in the extension.
-- **Sign in / Link GitHub** — GitHub is the primary identity; org membership can
-  auto-grant team access.
+- **Board** — opens the team's collaborative Excalidraw board.
+- **Catch me up** — see below.
+
+**Web app only:** the push opt-in (see below).
+
+**Sign in / Link GitHub** — GitHub is the primary identity; org membership can
+auto-grant team access. Google and email/password also work.
+
+## Catch me up
+
+When a member opens a busy team chat, a dismissible banner offers **"Catch me
+up"** — a brain-grounded summary of what arrived since their last visit. It is
+strictly opt-in: it never runs on its own, it only appears when the unread volume
+is meaningful, it is rate-limited, and the summary is ephemeral (nobody else sees
+it, and it is not added to the thread).
+
+A per-member read cursor (`team_members.last_read_at`) decides what "since your
+last visit" means; the same cursor drives the unread badges, so the two can never
+disagree. `POST /v1/teams/{id}/catch-me-up`, with `GET …/unread-summary` behind
+the threshold.
+
+**Extension only today.** The web app has the unread badges but not the banner.
+
+## Notifications
+
+Two different mechanisms, and which one someone gets depends on where they are:
+
+- **Web app — web push.** Real notifications on a phone or desktop, delivered
+  even with the tab closed. **Opt-in on an explicit click** (there is a bell
+  control in the header; the browser is never prompted on page load), stored
+  per-user *and* per-device, and a subscription the push service reports as dead
+  is removed rather than retried.
+- **Extension — native Chrome notifications**, used for the open-a-link nudge.
+
+Push fires on **two things only**: an `@mention` of you, and a Phase-22 nudge
+someone sent you. Not on every team message — that was a deliberate choice, so
+say so if asked why a busy chat is quiet.
 
 ## Mentioning the agent in team chat
 
@@ -240,6 +314,29 @@ can remove one. The server enforces this; every deletion is recorded in the audi
 log under `team_message.delete` or `team_message.delete_with_brain`, naming who
 did it and — for the wider scope — exactly what went with the message.
 
+## Keeping a message out of the team chat (the brain tag)
+
+A message can be tagged so it **does not appear in the team chat**. The bubble,
+and the agent's answer to it, go only to the person who wrote it. Everything else
+about that message is unchanged.
+
+**It is not hidden from the team.** The note still lands in the team's brain, at
+full length. Any teammate can find it by searching, and the agent will quote it
+when someone else asks a question it answers. An attachment sent with it stays
+reachable by the team too. So the honest description is **"this keeps the chat
+clear"** — never that it is confidential, and never that nobody else can see it.
+If someone asks whether the team can see it, the answer is: not in the chat, yes
+in the brain.
+
+A team admin cannot read it in the chat either — the chat surface and the Brain
+Monitor both hide it from everyone but its author. A superadmin can, and that
+access is written to the audit log before the read.
+
+**The composer control for this has not shipped.** The server accepts the tag and
+the chat can render a tagged message ("not in the chat" beside the bubble), but
+there is no button in the extension or the web app yet. Do not tell anyone to
+look for one.
+
 ## Brain Monitor
 
 At `/account/teams/brain/` on your xbrain web app you can **view** all brain
@@ -260,10 +357,16 @@ Sign in via your xbrain web app or the extension popup.
 
 - Don't invent a team's internal details that aren't in the memory snapshot. If
   memory is sparse, say so and suggest capturing more — attach a file with the
-  composer's `+`, sync a repo, or promote `raw` items to `work`. Suggest the
-  clipper or the right-click menu only to someone you know is in the extension:
-  neither exists in the web app, and telling a phone user to right-click is
-  advice they cannot follow.
+  composer's `+`, sync a repo, or raise an item's level in the Brain Monitor.
+  Suggest the clipper, the right-click menu, the board or "Catch me up" only to
+  someone you know is in the extension: none of them exists in the web app, and
+  telling a phone user to right-click is advice they cannot follow.
+- **Don't send anyone looking for a control this file says has not shipped.**
+  Three things are live as API but have no button yet: the star, the brain tag,
+  and "Catch me up" in the web app. Being told to click something that is not
+  there costs more trust than saying it is not built.
+- Don't describe the brain tag as private, secret, or hidden from the team. It
+  keeps a message out of the chat; the team's brain still learns it.
 - Don't claim to have fetched, opened, or read a link. The only web content you
   can see is what appears under "## Fetched web content"; when that section says
   nothing was fetched, say you cannot see the page and ask for the text.

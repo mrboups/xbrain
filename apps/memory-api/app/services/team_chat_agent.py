@@ -529,7 +529,7 @@ async def handle_claude_mention(
 ) -> None:
     """Background-task entry point. Never raises — logs on failure.
 
-    Called via asyncio.create_task() from the team_chat POST route after
+    Called via background.spawn() from the team_chat POST route after
     the user message has been committed.
     """
     # Each call gets its own DB session so we don't share one with the
@@ -1556,7 +1556,7 @@ async def catch_me_up(
         it ("catch me up on what you MISSED", not what you sent).
 
     Never raises — logs on failure (mirrors handle_claude_mention). Invoked via
-    asyncio.create_task() from POST /catch-me-up AFTER membership + rate-limit +
+    background.spawn() from POST /catch-me-up AFTER membership + rate-limit +
     non-empty-window gates.
     """
     channel = f"user:{caller_user_sub}"

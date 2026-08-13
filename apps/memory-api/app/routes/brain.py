@@ -56,7 +56,6 @@ Filter semantics:
   (Brain Monitor UI fetches new rows since the latest-seen timestamp).
 """
 
-import asyncio
 import base64
 import json
 import logging
@@ -88,6 +87,7 @@ from app.repos.brain import (
 )
 from app.routes.media_helpers import mint_media_token
 from app.schemas.brain import BrainEventListOut, BrainEventOut, BrainIngestRequest, TruthLevelPatchBody
+from app.services import background
 from app.services import brain_ingest as brain_ingest_svc
 
 logger = logging.getLogger(__name__)
@@ -665,7 +665,7 @@ async def restore_event(
 # Called by librechat-bridge and openwebui-pipeline to push user messages
 # into the team brain without a full user identity. Bridge JWT auth is
 # accepted via `get_current_principal` (kind=bridge). Returns 202
-# immediately; the actual upsert runs as asyncio.create_task (fire-and-
+# immediately; the actual upsert runs as a background.spawn task (fire-and-
 # forget). Never blocks the caller's critical path.
 
 
@@ -677,7 +677,7 @@ async def ingest_message(
 ) -> dict[str, str]:
     """Accept a chat message for brain ingest. Returns 202 immediately.
 
-    The upsert into memory_items + Qdrant runs as an asyncio.create_task —
+    The upsert into memory_items + Qdrant runs as a background.spawn task —
     the caller never blocks on the classification or storage operation.
 
     Auth: bridge JWT (kind=bridge) OR user JWT (kind=user).
@@ -691,7 +691,7 @@ async def ingest_message(
         # Bridge JWT or user-acting bridge — no user object attached
         author_sub = body.metadata.get("author_sub") or principal.get("sub")
 
-    asyncio.create_task(
+    background.spawn(
         brain_ingest_svc.ingest_external_message(
             team_scope=team_scope,
             content=body.content,
@@ -699,6 +699,7 @@ async def ingest_message(
             author_sub=author_sub,
             metadata=body.metadata,
             project_scope=body.project_scope,
-        )
+        ),
+        name="brain_ingest.external_message",
     )
     return {"status": "accepted"}

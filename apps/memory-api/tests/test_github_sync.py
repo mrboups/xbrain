@@ -137,8 +137,8 @@ def test_line_windows_empty_text():
 
 
 def test_uuid5_determinism():
-    """Same repo/path/sha/chunk_idx always produces the same item id."""
-    key = "myorg/myrepo:src/main.py:abc123:0"
+    """Same team_scope/repo/path/sha/chunk_idx always produces the same item id."""
+    key = "t1:myorg/myrepo:src/main.py:abc123:0"
     id1 = str(uuid.uuid5(GITHUB_SYNC_NS, key))
     id2 = str(uuid.uuid5(GITHUB_SYNC_NS, key))
     assert id1 == id2
@@ -146,12 +146,16 @@ def test_uuid5_determinism():
 
 def test_uuid5_different_inputs():
     """Different inputs produce different ids."""
-    id1 = str(uuid.uuid5(GITHUB_SYNC_NS, "myorg/repo:a.py:sha1:0"))
-    id2 = str(uuid.uuid5(GITHUB_SYNC_NS, "myorg/repo:a.py:sha1:1"))
-    id3 = str(uuid.uuid5(GITHUB_SYNC_NS, "myorg/repo:b.py:sha1:0"))
+    id1 = str(uuid.uuid5(GITHUB_SYNC_NS, "t1:myorg/repo:a.py:sha1:0"))
+    id2 = str(uuid.uuid5(GITHUB_SYNC_NS, "t1:myorg/repo:a.py:sha1:1"))
+    id3 = str(uuid.uuid5(GITHUB_SYNC_NS, "t1:myorg/repo:b.py:sha1:0"))
+    # Two teams syncing the SAME repo must not land on the same row — this is
+    # the whole reason team_scope leads the key (see services/github_sync.py).
+    id4 = str(uuid.uuid5(GITHUB_SYNC_NS, "t2:myorg/repo:a.py:sha1:0"))
     assert id1 != id2
     assert id1 != id3
     assert id2 != id3
+    assert id1 != id4
 
 
 def test_uuid5_namespace_is_stable():
@@ -374,7 +378,11 @@ async def test_sync_repo_multi_chunk_ids(mock_list_files, mock_read_file):
     items = [call.args[0] for call in provider.upsert.call_args_list]
     assert [item.metadata["chunk_idx"] for item in items] == [0, 1, 2]
 
-    # Verify uuid5 determinism: recompute and compare
+    # Verify uuid5 determinism: recompute and compare. The key is prefixed with
+    # the team_scope the sync ran under ("t1" above) — without it, the same repo
+    # synced into a second team would overwrite this team's rows.
     for item in items:
-        expected_id = str(uuid.uuid5(GITHUB_SYNC_NS, f"o/r:multi.py:msha:{item.metadata['chunk_idx']}"))
+        expected_id = str(
+            uuid.uuid5(GITHUB_SYNC_NS, f"t1:o/r:multi.py:msha:{item.metadata['chunk_idx']}")
+        )
         assert item.id == expected_id

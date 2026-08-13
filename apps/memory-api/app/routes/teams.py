@@ -1,6 +1,5 @@
 """/v1/teams — admin-managed team CRUD + membership."""
 
-import asyncio
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -23,7 +22,7 @@ from app.models.team import Team  # forward-typing for _require_team_admin
 from app.repos import team_invite_codes as invite_codes_repo
 from app.repos import teams as teams_repo
 from app.repos import users as users_repo
-from app.services import mention_detector, team_keys
+from app.services import background, mention_detector, team_keys
 from app.services.github_app_jwt import mint_app_jwt
 from app.services.github_installation import get_installation_token_for_org
 from app.services.rate_limit import enforce_rate_limit
@@ -281,8 +280,9 @@ async def create_team(
     # (self_create_team + any future create that sets github_org) are covered here.
     if getattr(team, "github_org", None) and settings.GITHUB_CATALOG_ENABLED:
         from app.services.github_catalog import index_team_catalog  # noqa: PLC0415
-        asyncio.create_task(
-            index_team_catalog(team.slug, team.github_org, session_factory=async_session_factory)
+        background.spawn(
+            index_team_catalog(team.slug, team.github_org, session_factory=async_session_factory),
+            name="github_catalog.index_team",
         )
 
     return TeamOut(id=str(team.id), slug=team.slug, display_name=team.display_name)
@@ -753,8 +753,9 @@ async def self_create_team(
     # For teams without github_org, sign-in (trigger 2) is the primary backfill path.
     if getattr(team, "github_org", None) and settings.GITHUB_CATALOG_ENABLED:
         from app.services.github_catalog import index_team_catalog  # noqa: PLC0415
-        asyncio.create_task(
-            index_team_catalog(team.slug, team.github_org, session_factory=async_session_factory)
+        background.spawn(
+            index_team_catalog(team.slug, team.github_org, session_factory=async_session_factory),
+            name="github_catalog.index_team",
         )
 
     return TeamSearchOut(

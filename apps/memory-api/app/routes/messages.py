@@ -1,6 +1,5 @@
 """/v1/messages — POST enforces 7-field contract (422 on missing), GET filters by team_scope."""
 
-import asyncio
 from typing import Any
 from uuid import UUID
 
@@ -13,6 +12,7 @@ from app.deps import get_current_principal, get_session, get_team_scope
 from app.models.tagging import TaggingContract
 from app.repos import conversations as conv_repo
 from app.repos import messages as messages_repo
+from app.services import background
 
 router = APIRouter()
 
@@ -115,7 +115,10 @@ async def create_message(
 
     if body.content and body.role in ("user", "assistant"):
         from app.routes.memory import _enrich_with_graphiti  # noqa: PLC0415
-        asyncio.create_task(_enrich_with_graphiti(body.content, team_scope))
+        background.spawn(
+            _enrich_with_graphiti(body.content, team_scope),
+            name="messages.enrich_graphiti",
+        )
 
     return _row_to_out(msg)
 

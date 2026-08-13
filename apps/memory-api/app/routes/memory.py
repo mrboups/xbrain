@@ -1,6 +1,5 @@
 """/v1/memory/* — backend-agnostic memory endpoints (Phase 2)."""
 
-import asyncio
 import os
 import re
 from typing import Any
@@ -25,6 +24,7 @@ from app.deps import (
 )
 from app.models.neo4j_outbox import NeoOutboxEntry
 from app.neo4j_client import get_driver
+from app.services import background
 
 log = structlog.get_logger(__name__)
 
@@ -277,14 +277,15 @@ async def _maybe_create_task_from_action(item: MemoryItem, team_scope: str) -> N
         if assignee_email_resolved:
             from app.services.notifications import send_task_notification_email
 
-            asyncio.create_task(
+            background.spawn(
                 send_task_notification_email(
                     recipient_email=assignee_email_resolved,
                     task_title=title,
                     task_id=str(row.id),
                     team_scope=team_scope,
                     dashboard_url=None,
-                )
+                ),
+                name="notifications.task_email",
             )
     except Exception as exc:
         log.warning("tasks.auto_skipped", error=str(exc), team_scope=team_scope)
@@ -381,16 +382,19 @@ async def upsert_item(
     # Phase 5 plan 05-01: Enrich Graphiti graph with the new memory item.
     # create_task so we don't block the HTTP response — _enrich_with_graphiti is fail-soft.
     if body.item.content:
-        asyncio.create_task(
-            _enrich_with_graphiti(body.item.content, team_scope)
+        background.spawn(
+            _enrich_with_graphiti(body.item.content, team_scope),
+            name="memory.enrich_graphiti",
         )
         # Phase 7 — auto-extract contacts from text (D1)
-        asyncio.create_task(
-            _extract_crm_contacts(body.item.content, team_scope, body.item.source or "memory")
+        background.spawn(
+            _extract_crm_contacts(body.item.content, team_scope, body.item.source or "memory"),
+            name="memory.extract_crm_contacts",
         )
         # Phase 7 — auto-create task from action items (D5 trigger 2)
-        asyncio.create_task(
-            _maybe_create_task_from_action(body.item, team_scope)
+        background.spawn(
+            _maybe_create_task_from_action(body.item, team_scope),
+            name="memory.task_from_action",
         )
 
     return UpsertOut(id=item_id)

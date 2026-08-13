@@ -14,7 +14,6 @@ Design notes (from BL-003-media-design.md):
 """
 from __future__ import annotations
 
-import asyncio
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -37,6 +36,7 @@ from app.routes.media_helpers import (
     mint_media_token,
     verify_media_token,
 )
+from app.services import background
 from app.services.doc_body_ingest import extract_and_ingest_body
 from app.services.image_describe import describe_and_ingest_image, is_image_mime
 from app.services.indexed_text import resolve_indexed_text
@@ -210,7 +210,7 @@ async def upload_media(
     # invisible to the uploader (D-24-01). Gated by a kill-switch so a zero-key
     # install can disable it entirely.
     if settings.DOCBODY_EXTRACTION_ENABLED:
-        asyncio.create_task(
+        background.spawn(
             _run_body_ingest(
                 provider=provider,
                 data=data,
@@ -229,7 +229,8 @@ async def upload_media(
                 validation_status=item.validation_status,
                 confidence=item.confidence,
                 parent_metadata=item.metadata,
-            )
+            ),
+            name="media.body_ingest",
         )
 
     # An IMAGE has no text layer to extract, so the branch above leaves its contents
@@ -242,7 +243,7 @@ async def upload_media(
     # rather than vanishing. A PDF must NOT — the document path owns it, and an
     # image-description flag on it would be noise.
     if settings.VISION_DESCRIBE_ENABLED and is_image_mime(mime):
-        asyncio.create_task(
+        background.spawn(
             _run_image_describe(
                 provider=provider,
                 data=data,
@@ -257,7 +258,8 @@ async def upload_media(
                 # rather than defaults that merely happen to match today (MD-03).
                 visibility=item.visibility,
                 parent_metadata=item.metadata,
-            )
+            ),
+            name="media.image_describe",
         )
 
     log.info(
