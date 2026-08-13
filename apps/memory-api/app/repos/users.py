@@ -16,7 +16,8 @@ async def get_or_create_user(
     email: str,
     display_name: str | None = None,
     github_id: int | None = None,
-) -> User:
+    allow_create: bool = True,
+) -> User | None:
     """UPSERT by source_user_id. Idempotent + race-safe.
 
     Two concurrent requests for the same `source_user_id` (e.g. two LibreChat
@@ -24,7 +25,23 @@ async def get_or_create_user(
     INSERT, and one would hit `UniqueViolationError`. We now issue an
     `INSERT ... ON CONFLICT (source_user_id) DO NOTHING` first, then SELECT
     the live row — guaranteed to return exactly one row either way.
+
+    `allow_create=False` turns this into get-or-nothing: an existing account is
+    returned unchanged, an unknown one yields None instead of being created.
+    That is how the closed-signup policy is enforced without touching the
+    service paths — the bridge and the OpenWebUI pipeline resolve identities
+    they were already trusted to assert, and must keep creating rows.
+
+    Returning None rather than raising keeps the policy decision at the caller,
+    which is the layer that knows whether this is a person signing in (401/403)
+    or a service resolving a subject.
     """
+    if not allow_create:
+        existing = await session.execute(
+            select(User).where(User.source_user_id == source_user_id)
+        )
+        return existing.scalar_one_or_none()
+
     stmt = (
         pg_insert(User)
         .values(

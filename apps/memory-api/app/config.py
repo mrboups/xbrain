@@ -263,6 +263,27 @@ class Settings(BaseSettings):
     # Safe defaults, deliberately NO field_validator: a zero-OAuth install must
     # still boot cleanly (SC#1). Per D-18-06 research OQ2 the 5/15 defaults are
     # settled and env-overridable — not an open question at runtime.
+    # Who may become a NEW user (services/signup_policy.py). `open` is the
+    # pre-2026-08-13 behaviour and stays the default so an OSS install boots
+    # usable; a hosted deployment sets `closed` and lists the addresses it
+    # admits. This gates CREATION only — existing accounts sign in unchanged.
+    SIGNUP_POLICY: str = "open"
+
+    #: Comma-separated. `someone@example.com` matches one address, `@example.com`
+    #: matches the whole domain. Only consulted when SIGNUP_POLICY=closed.
+    SIGNUP_ALLOWLIST: str = ""
+
+    @field_validator("SIGNUP_POLICY")
+    @classmethod
+    def _validate_signup_policy(cls, v: str) -> str:
+        allowed = {"open", "closed"}
+        if v not in allowed:
+            raise ValueError(
+                f"SIGNUP_POLICY must be one of {sorted(allowed)}, got {v!r} — "
+                f"a typo here would silently leave signup open, so it fails at boot."
+            )
+        return v
+
     LOCAL_AUTH_MAX_FAILED_ATTEMPTS: int = 5
     LOCAL_AUTH_LOCKOUT_MINUTES: int = 15
     LOCAL_AUTH_RATE_LIMIT: str = "10/minute"      # per-IP, in-process (NOT durable across uvicorn --workers 2 — Plan 02 rate_limit.py documents this)

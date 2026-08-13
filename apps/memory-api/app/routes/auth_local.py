@@ -52,6 +52,7 @@ from app.config import settings
 from app.deps import get_current_principal, get_session
 from app.repos import local_credentials as local_credentials_repo
 from app.repos import teams as teams_repo
+from app.services import signup_policy
 from app.repos import users as users_repo
 from app.services.api_tokens import mint_xbt_for_user
 from app.services.password_hash import (
@@ -132,6 +133,13 @@ async def register(
     # local) gets 409, no access, no row.
     if await users_repo.get_user_by_email(session, email) is not None:
         raise HTTPException(409, _EXISTING_EMAIL_ERROR)
+
+    # Closed-signup policy (services/signup_policy.py). Checked AFTER the
+    # collision check on purpose: an address that already has an account gets
+    # the same 409 it always did, so the refusal below never doubles as an
+    # "is this address registered?" oracle.
+    if not signup_policy.account_creation_allowed(email):
+        raise HTTPException(403, signup_policy.refusal_detail())
 
     try:
         user = await users_repo.get_or_create_user(

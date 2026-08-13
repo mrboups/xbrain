@@ -94,7 +94,12 @@ async def get_current_principal(
                 source_user_id=claims["sub"],
                 email=claims.get("email", ""),
                 display_name=claims.get("name") or claims.get("given_name"),
+                allow_create=signup_policy.account_creation_allowed(
+                    claims.get("email")
+                ),
             )
+            if user is None:
+                raise HTTPException(403, signup_policy.refusal_detail())
             await session.commit()
             return {
                 "kind": "user",
@@ -127,7 +132,12 @@ async def get_current_principal(
                 source_user_id=claims["sub"],
                 email=claims.get("email") or "",
                 display_name=claims.get("name") or claims.get("given_name"),
+                allow_create=signup_policy.account_creation_allowed(
+                    claims.get("email")
+                ),
             )
+            if user is None:
+                raise HTTPException(403, signup_policy.refusal_detail())
             await session.commit()
             return {
                 "kind": "user",
@@ -233,7 +243,19 @@ async def get_current_principal(
                 source_user_id=github_source_id,
                 email=gh.get("email") or f"{gh['login']}@github.noreply",
                 display_name=gh.get("name") or gh["login"],
+                # The policy decides on GitHub's REAL address, never on the
+                # `{login}@github.noreply` placeholder below it: an account whose
+                # email is private would otherwise be judged on an address that
+                # cannot appear on anyone's allowlist. The consequence is worth
+                # stating — under a closed policy, a GitHub user with no public
+                # email cannot be admitted by email, only by an explicit
+                # `@github.noreply` entry or by being created some other way.
+                allow_create=signup_policy.account_creation_allowed(
+                    gh.get("email") or f"{gh['login']}@github.noreply"
+                ),
             )
+            if user is None:
+                raise HTTPException(403, signup_policy.refusal_detail())
             # Phase 10 GHA-06 — if this user row was soft-merged into another, redirect.
             from app.repos.users import follow_merge_pointer  # local import to keep top-level minimal
             user = await follow_merge_pointer(session, user)
