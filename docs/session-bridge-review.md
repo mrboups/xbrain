@@ -4,6 +4,18 @@
 > LibreChat (and team-chat) inference is billed to **their** quota instead of the
 > team API key. Phase 9 — "Session Bridge".
 
+> **PARTIALLY STALE — reviewed 2026-08-13.** This is a Phase-9 (2026-05-12) code
+> review, not a maintained reference. The mechanism it describes is still how the
+> bridge works and is still the right thing to read first. Two things have moved
+> since: nginx vhosts are now **templates** under `infrastructure/nginx/templates/`
+> rendered at container start (the `conf.d/` paths were corrected in place on
+> 2026-08-13), and `session-bridge` now lives behind the **`saas` compose profile**
+> and needs `EDITION=saas` — on an `EDITION=oss` install its routes 404. Verify
+> file paths and line numbers against the tree before relying on them.
+>
+> For the operator-facing guide rather than the review, see
+> `docs/session-bridge-guide.md`.
+
 ## 1. The core idea
 
 Requests are **not** proxied server-side to claude.ai. They are routed **through
@@ -31,7 +43,7 @@ LibreChat  ──HTTP──>  session-bridge  ──WS push──>  Chrome exten
 | **Extension SW** | `chrome-extension/background.js` | Maintains persistent WS to the bridge; dispatches `chat_request` frames. |
 | Claude client | `chrome-extension/claude_ai_client.js` | `handleClaude()` — credentialed fetch to claude.ai, streams chunks back over WS. |
 | **LibreChat config** | `infrastructure/librechat/librechat.yaml` | Custom endpoint "Claude Pro/Max" → `baseURL: https://bridge.example.com/v1`. |
-| **nginx vhost** | `infrastructure/nginx/conf.d/50-bridge.conf` | `bridge.example.com` → `session-bridge:8105`. WS + SSE tuned (86400s WS timeout, buffering off). |
+| **nginx vhost** | `infrastructure/nginx/templates/50-bridge.conf.template` | `bridge.example.com` → `session-bridge:8105`. WS + SSE tuned (86400s WS timeout, buffering off). |
 
 ## 3. Endpoints
 
@@ -94,7 +106,7 @@ LibreChat sends the pasted token as `Authorization: Bearer <xbt_token>` → brid
 | `apps/session-bridge/**` | ❌ No | Last changed by Phase 9 + the bridge-JWT feature (5189e30). Untouched by scrubs. |
 | `chrome-extension/background.js` | ❌ No | Last changed by Phase 12 manifest-key + auth fixes. Bridge URLs intact. |
 | `chrome-extension/claude_ai_client.js` | ❌ No | Phase 9 only. |
-| `infrastructure/nginx/conf.d/50-bridge.conf` | ❌ No | Phase 9 only. |
+| `infrastructure/nginx/templates/50-bridge.conf.template` | ❌ No | Phase 9 only. |
 | `infrastructure/librechat/librechat.yaml` | ⚠️ Yes — `f139c7d` | **Only** changed `registration.allowedDomains` from `acme.example.com` → `example.com`. This is the **email-registration** allowlist, NOT the "Claude Pro/Max" endpoint. `gmail.com` is still allowed, so sign-in is unaffected. The endpoint block is untouched. |
 
 Verified clean:

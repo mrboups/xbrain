@@ -794,7 +794,14 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14 → 15 → 16 → 17
+Numeric order up to 13: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13.
+Then **numeric order stops being execution order** — 18/19/20 were numbered late to
+avoid renumbering 16/17. Milestone v2.0 ran **14 → 15 → 18 → 19 → 16 → 20 → 17**.
+The post-v2.0 backlog phases then ran in numeric order: **21 → 22 → 23 → 24 → 25 → 26 → 27**.
+
+The "Completed" column below is the date the phase's own verification gate passed
+(`NN-VERIFICATION.md` in `.planning/phases/NN-*/`), which is not always the date it
+reached the VM — phases 22-25 gated on 2026-07-19/24 and deployed on 2026-07-31.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -816,6 +823,25 @@ Phases execute in numeric order: 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7 �
 | 15. Edition Mechanics | 6/6 | Complete    | 2026-07-13 |
 | 16. OSS Light Packaging | 4/4 | Complete   | 2026-07-18 |
 | 17. CI Lockstep | 4/4 | Complete   | 2026-07-18 |
+| 18. Local Auth (OSS default) | 6/6 | Complete | 2026-07-14 |
+| 19. Local Embeddings (OSS default) | 3/3 | Complete | 2026-07-18 |
+| 20. Extension Chat UI Polish (shadcn Neutral) | 4/4 | Complete | 2026-07-18 |
+| 21. Configurable Agent Mention Aliases | 4/4 | ✅ LIVE | 2026-07-19 |
+| 22. Push-a-Link | 3/3 | ✅ LIVE | 2026-07-19 (deployed 2026-07-31) |
+| 23. Catch Me Up | 4/4 | ✅ LIVE | 2026-07-19 (deployed 2026-07-31) |
+| 24. Document Body Extraction on Upload | 3/3 | ✅ LIVE | 2026-07-19 (deployed 2026-07-31) |
+| 25. Team Join-by-Code | 4/4 | ✅ LIVE | 2026-07-24 (deployed 2026-07-31) |
+| 26. Collaborative Board (Excalidraw + Yjs) — 26a | 7/7 | ✅ LIVE | 2026-07-24 |
+| 27. PWA + Web Push | 8/9 | Deployed, awaiting device check | 2026-08-01 (27-09 task 3 open) |
+
+**Milestone v2.0 (Open-Core Edition, phases 14-20): 35/35 plans, shipped 2026-07-19.**
+**Post-v2.0 backlog (phases 21-27): 33/34 plans; only 27-09's human device check is open.**
+
+> **Not on this roadmap, but in production code** (added 2026-08-13): the four-level
+> truth model, message starring, recall attribution, and the brain tag
+> (migration 0034). They shipped 2026-08-05/06 as direct work, outside the phase
+> surface — see `.planning/STATE.md` "Shipped outside the phase surface" and
+> `.planning/features/private-brain-lane-PLAN.md`.
 
 ---
 

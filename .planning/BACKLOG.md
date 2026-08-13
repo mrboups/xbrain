@@ -95,7 +95,19 @@ surfaces (LibreChat, extension, Brain Monitor). Sizeable — plan as its own pha
 
 ---
 
-## Agent mention alias — settable from the Settings UI, not just `.env`
+## ~~Agent mention alias — settable from the Settings UI, not just `.env`~~ — SHIPPED 2026-07-19 (Phase 21)
+
+**Resolved, and the design question below was answered "per-team".** Migration 0025
+adds `teams.agent_aliases`; `GET`/`PATCH /v1/teams/{id}/agent-aliases` reads for any
+member and writes for an admin, with charset/length/count validation before anything
+is compiled into a regex. The mention detector resolves the effective list per
+message from the DB behind a cache, so a changed name takes effect with **no
+restart**. `AGENT_MENTION_ALIASES` survives as the bootstrap default, so a fresh
+self-hosted install still works with zero configuration. The client half landed
+too: the extension builds its regex from the server's list and the stale
+`@(grooveos|groove|gr|g)` literal is gone.
+
+### Original
 
 **Requested:** 2026-07-12 (mid-Phase-14). **Not in Phase 14 scope** — logged here rather than
 improvised into a plan-checked, half-executed phase.
@@ -249,7 +261,17 @@ ever called with `provider="anthropic"` and `_stream_via_anthropic_api` builds a
 Anthropic client, so an OpenAI or xAI key is accepted, encrypted, stored and never
 called.
 
-## The PWA's service-worker cache version is bumped by hand — 2026-08-03
+## ~~The PWA's service-worker cache version is bumped by hand~~ — SHIPPED 2026-08-06
+
+**Resolved with options 1 and 3 together, which is better than either alone.** The
+cache name is now **derived, never typed**: `scripts/shell-cache.mjs` hashes the
+precached files and writes the result, so `sw.js` reads
+`const CACHE = "xb-app-shell-<hash>"` and the key changes because a file changed,
+with nobody having to remember. `make check-shell-cache` is the refusal gate, and it
+runs inside `make check-client` next to the chat-core drift check — same reason, same
+place. `make shell-cache` recomputes it.
+
+### Original
 
 `app-site/app/sw.js` precaches `/app/app.js`, `/app/chat.js` and the rest under
 `const CACHE = "xb-app-shell-vN"`. The files are **not content-hashed**, so the cache
@@ -273,6 +295,17 @@ Also fixed at the same time, and worth keeping: `**/*.@(css|js)` was served with
 change every deploy, an hour of staleness costs more than the bytes a 304 saves.
 
 ## A private lane to the brain — a composer tag whose message the team never sees — 2026-08-05
+
+> **PLANNED AND HALF-BUILT — 2026-08-06.** The full plan is
+> `.planning/features/private-brain-lane-PLAN.md`, which supersedes the shape below
+> (it is one column, `team_messages.private_to_user_id`, not the `visibility` field —
+> `team_messages` has no `visibility` column). Migration 0034 and the server half are
+> committed and **not yet deployed**; the composer button and the first-use sheet are
+> not built. All three hazards named below were treated as the plan's spine.
+>
+> **The name in this heading is the one thing the plan deliberately rejects.** The
+> owner ruled on 2026-08-05 that the note lands in the **team's** brain and every
+> member can recall it. No user-facing string may say private or secret.
 
 **Requested by the owner.** Two composer tags, one at each end of the field:
 - **agent tag, far LEFT** — summons the agent (exists today; it currently sits next to
@@ -353,7 +386,24 @@ sitting three centimetres away.
 **Sizing:** small, but it lands in the chat's open/focus path, which is where the
 ordering bugs live.
 
-## Simplify truth levels to four, and let the AI do the classifying — 2026-08-05
+## ~~Simplify truth levels to four, and let the AI do the classifying~~ — SHIPPED 2026-08-05/06
+
+**Resolved, exactly along the cheap path below.** The enum still has five values and
+no migration was needed; what changed is who sets them.
+`services/truth_workflow.py::ALLOWED_TRANSITIONS` is now empty for every level
+except `CANONICAL → PUBLIC`, and the 422 it raises names the owner of the level the
+caller was aiming at (`_LEVEL_OWNERS`) instead of only refusing.
+`services/importance.py` gives the AI `VALIDATED`, reversibly, wired into
+`brain_ingest` via `flag_ingested_item`. The star gives a person `CANONICAL` —
+`PUT /v1/teams/{team_id}/messages/{message_id}/star`, members only, service
+principals refused, audited as `team_message.star` / `.unstar`.
+
+**Still open from this item:** supersession ("de-flagged when another takes over")
+was correctly identified below as the actual feature and is NOT built. Neither is a
+star control in either client — the endpoint has no UI, and the `message_starred`
+frame it publishes is rendered by nothing.
+
+### Original
 
 **Owner's design.** Five levels, of which a human can operate none in practice. Replace
 with four, of which the AI sets three:

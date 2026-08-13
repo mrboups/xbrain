@@ -1,24 +1,38 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: Open-Core Edition
+milestone: post-v2.0
+milestone_name: Post-v2.0 backlog phases (21-27)
 status: executing
-stopped_at: "Phase 27 plans 01-08 shipped and merged; 27-09 deployed both halves and the gate PASSES 50/50 with SKIP 0 (see 27-VERIFICATION.md). BLOCKED on 27-09 task 3 — a human must confirm on a real phone that no permission prompt fires on load and that a push becomes a visible notification. PWA-01 and PUSH-01 stay unchecked until then. The nine-step script is in 27-09-PLAN.md."
-last_updated: "2026-08-01T11:45:00.000Z"
-last_activity: 2026-08-06 -- Quick task 260806-5zq: scraper returns readable text (deployed, verified live)
+stopped_at: "Phase 27 plans 01-08 shipped and merged; 27-09 deployed both halves and the gate PASSES 50/50 with SKIP 0 (see 27-VERIFICATION.md). BLOCKED on 27-09 task 3 — a human must confirm on a real phone that no permission prompt fires on load and that a push becomes a visible notification. PWA-01 and PUSH-01 stay unchecked until then. The nine-step script is in 27-09-PLAN.md. Since then, work has run outside the phase surface: the 2026-08-06 four-agent audit (.planning/AUDIT-2026-08-06.md) and the brain-tag / star / recall-attribution changes below."
+last_updated: "2026-08-13T00:00:00.000Z"
+last_activity: 2026-08-06 -- full-project audit committed (0622f18); brain-tag backend + client render committed, NOT yet deployed
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 34
-  completed_plans: 25
-  percent: 74
+  completed_plans: 33
+  percent: 97
 ---
+
+<!--
+  These counters track the POST-v2.0 backlog phases 21-27 (34 plans, 33 with a
+  SUMMARY; only 27-09 is open, on the human device check). Milestone v2.0
+  (Open-Core Edition, phases 14-20, 35 plans) SHIPPED 2026-07-19 — 35/35, 100%.
+  The header said "v2.0 / 74%" until 2026-08-13; it was counting this set under
+  the previous milestone's name.
+-->
+
+> **Freshness warning (2026-08-13).** Most of this file is a 2026-05 to 2026-08-01
+> accretion and the dates inside it are not in one order. What is current is:
+> the frontmatter above, "Current Position", "Session Continuity", and
+> "Shipped outside the phase surface". Everything else is history — read it as
+> such, and check the code before acting on it.
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-02)
+See: .planning/PROJECT.md (updated 2026-08-13)
 
 **Core value:** Toute donnée produite (humain ou agent, peu importe le frontend) atterrit dans une mémoire commune, taguée par équipe et par niveau de vérité, et reste réutilisable de façon scopée par n'importe quel membre, agent ou outil.
 **Current focus:** Phase 27 — PWA + Web Push
@@ -27,11 +41,29 @@ See: .planning/PROJECT.md (updated 2026-05-02)
 
 Phase: 27 (PWA + Web Push) — DEPLOYED, AWAITING DEVICE VERIFICATION
 Plan: 9 of 9 (tasks 1-2 done, task 3 is a blocking human checkpoint)
-Status: https://grooveos.app/app/ is live and memory-api runs at head 0029 with push wired.
-        `make verify-phase27` passes 50/50 against the deployed origin with zero skips.
-        What remains needs a phone, not a script: no prompt on load, and a push that
-        becomes a notification a person actually sees.
-Last activity: 2026-08-06 -- Quick task 260806-5zq: scraper returns readable text (deployed, verified live)
+Status: https://grooveos.app/app/ is live and `make verify-phase27` passes 50/50 against
+        the deployed origin with zero skips. What remains needs a phone, not a script:
+        no prompt on load, and a push that becomes a notification a person actually sees.
+Migration head: **0034** (`0034_team_message_private_lane`) in the repo. Phase 27 shipped
+        at 0029; five migrations have landed since (0030 user profile, 0031 API-token
+        capability, 0032 transcript imports, 0033 team agent provider, 0034 brain tag).
+        **0034 is committed but not yet on the VM** — see "Open" below.
+Last activity: 2026-08-06 -- full-project audit (0622f18); brain-tag work committed, not deployed
+
+## Open — read before resuming
+
+1. **Read `.planning/AUDIT-2026-08-06.md` first.** The four-agent sweep of
+   2026-08-06 found team_scope **authorization** (not authentication) missing on 12
+   routes, with registration open in production — so the one barrier is trivially
+   passed. Its Tier 1 also covers the realtime socket dying at 60 minutes, a verify
+   script that can delete production volumes, and unbounded dependency ceilings. As
+   of the audit's own writing only the `mcp-github` pin (`d3b249e`) was fixed;
+   check each item against the tree before assuming it is still open, because
+   fixes have been landing since.
+2. **The brain-tag backend is written but not deployed** — the audit's own open
+   decision #4, unchanged since. Migration 0034 plus the read/write/publish changes
+   are on `main`; the VM is not. Confirm the VM's alembic head before assuming.
+3. **Phase 27-09 task 3** — the human device check above.
 
 ## Performance Metrics
 
@@ -164,10 +196,57 @@ Recent decisions affecting current work:
 |----------|------|--------|-------------|
 | *(none)* | | | |
 
+## Shipped outside the phase surface — 2026-08-05 / 2026-08-06
+
+Three changes landed as direct work rather than as a numbered phase, so they have
+no ROADMAP entry and no `.planning/phases/` directory. They are real, they are on
+`main`, and this is their only record here.
+
+**1. The four-level truth model** (`services/truth_workflow.py`,
+`services/importance.py`, `repos/team_messages.py`). The five-level promotion
+ladder no longer has a producer for most of its rungs:
+`ALLOWED_TRANSITIONS` is emptied by design except `CANONICAL → PUBLIC`, and the
+422 it raises names which owner sets the level instead. Who sets what now:
+the relevance classifier drops what is not worth keeping; ingest writes `WORKING`;
+**the AI** sets and clears `VALIDATED` ("important / final", via
+`importance.flag_ingested_item`); **a person's star** sets `CANONICAL`. `PUBLIC`
+is reserved for the sharing flow, which is not built. `EPHEMERAL` has no producer.
+Backlog design: "Simplify truth levels to four".
+
+**2. Starring** — `PUT /v1/teams/{team_id}/messages/{message_id}/star`. Any
+non-blocked team member may star or un-star; bridge and service principals are
+refused outright, because a level a machine can set is not a person's judgement.
+The star moves the message *and* the memory items it seeded, writes
+`team_message.star` / `.unstar` to the audit log, and publishes a
+`message_starred` frame. **No client renders that frame and no client offers the
+action** — the endpoint has no UI. Finish it or drop the frame type.
+
+**3. Recall attribution** (`services/team_context_cache.py`). Every recalled fact
+in the agent's memory bundle now says who or what introduced it, resolved through
+a LEFT JOIN from `metadata.author_sub` to `users.display_name`. "from
+`<connector>`" is used where there is no human author (Drive, Granola, GitHub) so
+the model does not invent a person behind an integration.
+
+**4. The brain tag** (migration `0034_team_message_private_lane`). A message can be
+kept out of the team chat while still landing in the team's brain — the locked
+decision is that the note stays team-retrievable, and the copy must never call it
+private or secret. Shipped: the column and its partial index, the read predicate
+across the four `team_messages` queries, the accept/insert/publish-on-`user:`
+path, the agent's answer inheriting the question, catch-me-up, the delete/star
+404 for a non-owner, the Brain Monitor filter, and the client render. **Not
+shipped:** the composer button, the first-use sheet, the `agent-context-bundle`
+viewer, the isolation test. Full task-by-task state in
+`.planning/features/private-brain-lane-PLAN.md`.
+
 ## Session Continuity
 
-Last session: 2026-05-17
-Stopped at: Phase 10 LIVE end-to-end (web sign-in fix 8c3df36 validated via Playwright). Phase 8 + Phase 9 reconfirmed LIVE via verify scripts on VM. Phase 12 (GitHub App migration) roadmapped (e5ef93b). Next action: `/gsd:execute-phase 11` (Brain Monitor — 11 plans, wave 1→2→3a→3b→3c→4→5→6).
+Last session: 2026-08-06
+Stopped at: the four-agent full-project audit, committed as
+`.planning/AUDIT-2026-08-06.md` (0622f18). Nothing in it is fixed except the
+`mcp-github` dependency pin (d3b249e). The brain-tag backend and client render are
+committed and **not deployed**.
+Next action: read `.planning/AUDIT-2026-08-06.md`, then take the owner's decision on
+its "Open owner decisions" list — security-only, all of Tier 1, or docs alignment.
 Resume file: None
 
 ### Quick Tasks Completed

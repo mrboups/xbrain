@@ -1,5 +1,15 @@
 # GitOps Setup — Runbook GCP one-shot
 
+> **DÉJÀ EXÉCUTÉ — ne pas rejouer sur l'environnement existant (2026-08-13).** Ce
+> runbook Phase 5 a servi une fois, en 2026-05-06 ; le projet GCP, les APIs, le
+> service account et Firebase Hosting sont provisionnés depuis. Il est conservé
+> comme référence pour un **nouvel** environnement. Deux corrections : le domaine du
+> dashboard est `projects.grooveos.app` depuis la migration du 2026-05-07 (remplacé
+> ci-dessous), et le déploiement quotidien n'est PAS ce runbook — c'est
+> `docker compose … up -d --build` sur l'hôte, ou `make deploy` pour la VM distante
+> (voir `docs/INSTALL.md`). Contenu en français, antérieur à la règle « docs produit
+> en anglais ».
+
 Ce runbook est à exécuter **une seule fois** pour configurer le projet GCP `xbrain-495115` pour les déploiements GitOps (Cloud Run + Firebase Hosting). Il suppose que :
 - `gcloud` CLI est installé et authentifié avec le compte `team@example.com`
 - `firebase-tools` est installé (`npm install -g firebase-tools`)
@@ -171,7 +181,7 @@ firebase init hosting --project xbrain-495115
 
 Cela crée `firebase.json` et `.firebaserc` à la racine du repo. Committer ces fichiers.
 
-**Pour le dashboard `projects.dejavu.cat` :** Configurer un custom domain dans la console Firebase Hosting. Firebase fournira un enregistrement TXT de vérification et un CNAME à ajouter dans Cloudflare DNS.
+**Pour le dashboard `projects.grooveos.app` :** Configurer un custom domain dans la console Firebase Hosting. Firebase fournira un enregistrement TXT de vérification et un CNAME à ajouter dans Cloudflare DNS.
 
 ## Étape 6 — Secrets GitHub à configurer
 

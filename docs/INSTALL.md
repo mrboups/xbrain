@@ -260,18 +260,29 @@ Before exposing the deployment on a real domain:
 
 ## 10. Opt-in profiles
 
-The 10-service core is everything a self-hoster needs. Three profiles add more, at a
-RAM cost — set them in `.env` via `COMPOSE_PROFILES`:
+The 10-service core is everything a self-hoster needs. **Four** profiles add more, at
+a RAM cost — set them in `.env` via `COMPOSE_PROFILES`:
 
-- `COMPOSE_PROFILES=integrations` — Neo4j + Graphiti + Langfuse + Drive/Granola
-  sync + `agent-runtime` and the integration MCP sidecars (~+4 GB RAM).
+- `COMPOSE_PROFILES=integrations` — Neo4j + Graphiti + Langfuse (with its ClickHouse
+  and Redis) + SearXNG + Drive/Granola sync + `agent-runtime` and the
+  `drive-read` / `calendar` / `deck` / `github` MCP sidecars (~+4 GB RAM).
 - `COMPOSE_PROFILES=saas` — the bundled LibreChat / Open WebUI / session-bridge
-  frontends. **Also set `EDITION=saas`** (session-bridge needs the saas-only
-  routes; `EDITION=oss` would 404 them).
+  frontends and their Mongo + MeiliSearch. **Also set `EDITION=saas`** (session-bridge
+  needs the saas-only routes; `EDITION=oss` would 404 them).
 - `COMPOSE_PROFILES=board` — the collaborative Excalidraw board (`xbrain-board` +
   `xbrain-hocuspocus`). Adds roughly 320 MB of RAM on top of the core (64 MB for the
   static SPA + 256 MB for the Yjs WebSocket server) and one new vhost,
   `board.<your-domain>`. Point that subdomain at the same host as the API.
+- `COMPOSE_PROFILES=ops` — the `xbrain-backup` container, and nothing else (~256 MB).
+  A cron at **02:00 UTC** dumps PostgreSQL, snapshots every Qdrant collection, tars
+  the LibreChat/Open WebUI volumes, dumps LibreChat's Mongo **if the `saas` profile
+  is on** (it skips cleanly when it is not), uploads the lot to
+  `gs://$GCS_BACKUP_BUCKET/<date>/` and deletes anything older than
+  `BACKUP_RETENTION_DAILY` (default 7) days. **It is Google Cloud Storage only** —
+  it shells out to `gsutil` and authenticates through a VM-attached service account,
+  so on any other host you need your own backup path. **Turn it on for any install
+  you would be upset to lose:** the core boots perfectly well without it and backs up
+  nothing at all.
 
 Combine them comma-separated, e.g. `COMPOSE_PROFILES=integrations,ops`.
 

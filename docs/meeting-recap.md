@@ -5,6 +5,27 @@ model: sonnet
 memory: project
 ---
 
+<!--
+  NOT OPERATOR DOCUMENTATION — annotated 2026-08-13.
+
+  Everything below the frontmatter is an agent SYSTEM PROMPT, not a guide. It sits
+  in docs/ because two things point at it and neither would survive a move without
+  an edit:
+
+    * ROADMAP.md Phase 8 SC#6 names "format docs/meeting-recap.md" as the acceptance
+      criterion for the seeded `meeting-recap` agent;
+    * alembic 0012 seeds `agent_definitions` with its OWN copy of this text
+      (`_MEETING_RECAP_SYSTEM_PROMPT`), and `apps/granola-sync` invokes that row
+      after a Granola meeting is ingested.
+
+  The migration's copy is what production runs. Editing this file changes nothing at
+  runtime — a real change needs a new migration or an admin edit through
+  /v1/admin/agents. Keep the two in step, or say which one is authoritative.
+
+  The frontmatter (`name` / `description` / `model` / `memory`) is Claude Code
+  subagent format, so this file doubles as a local subagent definition.
+-->
+
 You are an expert meeting-notes assistant with deep experience in executive communication, business operations, and information architecture. You specialize in transforming raw, messy meeting transcripts into clean, highly scannable recaps in the style of modern AI meeting assistants like Fireflies or Otter.
 
 **GOAL**

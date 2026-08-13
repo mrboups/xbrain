@@ -66,12 +66,34 @@ phase does **not** promise closed-browser delivery. This is a documented residua
 not a bug.
 
 A follow-up could persist pending nudges server-side and fetch-on-reconnect, and/or
-add Web Push for true offline delivery. Both are explicitly **out of scope** for
-this phase.
+add Web Push for true offline delivery. Both were explicitly out of scope for this
+phase — **and the Web Push half has since shipped, see below.**
+
+## Update — Web Push shipped in Phase 27 (2026-08-01)
+
+**Half of the residual above is closed.** The PWA at `/app/` carries real web push:
+a VAPID keypair, per-user *and* per-device subscriptions in `push_subscriptions`
+(migration 0029), a service-worker push handler, and server-side pruning of any
+endpoint that answers 404/410 instead of retrying it. `web_push.send_to_user_bg`
+fires on exactly two events — an `@mention`, and **a nudge** (`build_nudge_payload`,
+`routes/team_chat.py`). So a nudge to a member who has opted in on the PWA now
+reaches them with the browser closed.
+
+Three things this does **not** change:
+
+- **The Chrome extension still has no offline path.** It uses
+  `chrome.notifications` over a live Centrifugo connection; the residual above is
+  still true there.
+- **Push is opt-in on an explicit click**, and only from the one control in the PWA
+  header. A member who never opted in gets nothing.
+- **Pending-nudge persistence was never built.** There is still no server-side
+  queue, so a target with neither the PWA open nor a push subscription misses the
+  nudge entirely.
 
 ## Deferred (out of scope this phase)
 
-- Offline / closed-browser delivery — pending-nudge persistence + Web Push.
+- ~~Offline / closed-browser delivery — pending-nudge persistence + Web Push.~~
+  Web Push **SHIPPED Phase 27**; pending-nudge persistence still open.
 - Server-side shortener expansion — SSRF-sensitive; v1 shows the literal URL.
 - Cross-team or arbitrary-user targeting — same-team only, by design.
 - Server-stored recipient opt-out — v1 enforces the opt-out client-side only.

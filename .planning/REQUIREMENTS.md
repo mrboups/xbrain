@@ -63,6 +63,23 @@ Delivered on top of shipped v2.0, one phase at a time.
 - [ ] **PWA-01** (Phase 27): The team chat is available as an installable PWA on the existing Firebase-hosted site — Google sign-in reusing the /join/ flow, team history, sending, and Centrifugo realtime — with the WS URL taken from the API rather than hardcoded, and zero new infrastructure.
 - [ ] **PUSH-01** (Phase 27): Web push notifications on that PWA — VAPID keypair, per-user AND per-device subscriptions stored server-side, a service-worker push handler, sends on @mention and on a Phase-22 nudge only, permission requested solely on an explicit click, and dead endpoints (404/410) pruned instead of retried.
 
+### Shipped without a requirement — 2026-08-05 / 2026-08-06
+
+Recorded here because they exist in production code and had no REQ-ID, no phase
+and no roadmap entry until 2026-08-13. Not retro-fitted with IDs: they are logged
+so the next reader does not conclude the code is unaccounted for.
+
+- **The four-level truth model.** `truth_workflow.ALLOWED_TRANSITIONS` emptied by
+  design except `CANONICAL → PUBLIC`; the AI sets and clears `VALIDATED`
+  (`services/importance.py`), a person's star sets `CANONICAL`. This is what
+  supersedes TRUTH-01 and TRUTH-06 above.
+- **Starring** — `PUT /v1/teams/{team_id}/messages/{message_id}/star`, any
+  non-blocked member, service principals refused, audited. **No client UI.**
+- **Recall attribution** — the agent's memory bundle names who or what introduced
+  each fact (`services/team_context_cache.py`).
+- **The brain tag** — migration `0034_team_message_private_lane`; backend shipped,
+  composer control not. State in `.planning/features/private-brain-lane-PLAN.md`.
+
 
 ## v2.0 Traceability
 
@@ -137,7 +154,8 @@ Périmètre du milestone d'initialisation (Phases 1 + 2 + 3 de la roadmap). Tout
 - [x] **MEM-07**: Memory items support fact versioning — updating a fact creates a new version with diff retained, never a silent overwrite
 - [x] **MEM-08**: Conflict detection surfaces when a `WORKING` fact contradicts an existing `VALIDATED` or `CANONICAL` fact in the same scope
 - [x] **MEM-09**: Automatic structured extraction can convert raw text (conversations, documents) into structured facts/tasks/entities with provenance back to the source
-- [x] **MEM-10**: Temporal queries are supported — "what did the team believe about X as of date Y?" returns the truth state at that point
+- [ ] **MEM-10**: Temporal queries are supported — "what did the team believe about X as of date Y?" returns the truth state at that point
+  > **Re-opened 2026-08-13 — never built.** There is no `as_of` / point-in-time parameter anywhere in `apps/memory-api`. What exists is `GET /v1/memory/{item_id}/history` (`MemoryProvider.history`), which returns the versions of **one already-known item** — that is MEM-07, and it does not answer "what did the team believe about X on date Y" across the brain. Marked Done in the 2026-05-27 traceability backfill on the strength of the versioning work.
 
 ### Frontends & Chat
 
@@ -160,12 +178,14 @@ Périmètre du milestone d'initialisation (Phases 1 + 2 + 3 de la roadmap). Tout
 
 ### Truth-Level Workflow
 
-- [x] **TRUTH-01**: A truth-level state machine enforces the progression `EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC` with no skipping; demotions are also tracked
+- [~] **TRUTH-01**: A truth-level state machine enforces the progression `EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC` with no skipping; demotions are also tracked
+  > **SUPERSEDED 2026-08-05 by the four-level model** (owner's design; see BACKLOG "Simplify truth levels to four"). `services/truth_workflow.py::ALLOWED_TRANSITIONS` is now empty for every level except `CANONICAL → PUBLIC` — deliberately, so a caller aiming at a level this design assigns elsewhere gets a 422 naming the owner. The levels now have producers instead of a ladder: ingest writes `WORKING`, the AI sets and clears `VALIDATED`, a person's star sets `CANONICAL`. It was built as written; the design moved.
 - [x] **TRUTH-02**: Member can request promotion of a fact; admin or designated reviewer approves to advance the level
 - [x] **TRUTH-03**: Every promotion event is recorded in an append-only audit log: who proposed, who approved, when, with what evidence
 - [x] **TRUTH-04**: Visual indicator on memory items shows current `truth_level` in any frontend that surfaces them
 - [x] **TRUTH-05**: Conflict-aware promotion: attempting to promote a fact that contradicts a higher-level fact in scope surfaces a warning and requires explicit override
-- [x] **TRUTH-06**: Items at `PUBLIC` level are readable across all teams in the org; items at `CANONICAL` and below are not
+- [~] **TRUTH-06**: Items at `PUBLIC` level are readable across all teams in the org; items at `CANONICAL` and below are not
+  > **SUPERSEDED 2026-08-05 — the second half holds, the first has nothing to act on.** Retrieval is strictly team-scoped, so `CANONICAL` and below never cross a team. But **nothing produces a `PUBLIC` item**: `services/importance.py` puts it out of reach in both directions and the only transition left in `truth_workflow.py` is the manual `CANONICAL → PUBLIC` approval. There is no cross-team read path for it either. `PUBLIC` is reserved for the admin-gated sharing flow in BACKLOG ("Sharing beyond the team"), which is not built.
 - [x] **TRUTH-07**: Demotion (e.g., `CANONICAL → VALIDATED`) is supported with a recorded reason
 - [x] **TRUTH-08**: Bulk imports land at `EPHEMERAL` or `WORKING` only; no shortcut to `VALIDATED+` via import
 - [x] **TRUTH-09**: Agents can propose promotions but cannot autonomously promote to `CANONICAL` or `PUBLIC` — those require human approval
@@ -201,7 +221,8 @@ Périmètre du milestone d'initialisation (Phases 1 + 2 + 3 de la roadmap). Tout
 
 - [x] **OBS-01**: Every LLM call is traced with model, latency, token count, cost, and prompt version (Langfuse)
 - [x] **OBS-02**: Every agent workflow execution produces an end-to-end trace (request → plan → tool calls → memory writes → response)
-- [x] **OBS-03**: Operators receive alerts on agent crashes, tool timeouts, and RAG retrieval failures
+- [ ] **OBS-03**: Operators receive alerts on agent crashes, tool timeouts, and RAG retrieval failures
+  > **Re-opened 2026-08-13 — never built.** No alerting exists anywhere: no alert rule in the compose stack, no webhook, no pager integration. `app/services/notifications.py` sends exactly two emails (task assignment, member auto-joined) — neither is an operator alert. Langfuse gives traces an operator can *look at*; nothing reaches out when something breaks. Failures today are fail-soft and logged, which is the opposite of this requirement.
 - [x] **OBS-04**: Every memory item is traceable to its origin: `memory-api` endpoint → conversation/tool call → identity → trace_id
 - [x] **OBS-05**: Admin sees a per-team cost dashboard (token spend, model breakdown, agent-vs-human contribution)
 
@@ -212,7 +233,8 @@ Périmètre du milestone d'initialisation (Phases 1 + 2 + 3 de la roadmap). Tout
 - [x] **ADMIN-03**: Each service exposes a healthcheck endpoint and Docker Compose is configured to wait for healthy upstreams
 - [x] **ADMIN-04**: Schema migrations are versioned (Alembic or equivalent) — no in-place destructive schema changes
 - [x] **ADMIN-05**: A documented backup procedure covers PostgreSQL, Qdrant, Neo4j, and object storage; a restore drill is performed and passes
-- [x] **ADMIN-06**: Admin can configure per-team rate limits / quotas (token budget, write rate) without restarting services
+- [ ] **ADMIN-06**: Admin can configure per-team rate limits / quotas (token budget, write rate) without restarting services
+  > **Re-opened 2026-08-13 — not built as specified.** Per-team token *caps* exist (`RELEVANCE_DAILY_TOKEN_CAP_PER_TEAM`, `VISION_DAILY_TOKEN_CAP_PER_TEAM`) and rate limits exist on auth, join-by-code, catch-me-up, nudge and push — but every one of them is a **deployment-wide env var**, the same number for every team, and changing it needs a restart. There is no admin endpoint and no per-team row. The requirement's whole point is the part that is missing: per-team, and without a restart.
 
 ## v2 Requirements
 
@@ -320,7 +342,7 @@ Mapping requirement → phase. Rempli par le roadmapper — 2026-05-02.
 | MEM-07 | Phase 2 | Done (Phase 2) |
 | MEM-08 | Phase 2 | Done (Phase 2) |
 | MEM-09 | Phase 2 | Done (Phase 2) |
-| MEM-10 | Phase 2 | Done (Phase 2) |
+| MEM-10 | Phase 2 | **OPEN** — never built (re-opened 2026-08-13) |
 | CHAT-01 | Phase 1 | Done (Phase 1) |
 | CHAT-02 | Phase 1 | Done (Phase 1) |
 | CHAT-03 | Phase 1 (closed Phase 13) | Done (Phase 13) |
@@ -334,12 +356,12 @@ Mapping requirement → phase. Rempli par le roadmapper — 2026-05-02.
 | SRCH-03 | Phase 2 | Done (Phase 2) |
 | SRCH-04 | Phase 2 | Done (Phase 2) |
 | SRCH-05 | Phase 3 | Done (Phase 3) |
-| TRUTH-01 | Phase 2 | Done (Phase 2) |
+| TRUTH-01 | Phase 2 | Superseded by the 4-level model (2026-08-05) |
 | TRUTH-02 | Phase 2 | Done (Phase 2) |
 | TRUTH-03 | Phase 2 | Done (Phase 2) |
 | TRUTH-04 | Phase 2 | Done (Phase 2) |
 | TRUTH-05 | Phase 2 | Done (Phase 2) |
-| TRUTH-06 | Phase 2 | Done (Phase 2) |
+| TRUTH-06 | Phase 2 | Superseded — `PUBLIC` has no producer (2026-08-05) |
 | TRUTH-07 | Phase 2 | Done (Phase 2) |
 | TRUTH-08 | Phase 2 | Done (Phase 2) |
 | TRUTH-09 | Phase 2 | Done (Phase 2) |
@@ -363,7 +385,7 @@ Mapping requirement → phase. Rempli par le roadmapper — 2026-05-02.
 | INT-04 | Phase 3 | Done (Phase 3) |
 | OBS-01 | Phase 1 | Done (Phase 1) |
 | OBS-02 | Phase 2 | Done (Phase 2) |
-| OBS-03 | Phase 2 | Done (Phase 2) |
+| OBS-03 | Phase 2 | **OPEN** — no alerting exists (re-opened 2026-08-13) |
 | OBS-04 | Phase 1 | Done (Phase 1) |
 | OBS-05 | Phase 2 | Done (Phase 2) |
 | ADMIN-01 | Phase 1 | Done (Phase 1) |
@@ -371,7 +393,7 @@ Mapping requirement → phase. Rempli par le roadmapper — 2026-05-02.
 | ADMIN-03 | Phase 1 | Done (Phase 1) |
 | ADMIN-04 | Phase 1 | Done (Phase 1) |
 | ADMIN-05 | Phase 1 | Done (Phase 1) |
-| ADMIN-06 | Phase 1 | Done (Phase 1) |
+| ADMIN-06 | Phase 1 | **OPEN** — env-wide only, not per-team (re-opened 2026-08-13) |
 
 **Coverage:**
 - v1 requirements: 73 total (note: REQUIREMENTS.md header stated 65 but 73 REQ-IDs are defined across 11 categories — all 73 mapped)
@@ -450,4 +472,5 @@ Several capabilities shipped between phases via the GSD Quick Task surface (atom
 
 ---
 *Requirements defined: 2026-05-02 (v1 73 REQ-IDs frozen)*
-*Last updated: 2026-05-27 — Full traceability backfill: all 73 v1 REQ-IDs flipped to [x] Done, traceability table Status updated to "Done (Phase N)" for each. Phases 1–13 all LIVE/Complete per ROADMAP.md. No deferred or dropped requirements found.*
+*Last updated: 2026-08-13 — Five v1 requirements corrected against the code. The 2026-05-27 backfill flipped all 73 to [x] Done in one pass; five of them were not true. `TRUTH-01` and `TRUTH-06` → `[~]` (superseded by the four-level model, 2026-08-05). `ADMIN-06`, `OBS-03` and `MEM-10` → `[ ]` (genuine gaps: no per-team quota surface, no alerting, no as-of query). Each carries a one-line note naming what was checked. Also added the "Shipped without a requirement" section.*
+*Previous update: 2026-05-27 — Full traceability backfill: all 73 v1 REQ-IDs flipped to [x] Done, traceability table Status updated to "Done (Phase N)" for each. Phases 1–13 all LIVE/Complete per ROADMAP.md. No deferred or dropped requirements found.*

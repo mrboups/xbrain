@@ -1,5 +1,28 @@
 # Google OAuth Scope Upgrade — Runbook
 
+> **SECTION 7 NE FONCTIONNE PLUS — vérifié 2026-08-13.** Les sections 1 à 6
+> (pourquoi les scopes, ce qu'il faut cocher dans la console Google, les variables
+> `.env`, le flow d'incremental auth) restent justes et restent le document à lire.
+> **Les commandes de vérification de la section 7, elles, échouent** — elles ont été
+> écrites contre une forme du code qui n'a jamais existé sous ce nom :
+>
+> - `7.1` importe `app.drive_client.test_drive_connection` dans `xbrain-drive-sync`.
+>   Il n'y a pas de module `drive_client` (les fichiers sont `drive_poller.py`,
+>   `ingestion_client.py`, `webhook_server.py`) et pas de fonction
+>   `test_drive_connection` dans le repo. → `ModuleNotFoundError`.
+> - `7.2` importe `app.auth.make_bridge_jwt` dans `xbrain-memory-api`. Cette fonction
+>   n'existe nulle part. → `ImportError`, donc `$TEST_JWT` vide et le `curl` qui suit
+>   part sans token.
+> - Le flow write-back de la section 6 parle d'un sidecar **`mcp-drive-write`**. Il
+>   n'existe pas : lecture et écriture Drive sont toutes deux dans `mcp-drive-read`.
+>
+> Les commandes `docker logs` de 7.3 et la vérification console de 7.4 fonctionnent.
+> Vérifier plutôt via `docker compose ps` (drive-sync healthy) et les logs.
+>
+> Rappel : `drive-sync` et `mcp-calendar` sont dans le profil **`integrations`**,
+> donc absents d'une install OSS-light. Contenu en français, antérieur à la règle
+> « docs produit en anglais ».
+
 **Version:** Phase 3  
 **Audience:** Admin (human) — action requise avant le déploiement de `drive-sync` et `mcp-calendar`  
 **Estimated time:** 10 minutes  
@@ -105,7 +128,8 @@ Tant que l'on est dans la console, vérifier que les URIs de callback sont bien 
    http://__VM_HOST__/oauth/google/callback
    http://__VM_HOST__/openwebui/oauth/google/callback
    ```
-   Si les URIs avec domaine HTTPS ont été ajoutées (ex. `https://dejavu.cat/...`), les conserver.
+   Si des URIs avec domaine HTTPS ont été ajoutées (ex. `https://<XBRAIN_BASE_DOMAIN>/...`), les conserver.
+   *(L'exemple citait `dejavu.cat`, domaine abandonné à la migration du 2026-05-07.)*
 
 4. Cliquer **"SAVE"**.
 

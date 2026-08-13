@@ -1,5 +1,12 @@
 # Cloudflare DNS runbook — `bridge.example.com` (Phase 9)
 
+> **Still valid, two corrections — 2026-08-13.** The nginx vhost is now a
+> **template**, `infrastructure/nginx/templates/50-bridge.conf.template`, rendered
+> at container start (corrected in place below; it used to say `conf.d/`). And
+> `session-bridge` is in the **`saas` compose profile**, so it only runs with
+> `COMPOSE_PROFILES` including `saas` **and** `EDITION=saas`. Read
+> `bridge.example.com` as `bridge.<your XBRAIN_BASE_DOMAIN>`.
+
 This runbook covers the manual Cloudflare setup required for the Phase 9
 session-bridge (`apps/session-bridge`). Claude Code cannot drive the Cloudflare
 dashboard without an API token, so this step is done by a human operator once
@@ -18,7 +25,7 @@ per environment.
   migration — see `memory/project_xbrain_domain_migration.md`).
 - VM origin IP is `__VM_HOST__` (`gcloud compute instances list` to reconfirm
   if the VM was ever recreated).
-- nginx vhost `infrastructure/nginx/conf.d/50-bridge.conf` is deployed on the VM
+- nginx vhost `infrastructure/nginx/templates/50-bridge.conf.template` is deployed on the VM
   (this happens automatically with the normal `docker compose up -d nginx` /
   reload procedure used for the other vhosts).
 
@@ -79,6 +86,6 @@ WebSockets toggle confirmed ON:      YYYY-MM-DD by <operator name>
 
 - Re-do step 1 with the new VM IP if the VM was rebuilt.
 - Re-do step 2 only if the zone was re-created from scratch (rare).
-- The vhost config `infrastructure/nginx/conf.d/50-bridge.conf` does not need
+- The vhost config `infrastructure/nginx/templates/50-bridge.conf.template` does not need
   changes when the IP moves — it talks to `session-bridge` via the internal
   Docker network.

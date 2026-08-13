@@ -16,7 +16,7 @@ Ce n'est pas un workspace de chatbot. Le différenciateur est la couche mémoire
 
 Capacités livrées et opérationnelles en production (https://example.com + 30 containers sur VM GCP `e2-standard-2`) :
 
-- **5-truth-level promotion workflow** (Phase 2) — état machine `EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC` enforced par memory-api ; promotion review + approval + audit log immuable
+- **~~5-truth-level promotion workflow~~ → modèle à 4 niveaux** (Phase 2, refondu 2026-08-05) — l'échelle `EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC` existe toujours en base, mais l'escalier humain a été remplacé : le classifieur jette ce qui n'est pas intéressant, l'ingest écrit `WORKING`, **l'IA** pose et retire `VALIDATED` (« important / final »), et **le star d'une personne** pose `CANONICAL`. `PUBLIC` est réservé au flow de partage, non construit. Chaque changement est audité.
 - **Multi-frontend confirmé** (Phases 1, 4, 5, 7, 8, 9, 10) — LibreChat (`chat.example.com`), Open WebUI (`adm.example.com`), Chrome extension MV3 (side panel + clip + chat), app-site Firebase (`example.com/account/teams/`), agents LangGraph (`agent-runtime`), MCP gateway clients — tous lisent/écrivent via `memory-api`
 - **Memory layer hybride** (Phases 1-3) — `mem0` (Apache 2.0) sous interface `MemoryProvider` + `memory-api` natif FastAPI qui enforce le contrat de tagging à 7 champs et la state machine truth-level
 - **Graphe + extraction temporelle** (Phases 3, 5) — Neo4j Community (relations, lineage) + extraction Claude NER (`/v1/graph/*`) + Graphiti pour extraction temporelle continue
@@ -27,19 +27,43 @@ Capacités livrées et opérationnelles en production (https://example.com + 30 
 - **Superadmin dashboard cross-team** (Phase 11) — UI `/account/admin/` 4 sections (Brain Overview / Storage / Activity / Top Sources) avec drill-down par team, audit log sur chaque accès cross-team (`action='superadmin_brain_access'`), gated par `ADMIN_USER_SUBS` env
 - **GitHub App authentication** (Phase 12) — migration OAuth App → GitHub App "xbrain" (Client ID `Iv23liVnZvIN0Lo6isof`) avec multi-callback URLs natif (web + Chrome extension), JWT RS256 signing, installation tokens cachés (1h TTL), refresh token flow user-to-server (8h ghu_ + 6mo ghr_), table `installations` populée par webhook `installation` events, `GITHUB_API_PAT` retiré du runtime — ready for public deployment
 
-## Current Milestone: v2.0 — Open-Core Edition
+## Milestone v2.0 — Open-Core Edition — SHIPPED 2026-07-19
 
-**Goal:** Rendre xbrain maintenable en 2+ éditions depuis UN seul codebase (OSS self-host / SaaS hébergé / self-host payant "pro"), pour qu'un update se propage à toutes les éditions automatiquement — jamais de fork.
+**Goal (atteint) :** rendre xbrain maintenable en 2 éditions depuis UN seul codebase
+(OSS self-host / SaaS hébergé), pour qu'un update se propage aux deux automatiquement
+— jamais de fork. 7 phases (14 → 15 → 18 → 19 → 16 → 20 → 17), 35/35 plans.
 
-**Target features:**
-- **OSS light self-host** — une team installe chat + brain complet (analyse de doc, ingest, retrieval, truth-levels, connecteur ChatGPT-web via `mcp-brain`, clip) sur ~10 containers.
-- **Édition par config, pas par branche** — Docker Compose `profiles:` (untagged = cœur OSS, `integrations`/`pro`/`saas`/`ops`) + flag `EDITION` (oss|saas|pro) qui gate le montage des routers dans memory-api, le cœur brain/chat/retrieval/truth-level TOUJOURS actif.
-- **Tier self-host payant "pro"** — clé de licence Ed25519 vérifiée offline débloque le profil `pro` (graphe Neo4j/Graphiti, observabilité Langfuse).
-- **Fondation de portabilité** — dé-câbler ~28 `example.com` / 15 `your-team` / 15 `default` team_scope vers la config ; `.env.example` OSS mince et remplissable.
-- **UI web chat autonome** — extraire le chat du popup de l'extension Chrome vers une web app hébergée (mutualisée avec la future PWA).
+> **Le tier payant "pro" a été SUPPRIMÉ** par la décision verrouillée Q6 (2026-07-11),
+> avec sa clé de licence Ed25519 (requirement `EDIT-03`). Le modèle est
+> **OSS-everything + monetize-hosted** : aucune feature produit n'est derrière un
+> paywall ; seul le control plane hébergé reste fermé. Le code le confirme —
+> `app/config.py` n'accepte que `EDITION ∈ {oss, saas}` et échoue au boot sur
+> autre chose, et il n'existe pas de profil `pro` dans le compose.
+
+**Livré :**
+- **OSS light self-host** — chat + brain complet (analyse de doc, ingest, retrieval keyless, truth-levels, connecteur ChatGPT-web via `mcp-brain`, clip) sur **exactement 10 containers** sans profil et sans aucune clé externe.
+- **Édition par config, pas par branche** — Docker Compose `profiles:` (untagged = cœur OSS, puis `integrations` / `saas` / `board` / `ops`) + flag `EDITION` (oss|saas) qui gate le montage des routers SaaS-only, le cœur brain/chat/retrieval/truth-level TOUJOURS actif.
+- **Auth locale + embeddings locaux** — email/mot de passe natif dans memory-api (Phase 18) et embeddings in-container keyless (Phase 19), pour qu'une install zéro-clé soit réellement utilisable.
+- **Fondation de portabilité** — domaines, team_scope et clés passés en config ; `.env.example` OSS mince + `make oss-init`.
 - **CI lockstep** — une pipeline par commit build 1×, teste le sous-ensemble OSS ET le profil full, publie la release OSS ET déploie le SaaS.
 
+**Rescopé :** l'« UI web chat autonome » extraite du popup a été abandonnée (Phase 20,
+Option B) au profit du polish de l'extension existante ; la web app est arrivée
+séparément en Phase 27 sous forme de PWA.
+
 **Design source :** `.planning/features/open-core-edition-design.md`.
+
+## Depuis v2.0 — les phases backlog 21-27
+
+Livrées une par une par-dessus v2.0 : alias de mention configurables (21),
+push-a-link (22), catch-me-up (23), extraction du corps des documents (24),
+join-by-code (25), board collaboratif Excalidraw + Yjs (26a), PWA + web push (27).
+33/34 plans ; seul le contrôle humain sur téléphone de 27-09 reste ouvert.
+
+Ont ensuite été livrés **hors du dispositif de phases**, sans REQ-ID ni entrée
+roadmap jusqu'au 2026-08-13 : le modèle de truth-levels à quatre niveaux, le star
+sur un message, l'attribution en recall, et le brain tag (migration 0034, backend
+seulement). Voir `.planning/STATE.md`, section « Shipped outside the phase surface ».
 
 **Revisite délibérément des frontières v1 "Out of Scope" :** "SaaS multi-tenant pour clients externes" et "pas de frontend custom à maintenir" — v2.0 introduit volontairement le split open-core et une UI web chat autonome. Les morceaux SaaS-only (multi-tenant, pont Pro/Max) restent derrière le profil/flag `saas`.
 
@@ -51,7 +75,15 @@ Capacités livrées et opérationnelles en production (https://example.com + 30 
 
 <!-- Shipped and confirmed valuable. -->
 
-(None yet — ship to validate)
+> **Cette section n'a jamais été tenue à jour et la liste « Active » ci-dessous non
+> plus** — les cases sont restées vides pendant 27 phases. **`REQUIREMENTS.md` est
+> la source autoritative** de ce qui est livré, avec un REQ-ID par capacité et une
+> table de traçabilité. Ne pas lire les `[ ]` ci-dessous comme « pas fait » :
+> l'essentiel tourne en production (Postgres, Qdrant, Neo4j, MinIO, Langfuse,
+> LangGraph, la gateway MCP et ses sidecars, la sync Drive sont tous dans
+> `infrastructure/docker-compose.yml`). Ce qui reste réellement ouvert est marqué
+> `[ ]` **dans `REQUIREMENTS.md`** : `ADMIN-06`, `OBS-03`, `MEM-10`, `PWA-01`,
+> `PUSH-01`.
 
 ### Active
 
@@ -88,7 +120,7 @@ Capacités livrées et opérationnelles en production (https://example.com + 30 
 
 ## Context
 
-- **Pré-implémentation totale.** Aucun code à date — uniquement la chaîne GSD installée sous `.claude/`. Le repo démarre à zéro.
+- **~~Pré-implémentation totale~~ — obsolète depuis 2026-05-03.** Le contexte ci-dessous est celui du kickoff du 2026-05-02 et se lit comme tel. Réalité au 2026-08-13 : 27 phases livrées, 19 services sous `apps/`, 34 services dans le compose, alembic head `0034`, en production sur la VM.
 - **Multi-team réel.** L'organisation gère plusieurs équipes travaillant sur des projets distincts. La donnée doit être cloisonnée par défaut, partagée explicitement par promotion de truth-level.
 - **Tooling utilisateur hétérogène.** Certains membres travaillent dans Claude Code (session navigateur), d'autres dans ChatGPT (utilisable via API), Grok est appelé pour les seconds avis / contradictions. La plateforme doit absorber cette hétérogénéité, pas la contraindre.
 - **Beaucoup d'outils internes existants ou prévus** : scrapers de données, calendriers, éditeurs de pitch deck collaboratifs, pipelines d'ingestion. Le brief liste ces exemples comme **non exhaustifs** — la roadmap doit prévoir l'ajout continu de nouveaux outils sans changer l'infra.
@@ -100,11 +132,8 @@ Capacités livrées et opérationnelles en production (https://example.com + 30 
 ## Constraints
 
 - **Tech stack** (révisée après research + extensions Phases 5-12) : LibreChat + Open WebUI + **mem0** + LangGraph + Qdrant + Neo4j + PostgreSQL + MinIO (image Chainguard) + Langfuse + Graphiti + Centrifugo (team chat realtime) + Chrome extension MV3 + Firebase Hosting (app-site, marketing site, projects dashboard) + `PyJWT[crypto]>=2.10` (GitHub App JWT signing, Phase 12) — **Pourquoi :** stack 100 % OSS auto-hébergeable. Memstate.ai (SaaS fermé), Remembra (13★ + SQLite, immature) et Memori (Alpha) ont été retirés au profit de mem0 + memory-api natif après vérification : voir Key Decisions ci-dessous.
-- **Déploiement** : GCP VM Ubuntu 24.04, Docker Compose — **Pourquoi :** budget contraint, ops simple, pas d'expertise Kubernetes requise. Stratégie de sizing échelonnée :
-  - **Phase 1** : `e2-medium` (4 GB, ~25€/mo) — LibreChat + Open WebUI + Postgres + Qdrant + memory-api stub. Tolérance fine — surveiller OOM, pas de service ajouté en plus sans couper autre chose.
-  - **Phase 2** : upgrade vers `e2-standard-2` (8 GB, ~38-49€/mo) en début de phase, **avant** d'ajouter mem0 + LangGraph + agent runtime.
-  - **Phase 3** : `e2-standard-4` (16 GB, ~98€/mo) **OU** Langfuse sur VM séparée (~62€/mo total) — décision en début de Phase 3 selon charge observée.
-  - GCP project cible : compte `team@example.com`, projet à créer (`xbrain-prod` proposé) sans toucher aux projets existants.
+- **Déploiement** : GCP VM Ubuntu 24.04, Docker Compose — **Pourquoi :** budget contraint, ops simple, pas d'expertise Kubernetes requise.
+  - **Résolu, ne plus planifier dessus.** La VM tourne sur **`e2-standard-2` (8 GB) depuis la Phase 2** et le projet GCP est provisionné depuis la Phase 1. `e2-standard-4` n'a jamais été nécessaire : Langfuse est passé derrière le profil `integrations` à la place, ce qui règle le même problème sans la facture.
 - **Open-source uniquement** : aucun service managé propriétaire dans le chemin critique — **Pourquoi :** auto-hébergeable, pas de lock-in, contrôle complet de la donnée (sensibilité multi-team).
 - **Multi-frontend invariant** : LibreChat + Open WebUI + ChatGPT (API) + Claude Code lisent/écrivent la même mémoire — **Pourquoi :** l'équipe utilise déjà ces outils en pratique. Imposer un frontend unique ferait échouer l'adoption.
 - **Contrat de tagging obligatoire** : 7 champs minimum sur chaque donnée — **Pourquoi :** invariant qui rend possibles l'isolation team, la promotion truth-level, l'audit, le retrieval scopé. C'est le différenciateur.
@@ -127,7 +156,9 @@ Capacités livrées et opérationnelles en production (https://example.com + 30 
 | MinIO via image Chainguard (`cgr.dev/chainguard/minio:latest`) | Images officielles Docker Hub discontinuées oct 2025. Chainguard est le standard de fait, déjà utilisé par Langfuse. | ✓ Validé 2026-05-02 |
 | `memory-api` comme couche centrale, frontends pluggables | Invariant fondateur — empêche la fragmentation par frontend | — Pending |
 | Contrat de tagging à 7 champs sur chaque donnée | Permet isolation team, promotion truth-level, audit, retrieval scopé | — Pending |
-| Truth-levels : EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC | Permet de marquer une info "super valid" / "public" comparée au reste du brain | — Pending |
+| Truth-levels : EPHEMERAL → WORKING → VALIDATED → CANONICAL → PUBLIC | Permet de marquer une info "super valid" / "public" comparée au reste du brain | ⚠️ Superseded 2026-08-05 — voir la ligne suivante |
+| Truth-levels ramenés à 4, l'IA en pose 3 et l'humain 1 | En production : 19 items à WORKING, 1 à EPHEMERAL, **zéro** à VALIDATED/CANONICAL/PUBLIC. Les niveaux que personne ne pouvait opérer étaient exactement ceux que personne n'utilisait. L'enum reste à 5 valeurs (116 fichiers, 5 CHECK constraints) — ce qui change, c'est qui les pose. | ✓ Validé 2026-08-05, en code |
+| Tier payant "pro" + licence Ed25519 **abandonnés** (décision Q6) | Aucune feature produit derrière un paywall ; on monétise l'hébergement, pas le code. `EDITION` n'accepte que `oss`/`saas` et échoue au boot sur autre chose. | ✓ Validé 2026-07-11 |
 | Hiérarchie Org → Team → Projects/Agents/Memory/Assets | Isolation par défaut, partage par promotion explicite | — Pending |
 | Outils internes en API services ou MCP servers, pas plugins frontend | Réutilisables depuis tous les frontends, agents et clients | — Pending |
 | Phasing 1 (socle infra + frontends) → 2 (mémoire + agents) → 3 (graphe + extraction + intégrations) | Permet de chatter en multi-modèle dès Phase 1, puis empile les couches mémoire | — Pending |
@@ -159,5 +190,6 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-17 — sync to 12-phase shipped reality (Phase 11 Brain Monitor + Superadmin + Phase 12 GitHub App migration LIVE). v1 73-REQ scope frozen; post-v1 capabilities documented in REQUIREMENTS.md.*
+*Last updated: 2026-08-13 — corrected the parts that had stopped being true: the dropped `pro` edition + Ed25519 licence tier, the phased VM sizing plan (resolved at Phase 2), the five-level promotion ladder (superseded by the four-level model on 2026-08-05), and the "pré-implémentation totale" line under Context. Added the post-v2.0 phases 21-27 and the work shipped outside the phase surface.*
+*Previous update: 2026-05-17 — sync to 12-phase shipped reality (Phase 11 Brain Monitor + Superadmin + Phase 12 GitHub App migration LIVE). v1 73-REQ scope frozen; post-v1 capabilities documented in REQUIREMENTS.md.*
 *Previous update: 2026-05-02 after research synthesis (memory layer revised: mem0 + memory-api natif au lieu de Memstate/Remembra/Memori, VM strategy confirmée e2-medium → e2-standard-2 → e2-standard-4, Open WebUI license + MinIO Chainguard documentés).*

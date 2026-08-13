@@ -54,9 +54,10 @@ a reply can be restricted to the team's `CANONICAL` records.
 
 ## Architecture
 
-- **Multi-frontend** — LibreChat, Open WebUI, ChatGPT (API), and Claude Code all read
-  and write the same memory through `memory-api`; storage is never bound to a single
-  frontend.
+- **Multi-frontend** — the Chrome extension, the installable PWA, LibreChat, Open
+  WebUI, ChatGPT and Claude.ai all read and write the same memory through
+  `memory-api`; storage is never bound to a single frontend. The extension and the
+  PWA are one chat: both compile from `packages/chat-core`.
 - **MCP-native** — an MCP gateway exposes the brain (memory search/add, tasks,
   contacts, calendar, drive, decks) to any MCP-capable client. The same brain is
   also reachable as an OAuth 2.1 **remote connector** (`mcp-brain`), so the official
@@ -153,29 +154,46 @@ make help       # list all targets
 ## Repo layout
 
 ```
-apps/                  # Python services
+apps/
   memory-api/          # FastAPI core — the single memory plane + tagging contract
-  agent-runtime/       # LangGraph agents (HITL, extraction, team-chat @claude)
+  agent-runtime/       # LangGraph agents (HITL, extraction)
   mcp-gateway/         # aggregates MCP tools for all frontends
-  mcp-*/               # brain / calendar / drive / deck / scraper MCP sidecars
+  mcp-*/               # brain / calendar / deck / drive-read / github / scraper sidecars
   session-bridge/      # routes chat to a user's own model session
+  librechat/           # our LibreChat fork (built here, not pulled)
   librechat-bridge/    # LibreChat ↔ memory-api
   openwebui-pipeline/  # Open WebUI ↔ memory-api
+  board-web/           # Excalidraw + Yjs board SPA (Vite/React, built in Docker)
+  hocuspocus/          # Yjs WebSocket server behind the board
   drive-sync/ granola-sync/ graphiti-service/ brain-janitor/
-packages/memory-models/  # MemoryProvider contract + native/mem0 backends
-infrastructure/          # docker-compose.yml, nginx, deploy scripts
+packages/
+  memory-models/       # MemoryProvider contract + native/mem0 backends
+  chat-core/           # shared chat client — the ONLY editable copy (see `make check-client`)
+infrastructure/          # docker-compose.yml, nginx templates, deploy + verify scripts
 chrome-extension/        # web clipper + team chat
-app-site/ marketing-site/  # GrooveOS web + docs
+app-site/                # GrooveOS web (account, teams, /join/) + app/ = the installable PWA
+marketing-site/          # public site + docs
 ```
 
 ## Status
 
-Production. Twelve phases shipped: core memory + tagging contract, intelligent memory +
-agents (HITL), graph + extraction + integrations, MCP consolidation, team platform
-(GitOps + Chrome extension), marketing site + docs, CRM/Granola/tasks, universal
-extraction pipeline, session bridge, GitHub-primary auth, brain monitor + soft-delete,
-and GitHub App migration. The team brain is also connectable to the **official
-Claude.ai app** as an OAuth 2.1 Custom Connector — see the
+Production. **Twenty-seven phases shipped**, 2026-05-03 → 2026-08-01:
+
+- **v1.0 (phases 1-13)** — core memory + tagging contract, intelligent memory + agents
+  (HITL), graph + extraction + integrations, MCP consolidation, team platform
+  (GitOps + Chrome extension), marketing site + docs, CRM/Granola/tasks, universal
+  extraction pipeline, session bridge, GitHub-primary auth, brain monitor +
+  soft-delete, GitHub App migration, chat→brain ingestion + retrieval enrichment.
+- **v2.0 Open-Core (phases 14-20)** — portability, edition mechanics
+  (`COMPOSE_PROFILES` + `EDITION`), native email/password auth, keyless local
+  embeddings, the 10-service OSS-light package, the shadcn chat restyle, and CI
+  lockstep. Shipped 2026-07-19.
+- **Since (phases 21-27)** — configurable agent mention aliases, push-a-link,
+  catch-me-up, document body extraction, team join-by-code, the collaborative
+  Excalidraw board, and the installable PWA with web push.
+
+The team brain is also connectable to the **official Claude.ai app** as an OAuth 2.1
+Custom Connector — see the
 [Claude Connector guide](https://grooveos.app/docs/claude-connector.html).
 
 ## Links

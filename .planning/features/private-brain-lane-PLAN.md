@@ -1,6 +1,25 @@
 # The brain tag — a composer lane that stays out of the team chat
 
-**Status:** planned, not started. Backend half is the security-critical part.
+**Status (2026-08-13): the server half is BUILT AND COMMITTED, and NOT DEPLOYED.**
+The VM does not have migration 0034. Per task:
+
+| Task | State |
+|------|-------|
+| 1 — migration 0034 + ORM | **Shipped**, but not as written below — see the task's own note. |
+| 2 — the read predicate | **Shipped** (`visible_to()` in `repos/team_messages.py`, on all four reads). |
+| 3 — accept / insert / publish on `user:` | **Shipped**, including the web-push skip. |
+| 4 — the agent's answer inherits the question | **Shipped** (`_private_to` / `_channel` in `_do_handle`). |
+| 5 — catch-me-up polarity | **Shipped**; `count_unread_since` gets it through `visible_to(exclude_user_id)`. |
+| 6 — `agent-context-bundle` acting user | **OPEN.** The call passes `viewer_user_id=None` with a comment saying so. This is the one route that still dumps 20 messages unfiltered behind a shared secret. |
+| 7 — delete + star 404 for a non-owner | **Shipped**, both routes and both frames. |
+| 8 — Brain Monitor | **Shipped**, but not as written below — see the task's own note. |
+| 9 — name the unfiltered paths + pin them | **OPEN.** No comments were added and the test does not exist. |
+| 10 — the isolation test | **OPEN.** `tests/test_private_lane_isolation.py` does not exist. `tests/test_private_lane_predicate.py` does — but it is a DB-free signature/WHERE-clause test, so it proves the predicate is *present*, never that member B cannot reach member A's row through a route. This is still the task that proves the other nine. |
+| 11 — client render | **Partial.** Both surfaces delegate `message` / `message_deleted` / `message_starred` / `agent_stream_*` from `user:` to the team router, guarded on `team_id`, and `render.js` draws the "not in the chat" marker. `packages/chat-core/brain_tag.js` was NOT created — the string is inline in `render.js`. |
+| 12 — the composer tag | **OPEN.** No `#btn-brain` in either composer, so **nothing can send one today**. |
+| 13 — the wording + the KB | **Partial.** The product KB now carries the feature and the "not private, not secret" framing (2026-08-13); the first-use sheet and its seen-once flag do not exist. |
+| 14 — deploy order | **OPEN.** Nothing has been deployed. |
+
 **Source:** mapped and planned 2026-08-06 by a 4-agent Opus workflow
 (`wf_b98ecd91-f15`) against the live code, from the 2026-08-05 backlog entry
 "A private lane to the brain".
@@ -29,7 +48,9 @@ The note still lands in the team's brain, unchanged, at team_chat.py:330 → bra
 
 ## Verified against the repo before writing (2026-08-06)
 
-- alembic head is **0033**, so 0034 is the next revision.
+- alembic head is **0033**, so 0034 is the next revision. *(Since 2026-08-06 head IS
+  `0034_team_message_private_lane` — in the repo. The VM is still on the pre-0034
+  schema.)*
 - `repos/team_messages.py` holds the `select(TeamMessage)` statements the
   predicate must reach.
 - `team_messages` has **no `visibility` column at all** — the column with the
@@ -52,9 +73,37 @@ The note still lands in the team's brain, unchanged, at team_chat.py:330 → bra
 - `apps/memory-api/alembic/versions/0021_brain_events_media.py`
 - `apps/memory-api/tests/test_migration_0034.py`
 
-**Action:** New revision chaining from the current head `0033_team_agent_provider` (revision id at alembic/versions/0033_team_agent_provider.py:32-33 — nothing references it as a down_revision). ADD COLUMN `private_to_user_id UUID NULL REFERENCES users(id) ON DELETE SET NULL` to `team_messages`; nullable with no server_default, so every existing row keeps today's team-visible behaviour and no backfill runs. Mirror it on the ORM model next to `deleted_by` (models/team_message.py:93-95). Add `CREATE INDEX IF NOT EXISTS idx_team_messages_team_created_priv ON team_messages(team_id, created_at DESC) INCLUDE (private_to_user_id)` — the existing `idx_team_messages_team_created` (alembic 0015:55-58) cannot serve the new OR-predicate index-only; leave the old index in place (redundancy costs write throughput, not correctness). Then CREATE OR REPLACE the `v_brain_events` view: copy the FULL DDL from alembic 0021_brain_events_media.py:60-140 verbatim and APPEND one column — `tm.private_to_user_id` on the `team_message` branch (0021:86-99) and `NULL::UUID AS private_to_user_id` on the other six branches. A REPLACE can only append columns, never reorder or drop them, so the appended position is not a style choice. Additive and forward-only, no branch on the edition flag (asserted by tests/test_migration_editions.py). Test file follows tests/test_migration_0033.py's shape.
+> **REWRITTEN 2026-08-13 to match what actually shipped.** The action text below
+> originally described a `v_brain_events` column and an `INCLUDE` index. **Migration
+> `0034_team_message_private_lane` does NEITHER**, and the difference is not
+> cosmetic: someone reading the old text would "fix" the view to add a column
+> nothing reads, and would look for an index that is not there.
+>
+> **What shipped:** `ALTER TABLE team_messages ADD COLUMN IF NOT EXISTS
+> private_to_user_id UUID REFERENCES users(id) ON DELETE SET NULL`, plus a
+> **partial** index —
+> `ix_team_messages_private_to_user_id ON team_messages (private_to_user_id,
+> team_id, created_at DESC) WHERE private_to_user_id IS NOT NULL`. It serves "show
+> me my own hidden notes" rather than the OR-predicate; the ordinary read
+> short-circuits on NULL through the existing `(team_id, created_at)` path, so the
+> index pays nothing per ordinary message.
+>
+> **`v_brain_events` was left untouched.** Task 8 filters instead with a `NOT (…
+> entity_id IN (SELECT id FROM team_messages WHERE private_to_user_id IS NOT NULL
+> AND (:pv IS NULL OR private_to_user_id <> :pv)))` subquery, in both
+> `routes/brain.py::_build_list_query` and `repos/brain.py::fetch_event_row`. A
+> NULL viewer therefore excludes **every** private row rather than none — `x <> NULL`
+> is NULL, so the guard is written `:pv IS NULL OR …` on purpose. This also keeps
+> the owner's id off the wire without relying on `BrainEventOut` dropping it.
+>
+> Both statements are idempotent and `downgrade()` exists for symmetry only. The FK
+> is `ON DELETE SET NULL`, which has a real consequence stated in the migration's
+> own docstring: deleting a user turns their hidden notes back into ordinary
+> team-visible rows.
 
-**Done:** `alembic upgrade head` runs clean on a database at 0033; `SELECT private_to_user_id FROM v_brain_events LIMIT 1` succeeds; every pre-existing team_messages row has NULL; tests/test_migration_editions.py still passes.
+**Action (as originally planned — superseded by the note above):** New revision chaining from the current head `0033_team_agent_provider` (revision id at alembic/versions/0033_team_agent_provider.py:32-33 — nothing references it as a down_revision). ADD COLUMN `private_to_user_id UUID NULL REFERENCES users(id) ON DELETE SET NULL` to `team_messages`; nullable with no server_default, so every existing row keeps today's team-visible behaviour and no backfill runs. Mirror it on the ORM model next to `deleted_by` (models/team_message.py:93-95). Additive and forward-only, no branch on the edition flag (asserted by tests/test_migration_editions.py).
+
+**Done:** `alembic upgrade head` runs clean on a database at 0033; every pre-existing team_messages row has NULL; tests/test_migration_editions.py still passes. (`tests/test_migration_0034.py` was not written. What exists instead is `tests/test_migration_0034.py`'s smaller cousin, **`tests/test_private_lane_predicate.py`** — DB-free, and it asserts the property that actually matters: `viewer_user_id` is keyword-only with no default on all three reads, `count_unread_since` takes its viewer from the member it counts for, and the compiled predicate never matches someone else's row. The full route-level isolation test is still task 10.)
 
 ### Task 2 — The read predicate, in the one repo file that owns it
 
@@ -303,14 +352,19 @@ stay deterministic or it busts the prompt cache on every rebuild. Its own task.
 
 ## Open questions for the owner
 
-1. Where does the '+' attach button (#btn-clip) go once #btn-agent takes the far-left slot? It holds that position in both composers (popup.html:192-194, index.html:186-188) and the product KB calls it 'the control on every surface' (xbrain_product_kb.md:168-169). The backlog assigns agent-left and brain-right and says nothing about the third control.
+Questions 1-5 were answered on 2026-08-06 and are recorded above under "Owner's
+decisions" (1 and 3 by decision 3 — nothing moves, the tag sits to the right of the
+agent button; 2 by the migration that shipped, one column; 3 by decision 1, a
+superadmin CAN read them; 4 by decision 2, attachments are allowed). Question 5 was
+settled by what shipped: `render.js` draws a normal bubble with a "not in the chat"
+marker, on both surfaces. They were removed on 2026-08-13 rather than left standing
+— an answered question in an open-questions list gets re-asked.
 
-2. Confirm the single-column design before the migration lands — it is the hardest thing to change afterwards. The backlog says the tagging contract's `visibility` field carries the distinction, but `team_messages` carries no contract field except `truth_level`, `visibility='private'` names no owner, and an agent reply row has `author_user_id = NULL` by construction (repos/team_messages.py:59). The plan uses one column, `private_to_user_id`.
+One remains:
 
-3. Should a superadmin read private-lane rows through /v1/admin/brain/events? The plan hides them (viewer = the superadmin's own id). The synchronous audit-write-before-read at admin_brain.py:107-150 exists precisely so superadmin content access is accountable, which is an argument for the opposite call.
-
-4. Should the tag work with an attachment? The plan says no for v1: /v1/media/{item_id}/raw authorizes on Bearer + X-Team-Scope alone (media.py:298-310) and the img token is minted from (item_id, team_scope) with no message binding (media_helpers.py:56), so filtering the message row hides the bubble and not the blob.
-
-5. Where does the private answer render? The extension has an ephemeral author-only panel (#catchup-summary, popup.html:173-179); app-site/app/index.html has no catchup markup at all. The plan assumes a normal bubble marked 'not in the chat', because that is the only option the PWA has today without building the panel twice.
-
-6. The strings below have not been through the `wr` + `verify-copy` pipeline this project requires for audience-facing text. Treat them as the specification of what must be said, not as final copy.
+1. **The strings in "Wording" above have not been through the `wr` + `verify-copy`
+   pipeline** this project requires for audience-facing text. Treat them as the
+   specification of what must be said, not as final copy. A vetted draft exists
+   outside the repo (2026-08-06) and has not been written into any file, so
+   whoever builds task 12/13 should get the owner's approval on the exact strings
+   before shipping them.

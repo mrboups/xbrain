@@ -1,6 +1,16 @@
 # Team Onboarding Modal — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **DONE — DO NOT EXECUTE (annotated 2026-08-13).** This plan shipped in 2026-05.
+> `alembic/versions/0011_team_onboarding.py` and `apps/librechat/patches/onboarding.js`
+> both exist, and the endpoints it describes are live in `routes/teams.py`. Its 37
+> unticked `- [ ]` boxes are **tracking state that was never written back**, not
+> outstanding work — running this plan again would try to re-create a migration that
+> is five revisions behind head (`0034`).
+>
+> Two things have moved since: nginx vhosts are now templates under
+> `infrastructure/nginx/templates/` (corrected in the file map below), and LibreChat
+> sits behind the **`saas`** compose profile, so none of this runs on an OSS-light
+> install. Kept as the design record for how team onboarding was built.
 
 **Goal:** Every new (or team-less) LibreChat user sees a blocking 4-step modal that assigns them to a team before they can chat.
 
@@ -26,7 +36,7 @@
 | `apps/librechat/patches/onboarding.js` | Create | Vanilla JS 4-step modal (300 lines, no build step) |
 | `apps/librechat/Dockerfile` | Create | Extends LibreChat image; bakes patches; patches index.html |
 | `infrastructure/docker-compose.yml` | Modify | LibreChat service: `build:` instead of `image:`, add `BRIDGE_SHARED_SECRET` to env |
-| `infrastructure/nginx/conf.d/20-api.conf` | Modify | Add `Access-Control-Allow-Origin: https://chat.example.com` to memory-api location |
+| `infrastructure/nginx/templates/20-api.conf.template` | Modify | Add `Access-Control-Allow-Origin: https://chat.example.com` to memory-api location |
 
 ---
 

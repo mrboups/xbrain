@@ -1,5 +1,18 @@
 # xbrain — AI Cognitive OS
 
+> **SUPERSEDED — kickoff brief du 2026-05-02, conservé comme archive (annoté 2026-08-13).**
+> C'est le document d'origine qui a servi à `/gsd:new-project --auto @docs/idea.md`,
+> pas une description du produit actuel. Il décrit une intention, pas ce qui existe :
+> 27 phases ont été livrées depuis. **Ne rien planifier à partir d'ici.**
+>
+> Pour l'état réel : `CLAUDE.md` (statut, stack, conventions, architecture),
+> `.planning/PROJECT.md` + `REQUIREMENTS.md` + `ROADMAP.md` (périmètre et
+> traçabilité), `README.md` (vue externe), `docs/INSTALL.md` (installation).
+>
+> Ce qu'il garde d'utile : le problème d'origine et le raisonnement derrière les
+> invariants qui, eux, n'ont pas bougé — une seule couche `memory-api`, le contrat de
+> tagging, l'isolation par équipe, le multi-frontend.
+
 ## En une ligne
 
 Construire un **système de mémoire collective persistante** pour humains + agents, organisé par équipe et par projet — pas un workspace de chatbot.
