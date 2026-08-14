@@ -30,6 +30,12 @@ import {
   isNearBottom,
 } from "./chat_core/render.js";
 import { createPublicationRouter } from "./chat_core/publication.js";
+import {
+  TOOLTIP as BRAIN_TOOLTIP,
+  FIRST_USE as BRAIN_FIRST_USE,
+  firstUseSeen as brainFirstUseSeen,
+  markFirstUseSeen as markBrainFirstUseSeen,
+} from "./chat_core/brain_tag.js";
 import { createMessageMenu, removeMessageRow } from "./chat_core/message_menu.js";
 import { connectRealtime, createConnectionStatus } from "./chat_core/realtime.js";
 import { createTeamRail } from "./chat_core/team_rail.js";
@@ -83,6 +89,8 @@ const state = {
   // Agent toggle: armed before sending, cleared by a successful send. Never
   // persisted — a shared team chat must not open with the agent silently armed.
   agentArmed: false,
+  // Brain tag — armed before sending and reset after, like the agent toggle.
+  brainArmed: false,
   // Whether the SERVER says this person may remove other people's messages in
   // the team that is open. It comes back on the history response (one reader,
   // never broadcast) and is re-read on every team switch, because the answer is
@@ -849,6 +857,13 @@ function wireComposer() {
   if (agentBtn) {
     agentBtn.addEventListener("click", () => setAgentArmed(!state.agentArmed));
   }
+  // The icon carries no text, so every word about it comes from brain_tag.js.
+  const brainBtn = document.getElementById("btn-brain");
+  if (brainBtn) {
+    brainBtn.title = BRAIN_TOOLTIP;
+    brainBtn.setAttribute("aria-label", BRAIN_TOOLTIP);
+    brainBtn.addEventListener("click", () => setBrainArmed(!state.brainArmed));
+  }
 
   // "+" opens the OS picker; the picker's change event does the upload. The
   // button never touches a file itself, so there is exactly one upload path.
@@ -984,6 +999,55 @@ function setAgentArmed(on) {
   btn.setAttribute("aria-pressed", state.agentArmed ? "true" : "false");
 }
 
+
+/** Same contract as setAgentArmed: paint the state AND announce it. */
+function setBrainArmed(on) {
+  state.brainArmed = Boolean(on);
+  const btn = document.getElementById("btn-brain");
+  if (!btn) return;
+  btn.dataset.state = state.brainArmed ? "on" : "off";
+  btn.setAttribute("aria-pressed", state.brainArmed ? "true" : "false");
+}
+
+/**
+ * The one-time explanation, resolved true when the person sends anyway.
+ *
+ * A panel rather than confirm(): this is the last moment someone can change
+ * their mind while still believing the tag hides the note from the team, so it
+ * has to be readable, not a browser chrome box they dismiss on reflex.
+ */
+function showBrainFirstUse() {
+  const overlay = document.getElementById("brain-overlay");
+  if (!overlay) return Promise.resolve(true); // no panel, no gate — never block a send
+  document.getElementById("brain-overlay-title").textContent = BRAIN_FIRST_USE.title;
+  document.getElementById("brain-overlay-body").textContent = BRAIN_FIRST_USE.body;
+  const yes = document.getElementById("btn-brain-confirm");
+  const no = document.getElementById("btn-brain-cancel");
+  yes.textContent = BRAIN_FIRST_USE.confirm;
+  no.textContent = BRAIN_FIRST_USE.cancel;
+  overlay.hidden = false;
+  yes.focus();
+
+  return new Promise((resolve) => {
+    const done = (answer) => {
+      overlay.hidden = true;
+      yes.removeEventListener("click", onYes);
+      no.removeEventListener("click", onNo);
+      document.removeEventListener("keydown", onKey);
+      resolve(answer);
+    };
+    const onYes = () => done(true);
+    const onNo = () => done(false);
+    // Escape means "keep editing" — the safe answer.
+    const onKey = (e) => {
+      if (e.key === "Escape") done(false);
+    };
+    yes.addEventListener("click", onYes);
+    no.addEventListener("click", onNo);
+    document.addEventListener("keydown", onKey);
+  });
+}
+
 async function sendMessage() {
   const input = el("composer-input");
   const sendBtn = el("btn-send");
@@ -1005,9 +1069,21 @@ async function sendMessage() {
   // block a message, and on a phone there is nothing to nudge and never will be.
   ensureBridge();
 
+  // First use of the tag: explain BEFORE the message goes. The closed eye reads
+  // as "hidden", and this is the last moment the person can change their mind
+  // while still believing it.
+  if (state.brainArmed && !(await brainFirstUseSeen(webPlatform.storage))) {
+    const proceed = await showBrainFirstUse();
+    if (!proceed) return;
+    await markBrainFirstUseSeen(webPlatform.storage);
+  }
+
   if (sendBtn) sendBtn.disabled = true;
   try {
-    const sent = await api.postMessage(state.activeTeamId, { content });
+    const sent = await api.postMessage(state.activeTeamId, {
+      content,
+      private: state.brainArmed,
+    });
     // Cleared only AFTER the server took it: clearing first would throw away
     // what they wrote whenever the send fails.
     input.value = "";
@@ -1018,6 +1094,7 @@ async function sendMessage() {
     // armed toggle nobody noticed would send the next line meant for teammates
     // to the agent as well, in front of everyone.
     setAgentArmed(false);
+    setBrainArmed(false);
     // Optimistic render straight from the POST response instead of waiting for
     // the websocket echo, which can lag or be missed entirely while the surface
     // is backgrounded. renderMessage de-dupes by id, so the echo is a no-op.

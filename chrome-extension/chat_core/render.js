@@ -38,6 +38,7 @@ import {
   dayLabel,
 } from "./chat_stream.js";
 import { renderMarkdownInto } from "./markdown.js";
+import { BUBBLE_LABEL, TOOLTIP } from "./brain_tag.js";
 
 /**
  * Does a message body get parsed as markdown, or shown exactly as typed?
@@ -422,10 +423,11 @@ export function createRenderer(opts) {
     if (msg.private) {
       const hidden = doc.createElement("span");
       hidden.className = "xb-msg-provenance xb-msg-hidden";
-      hidden.textContent = "not in the chat";
-      hidden.title =
-        "Only you see this here. The team's brain still learns it — teammates " +
-        "can find it by searching, and the agent can quote it.";
+      // Both strings come from brain_tag.js so the marker, the composer icon
+      // and the first-use sheet cannot drift apart. They went through the
+      // wr + verify-copy pass; the placeholder they replace was mine.
+      hidden.textContent = BUBBLE_LABEL;
+      hidden.title = TOOLTIP;
       meta.appendChild(hidden);
     }
     // Body — the bubble (own = --primary, others = --muted, agent = --card).

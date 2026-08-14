@@ -471,7 +471,7 @@ const pwaCss = readFileSync(join(APP_DIR, "app.css"), "utf8").replace(
   "",
 );
 
-test("agent toggle: #btn-agent is the control immediately left of #btn-send", () => {
+test("composer pill: agent, then brain, then send — in that order", () => {
   const start = pwaHtml.indexOf('class="xb-composer-pill"');
   assert.ok(start !== -1, "index.html has no .xb-composer-pill");
   // Bounded at the pill's own close so a button elsewhere on the page cannot
@@ -493,10 +493,16 @@ test("agent toggle: #btn-agent is the control immediately left of #btn-send", ()
   const ids = [...pwaHtml.slice(open, end).matchAll(/<button[^>]*id="([^"]+)"/g)].map(
     (x) => x[1],
   );
+  // The owner's decision of 2026-08-06: the brain tag sits immediately RIGHT of
+  // the agent toggle rather than at the far end of the pill. The two are the
+  // composer's "who is this for" pair and stay adjacent; attach keeps its place
+  // at the far left. Comparing the LAST THREE pins the whole arrangement.
+  assert.ok(ids.includes("btn-agent"), "the composer pill has no #btn-agent");
+  assert.ok(ids.includes("btn-brain"), "the composer pill has no #btn-brain");
   assert.deepEqual(
-    ids.slice(-2),
-    ["btn-agent", "btn-send"],
-    `the toggle must be immediately left of send (pill order: ${ids.join(" -> ")})`,
+    ids.slice(-3),
+    ["btn-agent", "btn-brain", "btn-send"],
+    `pill order must end agent -> brain -> send (actual: ${ids.join(" -> ")})`,
   );
 });
 

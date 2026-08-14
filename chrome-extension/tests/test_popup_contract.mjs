@@ -90,8 +90,12 @@ const FROZEN_IDS = [
   "invite-join-status",
   // Plan 26-05 — board action id.
   "btn-board",
-  // The agent toggle, immediately left of send.
+  // The agent toggle, and the brain tag immediately right of it.
   "btn-agent",
+  "btn-brain",
+  // The brain tag's one-time explanation (shown before the first tagged send).
+  "btn-brain-confirm",
+  "btn-brain-cancel",
 ];
 
 // Every class popup.js emits on nodes it builds, or toggles at runtime, and
@@ -830,18 +834,42 @@ test("composer: the mention hint is deleted, not hidden", () => {
 // second one, and the two would disagree the first time either changed.
 // ===========================================================================
 
-test("agent toggle: #btn-agent sits immediately left of #btn-send in the pill", () => {
+test("composer pill: agent, then brain, then send — in that order", () => {
   // Read the buttons the composer pill actually contains, in order. Comparing
-  // the LAST TWO is what pins "immediately left" — a later control dropped in
-  // between the two would go red here rather than at a glance in the popup.
+  // the LAST THREE is what pins the arrangement — a later control dropped in
+  // between any of them goes red here rather than at a glance in the popup.
+  //
+  // The order is the owner's decision of 2026-08-06: the brain tag sits
+  // immediately RIGHT of the agent toggle, not at the far end of the pill.
+  // The two are the composer's "who is this for" pair, so they stay adjacent,
+  // and the attach button keeps its place at the far left.
   const region = divBlock(HTML, HTML.indexOf('class="xb-composer-pill"'));
   assert.ok(region, "popup.html has no .xb-composer-pill");
   const ids = [...region.matchAll(/<button[^>]*id="([^"]+)"/g)].map((m) => m[1]);
   assert.ok(ids.includes("btn-agent"), "the composer pill has no #btn-agent");
+  assert.ok(ids.includes("btn-brain"), "the composer pill has no #btn-brain");
   assert.deepEqual(
-    ids.slice(-2),
-    ["btn-agent", "btn-send"],
-    `the toggle must be the control immediately left of send (pill order: ${ids.join(" -> ")})`,
+    ids.slice(-3),
+    ["btn-agent", "btn-brain", "btn-send"],
+    `pill order must end agent -> brain -> send (actual: ${ids.join(" -> ")})`,
+  );
+});
+
+test("brain tag: it is a real toggle, and it carries no text of its own", () => {
+  const tag = /<button[^>]*id="btn-brain"[^>]*>/.exec(popupHtml);
+  assert.ok(tag, "popup.html has no #btn-brain button");
+  assert.match(tag[0], /type="button"/);
+  assert.match(
+    tag[0],
+    /aria-pressed="false"/,
+    "a toggle announces itself with aria-pressed — a plain button reads as an action",
+  );
+  // Deliberately label-less in the markup: the tooltip and the aria-label are
+  // injected from chat_core/brain_tag.js, so the words a person reads about
+  // this control cannot drift from the first-use sheet and the bubble label.
+  assert.ok(
+    !/title=/.test(tag[0]),
+    "the title must come from brain_tag.js, not be hardcoded here",
   );
 });
 

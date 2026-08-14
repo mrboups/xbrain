@@ -328,9 +328,11 @@ clear"** — never that it is confidential, and never that nobody else can see i
 If someone asks whether the team can see it, the answer is: not in the chat, yes
 in the brain.
 
-A team admin cannot read it in the chat either — the chat surface and the Brain
-Monitor both hide it from everyone but its author. A superadmin can, and that
-access is written to the audit log before the read.
+No teammate sees it **in the chat**, an admin included. Everywhere else it
+behaves like any other note: it is listed in the Brain Monitor and it comes back
+from search, for the whole team. If that sounds like a contradiction, it is the
+whole point of the feature — the chat stays clear, the knowledge does not
+disappear.
 
 **The composer control for this has not shipped.** The server accepts the tag and
 the chat can render a tagged message ("not in the chat" beside the bubble), but

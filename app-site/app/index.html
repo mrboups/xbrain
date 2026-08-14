@@ -209,6 +209,20 @@
             <path d="M5.6 10.6h3.8" stroke="currentColor" stroke-width="1" stroke-linecap="round" />
           </svg>
         </button>
+        <!--
+          Brain tag — keeps this message out of the team chat. NOT a privacy
+          control: the note still lands in the team's brain and any teammate can
+          find it. Closed-eye icon; the title comes from chat_core/brain_tag.js,
+          which is what keeps the icon's "hidden" from becoming a promise. Sits
+          immediately right of the agent toggle, as on the extension.
+        -->
+        <button type="button" id="btn-brain" class="xb-icon-btn xb-brain-btn" aria-pressed="false" data-state="off">
+          <svg viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+            <path d="M1.5 7.5s2.4-4 6-4 6 4 6 4" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.45" />
+            <path d="M2 6.2c.9 1.4 2.9 3.3 5.5 3.3S12.1 7.6 13 6.2" stroke="currentColor" stroke-width="1" stroke-linecap="round" />
+            <path d="M4.2 8.6 3.1 10.2M7.5 9.5V11.3M10.8 8.6l1.1 1.6" stroke="currentColor" stroke-width="1" stroke-linecap="round" />
+          </svg>
+        </button>
         <button type="button" id="btn-send" class="xb-send-btn" title="Send (Enter)  ·  Shift+Enter for newline" aria-label="Send">
           <span aria-hidden="true">&rsaquo;</span>
         </button>
@@ -589,6 +603,22 @@
     says which of those two this surface is — there is no "send current page"
     control here, because it would send nothing.
   -->
+  <!-- Brain-tag first use. Shown once, before the first tagged message goes. -->
+  <div id="brain-overlay" class="xb-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="brain-overlay-title">
+    <div class="xb-overlay-card">
+      <header class="xb-overlay-header">
+        <h3 id="brain-overlay-title"></h3>
+      </header>
+      <div class="xb-overlay-body">
+        <p id="brain-overlay-body"></p>
+      </div>
+      <footer class="xb-overlay-footer">
+        <button type="button" id="btn-brain-cancel" class="xb-btn-secondary"></button>
+        <button type="button" id="btn-brain-confirm" class="xb-btn-primary"></button>
+      </footer>
+    </div>
+  </div>
+
   <div id="people-panel" class="xb-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="people-title">
     <div class="xb-overlay-card">
       <header class="xb-overlay-header">

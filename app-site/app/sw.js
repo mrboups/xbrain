@@ -39,7 +39,7 @@
  * Makefile and in verify-phase27.sh, and goes red when a precached file changed
  * and this line did not.
  */
-const CACHE = "xb-app-shell-60f50e02d81f";
+const CACHE = "xb-app-shell-f11b6a5a0b33";
 
 /**
  * The shell. Every entry below now ships (27-06 landed the chat surface, 27-07
@@ -79,6 +79,7 @@ const SHELL = [
   "/app/chat_core/render.js",
   "/app/chat_core/message_menu.js",
   "/app/chat_core/publication.js",
+  "/app/chat_core/brain_tag.js",
   "/app/chat_core/realtime.js",
   "/app/chat_core/people.js",
   "/app/chat_core/invite.js",
