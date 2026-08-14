@@ -172,11 +172,26 @@ def _make_provider():
     """Return an AsyncMock provider that records all upsert calls."""
     p = MagicMock()
     p.upsert = AsyncMock()
+    # sync_repo soft-deletes the chunks a re-sync supersedes. A provider double
+    # without this is an incomplete double: every test here would fail on the
+    # pruning call rather than on what it set out to assert.
+    p.mark_deleted = AsyncMock()
     return p
 
 
 def _make_session():
-    return AsyncMock()
+    """A session whose one SELECT — the pruner's — answers "nothing stale".
+
+    Bare AsyncMock is not enough: `(await session.execute(...)).scalars().all()`
+    would hand back a coroutine, and every test would die inside the pruner. The
+    empty answer keeps these tests about what they are about; the pruning
+    behaviour has its own file (test_github_sync_pruning.py).
+    """
+    session = AsyncMock()
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = []
+    session.execute = AsyncMock(return_value=result)
+    return session
 
 
 @pytest.fixture

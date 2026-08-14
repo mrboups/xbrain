@@ -25,6 +25,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+import sqlalchemy as sa
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -164,6 +165,53 @@ def _line_windows(text: str, window: int = CHUNK_LINES) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+async def _stale_chunk_ids(
+    session: AsyncSession,
+    *,
+    team_scope: str,
+    repo: str,
+    file_path: str | None,
+    keep_ids: set[str],
+    seen_paths: set[str] | None = None,
+) -> list[str]:
+    """Ids this sync superseded: same repo, written by this sync, not just written.
+
+    Two shapes, one query. With `file_path`, it answers "what is left over from
+    the previous version of THIS file" — which covers an edited file (new sha,
+    new ids) and a file that shrank to fewer chunks. With `seen_paths`, it
+    answers "what belongs to a file this walk never saw", i.e. deleted or
+    renamed in the repo.
+
+    Scoped to `ingestion_origin = 'github-sync'` so a note a person wrote about
+    the same repo is never in scope, and to `team_scope` so one team's sync
+    cannot reach another team's rows.
+    """
+    where = [
+        "team_scope = :ts",
+        "metadata->>'ingestion_origin' = 'github-sync'",
+        "metadata->>'repo' = :repo",
+        "deleted_at IS NULL",
+    ]
+    params: dict[str, Any] = {"ts": team_scope, "repo": repo}
+    if file_path is not None:
+        where.append("metadata->>'file_path' = :fp")
+        params["fp"] = file_path
+    if seen_paths is not None:
+        # An empty walk must not delete the whole repo — the caller guards that
+        # case before calling, and this keeps the SQL honest if it ever slips.
+        if not seen_paths:
+            return []
+        where.append("NOT (metadata->>'file_path' = ANY(:paths))")
+        params["paths"] = list(seen_paths)
+    rows = (
+        await session.execute(
+            sa.text(f"SELECT id FROM memory_items WHERE {' AND '.join(where)}"),  # noqa: S608 — fragments are literals above
+            params,
+        )
+    ).scalars().all()
+    return [str(r) for r in rows if str(r) not in keep_ids]
+
+
 async def sync_repo(
     session: AsyncSession,
     provider: Any,
@@ -208,6 +256,12 @@ async def sync_repo(
     chunks_upserted = 0
     skipped = 0
     capped = False
+    walk_failed = False
+    # Every path this walk actually saw, and the chunks it just wrote for the
+    # file in hand. Both feed the pruning below; without them a re-sync leaves
+    # the previous version's chunks in memory_items and Qdrant forever.
+    seen_paths: set[str] = set()
+    chunks_pruned = 0
 
     # BFS queue of directory paths to visit
     queue: list[str] = [""]  # start at repo root
@@ -229,6 +283,10 @@ async def sync_repo(
                 error=str(exc),
             )
             skipped += 1
+            # A directory we could not list is a directory whose files we cannot
+            # claim to have seen. That disqualifies the end-of-sync sweep — see
+            # the guard below.
+            walk_failed = True
             continue
 
         for entry in entries:
@@ -285,6 +343,8 @@ async def sync_repo(
                 continue
 
             file_upserted = 0
+            seen_paths.add(epath)
+            written_ids: set[str] = set()
             for chunk_idx, chunk_text in enumerate(windows):
                 if chunks_upserted >= MAX_CHUNKS_TOTAL:
                     log.info(
@@ -329,6 +389,7 @@ async def sync_repo(
 
                 try:
                     await provider.upsert(item)
+                    written_ids.add(item_id)
                     chunks_upserted += 1
                     file_upserted += 1
                 except Exception as exc:
@@ -343,6 +404,29 @@ async def sync_repo(
 
                 if capped:
                     break
+
+            # Retire the previous version of THIS file. Runs only when the file
+            # was actually rewritten: pruning after a file whose every chunk
+            # failed to upsert would delete the good copy and leave nothing.
+            if file_upserted > 0:
+                for stale_id in await _stale_chunk_ids(
+                    session,
+                    team_scope=team_scope,
+                    repo=repo,
+                    file_path=epath,
+                    keep_ids=written_ids,
+                ):
+                    try:
+                        await provider.mark_deleted(stale_id, now)
+                        chunks_pruned += 1
+                    except Exception as exc:
+                        log.warning(
+                            "github_sync.prune_error",
+                            repo=repo,
+                            path=epath,
+                            item_id=stale_id,
+                            error=str(exc),
+                        )
 
             if file_upserted > 0:
                 files_indexed += 1
@@ -359,11 +443,41 @@ async def sync_repo(
         if capped:
             break
 
+    # Files that vanished from the repo — deleted or renamed. Only safe after a
+    # COMPLETE walk: a capped run stopped early and a failed listing never saw
+    # its directory, so in either case "not seen" does not mean "not there", and
+    # sweeping would delete a file that still exists.
+    if not capped and not walk_failed and seen_paths:
+        for stale_id in await _stale_chunk_ids(
+            session,
+            team_scope=team_scope,
+            repo=repo,
+            file_path=None,
+            keep_ids=set(),
+            seen_paths=seen_paths,
+        ):
+            try:
+                await provider.mark_deleted(stale_id, now)
+                chunks_pruned += 1
+            except Exception as exc:
+                log.warning(
+                    "github_sync.sweep_error", repo=repo, item_id=stale_id, error=str(exc)
+                )
+    elif chunks_upserted:
+        log.info(
+            "github_sync.sweep_skipped",
+            repo=repo,
+            capped=capped,
+            walk_failed=walk_failed,
+            reason="an incomplete walk cannot tell a deleted file from an unseen one",
+        )
+
     summary = {
         "repo": repo,
         "ref": ref,
         "files_indexed": files_indexed,
         "chunks_upserted": chunks_upserted,
+        "chunks_pruned": chunks_pruned,
         "skipped": skipped,
         "capped": capped,
     }
