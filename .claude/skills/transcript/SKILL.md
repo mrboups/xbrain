@@ -27,14 +27,27 @@ it the extraction returns a summary instead of a work list.
 
 Then locate the transcript: a file path in the message, a pasted block, or a
 file the owner names. **Do not read it into this conversation yet.** If it is
-pasted inline, write it to `.planning/transcripts/<slug>-raw.md` first so the
+pasted inline, write it to `<HOME>/<slug>-raw.md` first so the
 extractor can read it from disk without it living in our context twice.
 
 `<slug>` is `YYYY-MM-DD-<short-topic>`, derived from the transcript's own date
 when it has one.
 
+**Where the files go depends on the project.** Resolve it once, at the start,
+and use it everywhere below as `<HOME>`:
+
+| If the repo has | `<HOME>` is | Backlog goes to |
+|---|---|---|
+| `.planning/` | `.planning/transcripts/` | `.planning/BACKLOG.md` |
+| neither | `docs/transcripts/` | `docs/transcripts/BACKLOG.md` |
+
+This skill runs in every project, and most of them do not use `.planning/`.
+Creating that directory in a repo whose owner never chose it is how a tool
+leaves litter behind — and the owner then finds a planning folder they did not
+ask for, in a project that has its own conventions.
+
 **Check the ledger before doing anything else:** if
-`.planning/transcripts/<slug>.md` exists, this transcript was worked before.
+`<HOME>/<slug>.md` exists, this transcript was worked before.
 Read it, tell the owner what was already decided, and triage only what is new.
 Re-asking a question they already answered is the fastest way to make a tool
 like this annoying enough to abandon.
@@ -108,15 +121,17 @@ Rules for this loop:
 Act only after the whole list is triaged, so the owner sees the full
 consequence before any of it lands.
 
-- **Keep** → append to `.planning/transcripts/<slug>.md` under `## Kept`, each
+- **Keep** → append to `<HOME>/<slug>.md` under `## Kept`, each
   with its quote and date. Then offer — once, not per item — to push them into
   the team brain through memory-api. Pushing is a separate yes: the file is
   local and reversible, the brain is shared and read by the agent.
 - **Apply** → for each, state the concrete change in one line and get a yes
   before making it. If several applies touch the same file, do them in one
   pass. Anything that turns into real work (a phase, a migration, a feature)
-  goes through the project's normal route — GSD — rather than an ad-hoc edit.
-- **Later** → one `.planning/BACKLOG.md` entry per item, written so it can be
+  goes through whatever route the project already uses for planned work — GSD
+  where the repo has it, otherwise the convention in its CLAUDE.md — rather
+  than an ad-hoc edit.
+- **Later** → one `<BACKLOG>` entry per item, written so it can be
   picked up cold: what was said, why it matters, what it would change. A
   backlog line nobody can act on six weeks later is a deleted line with extra
   steps.
@@ -127,7 +142,7 @@ consequence before any of it lands.
 
 ## Step 5 — Close the loop
 
-Write `.planning/transcripts/<slug>.md` with: the goal, the date, counts per
+Write `<HOME>/<slug>.md` with: the goal, the date, counts per
 verb, and the four sections. Then tell the owner, in a few lines: what landed
 where, what is now in the backlog, and — separately — anything you disagreed
 with but did not act on.
